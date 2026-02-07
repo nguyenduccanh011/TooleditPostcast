@@ -1,6 +1,10 @@
 # Build outputs
 bin/
 obj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
 
 # Visual Studio
 .vs/
@@ -8,6 +12,10 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+*.sln.iml
+*.vcxproj.user
+*.vcxproj.filters
+*.csproj.user
 
 # Rider
 .idea/
@@ -15,17 +23,66 @@ obj/
 
 # VS Code
 .vscode/
+*.code-workspace
 
 # NuGet
 packages/
 *.nupkg
 *.snupkg
+.nuget/
+
+# Build artifacts
+*.dll
+*.exe
+*.pdb
+
+# Database & Local files
+*.db
+*.sqlite
+*.sqlite3
+app.db
+PodcastVideoEditor.db
+*.mdf
+*.ldf
 
 # Logs and temp
 *.log
+*.log.*
+Logs/
+logs/
 *.tmp
 *.bak
+*.swp
+*.swo
+*~
+
+# AppData / Local cache
+AppData/
+.AppData/
+
+# Configuration
+appsettings.local.json
+appsettings.Development.json
+*.local.*
+.env
+.env.local
+secrets.json
 
 # OS
 .DS_Store
 Thumbs.db
+
+# IDE / Editor
+.editorconfig
+
+# Test Results
+TestResults/
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+
+# Misc
+.cache/
+temp/
+tmp/
+coverage/

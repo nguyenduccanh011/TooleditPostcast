@@ -1,0 +1,91 @@
+<UserControl x:Class="PodcastVideoEditor.Ui.Controls.AudioPlayerControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Background="#F5F5F5" Margin="15">
+        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+            <TextBlock Text="{Binding AudioFileName}" 
+                       VerticalAlignment="Center" 
+                       Foreground="#333333"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       Margin="0,0,10,0"/>
+            
+            <Button Content="Select Audio" 
+                    Width="120" 
+                    Height="32"
+                    Background="#007ACC"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Click="SelectAudioButton_Click"
+                    Cursor="Hand"/>
+        </StackPanel>
+
+        <StackPanel Margin="0,0,0,8">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                <TextBlock Text="{Binding PositionDisplay}" 
+                           Foreground="#666666"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Width="40"/>
+                
+                <Slider Margin="10,0"
+                        Minimum="0" 
+                        Maximum="{Binding TotalDuration}"
+                        Value="{Binding CurrentPosition, Mode=OneWay}"
+                        PreviewMouseLeftButtonDown="ProgressSlider_PreviewMouseLeftButtonDown"
+                        PreviewMouseLeftButtonUp="ProgressSlider_PreviewMouseLeftButtonUp"
+                        VerticalAlignment="Center"
+                        Width="400"/>
+                
+                <TextBlock Text="{Binding DurationDisplay}" 
+                           Foreground="#666666"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Width="40"/>
+            </StackPanel>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" 
+                    HorizontalAlignment="Center"
+                    Margin="0,10,0,10">
+            
+            <Button Name="PlayButton"
+                    Content="Play" 
+                    Width="80" 
+                    Height="36"
+                    Background="#28A745"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Command="{Binding PlayCommand}"
+                    Cursor="Hand"
+                    Margin="0,0,10,0"/>
+            
+            <Button Name="PauseButton"
+                    Content="Pause" 
+                    Width="80" 
+                    Height="36"
+                    Background="#FF9800"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Command="{Binding PauseCommand}"
+                    Cursor="Hand"
+                    Margin="0,0,10,0"/>
+            
+            <Button Name="StopButton"
+                    Content="Stop" 
+                    Width="80" 
+                    Height="36"
+                    Background="#DC3545"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Command="{Binding StopCommand}"
+                    Cursor="Hand"/>
+        </StackPanel>
+
+        <TextBlock Name="StatusText"
+                   Text="Ready"
+                   Foreground="#999999"
+                   FontSize="11"
+                   Margin="0,10,0,0"/>
+    </StackPanel>
+</UserControl>

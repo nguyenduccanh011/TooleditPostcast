@@ -1,0 +1,106 @@
+<Window
+    x:Class="PodcastVideoEditor.Ui.Views.NewProjectDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="New Project"
+    Width="500"
+    Height="280"
+    WindowStartupLocation="CenterOwner"
+    Background="#1E1E1E"
+    Foreground="#FFFFFF"
+    ShowInTaskbar="False"
+    WindowStyle="SingleBorderWindow">
+
+    <Grid>
+        <StackPanel Margin="20" VerticalAlignment="Stretch">
+            <!-- Title -->
+            <TextBlock
+                Text="Create New Project"
+                FontSize="18"
+                FontWeight="Bold"
+                Margin="0,0,0,20"
+                Foreground="#007ACC" />
+
+            <!-- Project Name -->
+            <TextBlock Text="Project Name:" Margin="0,0,0,5" />
+            <TextBox
+                x:Name="ProjectNameTextBox"
+                Height="35"
+                Padding="10"
+                Background="#252526"
+                Foreground="#FFFFFF"
+                BorderBrush="#3E3E42"
+                BorderThickness="1"
+                Margin="0,0,0,15"
+                ToolTip="Enter a name for your project" />
+
+            <!-- Audio File Selection -->
+            <TextBlock Text="Audio File:" Margin="0,0,0,5" />
+            <Grid Margin="0,0,0,15">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBox
+                    x:Name="AudioFileTextBox"
+                    Grid.Column="0"
+                    Height="35"
+                    Padding="10"
+                    Background="#252526"
+                    Foreground="#FFFFFF"
+                    BorderBrush="#3E3E42"
+                    BorderThickness="1"
+                    IsReadOnly="True"
+                    ToolTip="Selected audio file path" />
+
+                <Button
+                    x:Name="BrowseButton"
+                    Grid.Column="1"
+                    Width="80"
+                    Height="35"
+                    Margin="10,0,0,0"
+                    Content="Browse..."
+                    Background="#007ACC"
+                    Foreground="#FFFFFF"
+                    BorderThickness="0"
+                    Click="BrowseButton_Click"
+                    Cursor="Hand" />
+            </Grid>
+
+            <!-- Buttons -->
+            <Grid Height="40" VerticalAlignment="Bottom">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button
+                    x:Name="CreateButton"
+                    Grid.Column="1"
+                    Width="100"
+                    Height="35"
+                    Margin="0,0,10,0"
+                    Content="Create"
+                    Background="#28A745"
+                    Foreground="#FFFFFF"
+                    BorderThickness="0"
+                    Click="CreateButton_Click"
+                    Cursor="Hand" />
+
+                <Button
+                    x:Name="CancelButton"
+                    Grid.Column="2"
+                    Width="100"
+                    Height="35"
+                    Content="Cancel"
+                    Background="#6C6C6C"
+                    Foreground="#FFFFFF"
+                    BorderThickness="0"
+                    Click="CancelButton_Click"
+                    Cursor="Hand" />
+            </Grid>
+        </StackPanel>
+    </Grid>
+</Window>
