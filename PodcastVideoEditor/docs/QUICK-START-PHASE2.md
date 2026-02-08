@@ -1,4 +1,4 @@
-# Phase 2 Quick Start Guide
+﻿# Phase 2 Quick Start Guide
 
 ## 📋 What's Completed (Phase 1 ✅)
 
@@ -10,7 +10,7 @@ The project has finished **Phase 1** with all core infrastructure:
 - ✅ **Render Pipeline**: Basic FFmpeg integration for video output
 - ✅ **UI Foundation**: MVVM architecture, 3-tab layout (Home, Editor, Settings)
 
-**Latest Status:** Tested and running successfully 🚀
+**Latest Status:** Phase 2 in progress (ST-7 and ST-8 complete)
 
 ---
 
@@ -28,7 +28,7 @@ Phase 2 focuses on **visual editing and real-time visualization**:
 - Real-time spectrum visualization using SkiaSharp
 - Subscribe to audio FFT data
 - Multiple styles: Bars, Waveform, Circular
-- Multiple color palettes: Rainbow, Fire, Ocean, Mono
+- Multiple color palettes: Rainbow, Fire, Ocean, Mono, Purple
 
 ### 3. Timeline Editor (ST-9)
 - Segment management (start time, duration, background image)
@@ -46,23 +46,29 @@ Phase 2 focuses on **visual editing and real-time visualization**:
 - Two-way binding with canvas selection
 - Color pickers, sliders, text inputs
 
+### 6. Unified Editor Layout (ST-12)
+- One Editor workspace like CapCut
+- Canvas + Toolbar + Properties + Timeline + Audio/Render in one screen
+- No tab switching for preview
+
 ---
 
 ## 📊 Phase 2 Planning
 
-**Total Effort:** ~30 hours  
+**Total Effort:** ~36 hours  
 **Target Duration:** 3-4 weeks  
-**Subtasks:** 5 (ST-7 through ST-11)
+**Subtasks:** 6 (ST-7 through ST-12)
 
 ### Task Breakdown
 
 | Task | Hours | Priority | Status |
 |------|-------|----------|--------|
-| ST-7: Canvas Infrastructure | 6 | 🔴 First | TODO |
-| ST-8: Visualizer Service | 8 | 🔴 Critical | TODO |
-| ST-9: Timeline Editor | 7 | 🟡 High | TODO |
-| ST-10: Canvas Integration | 4 | 🟡 High | TODO |
-| ST-11: Property Editor | 5 | 🟡 Medium | TODO |
+| ST-7: Canvas Infrastructure | 6 | 🔴 First | ✅ DONE |
+| ST-8: Visualizer Service | 8 | 🔴 Critical | ✅ DONE |
+| ST-9: Timeline Editor | 7 | 🟡 High | 🏁 NEXT |
+| ST-10: Canvas Integration | 4 | 🟡 High | ⏳ PENDING |
+| ST-11: Property Editor | 5 | 🟡 Medium | ⏳ PENDING |
+| ST-12: Unified Editor Layout | 6 | 🟡 Medium | ⏳ PENDING |
 
 ---
 
@@ -72,7 +78,7 @@ Phase 2 focuses on **visual editing and real-time visualization**:
 Read the detailed plan: **[Phase 2 Plan](phase2-plan.md)**
 
 Key sections:
-- ST-7 to ST-11 detailed requirements
+- ST-7 to ST-12 detailed requirements
 - Acceptance criteria for each task
 - Dependencies and integration flow
 - Risk assessment and mitigations
@@ -107,32 +113,19 @@ In the app:
 
 ## 🛠️ Development Workflow
 
-### Phase 2 Starting Point: ST-7
+### Phase 2 Starting Point: ST-9
 
-1. **Install Dependencies**
-   ```bash
-   cd src
-   dotnet add PodcastVideoEditor.Ui/PodcastVideoEditor.Ui.csproj package GongSolutions.WPF.DragDrop
-   ```
+1. **Create Timeline Infrastructure**
+   - Create `TimelineView.xaml`
+   - Create `TimelineViewModel`
+   - Sync playhead with audio
 
-2. **Create Canvas Infrastructure**
-   - Create `CanvasElement` abstract base class
-   - Create element type classes (Title, Logo, etc.)
-   - Create `CanvasViewModel`
-   - Create `CanvasView.xaml` with drag-drop
+2. **Test Timeline**
+   - Add segments
+   - Drag/resize segments
+   - Verify playhead sync
 
-3. **Test Canvas**
-   - Add canvas to MainWindow (tab or side panel)
-   - Create simple elements
-   - Test drag-drop
-
-4. **Move to ST-8: Visualizer**
-   - Create `VisualizerService`
-   - Create `VisualizerViewModel`
-   - Implement SkiaSharp rendering
-   - Test with audio playback
-
-5. **Continue with ST-9, ST-10, ST-11**
+3. **Continue with ST-10, ST-11, ST-12**
    - Follow the dependency flow in phase2-plan.md
    - Test each subtask before moving to next
 
@@ -143,7 +136,7 @@ In the app:
 | Document | Purpose |
 |----------|---------|
 | [phase2-plan.md](phase2-plan.md) | Detailed Phase 2 task breakdown |
-| [active.md](active.md) | Phase 1 summary, Phase 2 overview |
+| [active.md](active.md) | Current task pack status |
 | [state.md](state.md) | Project metadata, scope, timeline |
 | [arch.md](arch.md) | Architecture and design patterns |
 | [code_rules.md](code_rules.md) | Coding standards |
@@ -221,7 +214,7 @@ dotnet clean PodcastVideoEditor.slnx
 
 ## 🎯 Phase 2 Success Criteria
 
-✅ All 5 subtasks (ST-7 to ST-11) marked DONE  
+✅ All subtasks (ST-7 to ST-12) marked DONE  
 ✅ 0 build errors  
 ✅ Manual test plan passed  
 ✅ Visualizer rendering live spectrum correctly  
@@ -232,6 +225,5 @@ dotnet clean PodcastVideoEditor.slnx
 ---
 
 **Last Updated:** 2026-02-07  
-**Next Phase Start:** After ST-7 completion  
-**Estimated Timeline:** Feb 27 - Mar 27, 2026
-
+**Next Focus:** ST-9 Timeline Editor  
+**Estimated Timeline:** Feb 7 - Mar 7, 2026

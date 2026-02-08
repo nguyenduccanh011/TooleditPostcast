@@ -1,10 +1,10 @@
-# Podcast Video Editor
+﻿# Podcast Video Editor
 
 Windows WPF app to edit podcast audio and render videos with visualizers, images, and timelines.
 
 ## Status
 - ✅ Phase 1 (Core Engine & Audio) - COMPLETE
-- ⏳ Phase 2 (Canvas Editor & Visualizer) - READY TO START
+- 🚀 Phase 2 (Canvas Editor & Visualizer) - IN PROGRESS (ST-7, ST-8 done)
 - Planning and design docs are in `docs/`
 
 ## Tech stack

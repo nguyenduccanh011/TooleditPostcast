@@ -4,6 +4,348 @@
 **Started:** 2026-02-06
 **Phase 1 Completed:** 2026-02-07 ✅
 **Phase 2 Planning:** 2026-02-07 ✅
+**Phase 2 Implementation Started:** 2026-02-07 ✅
+**ST-7 & ST-8 Completed:** 2026-02-07 ✅
+**ST-9 (100%) Completed:** 2026-02-07 ✅
+**ST-10 Completed:** 2026-02-08 ✅
+**ST-11 Completed:** 2026-02-08 ✅
+**ST-12 Completed:** 2026-02-08 ✅ | **Phase 2: 100%**
+
+---
+
+## Session End: Feb 8, 2026 – Manual tests passed, session closed
+
+Manual tests (ST-12 unified editor, segment, layout) passed. Fixes: Editor tab Canvas+Property visible (MinHeight row), full-tab ScrollViewer để scroll xuống xem Timeline/Render. Phase 2 hoàn tất; sẵn sàng Phase 3 hoặc polish khi quay lại.
+
+---
+
+## Session 12: Feb 8, 2026 - ST-12 Unified Editor Layout (CapCut-like)
+
+**Duration:** ~30 min  
+**Status:** ✅ ST-12 COMPLETE | Phase 2 done
+
+### What Was Done
+- Replaced Editor tab with unified layout: Audio (top), Canvas + Property panel (middle), Timeline + Segment (bottom), Render (bottom).
+- Removed "Canvas Editor" tab; single Editor tab now has all tools. Tabs: Home (0), Editor (1), Settings (2).
+- Settings menu correctly opens Settings tab (index 2). New/Open project switches to Editor (index 1).
+
+### Files Modified
+1. `Ui/MainWindow.xaml` - Single Editor tab with Grid layout; removed Canvas Editor TabItem
+2. `docs/active.md` - ST-12 implementation plan + completion, Phase 2 100%
+3. `docs/state.md` - Phase 2 complete, ST-12 done
+4. `docs/worklog.md` - This entry
+
+---
+
+## Session 11: Feb 8, 2026 - ST-11 Bug Fixes & Manual Test Pass
+
+**Duration:** ~1 hour  
+**Status:** ✅ Manual test passed
+
+### Bug Fixes
+- Title/Text element: Canvas template bind Text/Content (was binding Name)
+- Visualizer Style: Sync VisualizerElement config to VisualizerViewModel on edit/select
+- IsVisible: Add Visibility binding to ItemContainerStyle (was ignored)
+- IsVisible default: _isVisible = true for new elements (was false)
+
+### Files Modified
+1. `Ui/Views/ElementTemplateSelector.cs` - Title/Text templates
+2. `Ui/Views/CanvasView.xaml` - TitleElementTemplate, TextElementTemplate, Visibility binding
+3. `Ui/ViewModels/PropertyEditorViewModel.cs` - OnVisualizerElementConfigChanged callback
+4. `Ui/ViewModels/CanvasViewModel.cs` - SyncVisualizerFromElement, callback wiring
+5. `Ui/Converters/CanvasConverters.cs` - AlignmentToTextAlignmentConverter
+6. `Core/Models/CanvasElement.cs` - _isVisible = true default
+
+---
+
+## Session 10: Feb 8, 2026 - ST-11 Element Property Editor Panel
+
+**Duration:** ~3 hours  
+**Status:** ✅ ST-11 COMPLETE
+
+### What Was Done
+- [x] PropertyField.cs - Model with Name, Value, FieldType, PropertyInfo, constraints
+- [x] PropertyEditorViewModel.cs - Reflection, PropertyField list, two-way sync via PropertyChanged
+- [x] PropertyEditorView.xaml + PropertyFieldTemplateSelector - 8 templates (String, TextArea, Int, Float, Color, Enum, Bool, Slider)
+- [x] CanvasViewModel - PropertyEditor, SetSelectedElement, Dispose
+- [x] MainWindow - Canvas Editor tab layout: Canvas (left) + Property panel (right)
+- [x] Converters: ObjectToVisibilityConverter, NullToVisibilityConverter
+
+### Files Created
+1. `Core/Models/PropertyField.cs`
+2. `Ui/ViewModels/PropertyEditorViewModel.cs`
+3. `Ui/Views/PropertyEditorView.xaml`, PropertyEditorView.xaml.cs
+4. `Ui/Views/PropertyFieldTemplateSelector.cs`
+
+### Files Modified
+1. `Ui/ViewModels/CanvasViewModel.cs` - PropertyEditor, SelectElement(null), Dispose
+2. `Ui/Converters/CanvasConverters.cs` - ObjectToVisibilityConverter, NullToVisibilityConverter
+3. `Ui/App.xaml` - new converter resources
+4. `Ui/MainWindow.xaml` - Canvas Editor layout with PropertyEditorView
+5. `Ui/Views/CanvasView.xaml.cs` - SelectElement(null) on canvas click
+
+### Build Status
+✅ Build succeeded, 0 errors
+
+---
+
+## Session 9: Feb 8, 2026 - ST-10 Canvas + Visualizer Integration
+
+**Duration:** ~1 hour  
+**Status:** ✅ ST-10 COMPLETE
+
+### What Was Done
+- [x] SkiaConversionHelper.cs - SKBitmap → WriteableBitmap (SkiaSharp.Views.WPF)
+- [x] CanvasViewModel inject VisualizerViewModel, DispatcherTimer ~30fps, VisualizerBitmapSource
+- [x] ElementTemplateSelector - DataTemplate for VisualizerElement vs default
+- [x] CanvasView.xaml - VisualizerElementTemplate with Image bind bitmap
+- [x] MainWindow - wire CanvasViewModel(VisualizerViewModel), init visualizer on audio load
+- [x] Fix waveform style color (black on black) in VisualizerService
+
+### Files Created
+1. `Ui/Converters/SkiaConversionHelper.cs`
+2. `Ui/Views/ElementTemplateSelector.cs`
+
+### Files Modified
+1. `Ui/ViewModels/CanvasViewModel.cs` - inject VisualizerViewModel, timer, EnsureVisualizerTimer
+2. `Ui/Views/CanvasView.xaml` - DataTemplates, ItemTemplateSelector
+3. `Ui/Views/CanvasView.xaml.cs` - EnsureVisualizerTimer on load
+4. `MainWindow.xaml.cs` - CanvasViewModel(VisualizerViewModel), init on audio load, Dispose
+5. `Core/Services/VisualizerService.cs` - waveform GetNeonColor fix
+
+### Build Status
+✅ Build succeeded, 0 errors
+
+**Session End:** ST-10 manual test pass. Phase 2: 4/6 done. Next: ST-11.
+
+---
+
+## Session 8: Feb 7, 2026 - ST-9 TIMELINE XAML FIXES & COMPLETION
+
+**Duration:** 0.5 hours  
+**Status:** ✅ ST-9 COMPLETE
+
+### What Was Done
+- [x] **Fixed XAML StringFormat Bindings**
+  - Removed deprecated WPF StringFormat syntax from all bindings
+  - Created 5 new value converters in TimelineConverters.cs:
+    - `PixelsPerSecondConverter` - Formats px/s display (e.g., "10.0px/s")
+    - `TimeValueConverter` - Formats time values to 1 decimal place
+    - `TransitionDurationConverter` - Formats duration to 3 decimal places
+    - `DoubleFormatConverter` - Generic formatter with parameter support
+    - Already present: `DurationDisplayConverter`, `DurationToWidthConverter`, `TimeToPixelsConverter`
+  - Updated TimelineView.xaml bindings to use new converters
+  - Updated SegmentEditorPanel.xaml to use TransitionDurationConverter
+
+### Modified Files (Session 8)
+1. `Ui/Converters/TimelineConverters.cs` - Added 4 new converters (+84 LOC)
+2. `Ui/Views/TimelineView.xaml` - Updated status bar & segment duration bindings
+3. `Ui/Views/SegmentEditorPanel.xaml` - Added converter namespace & updated duration display
+
+### Build Status
+```
+✅ Build succeeded
+   - 0 Errors
+   - 32 Warnings (NuGet versions, file locks - non-critical)
+   - PodcastVideoEditor.Core.dll compiled
+   - PodcastVideoEditor.Ui.exe compiled
+```
+
+### ST-9 Acceptance Criteria - ALL MET ✅
+✅ TimelineView renders with ruler and segments  
+✅ Segments can be dragged and resized  
+✅ Playhead syncs with audio position  
+✅ Collision detection prevents overlaps  
+✅ SegmentEditorPanel shows properties  
+✅ Add/Delete/Duplicate segment commands work  
+✅ XAML bindings use proper WPF converters (no deprecated StringFormat)  
+✅ All formatting displays correctly (1-3 decimal places as needed)  
+✅ Solution builds with 0 errors ✅
+
+---
+
+## Session 7: Feb 7, 2026 - ST-8 VISUALIZER SERVICE
+
+**Duration:** 2 hours (est.)  
+**Status:** ✅ ST-8 COMPLETE
+
+### What Was Done
+- [x] **Created VisualizerConfig.cs** (Core/Models/)
+  - Configuration class with 10+ settings (BandCount, Style, Palette, SmoothingFactor, etc.)
+  - Enums: VisualizerStyle (Bars, Waveform, Circular), ColorPalette (Rainbow, Fire, Ocean, Mono, Purple)
+  - Validation method + Clone support
+  - Peak hold time, frequency ranges, dB thresholds
+
+- [x] **Created VisualizerService.cs** (Core/Services/)
+  - Real-time FFT spectrum processing
+  - 60fps rendering loop with background tasks
+  - Smoothing algorithm with exponential decay
+  - Peak hold indicators with configurable hold time
+  - Three rendering styles implemented:
+    - Bars: Vertical bars with peak indicators
+    - Waveform: Oscilloscope-style visualization
+    - Circular: Radial/spiral spectrum display
+  - Five color palettes (Rainbow, Fire, Ocean, Mono, Purple)
+  - Thread-safe bitmap handling with lock mechanism
+  - Event-based frame updates
+
+- [x] **Created VisualizerViewModel.cs** (Ui/ViewModels/)
+  - MVVM Toolkit with ObservableProperties
+  - Observable collections for styles, palettes, band counts
+  - Commands: SetStyle, SetPalette, SetBandCount
+  - Properties: CurrentConfig, SelectedStyle/Palette/BandCount, SmoothingFactor
+  - Playback state integration (auto start/stop with audio)
+  - Configuration update handling
+  - GetCurrentFrame() for rendering bitmap
+
+- [x] **Created VisualizerView.xaml & Code-behind** (Ui/Views/)
+  - Professional toolbar with dropdowns for style, palette, bands
+  - SKElement for SkiaSharp rendering
+  - Status bar with live info (width, height, bands, running status)
+  - OnPaintSurface handler for frame rendering
+  - Proper initialization on view load
+
+### ST-8 Acceptance Criteria Met
+✅ VisualizerService processes FFT data  
+✅ Spectrum data can be displayed in 3 styles (Bars, Waveform, Circular)  
+✅ 5 color palettes available (Rainbow, Fire, Ocean, Mono, Purple)  
+✅ Real-time 60fps rendering via background task  
+✅ Smoothing algorithm working correctly  
+✅ Peak hold indicators implemented  
+✅ VisualizerViewModel provides MVVM bindings  
+✅ UI controls for style/palette/bands selection  
+✅ Thread-safe bitmap handling  
+✅ Build succeeds with 0 errors ✅
+
+### Code Quality
+- MVVM Toolkit used consistently
+- Proper async/await with background tasks
+- Thread-safe rendering (lock-based synchronization)
+- Comprehensive error handling + logging (Serilog)
+- Null-safe bindings throughout
+- Configurable smoothing and peak hold
+
+### Build Status
+```
+✅ Build succeeded  
+   - 0 Errors
+   - 9 Warnings (NuGet versions, nullable fields - non-critical)
+   - PodcastVideoEditor.Core.dll compiled
+   - PodcastVideoEditor.Ui.exe compiled
+```
+
+### Blockers / Issues Resolved
+- ✅ MathF compatibility - Fixed by using Math.Clamp instead of MathF.Clamp
+- ✅ SkiaSharp.SKBitmap scaling - Fixed using SKRect destination approach
+- ✅ XAML Layout - Replaced Spacing with Margin for WPF compatibility
+- ✅ Enum duplication - Consolidated ColorPalette and VisualizerStyle in Models
+- ✅ ObservableProperty initialization - Fixed field initialization order
+
+### Files Created (Session 7)
+1. `Core/Models/VisualizerConfig.cs` - Configuration + enums (130 LOC)
+2. `Core/Services/VisualizerService.cs` - FFT processing + rendering (425 LOC)
+3. `Ui/ViewModels/VisualizerViewModel.cs` - MVVM ViewModel (250 LOC)
+4. `Ui/Views/VisualizerView.xaml` - UI markup (55 LOC)
+5. `Ui/Views/VisualizerView.xaml.cs` - Code-behind (58 LOC)
+
+### Modified Files (Session 7)
+- `Core/Models/CanvasElementTypes.cs` - Added Purple to ColorPalette enum
+
+### Phase 2 Progress Update
+| ST | Task | Hours | Status |
+|----|------|-------|--------|
+| ST-7 | Canvas Infrastructure | 6h | ✅ COMPLETED |
+| ST-8 | Visualizer Service | 8h | ✅ COMPLETED |
+| ST-9 | Timeline Editor | 7h | 🏁 NEXT |
+| ST-10 | Canvas Integration | 4h | ⏳ PENDING |
+| ST-11 | Property Editor Panel | 5h | ⏳ PENDING |
+| | **TOTAL** | 30h | **40% COMPLETE (12h used)** |
+
+### Technical Highlights
+- **60fps Rendering**: Background task maintains 60fps target using frame time calculations
+- **Peak Hold**: Peaks stay visible for configurable time, then decay smoothly
+- **Smoothing**: Exponential smoothing using Lerp to reduce jitter
+- **Thread Safety**: Lock-based bitmap swaps prevent rendering conflicts
+- **Color Palettes**: Hardcoded gradients for each palette, scalable to band count
+- **3 Styles**: Different mathematical approaches for each visualization
+- **Observable Config**: Real-time config updates without service restart
+
+### Next Immediate Steps (ST-9: Timeline Editor)
+1. Create TimelineSegment model for managing segments
+2. Create TimelineViewModel with segment management
+3. Create TimelineView with ruler, playhead, segment display
+4. Implement segment property editing
+5. Test with real audio playback
+
+### Lessons Learned
+- SKElement in WPF requires proper bitmap scaling with SKRect
+- MVVM Toolkit ObservableProperty auto-generates backing fields
+- Background tasks need proper cancellation token handling
+- Lerp function needed custom implementation for .NET 8
+- Color gradients should scale with band count
+
+---
+
+## Session 6: Feb 7, 2026 - ST-7 CANVAS INFRASTRUCTURE
+
+**Duration:** Completed (implementation already done)  
+**Status:** ✅ ST-7 COMPLETE
+
+### What Was Done
+- [x] **Verified ST-7 Implementation:**
+  - CanvasElement.cs - Abstract base class with MVVM properties (X, Y, Width, Height, ZIndex, IsSelected, IsVisible, Name)
+  - CanvasElementTypes.cs - 5 element types fully implemented:
+    - TitleElement (text with font, color, formatting)
+    - LogoElement (image with opacity, rotation)
+    - VisualizerElement (spectrum display settings)
+    - ImageElement (asset reference, crop, transform)
+    - TextElement (rich text formatting)
+  - CanvasViewModel.cs - Complete MVVM with ObservableCollection<CanvasElement>
+    - Commands: AddTitleElement, AddLogoElement, AddImageElement, AddVisualizerElement, AddTextElement
+    - Commands: DeleteSelectedElement, DuplicateElement, BringToFront, SendToBack, ClearAll
+    - Properties: Elements, SelectedElement, CanvasWidth/Height, GridSize, ShowGrid, StatusMessage
+  - CanvasView.xaml - Professional UI with toolbar + drag-drop support
+  - GongSolutions.WPF.DragDrop (v4.0.0) installed and configured
+
+### ST-7 Acceptance Criteria Met
+✅ CanvasElement abstract base class created  
+✅ 5 element type classes implemented  
+✅ MVVM CanvasViewModel with full command set  
+✅ CanvasView.xaml with toolbar and drag-drop  
+✅ GongSolutions.WPF.DragDrop dependency installed  
+✅ Elements can be created, selected, moved, layered  
+✅ Code follows code_rules.md standards  
+
+### Code Quality
+- All code uses MVVM Toolkit (CommunityToolkit.Mvvm)
+- Proper property binding with ObservableObject
+- Grid snapping support (optional)
+- Z-index clamping (0-100 range)
+- Element cloning and reset-to-default functionality
+
+### Phase 2 Progress Update
+| ST | Task | Status |
+|----|------|--------|
+| ST-7 | Canvas Infrastructure | ✅ COMPLETED |
+| ST-8 | Visualizer Service | 🏁 NEXT |
+| ST-9 | Timeline Editor | ⏳ PENDING |
+| ST-10 | Canvas Integration | ⏳ PENDING |
+| ST-11 | Property Editor Panel | ⏳ PENDING |
+
+**Phase 2 Progress:** 1/5 = 20% COMPLETE (6 hours used of 30h planned)
+
+### Next Immediate Steps (ST-8)
+1. Create VisualizerService with SkiaSharp rendering
+2. Implement real-time FFT spectrum analysis
+3. Support multiple visualizer styles (Bars, Waveform, Circular)
+4. Support multiple color palettes (Rainbow, Fire, Ocean, Mono)
+5. Subscribe to audio FFT data for live updates
+6. Test with 10+ minute audio for memory management
+
+### Notes
+- ST-7 was implemented in a previous session and verified complete
+- Architecture is solid - ready for visualizer integration
+- No blockers for ST-8 implementation
 
 ---
 
@@ -516,4 +858,8 @@ Start with **ST-3: Audio Service & NAudio Integration**
 
 ---
 
-Last updated: 2026-02-06
+**2026-02-08:** Phase 2 closed (REVIEWER). state.md → Phase=IDLE. Next: Phase 3 (Script & Timeline) hoặc manual test Phase 2.
+
+**2026-02-08:** Phase 2 code & doc review: MainWindow unified Editor OK, Canvas/Visualizer/Timeline/PropertyEditor/Segment đủ ST-7–ST-12. Build OK khi app không chạy; còn warnings (CS8618, CS0108, NU1603) ghi docs/issues nếu xử lý sau. Commit Phase 2.
+
+Last updated: 2026-02-08

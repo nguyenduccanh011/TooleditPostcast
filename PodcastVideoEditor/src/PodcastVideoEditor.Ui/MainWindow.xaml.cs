@@ -22,6 +22,11 @@ public partial class MainWindow : Window
     private readonly AppDbContext _dbContext;
     private readonly ProjectViewModel _projectViewModel;
     private readonly RenderViewModel _renderViewModel;
+    private readonly CanvasViewModel _canvasViewModel;
+    private readonly AudioService _audioService;
+    private readonly AudioPlayerViewModel _audioPlayerViewModel;
+    private readonly VisualizerViewModel _visualizerViewModel;
+    private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
     private readonly string _appDataPath;
 
@@ -48,8 +53,19 @@ public partial class MainWindow : Window
             var projectService = new ProjectService(_dbContext);
             _projectViewModel = new ProjectViewModel(projectService);
             _renderViewModel = new RenderViewModel();
+            _audioService = new AudioService();
+            _visualizerViewModel = new VisualizerViewModel(_audioService);
+            _canvasViewModel = new CanvasViewModel(_visualizerViewModel);
+            _audioPlayerViewModel = new AudioPlayerViewModel(_audioService);
+            _timelineViewModel = new TimelineViewModel(_audioService, _projectViewModel);
 
-            _mainViewModel = new MainViewModel(_projectViewModel, _renderViewModel);
+            _mainViewModel = new MainViewModel(
+                _projectViewModel,
+                _renderViewModel,
+                _canvasViewModel,
+                _audioPlayerViewModel,
+                _visualizerViewModel,
+                _timelineViewModel);
             DataContext = _mainViewModel;
 
             Log.Information("MainWindow initialized");
@@ -115,6 +131,8 @@ public partial class MainWindow : Window
             _projectViewModel.NewProjectName = dialog.ProjectName;
             _projectViewModel.SelectedAudioPath = dialog.AudioFilePath;
             await _projectViewModel.CreateProjectAsync();
+            await LoadProjectAudioAsync();
+            MainTabControl.SelectedIndex = 1;
         }
     }
 
@@ -123,6 +141,8 @@ public partial class MainWindow : Window
         if (_projectViewModel.CurrentProject != null)
         {
             await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
+            await LoadProjectAudioAsync();
+            MainTabControl.SelectedIndex = 1;
         }
     }
 
@@ -173,6 +193,29 @@ public partial class MainWindow : Window
         {
         }
 
+        _canvasViewModel?.Dispose();
+        _visualizerViewModel?.Dispose();
+        _audioPlayerViewModel?.Dispose();
+        _timelineViewModel?.Dispose();
         _dbContext?.Dispose();
+    }
+
+    private async Task LoadProjectAudioAsync()
+    {
+        var project = _projectViewModel.CurrentProject;
+        if (project == null || string.IsNullOrWhiteSpace(project.AudioPath))
+            return;
+
+        await _audioPlayerViewModel.LoadAudioAsync(project.AudioPath);
+
+        // Initialize visualizer when audio is loaded (for both Editor tab and Canvas tab)
+        _visualizerViewModel.VisualizerWidth = 800;
+        _visualizerViewModel.VisualizerHeight = 300;
+        _visualizerViewModel.Initialize();
+
+        // Sync timeline duration/width after audio load
+        var durationSeconds = Math.Max(1, _audioPlayerViewModel.TotalDuration);
+        _timelineViewModel.TotalDuration = durationSeconds;
+        _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
     }
 }

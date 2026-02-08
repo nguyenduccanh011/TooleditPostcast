@@ -14,17 +14,31 @@ namespace PodcastVideoEditor.Ui.Controls
     /// </summary>
     public partial class AudioPlayerControl : UserControl
     {
-        private AudioPlayerViewModel _viewModel;
         private bool _isDraggingSlider = false;
+        private bool _ownsViewModel = false;
 
         public AudioPlayerControl()
         {
             InitializeComponent();
-            
-            _viewModel = new AudioPlayerViewModel();
-            DataContext = _viewModel;
-            
+
+            Loaded += OnLoaded;
             Log.Information("AudioPlayerControl initialized");
+        }
+
+        private void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            EnsureViewModel();
+        }
+
+        private AudioPlayerViewModel EnsureViewModel()
+        {
+            if (DataContext is AudioPlayerViewModel existing)
+                return existing;
+
+            var viewModel = new AudioPlayerViewModel();
+            DataContext = viewModel;
+            _ownsViewModel = true;
+            return viewModel;
         }
 
         private void SelectAudioButton_Click(object sender, RoutedEventArgs e)
@@ -54,7 +68,7 @@ namespace PodcastVideoEditor.Ui.Controls
                     File.Copy(filePath, cacheFilePath, overwrite: true);
                     
                     // Load audio
-                    _viewModel.LoadAudioCommand.Execute(cacheFilePath);
+                    EnsureViewModel().LoadAudioCommand.Execute(cacheFilePath);
                     UpdateStatusText("Audio loaded successfully");
                     
                     Log.Information("Audio file selected and cached: {FileName}", Path.GetFileName(filePath));
@@ -78,7 +92,7 @@ namespace PodcastVideoEditor.Ui.Controls
             if (_isDraggingSlider && sender is Slider slider)
             {
                 _isDraggingSlider = false;
-                _viewModel.SeekCommand.Execute(slider.Value);
+                EnsureViewModel().SeekCommand.Execute(slider.Value);
             }
         }
 
@@ -94,7 +108,10 @@ namespace PodcastVideoEditor.Ui.Controls
 
         public void Cleanup()
         {
-            _viewModel?.Dispose();
+            if (_ownsViewModel && DataContext is AudioPlayerViewModel viewModel)
+            {
+                viewModel.Dispose();
+            }
         }
     }
 }

@@ -17,6 +17,7 @@ namespace PodcastVideoEditor.Core.Services
         private IWavePlayer? _wavePlayer;
         private string? _currentAudioPath;
         private AudioFileReader? _audioFileReader;
+        private SampleAggregator? _sampleAggregator;
 
         public event EventHandler<PlaybackStoppedEventArgs>? PlaybackStopped;
         public event EventHandler<EventArgs>? PlaybackStarted;
@@ -46,7 +47,8 @@ namespace PodcastVideoEditor.Core.Services
 
                     // Load new audio file
                     _audioFileReader = new AudioFileReader(filePath);
-                    _wavePlayer?.Init(_audioFileReader);
+                    _sampleAggregator = new SampleAggregator(_audioFileReader);
+                    _wavePlayer?.Init(_sampleAggregator);
                     _currentAudioPath = filePath;
 
                     var duration = _audioFileReader.TotalTime;
@@ -129,6 +131,7 @@ namespace PodcastVideoEditor.Core.Services
 
             var position = TimeSpan.FromSeconds(Math.Clamp(positionSeconds, 0, _audioFileReader.TotalTime.TotalSeconds));
             _audioFileReader.CurrentTime = position;
+            _sampleAggregator?.Reset();
             Log.Debug("Seek to {Position}s", positionSeconds);
         }
 
@@ -182,11 +185,18 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public float[] GetFFTData(int fftSize = 1024)
         {
-            // For MVP, return a dummy array. Real implementation would use NAudio's WaveBuffer
-            // and perform actual FFT via SkiaSharp or external library (NAudio doesn't include FFT)
-            return Enumerable.Range(0, fftSize / 2)
-                .Select(i => (float)Math.Sin(i * 0.01f) * 0.5f + 0.5f)
-                .ToArray();
+            if (_sampleAggregator == null)
+                return Array.Empty<float>();
+
+            try
+            {
+                return _sampleAggregator.GetFFTData(fftSize);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error getting FFT data");
+                return Array.Empty<float>();
+            }
         }
 
         /// <summary>
@@ -211,6 +221,7 @@ namespace PodcastVideoEditor.Core.Services
         {
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
+            _sampleAggregator = null;
             Log.Information("AudioService disposed");
         }
     }

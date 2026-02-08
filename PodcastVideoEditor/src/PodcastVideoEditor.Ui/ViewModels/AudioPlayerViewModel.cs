@@ -48,9 +48,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = "Ready";
 
-        public AudioPlayerViewModel()
+        public AudioPlayerViewModel(AudioService? audioService = null)
         {
-            _audioService = new AudioService();
+            _audioService = audioService ?? new AudioService();
             _audioService.PlaybackStarted += OnPlaybackStarted;
             _audioService.PlaybackPaused += OnPlaybackPaused;
             _audioService.PlaybackStopped += OnPlaybackStopped;

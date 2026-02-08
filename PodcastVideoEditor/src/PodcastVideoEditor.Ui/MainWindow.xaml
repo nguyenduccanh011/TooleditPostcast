@@ -38,7 +38,7 @@
                                     Click="NewProjectButton_Click" />
                             <Button Content="Open Selected" Width="130" Height="36" Margin="0,0,10,0"
                                     Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
-                                    Command="{Binding OpenProjectCommand}" CommandParameter="{Binding CurrentProject}" />
+                                    Click="OpenSelectedMenu_Click" />
                             <Button Content="Delete Selected" Width="130" Height="36" Margin="0,0,10,0"
                                     Background="#D13438" Foreground="#FFFFFF" BorderThickness="0"
                                     Command="{Binding DeleteProjectCommand}" CommandParameter="{Binding CurrentProject}" />
@@ -74,20 +74,49 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Unified Editor (CapCut-like): Canvas + Toolbar + Properties + Timeline + Audio + Render (scrollable) -->
             <TabItem Header="Editor">
-                <ScrollViewer>
-                    <Grid Margin="20">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              CanContentScroll="False">
+                    <Grid MinHeight="900">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="20" />
-                            <RowDefinition Height="*" />
+                            <RowDefinition Height="320" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="400" />
+                            <ColumnDefinition Width="Auto" MinWidth="240" MaxWidth="320" />
+                        </Grid.ColumnDefinitions>
 
-                        <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
-                            <controls:AudioPlayerControl x:Name="AudioPlayerControl" />
+                        <!-- Row 0: Audio player (full width) -->
+                        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                            <controls:AudioPlayerControl x:Name="AudioPlayerControl"
+                                                         DataContext="{Binding AudioPlayerViewModel}" />
                         </Border>
 
-                        <Border Grid.Row="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                        <!-- Row 1: Canvas (center) + Property panel (right) -->
+                        <views:CanvasView Grid.Row="1" Grid.Column="0" DataContext="{Binding CanvasViewModel}" />
+                        <Border Grid.Row="1" Grid.Column="1" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
+                            <views:PropertyEditorView DataContext="{Binding CanvasViewModel.PropertyEditor}" />
+                        </Border>
+
+                        <!-- Row 2: Timeline + Segment editor -->
+                        <Border Grid.Row="2" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="3*" />
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="2*" />
+                                </Grid.ColumnDefinitions>
+                                <views:TimelineView Grid.Column="0" DataContext="{Binding TimelineViewModel}" />
+                                <views:SegmentEditorPanel Grid.Column="2" DataContext="{Binding TimelineViewModel}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 3: Render -->
+                        <Border Grid.Row="3" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
                             <views:RenderView DataContext="{Binding RenderViewModel}" />
                         </Border>
                     </Grid>

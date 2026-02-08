@@ -1,55 +1,41 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace PodcastVideoEditor.Core.Models;
 
 /// <summary>
-/// A time-based segment within a project (script + background image)
+/// A time-based segment within a project (script + background image).
+/// Implements INotifyPropertyChanged so UI (e.g. Segment Properties panel) updates when
+/// StartTime/EndTime change from drag or resize on the timeline.
 /// </summary>
-public class Segment
+public partial class Segment : ObservableObject
 {
-    /// <summary>
-    /// Unique segment ID
-    /// </summary>
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    [ObservableProperty]
+    private string id = Guid.NewGuid().ToString();
 
-    /// <summary>
-    /// Project this segment belongs to
-    /// </summary>
-    public string ProjectId { get; set; } = string.Empty;
+    [ObservableProperty]
+    private string projectId = string.Empty;
 
-    /// <summary>
-    /// Start time in seconds
-    /// </summary>
-    public double StartTime { get; set; }
+    [ObservableProperty]
+    private double startTime;
 
-    /// <summary>
-    /// End time in seconds
-    /// </summary>
-    public double EndTime { get; set; }
+    [ObservableProperty]
+    private double endTime;
 
-    /// <summary>
-    /// Script text to display during this segment
-    /// </summary>
-    public string Text { get; set; } = string.Empty;
+    [ObservableProperty]
+    private string text = string.Empty;
 
-    /// <summary>
-    /// ID of background asset (image or video)
-    /// </summary>
-    public string? BackgroundAssetId { get; set; }
+    [ObservableProperty]
+    private string? backgroundAssetId;
 
-    /// <summary>
-    /// Type of transition to next segment (fade, slide, wipe, flip, none)
-    /// </summary>
-    public string TransitionType { get; set; } = "fade";
+    [ObservableProperty]
+    private string transitionType = "fade";
 
-    /// <summary>
-    /// Transition duration in seconds
-    /// </summary>
-    public double TransitionDuration { get; set; } = 0.5;
+    [ObservableProperty]
+    private double transitionDuration = 0.5;
 
-    /// <summary>
-    /// Display order within project
-    /// </summary>
-    public int Order { get; set; }
+    [ObservableProperty]
+    private int order;
 
-    // Navigation
+    // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }
 }

@@ -71,8 +71,8 @@ JSON Config:       System.Text.Json
 
 | Phase | Name | Status | Target |
 |-------|------|--------|--------|
-| **Phase 1** | Core Engine & Audio | ✅ DONE | Feb 6-7 |
-| **Phase 2** | Canvas Editor & Visualizer | ⏳ TODO | Week 4-6 |
+| **Phase 1** | Core Engine & Audio | ✅ DONE (100%) | Feb 6-7 |
+| **Phase 2** | Canvas Editor & Visualizer | ✅ DONE (100%) | Feb 7 - Mar 7 |
 | **Phase 3** | Script & Timeline | ⏳ TODO | Week 7-8 |
 | **Phase 4** | AI & Automation | ⏳ TODO | Week 9-10 |
 | **Phase 5** | Render Pipeline | ⏳ TODO | Week 11-13 |
@@ -81,13 +81,11 @@ JSON Config:       System.Text.Json
 
 ---
 
-## Current Phase: Phase 1 - ✅ COMPLETED
+## Current Phase: IDLE (Phase 2 closed)
 
-**Status:** 100% COMPLETE - PHASE 1 FINISHED AND TESTED ✅ (ST-1 through ST-6 all DONE)
+**Status:** Phase 2 (Canvas Editor & Visualizer) đã đóng — ST-7 through ST-12 DONE. Sẵn sàng Phase 3 (Script & Timeline) khi bắt đầu TP mới.
 
-**Last Updated:** 2026-02-07 (PHASE 1 COMPLETED AND VERIFIED - APP RUNNING & TESTED)
-
-See `active.md` for detailed task breakdown.
+**Last Updated:** 2026-02-08
 
 ---
 
@@ -111,7 +109,7 @@ Graphics:          SkiaSharp 2.88.x
 FFmpeg:            Xabe.FFmpeg 7.x
 HTTP:              Refit 7.x (for API client)
 Logging:           Serilog 3.x, Serilog.Sinks.File
-Drag&Drop:         GongSolutions.WPF.DragDrop 3.x
+Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 ```
 
 ---
@@ -161,37 +159,14 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 3.x
 1. **SkiaSharp + FFmpeg Pipe**: Nếu SkiaSharp vẽ quá chậm, pipe tới FFmpeg sẽ chết. → Mitigate: Test FFT rendering early.
 2. **Audio Sync**: Timestamp phải chính xác. → Mitigate: Extensive testing với sample files.
 3. **Memory Leak**: Bitmap disposal nếu không careful. → Mitigate: Code review, profiling.
-4. Immediate Next Steps (Khi resume)
-
-1. **ST-2: Database Schema** (2-3 hours)
-   - Create EF Core migration: `dotnet ef migrations add InitialCreate`
-   - Apply migration: `dotnet ef database update`
-   - Verify SQLite schema
-
-2. **ST-3: Audio Service** (4 hours)
-   - Implement IAudioService interface
-   - Integrate NAudio (LoadAudio, Play, Pause, FFT)
-   - Create AudioPlayerViewModel
-   - Build basic audio UI
-
-3. **ST-4: Project CRUD** (2 hours)
-   - Implement ProjectService
-   - ProjectRepository pattern
-   - "New Project" dialog
-
-4. **ST-5: FFmpeg Render** (4 hours)
-   - FFmpegService class
-   - RenderConfig model
-   - Validate FFmpeg installation
-   - Render audio + image → MP4
-
-5. **ST-6: MVP UI** (2 hours)
-   - MainWindow with tabs (Home, Editor, Settings)
-   - Integrate all services
-1. Create database schema
-2. Setup NuGet packages
-3. Implement AudioService + basic UI
-4. Test FFmpeg integration locally
 
 ---
-Last updated: 2026-02-06
+
+## Immediate Next Steps
+
+- **Phase 2:** Đã đóng (ST-7–ST-12 done). Khi bắt đầu phiên mới: tạo TP-003 cho Phase 3 (Script & Timeline) trong `state.md` và `active.md`.
+- **Phase 3 (Script & Timeline):** Chưa có TP — hỏi user "Vấn đề/feature tiếp theo?" hoặc tạo TP-003 theo scope Phase 3.
+
+---
+
+Last updated: 2026-02-08

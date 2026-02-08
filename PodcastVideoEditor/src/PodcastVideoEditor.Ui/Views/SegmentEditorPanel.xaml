@@ -1,0 +1,103 @@
+<UserControl x:Class="PodcastVideoEditor.Ui.Views.SegmentEditorPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
+             Background="#1e1e1e"
+             Foreground="#e0e0e0">
+
+    <UserControl.Resources>
+        <conv:TransitionDurationConverter x:Key="TransitionDurationConverter"/>
+        <conv:TimeValueConverter x:Key="TimeValueConverter"/>
+    </UserControl.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Segment Properties" 
+                  FontSize="14" FontWeight="Bold" Foreground="#64b5f6" Margin="0,0,0,15"/>
+
+        <!-- No Selection Message -->
+        <TextBlock x:Name="NoSelectionText"
+                  Grid.Row="1"
+                  Text="Select a segment from timeline to edit properties"
+                  Foreground="#7a8a96"
+                  FontStyle="Italic"
+                  Visibility="Visible"/>
+
+        <!-- Properties Panel -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="PropertiesPanel">
+            <StackPanel Margin="0,10,0,10">
+                <!-- Start / End time (read-only) -->
+                <TextBlock Text="Start / End time:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Foreground="#81c784" FontFamily="Courier New">
+                        <Run Text="Start: "/>
+                        <Run Text="{Binding SelectedSegment.StartTime, Converter={StaticResource TimeValueConverter}}"/>
+                        <Run Text=" s"/>
+                    </TextBlock>
+                    <TextBlock Grid.Column="1" Text=" → " Foreground="#546e7a" Margin="4,0"/>
+                    <TextBlock Grid.Column="2" Foreground="#81c784" FontFamily="Courier New">
+                        <Run Text="End: "/>
+                        <Run Text="{Binding SelectedSegment.EndTime, Converter={StaticResource TimeValueConverter}}"/>
+                        <Run Text=" s"/>
+                    </TextBlock>
+                </Grid>
+
+                <!-- Description -->
+                <TextBlock Text="Description:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBox Text="{Binding SelectedSegment.Text, UpdateSourceTrigger=PropertyChanged}"
+                        Background="#2d2d2d" Foreground="#e0e0e0"
+                        Padding="8,5" BorderThickness="1" BorderBrush="#546e7a"
+                        TextWrapping="Wrap" AcceptsReturn="True" Height="70"
+                        VerticalScrollBarVisibility="Auto" Margin="0,0,0,15"/>
+
+                <!-- Transition Type -->
+                <TextBlock Text="Transition:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <ComboBox SelectedItem="{Binding SelectedSegment.TransitionType, UpdateSourceTrigger=PropertyChanged}"
+                         Background="#2d2d2d" Foreground="#e0e0e0"
+                         BorderBrush="#546e7a" BorderThickness="1" Padding="8,5" Margin="0,0,0,15">
+                    <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">fade</System:String>
+                    <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">cut</System:String>
+                    <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">slide-left</System:String>
+                    <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">slide-right</System:String>
+                    <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">zoom-in</System:String>
+                </ComboBox>
+
+                <!-- Transition Duration -->
+                <TextBlock Text="Transition Duration:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="70"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                           Value="{Binding SelectedSegment.TransitionDuration, UpdateSourceTrigger=PropertyChanged}"
+                           Minimum="0.0" Maximum="3.0" IsMoveToPointEnabled="True"
+                           Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1"
+                              Text="{Binding SelectedSegment.TransitionDuration, Converter={StaticResource TransitionDurationConverter}}"
+                              Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
+                              TextAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Action Buttons -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Duplicate Min" Command="{Binding DuplicateSelectedSegmentCommand}"
+                           Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+                    <Button Content="Delete" Command="{Binding DeleteSelectedSegmentCommand}"
+                           Background="#e53935" Foreground="White" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+
+</UserControl>
