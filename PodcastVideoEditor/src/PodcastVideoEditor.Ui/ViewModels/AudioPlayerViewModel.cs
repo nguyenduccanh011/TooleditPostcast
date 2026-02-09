@@ -65,11 +65,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Log.Information("AudioPlayerViewModel initialized");
         }
 
+        private volatile bool _isUserSeeking = false;
+
+        /// <summary>
+        /// Call to suppress timer updates while the user is dragging the slider.
+        /// </summary>
+        public void BeginUserSeek() => _isUserSeeking = true;
+
+        /// <summary>
+        /// Call when user finishes dragging the slider.
+        /// </summary>
+        public void EndUserSeek() => _isUserSeeking = false;
+
         private void InitializePositionUpdateTimer()
         {
             _positionUpdateTimer = new System.Timers.Timer(33); // 30fps for smooth UI updates
             _positionUpdateTimer.Elapsed += (sender, e) =>
             {
+                // Do NOT update position while user is dragging the slider
+                // Otherwise the binding pushes the slider back to the old position mid-drag.
+                if (_isUserSeeking)
+                    return;
+
                 var current = _audioService.GetCurrentPosition();
                 
                 // Clamp position to TotalDuration to prevent overshoot in UI display

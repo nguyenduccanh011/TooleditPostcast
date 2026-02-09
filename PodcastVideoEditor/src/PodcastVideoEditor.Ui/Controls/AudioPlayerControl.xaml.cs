@@ -85,6 +85,8 @@ namespace PodcastVideoEditor.Ui.Controls
         private void ProgressSlider_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isDraggingSlider = true;
+            // Tell ViewModel to suppress timer updates so the slider doesn't fight with the user
+            EnsureViewModel().BeginUserSeek();
         }
 
         private void ProgressSlider_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -92,7 +94,10 @@ namespace PodcastVideoEditor.Ui.Controls
             if (_isDraggingSlider && sender is Slider slider)
             {
                 _isDraggingSlider = false;
-                EnsureViewModel().SeekCommand.Execute(slider.Value);
+                var vm = EnsureViewModel();
+                vm.SeekCommand.Execute(slider.Value);
+                // Resume timer updates after seek completes
+                vm.EndUserSeek();
             }
         }
 

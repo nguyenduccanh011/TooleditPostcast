@@ -164,6 +164,8 @@ namespace PodcastVideoEditor.Core.Services
                 _wavePlayer?.Stop();
                 if (_audioFileReader != null)
                     _audioFileReader.CurrentTime = TimeSpan.Zero;
+                // Reset sample counter to 0 (beginning of file)
+                _sampleAggregator?.SetPlayedSamples(0);
 
                 Log.Information("Playback stopped");
             }
@@ -180,51 +182,51 @@ namespace PodcastVideoEditor.Core.Services
 
             // Use actual duration (sample-counted) for clamping, not metadata TotalTime which can be wrong for VBR MP3
             double maxDuration = _actualDurationSeconds > 0 ? _actualDurationSeconds : _audioFileReader.TotalTime.TotalSeconds;
-            var position = TimeSpan.FromSeconds(Math.Clamp(positionSeconds, 0, maxDuration));
+            positionSeconds = Math.Clamp(positionSeconds, 0, maxDuration);
+            var position = TimeSpan.FromSeconds(positionSeconds);
             _audioFileReader.CurrentTime = position;
             _sampleAggregator?.Reset();
             
-            // Verify seek accuracy for VBR files
-            if (_totalSampleCount > 0 && _waveFormat != null)
+            // Sync the sample counter to match the seek position.
+            // This ensures GetCurrentPosition() returns accurate values after seek.
+            if (_waveFormat != null && _sampleAggregator != null)
             {
-                double actualPosition = GetCurrentPosition();
-                if (Math.Abs(actualPosition - positionSeconds) > 0.05) // >50ms difference
-                {
-                    Log.Debug("Seek variance (VBR file): Requested={Req}s, Actual={Act}s, Δ={Delta:F3}s",
-                        positionSeconds, actualPosition, Math.Abs(actualPosition - positionSeconds));
-                }
+                long seekSampleCount = (long)(positionSeconds * _waveFormat.SampleRate * _waveFormat.Channels);
+                _sampleAggregator.SetPlayedSamples(seekSampleCount);
             }
             
-            Log.Debug("Seek to {Position}s", positionSeconds);
+            Log.Debug("Seek to {Position}s (sample counter synced)", positionSeconds);
         }
 
         /// <summary>
         /// Get current playback position in seconds.
+        /// Uses SampleAggregator's played sample counter for accuracy.
+        /// This counts the exact samples fed to WaveOutEvent, which is more reliable than
+        /// AudioFileReader.Position (which can drift for VBR MP3 due to byte-to-time mapping).
         /// Optimized for frequent calls (30-60fps UI updates).
         /// </summary>
         public double GetCurrentPosition()
         {
-            if (_audioFileReader == null || _waveFormat == null)
+            if (_waveFormat == null)
                 return 0;
             
-            // For VBR files, use sample-based position (more accurate)
-            if (_totalSampleCount > 0)
+            // PRIMARY: Use the sample counter from SampleAggregator.
+            // This tracks exactly how many samples have been read for playback,
+            // giving a position that perfectly aligns with what the audio hardware is playing.
+            if (_sampleAggregator != null)
             {
-                // Direct calculation without intermediate variables for speed
-                long currentBytePosition = _audioFileReader.Position;
-                long currentSamplePosition = currentBytePosition / (_waveFormat.BitsPerSample / 8);
-                double sampleBasedPosition = (double)currentSamplePosition / (_waveFormat.SampleRate * _waveFormat.Channels);
+                long playedSamples = _sampleAggregator.PlayedSampleCount;
+                double position = (double)playedSamples / (_waveFormat.SampleRate * _waveFormat.Channels);
                 
-                // Clamp to actual duration to prevent overshoot beyond total duration
-                // (can happen due to WaveOut buffering reading ahead of playback)
-                if (_actualDurationSeconds > 0 && sampleBasedPosition > _actualDurationSeconds)
+                // Clamp to actual duration to prevent overshoot
+                if (_actualDurationSeconds > 0 && position > _actualDurationSeconds)
                     return _actualDurationSeconds;
                 
-                return sampleBasedPosition;
+                return position;
             }
             
-            // Fallback to CurrentTime for non-VBR (fast path)
-            return _audioFileReader.CurrentTime.TotalSeconds;
+            // Fallback to CurrentTime (only if SampleAggregator is not yet initialized)
+            return _audioFileReader?.CurrentTime.TotalSeconds ?? 0;
         }
 
         /// <summary>
