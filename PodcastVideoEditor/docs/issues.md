@@ -1,7 +1,9 @@
 # Issues & Blockers Tracker
 
 **Project:** Podcast Video Editor  
-**Updated:** 2026-02-06
+**Updated:** 2026-02-08
+
+**Cross-references (quy trình):** Các issue #10–#13 gắn với Phase 3/5/6. Khi tạo TP hoặc bắt đầu phase, đọc **`docs/state.md`** mục **Phase Commitments** và đưa issue tương ứng vào ST. Tham chiếu ngược: `state.md`, `active.md` (Resume Instructions), `decisions.md` (Forward References).
 
 ---
 

@@ -48,6 +48,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = "Ready";
 
+        /// <summary>
+        /// Raised when audio has been loaded successfully (from project open or Select audio).
+        /// MainWindow subscribes to sync timeline duration and waveform.
+        /// </summary>
+        public event EventHandler? AudioLoaded;
+
         public AudioPlayerViewModel(AudioService? audioService = null)
         {
             _audioService = audioService ?? new AudioService();
@@ -61,10 +67,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private void InitializePositionUpdateTimer()
         {
-            _positionUpdateTimer = new System.Timers.Timer(100); // Update every 100ms
+            _positionUpdateTimer = new System.Timers.Timer(33); // 30fps for smooth UI updates
             _positionUpdateTimer.Elapsed += (sender, e) =>
             {
-                CurrentPosition = _audioService.GetCurrentPosition();
+                var current = _audioService.GetCurrentPosition();
+                
+                // Clamp position to TotalDuration to prevent overshoot in UI display
+                if (TotalDuration > 0 && current > TotalDuration)
+                {
+                    current = TotalDuration;
+                }
+                
+                CurrentPosition = current;
                 PositionDisplay = FormatTime(CurrentPosition);
             };
             _positionUpdateTimer.AutoReset = true;
@@ -78,6 +92,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
+                // Reset playback state so UI and timer match (e.g. when switching project)
+                _positionUpdateTimer?.Stop();
+                IsPlaying = false;
                 StatusMessage = "Loading audio...";
                 Log.Information("Loading audio from: {FilePath}", filePath);
 
@@ -93,12 +110,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 StatusMessage = $"Loaded: {metadata.FileName} ({FormatTime(TotalDuration)})";
                 Log.Information("Audio loaded successfully: {FileName}", metadata.FileName);
+                AudioLoaded?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error loading audio file");
                 StatusMessage = $"Error: {ex.Message}";
                 IsAudioLoaded = false;
+                IsPlaying = false;
+                _positionUpdateTimer?.Stop();
             }
         }
 
@@ -226,6 +246,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             IsPlaying = false;
             StatusMessage = "Stopped";
+            
+            // Log final position to measure actual playback duration vs expected
+            if (TotalDuration > 0 && CurrentPosition > 0)
+            {
+                double overshoot = CurrentPosition - TotalDuration;
+                if (Math.Abs(overshoot) > 0.1)
+                {
+                    Log.Information("Playback stopped: FinalPosition={Final}s, ExpectedDuration={Expected}s, Overshoot={Over:F3}s ({Percent:F1}%)",
+                        CurrentPosition, TotalDuration, overshoot, (overshoot / TotalDuration) * 100);
+                }
+                else
+                {
+                    Log.Information("Playback stopped normally at {Final}s (Duration: {Expected}s)", CurrentPosition, TotalDuration);
+                }
+            }
+            
             CurrentPosition = 0;
             PositionDisplay = "00:00";
             _positionUpdateTimer?.Stop();

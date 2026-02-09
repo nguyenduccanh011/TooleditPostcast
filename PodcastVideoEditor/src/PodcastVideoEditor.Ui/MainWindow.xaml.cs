@@ -68,6 +68,8 @@ public partial class MainWindow : Window
                 _timelineViewModel);
             DataContext = _mainViewModel;
 
+            _audioPlayerViewModel.AudioLoaded += OnAudioLoaded;
+
             Log.Information("MainWindow initialized");
         }
         catch (Exception ex)
@@ -185,6 +187,7 @@ public partial class MainWindow : Window
 
     private void MainWindow_Closing(object sender, CancelEventArgs e)
     {
+        _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
         try
         {
             AudioPlayerControl?.Cleanup();
@@ -204,18 +207,31 @@ public partial class MainWindow : Window
     {
         var project = _projectViewModel.CurrentProject;
         if (project == null || string.IsNullOrWhiteSpace(project.AudioPath))
+        {
+            _timelineViewModel.AudioPeaks = Array.Empty<float>();
+            _audioPlayerViewModel.StopCommand.Execute(null);
             return;
+        }
 
+        _audioPlayerViewModel.StopCommand.Execute(null);
+        _timelineViewModel.AudioPeaks = Array.Empty<float>();
         await _audioPlayerViewModel.LoadAudioAsync(project.AudioPath);
+        // Timeline + waveform sync is done in OnAudioLoaded (so "Select audio" also updates waveform)
+    }
 
-        // Initialize visualizer when audio is loaded (for both Editor tab and Canvas tab)
+    /// <summary>
+    /// Called whenever audio is loaded (Open project or Select audio). Syncs timeline and waveform.
+    /// </summary>
+    private void OnAudioLoaded(object? sender, EventArgs e)
+    {
         _visualizerViewModel.VisualizerWidth = 800;
         _visualizerViewModel.VisualizerHeight = 300;
         _visualizerViewModel.Initialize();
 
-        // Sync timeline duration/width after audio load
         var durationSeconds = Math.Max(1, _audioPlayerViewModel.TotalDuration);
         _timelineViewModel.TotalDuration = durationSeconds;
         _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
+        _timelineViewModel.AudioPeaks = Array.Empty<float>();
+        _ = _timelineViewModel.RefreshAudioPeaksAsync();
     }
 }

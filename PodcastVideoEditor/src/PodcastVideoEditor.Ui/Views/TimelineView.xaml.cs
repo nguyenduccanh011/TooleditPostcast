@@ -1,11 +1,14 @@
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui.Views
@@ -29,12 +32,22 @@ namespace PodcastVideoEditor.Ui.Views
         private double _resizeLeftDeltaX;
         private double _resizeLeftOriginalStartTime;
         private double _moveDeltaX;
+        private readonly DispatcherTimer _zoomTimer;
+        private double _pendingZoomFactor = 1.0;
+        private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
+        private NotifyCollectionChangedEventHandler? _segmentsCollectionChangedHandler;
 
         public TimelineView()
         {
             InitializeComponent();
             Loaded += TimelineView_Loaded;
             Unloaded += TimelineView_Unloaded;
+
+            _zoomTimer = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(30)
+            };
+            _zoomTimer.Tick += ZoomTimer_Tick;
         }
 
         private void TimelineView_Loaded(object sender, RoutedEventArgs e)
@@ -43,16 +56,19 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (_viewModel != null)
             {
+                if (TimelineScroller != null)
+                    TimelineScroller.PreviewMouseWheel += TimelineScroller_PreviewMouseWheel;
+
                 // Update canvas width when timeline width changes
                 TimelineCanvas.Width = _viewModel.TimelineWidth;
-                PlayheadLine.Y2 = TimelineCanvas.Height;
+                // PlayheadLine spans full height (288) in XAML
 
                 // Draw initial ruler
-                UpdateRuler();
+                InvalidateRuler();
                 UpdateSegmentLayout();
 
                 // Subscribe to property changes
-                _viewModel.PropertyChanged += (s, args) =>
+                _viewModelPropertyChangedHandler = (s, args) =>
                 {
                     if (args.PropertyName == nameof(TimelineViewModel.PlayheadPosition))
                     {
@@ -60,9 +76,14 @@ namespace PodcastVideoEditor.Ui.Views
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.PixelsPerSecond))
                     {
-                        UpdateRuler();
+                        InvalidateRuler();
                         UpdatePlayheadPosition();
                         UpdateSegmentLayout();
+                        InvalidateWaveform();
+                    }
+                    else if (args.PropertyName == nameof(TimelineViewModel.TotalDuration))
+                    {
+                        InvalidateWaveform();
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
                     {
@@ -71,16 +92,23 @@ namespace PodcastVideoEditor.Ui.Views
                     else if (args.PropertyName == nameof(TimelineViewModel.TimelineWidth))
                     {
                         TimelineCanvas.Width = _viewModel.TimelineWidth;
-                        UpdateRuler();
+                        InvalidateRuler();
                         UpdateSegmentLayout();
+                        InvalidateWaveform();
+                    }
+                    else if (args.PropertyName == nameof(TimelineViewModel.AudioPeaks))
+                    {
+                        InvalidateWaveform();
                     }
                 };
+                _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
                 // Subscribe to segments collection changes
-                _viewModel.Segments.CollectionChanged += (s, args) =>
+                _segmentsCollectionChangedHandler = (s, args) =>
                 {
                     UpdateSegmentLayout();
                 };
+                _viewModel.Segments.CollectionChanged += _segmentsCollectionChangedHandler;
 
                 Log.Information("TimelineView loaded, ViewModel connected");
             }
@@ -88,60 +116,51 @@ namespace PodcastVideoEditor.Ui.Views
 
         private void TimelineView_Unloaded(object sender, RoutedEventArgs e)
         {
+            if (TimelineScroller != null)
+                TimelineScroller.PreviewMouseWheel -= TimelineScroller_PreviewMouseWheel;
+            if (_viewModel != null && _viewModelPropertyChangedHandler != null)
+                _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
+            if (_viewModel != null && _segmentsCollectionChangedHandler != null)
+                _viewModel.Segments.CollectionChanged -= _segmentsCollectionChangedHandler;
+            _zoomTimer.Stop();
             Log.Information("TimelineView unloaded");
         }
 
         /// <summary>
-        /// Draw ruler with time labels.
+        /// Ctrl + mouse wheel: zoom timeline. Without Ctrl: normal scroll (pan).
         /// </summary>
-        private void UpdateRuler()
+        private void TimelineScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (_viewModel == null || RulerCanvas == null)
+            if (Keyboard.Modifiers != ModifierKeys.Control)
                 return;
+            if (_viewModel == null)
+                return;
+            double factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
+            _pendingZoomFactor *= factor;
+            _zoomTimer.Stop();
+            _zoomTimer.Start();
+            e.Handled = true;
+        }
 
-            RulerCanvas.Children.Clear();
-            RulerCanvas.Width = _viewModel.TimelineWidth;
+        private void ZoomTimer_Tick(object? sender, EventArgs e)
+        {
+            _zoomTimer.Stop();
+            if (_viewModel == null)
+                return;
+            if (Math.Abs(_pendingZoomFactor - 1.0) < 0.0001)
+                return;
+            _viewModel.ZoomBy(_pendingZoomFactor);
+            _pendingZoomFactor = 1.0;
+        }
 
-            // Draw labels every 5 seconds
-            double interval = 5.0; // seconds
-            double pixelsPerSecond = _viewModel.PixelsPerSecond;
+        private void InvalidateRuler()
+        {
+            RulerControl?.InvalidateVisual();
+        }
 
-            for (double timeSeconds = 0; timeSeconds <= _viewModel.TotalDuration + 10; timeSeconds += interval)
-            {
-                double pixelX = timeSeconds * pixelsPerSecond;
-
-                if (pixelX > RulerCanvas.Width + 100)
-                    break;
-
-                // Vertical tick line
-                var line = new System.Windows.Shapes.Line
-                {
-                    X1 = pixelX,
-                    Y1 = 25,
-                    X2 = pixelX,
-                    Y2 = 35,
-                    Stroke = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(0xb0, 0xbb, 0xc5)),
-                    StrokeThickness = 1
-                };
-                Canvas.SetLeft(line, 0);
-                Canvas.SetTop(line, 0);
-                RulerCanvas.Children.Add(line);
-
-                // Time label
-                var label = new TextBlock
-                {
-                    Text = $"{(int)timeSeconds}s",
-                    Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(0xa0, 0xa0, 0xa0)),
-                    FontSize = 10,
-                    FontFamily = new System.Windows.Media.FontFamily("Courier New")
-                };
-
-                Canvas.SetLeft(label, pixelX - 15);
-                Canvas.SetTop(label, 2);
-                RulerCanvas.Children.Add(label);
-            }
+        private void InvalidateWaveform()
+        {
+            WaveformControl?.InvalidateVisual();
         }
 
         /// <summary>
@@ -609,3 +628,5 @@ namespace PodcastVideoEditor.Ui.Views
         }
     }
 }
+
+

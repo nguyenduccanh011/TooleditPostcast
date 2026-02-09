@@ -81,9 +81,10 @@ JSON Config:       System.Text.Json
 
 ---
 
-## Current Phase: IDLE (Phase 2 closed)
+## Current Phase: BUILD (Phase 3 — TP-003)
 
-**Status:** Phase 2 (Canvas Editor & Visualizer) đã đóng — ST-7 through ST-12 DONE. Sẵn sàng Phase 3 (Script & Timeline) khi bắt đầu TP mới.
+**Active Task Pack:** TP-003-SCRIPT-TIMELINE  
+**Status:** Phase 3 (Script & Timeline) đang thực hiện. ST-1 (Audio track #13) ✅ done. Current: ST-2 (Timeline sync precision #5).
 
 **Last Updated:** 2026-02-08
 
@@ -164,8 +165,21 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 
 ## Immediate Next Steps
 
-- **Phase 2:** Đã đóng (ST-7–ST-12 done). Khi bắt đầu phiên mới: tạo TP-003 cho Phase 3 (Script & Timeline) trong `state.md` và `active.md`.
-- **Phase 3 (Script & Timeline):** Chưa có TP — hỏi user "Vấn đề/feature tiếp theo?" hoặc tạo TP-003 theo scope Phase 3.
+- **Phase 3 (TP-003):** Đang chạy. ST-1 ✅. Thực hiện ST-2 → ST-3 (xem `docs/active.md`). Issue #5 (Timeline sync) trong ST-2.
+
+---
+
+## Phase Commitments (đã ghi trong docs/issues.md)
+
+Các nhiệm vụ sau đã được ghi chi tiết trong **`docs/issues.md`**; khi thực hiện từng phase cần đọc và đưa vào TP/ST tương ứng.
+
+| Phase | Issue(s) | Nội dung tóm tắt |
+|-------|----------|-------------------|
+| **Phase 3** | #12 (optional), **#13** | #12: UI Editor gọn đẹp CapCut → ưu tiên Phase 6; có thể ST nhỏ. #13: **Audio track tích hợp vào timeline** (waveform/track) — nên có trong TP-003. |
+| **Phase 5** | **#10**, **#11** | #10: **Output path**: chọn thư mục xuất, nút "Mở file/thư mục", (tùy chọn) danh sách renders. #11: **Render từ Canvas** (bỏ ảnh tĩnh hardcode); output = frame từ Canvas/segment. |
+| **Phase 6** | **#12** | #12: **UI Editor tab** — tối ưu gọn đẹp giống CapCut (layout, spacing, panel collapse). |
+
+**Quy trình:** Session Start đọc `state.md` + `active.md`; khi tạo TP mới hoặc bắt đầu phase → mở `docs/issues.md` và rà số issue trên để đưa vào subtask / acceptance criteria.
 
 ---
 

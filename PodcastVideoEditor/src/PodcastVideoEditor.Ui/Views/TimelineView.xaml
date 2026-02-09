@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:PodcastVideoEditor.Ui.Views"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
+             xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              Background="#1e1e1e"
              Foreground="#e0e0e0"
              Focusable="True">
@@ -56,41 +57,40 @@
             </Grid>
         </Border>
 
-        <!-- Timeline Content: one ScrollViewer so ruler and tracks scroll together -->
+        <!-- Timeline Content: Ctrl+Wheel = zoom, Wheel = pan (scroll) -->
         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" 
-                     VerticalScrollBarVisibility="Hidden"
+                     VerticalScrollBarVisibility="Auto"
                      CanContentScroll="False"
                      x:Name="TimelineScroller"
                      Background="#252525">
-            <Grid Width="{Binding TimelineWidth}">
+            <!-- Grid: col0 = label (56px), col1 = timeline content (align ruler + segment + waveform) -->
+            <Grid Width="{Binding TimelineContentWidth}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="40"/>
                     <RowDefinition Height="200"/>
+                    <RowDefinition Height="48"/>
                 </Grid.RowDefinitions>
-                <!-- Ruler (Time Labels) - scrolls with timeline -->
-                <Canvas Grid.Row="0" Background="#1a1a1a" x:Name="RulerCanvas"
-                        Height="40" ClipToBounds="True"
-                        Width="{Binding TimelineWidth}">
-                    <!-- Ruler labels will be drawn in code-behind -->
-                </Canvas>
-
-                <!-- Timeline Tracks -->
-                <Canvas Grid.Row="1" Background="#2d2d2d" x:Name="TimelineCanvas"
+                <!-- Row 0: empty label, Ruler -->
+                <Border Grid.Row="0" Grid.Column="1" Background="#1a1a1a" Height="40">
+                    <controls:TimelineRulerControl x:Name="RulerControl"
+                                                   Height="40"
+                                                   ClipToBounds="True"
+                                                   Width="{Binding TimelineWidth}"
+                                                   PixelsPerSecond="{Binding PixelsPerSecond}"
+                                                   TotalDuration="{Binding TotalDuration}"/>
+                </Border>
+                <!-- Row 1: empty label, Segment track -->
+                <Canvas Grid.Row="1" Grid.Column="1" Background="#2d2d2d" x:Name="TimelineCanvas"
                        ClipToBounds="True"
                        Width="{Binding TimelineWidth}"
                        Height="200"
                        MouseDown="TimelineCanvas_MouseDown"
                        MouseMove="TimelineCanvas_MouseMove"
                        MouseUp="TimelineCanvas_MouseUp">
-
-                    <!-- Playhead Line (vertical dashed line) -->
-                    <Line x:Name="PlayheadLine"
-                         X1="0" Y1="0" Y2="200"
-                         Stroke="#64b5f6" StrokeThickness="2"
-                         Canvas.Left="0" Canvas.Top="0"
-                         StrokeDashArray="5,5"/>
-
-                    <!-- Segment Blocks (ItemsControl) -->
                     <ItemsControl ItemsSource="{Binding Segments}" 
                                  x:Name="SegmentsItemsControl">
                         <ItemsControl.ItemsPanel>
@@ -98,20 +98,15 @@
                                 <Canvas Background="Transparent" Width="{Binding TimelineWidth}"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
-
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <!-- Segment Block -->
                                 <Border x:Name="SegmentBlock"
                                        Height="60"
                                        Background="#37474f"
                                        BorderBrush="#546e7a"
                                        BorderThickness="1"
                                        CornerRadius="3"
-                                       Cursor="Hand"
-                                       >
-
-                                    <!-- Selection Border (highlight when selected) - DataTrigger will be set in code-behind -->
+                                       Cursor="Hand">
                                     <Border.Style>
                                         <Style TargetType="Border">
                                             <Setter Property="Effect">
@@ -121,9 +116,7 @@
                                             </Setter>
                                         </Style>
                                     </Border.Style>
-
                                     <Grid>
-                                        <!-- Drag Handle (move entire segment) -->
                                         <Thumb x:Name="MoveThumb"
                                               Cursor="SizeAll"
                                               Background="Transparent"
@@ -134,8 +127,6 @@
                                               DragStarted="MoveThumb_DragStarted"
                                               DragDelta="MoveThumb_DragDelta"
                                               DragCompleted="MoveThumb_DragCompleted"/>
-
-                                        <!-- Segment Info -->
                                         <Border Padding="5" Panel.ZIndex="0">
                                             <StackPanel Orientation="Vertical">
                                                 <TextBlock Text="{Binding Text}" 
@@ -153,8 +144,6 @@
                                                 </TextBlock>
                                             </StackPanel>
                                         </Border>
-
-                                        <!-- Resize Handle (left edge) -->
                                         <Thumb x:Name="ResizeLeftThumb"
                                               HorizontalAlignment="Left"
                                               Width="8"
@@ -176,8 +165,6 @@
                                                 </Style>
                                             </Thumb.Style>
                                         </Thumb>
-
-                                        <!-- Resize Handle (right edge) -->
                                         <Thumb x:Name="ResizeThumb"
                                               HorizontalAlignment="Right"
                                               Width="8"
@@ -204,7 +191,29 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-
+                </Canvas>
+                <!-- Row 2: "Audio" label (col0), waveform (col1) - aligned with ruler/segment -->
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Audio" VerticalAlignment="Center" Margin="8,0"
+                           Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
+                <Border Grid.Row="2" Grid.Column="1" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,0,0" Height="48" ClipToBounds="True">
+                    <controls:WaveformControl x:Name="WaveformControl"
+                                              ClipToBounds="True"
+                                              Height="48"
+                                              Width="{Binding AudioContentWidth}"
+                                              HorizontalAlignment="Left"
+                                              Peaks="{Binding AudioPeaks}"
+                                              PixelsPerSecond="{Binding PixelsPerSecond}"
+                                              TotalDuration="{Binding TotalDuration}"/>
+                </Border>
+                <!-- Playhead: one line across ruler + segment + audio (288px), drawn on top -->
+                <Canvas Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" 
+                        Width="{Binding TimelineWidth}" Height="288"
+                        IsHitTestVisible="False" ClipToBounds="True">
+                    <Line x:Name="PlayheadLine"
+                         X1="0" Y1="0" X2="0" Y2="288"
+                         Stroke="#64b5f6" StrokeThickness="2"
+                         Canvas.Left="0" Canvas.Top="0"
+                         StrokeDashArray="5,5"/>
                 </Canvas>
             </Grid>
         </ScrollViewer>

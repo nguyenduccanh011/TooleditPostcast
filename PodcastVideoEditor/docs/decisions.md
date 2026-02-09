@@ -473,7 +473,23 @@ await _renderService.RenderAsync(config, progress);
 
 ---
 
-Last updated: 2026-02-06
+## Forward References: Phase 3 / 5 / 6 (2026-02-08)
+
+Các quyết định và nhiệm vụ sau đã được ghi chi tiết trong **`docs/issues.md`**. Khi lên kế hoạch hoặc thực hiện từng phase, cần đọc và đưa vào TP/ST.
+
+| Phase | Issue | Tóm tắt |
+|-------|-------|--------|
+| Phase 3 | #13 | Audio track tích hợp vào timeline (waveform/track, CapCut/Premiere style). |
+| Phase 3 | #12 | UI Editor gọn đẹp — ưu tiên Phase 6; Phase 3 chỉ chỉnh nhỏ nếu cần. |
+| Phase 5 | #10 | Output path: chọn thư mục xuất, nút Mở file/thư mục, (tùy chọn) danh sách renders. |
+| Phase 5 | #11 | Render từ Canvas (bỏ ảnh tĩnh); output = frame từ Canvas/segment. |
+| Phase 6 | #12 | UI Editor tab — tối ưu gọn đẹp giống CapCut. |
+
+**Nguồn chi tiết:** `docs/issues.md` (Issue #10–#13). **Bảng Phase Commitments:** `docs/state.md`.
+
+---
+
+Last updated: 2026-02-08
 
 Next review: At end of Phase 1 (2026-02-27)
 

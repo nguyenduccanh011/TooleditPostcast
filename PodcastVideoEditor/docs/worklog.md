@@ -860,6 +860,12 @@ Start with **ST-3: Audio Service & NAudio Integration**
 
 **2026-02-08:** Phase 2 closed (REVIEWER). state.md → Phase=IDLE. Next: Phase 3 (Script & Timeline) hoặc manual test Phase 2.
 
+**2026-02-08:** Cập nhật tài liệu theo quy trình: issues #10–#13 (output path, render source, UI polish, audio in timeline) được tham chiếu trong state.md (Phase Commitments), active.md (Resume Instructions), decisions.md (Forward References), issues.md (cross-ref). Đảm bảo khi làm Phase 3/5/6 nhiệm vụ được đề cập đầy đủ.
+
 **2026-02-08:** Phase 2 code & doc review: MainWindow unified Editor OK, Canvas/Visualizer/Timeline/PropertyEditor/Segment đủ ST-7–ST-12. Build OK khi app không chạy; còn warnings (CS8618, CS0108, NU1603) ghi docs/issues nếu xử lý sau. Commit Phase 2.
+
+**2026-02-08:** ROLE: ANALYST — Đọc QUICK_START, state.md, active.md. Tạo TP-003 (Phase 3 Script & Timeline) trong state.md + active.md; ST-1 (Audio track #13), ST-2 (Sync #5), ST-3 (Script import). Next: thực hiện ST-1.
+
+**2026-02-08:** ROLE: BUILDER — ST-1 (Audio track #13) done. AudioService.GetPeakSamples(binCount), TimelineViewModel.AudioPeaks + LoadAudioPeaksAsync, TimelineView row waveform + DrawWaveform(). Next: ST-2 (Timeline sync precision).
 
 Last updated: 2026-02-08

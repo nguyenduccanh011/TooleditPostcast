@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace PodcastVideoEditor.Ui.ViewModels
 {
@@ -47,6 +48,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = "Timeline ready";
 
+        /// <summary>
+        /// Peak samples for waveform display (audio track in timeline). ST-1 / Issue #13.
+        /// </summary>
+        [ObservableProperty]
+        private float[] audioPeaks = Array.Empty<float>();
+
+        private const int WaveformBinCount = 2400;
+        private int _audioPeaksLoadVersion;
+
+        /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
+        public double TimelineContentWidth => TimelineWidth + 56;
+        /// <summary>Width of audio waveform content (duration only, no extra buffer).</summary>
+        public double AudioContentWidth => TimeToPixels(TotalDuration);
+
         public TimelineViewModel(AudioService audioService, ProjectViewModel projectViewModel)
         {
             _audioService = audioService;
@@ -77,6 +92,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (_projectViewModel.CurrentProject?.Segments == null)
                 {
                     StatusMessage = "No project loaded";
+                    AudioPeaks = Array.Empty<float>();
                     return;
                 }
 
@@ -96,12 +112,53 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 StatusMessage = $"Loaded {Segments.Count} segment(s)";
                 Log.Information("Segments loaded: {Count}", Segments.Count);
+
+                // Load waveform peaks only when audio is already loaded (avoid race: open project
+                // triggers this before LoadProjectAudioAsync; OnAudioLoaded will refresh after load).
+                if (_audioService.GetDuration() > 0)
+                    _ = LoadAudioPeaksAsync();
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Error loading segments: {ex.Message}";
                 Log.Error(ex, "Error loading segments");
             }
+        }
+
+        /// <summary>
+        /// Load peak samples for timeline audio track waveform. ST-1 / Issue #13.
+        /// </summary>
+        private async Task LoadAudioPeaksAsync()
+        {
+            try
+            {
+                int loadVersion = Interlocked.Increment(ref _audioPeaksLoadVersion);
+                var expectedPath = _audioService.CurrentAudioPath;
+                var peaks = await Task.Run(() => _audioService.GetPeakSamples(WaveformBinCount)).ConfigureAwait(false);
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    if (loadVersion != _audioPeaksLoadVersion)
+                        return;
+                    if (!string.Equals(expectedPath, _audioService.CurrentAudioPath, StringComparison.OrdinalIgnoreCase))
+                        return;
+                    AudioPeaks = peaks ?? Array.Empty<float>();
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not load audio peaks for timeline");
+                await Application.Current.Dispatcher.InvokeAsync(() => { AudioPeaks = Array.Empty<float>(); });
+            }
+        }
+
+        /// <summary>
+        /// Call after audio is loaded (e.g. from MainWindow) so waveform appears. ST-1.
+        /// </summary>
+        public Task RefreshAudioPeaksAsync()
+        {
+            if (_audioService.GetDuration() <= 0)
+                return Task.CompletedTask;
+            return LoadAudioPeaksAsync();
         }
 
         /// <summary>
@@ -545,12 +602,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     try
                     {
-                        // Get current position from audio service
                         var currentPosition = _audioService.GetCurrentPosition();
-                        PlayheadPosition = currentPosition;
-
-                        // Update at ~30fps (33ms)
-                        await Task.Delay(33, _playheadSyncCts.Token);
+                        
+                        // Clamp to total duration to prevent playhead overshoot
+                        if (TotalDuration > 0 && currentPosition > TotalDuration)
+                            currentPosition = TotalDuration;
+                        
+                        // Update on UI thread with Background priority to not block user interactions
+                        // This makes the UI feel more responsive
+                        await Application.Current.Dispatcher.InvokeAsync(() =>
+                        {
+                            PlayheadPosition = currentPosition;
+                        }, System.Windows.Threading.DispatcherPriority.Background);
+                        
+                        await Task.Delay(33, _playheadSyncCts.Token); // 30fps
                     }
                     catch (OperationCanceledException)
                     {
@@ -578,11 +643,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Handle timeline width change (from UI resize).
+        /// Min/max timeline width for zoom (Ctrl+wheel).
+        /// </summary>
+        public const double MinTimelineWidth = 400;
+        public const double MaxTimelineWidth = 20000;
+
+        /// <summary>
+        /// Zoom timeline by factor (e.g. 1.15 = zoom in, 1/1.15 = zoom out). Call from Ctrl+MouseWheel.
+        /// </summary>
+        public void ZoomBy(double factor)
+        {
+            double newWidth = TimelineWidth * factor;
+            newWidth = Math.Clamp(newWidth, MinTimelineWidth, MaxTimelineWidth);
+            if (Math.Abs(newWidth - TimelineWidth) < 1)
+                return;
+            TimelineWidth = newWidth;
+        }
+
+        /// <summary>
+        /// Handle timeline width change (from UI resize or zoom).
         /// </summary>
         partial void OnTimelineWidthChanged(double value)
         {
             RecalculatePixelsPerSecond();
+            OnPropertyChanged(nameof(TimelineContentWidth));
+        }
+
+        partial void OnPixelsPerSecondChanged(double value)
+        {
+            OnPropertyChanged(nameof(AudioContentWidth));
         }
 
         /// <summary>
@@ -591,6 +680,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         partial void OnTotalDurationChanged(double value)
         {
             RecalculatePixelsPerSecond();
+            OnPropertyChanged(nameof(AudioContentWidth));
         }
 
         /// <summary>
