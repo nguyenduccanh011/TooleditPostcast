@@ -613,6 +613,45 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
+        /// Handle clicking on ruler to move playhead.
+        /// </summary>
+        private void RulerBorder_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel == null)
+                return;
+
+            Focus();
+            _isDraggingPlayhead = true;
+            
+            // Get click position relative to the ruler control
+            var position = e.GetPosition(RulerControl);
+            double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
+            _viewModel.SeekTo(newTime);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Handle dragging on ruler to move playhead.
+        /// </summary>
+        private void RulerBorder_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isDraggingPlayhead && _viewModel != null)
+            {
+                var position = e.GetPosition(RulerControl);
+                double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
+                _viewModel.SeekTo(newTime);
+            }
+        }
+
+        /// <summary>
+        /// Handle releasing drag on ruler.
+        /// </summary>
+        private void RulerBorder_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingPlayhead = false;
+        }
+
+        /// <summary>
         /// Check if the click was on a segment block (vs empty timeline area).
         /// </summary>
         private static bool IsClickOnSegment(MouseButtonEventArgs e)

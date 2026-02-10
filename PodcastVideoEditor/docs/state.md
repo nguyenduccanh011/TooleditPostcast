@@ -84,9 +84,9 @@ JSON Config:       System.Text.Json
 ## Current Phase: BUILD (Phase 3 — TP-003)
 
 **Active Task Pack:** TP-003-SCRIPT-TIMELINE  
-**Status:** Phase 3 (Script & Timeline) đang thực hiện. ST-1 (Audio track #13) ✅ done. Current: ST-2 (Timeline sync precision #5).
+**Status:** Phase 3 (Script & Timeline) đang thực hiện. ST-1 (Audio track #13) ✅, ST-2 (Timeline sync #5) ✅. Current: ST-3 (Script import/display).
 
-**Last Updated:** 2026-02-08
+**Last Updated:** 2026-02-10
 
 ---
 
@@ -165,7 +165,7 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 
 ## Immediate Next Steps
 
-- **Phase 3 (TP-003):** Đang chạy. ST-1 ✅. Thực hiện ST-2 → ST-3 (xem `docs/active.md`). Issue #5 (Timeline sync) trong ST-2.
+- **Phase 3 (TP-003):** Đang chạy. ST-1 ✅, ST-2 ✅. Thực hiện ST-3 (Script import/display) — xem `docs/active.md`.
 
 ---
 

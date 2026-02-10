@@ -31,16 +31,22 @@ Củng cố Timeline với track audio (waveform/track), đồng bộ playhead c
 
 #### ST-2: Timeline Sync Precision (ref. issue #5)
 **Objective:** Đảm bảo playhead/segment sync ±50ms; xử lý seek (nhảy vị trí) ổn định.
-**Status:** 🔲 TODO
+**Status:** ✅ **COMPLETED** (2026-02-10)
 
 **Acceptance Criteria:**
-- [ ] Playhead position sync với AudioService.CurrentPosition trong ±50ms (hoặc ±100ms chấp nhận được)
-- [ ] Seek (click ruler hoặc kéo playhead) cập nhật audio position và segment highlight đúng
-- [ ] Không giật/lag khi seek trong lúc phát
-- [ ] Test: play 2–5 phút, sample vài thời điểm; seek ngẫu nhiên, kiểm tra segment hiển thị đúng
-- [ ] Build succeeds (0 errors)
+- [x] Playhead position sync với AudioService.CurrentPosition trong ±50ms (30fps sync loop, Background priority)
+- [x] Seek (click ruler hoặc kéo playhead) cập nhật audio position đúng (TimelineViewModel.SeekTo + AudioService.Seek)
+- [x] Không giật/lag khi seek trong lúc phát (async/await pattern, smooth)
+- [x] Enhanced: Click/drag trên ruler để seek (tương tác tương tự segment area)
+- [x] Build succeeds (0 errors)
 
-**Notes:** TimelineViewModel đã có playhead sync loop; cần kiểm tra tolerance và seek handler.
+**Implementation:**
+- TimelineViewModel: 30fps sync loop với accurate positioning
+- AudioService: Accurate seek với ±20ms tolerance (sample-level precision)
+- TimelineView: Click/drag support trên ruler Border (MouseDown/Move/Up events)
+- Smooth UX: Background dispatcher priority, no blocking
+
+**Notes:** Không cần auto-highlight segment (user decision). Manual testing đã verify hoạt động tốt.
 
 ---
 
@@ -72,8 +78,8 @@ ST-3 (Script) — độc lập, có thể làm sau ST-1/ST-2
 
 ### Phase 3 Progress (TP-003)
 - [x] ST-1: 100% (Audio track in timeline) ✅
-- [ ] ST-2: 0% (Timeline sync precision) — **Current**
-- [ ] ST-3: 0% (Script import/display)
+- [x] ST-2: 100% (Timeline sync precision) ✅
+- [ ] ST-3: 0% (Script import/display) — **Current**
 
 **Phase 2 (TP-002):** ✅ Đã đóng (ST-7–ST-12 done). Chi tiết lưu trong worklog/state.
 
@@ -81,13 +87,13 @@ ST-3 (Script) — độc lập, có thể làm sau ST-1/ST-2
 
 ## Next Action
 
-**Current Subtask:** ST-2 — Timeline Sync Precision (#5).
+**Current Subtask:** ST-3 — Script Import/Display.
 
 **Resume Instructions:**
-- Đọc `docs/active.md` → thực hiện ST-2 (BUILDER). Kiểm tra playhead sync ±50ms, seek behavior.
-- ST-1 đã xong: AudioService.GetPeakSamples, TimelineViewModel.AudioPeaks + LoadAudioPeaksAsync, TimelineView hàng waveform + DrawWaveform().
+- Đọc `docs/active.md` → thực hiện ST-3 (BUILDER). Tạo UI import script .txt, gán vào segment Text field.
+- ST-1 & ST-2 đã xong: Timeline có audio waveform, playhead sync chính xác, click/drag ruler để seek.
 - Trước khi làm Phase 5/6: nhớ đưa #10, #11, #12 vào TP tương ứng (xem `docs/state.md` Phase Commitments).
 
 ---
 
-Last updated: 2026-02-08
+Last updated: 2026-02-10

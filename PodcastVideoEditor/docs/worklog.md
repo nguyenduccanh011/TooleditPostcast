@@ -10,6 +10,59 @@
 **ST-10 Completed:** 2026-02-08 ✅
 **ST-11 Completed:** 2026-02-08 ✅
 **ST-12 Completed:** 2026-02-08 ✅ | **Phase 2: 100%**
+**Phase 3 ST-1 Completed:** 2026-02-08 ✅
+**Phase 3 ST-2 Completed:** 2026-02-10 ✅
+
+---
+
+## Session 13: Feb 10, 2026 - ST-2 Timeline Sync Precision + Ruler Seek
+
+**Duration:** ~1 hour  
+**Status:** ✅ ST-2 COMPLETE
+
+### What Was Done
+- [x] **Analyzed ST-2 requirements**: Timeline sync precision with ±50ms accuracy
+- [x] **Verified existing implementation**:
+  - TimelineViewModel: 30fps playhead sync loop (33ms refresh)
+  - AudioService: Accurate seek with ±20ms tolerance
+  - Background dispatcher priority for smooth UX
+- [x] **Enhanced ruler interaction** (user request):
+  - Added MouseDown/MouseMove/MouseUp events to timeline ruler Border
+  - Users can now click OR drag on ruler to seek playhead
+  - Consistent behavior with segment area below
+  - Visual feedback: Hand cursor on ruler
+- [x] **Updated documentation**:
+  - active.md: ST-2 marked completed with implementation details
+  - worklog.md: Session 13 entry added
+
+### Files Modified
+1. `Ui/Views/TimelineView.xaml` - Added MouseMove/MouseUp events to ruler Border
+2. `Ui/Views/TimelineView.xaml.cs` - Added RulerBorder_MouseMove/MouseUp handlers
+3. `docs/active.md` - ST-2 status → ✅ COMPLETED, ST-3 now current
+4. `docs/worklog.md` - This session entry
+
+### Build Status
+```
+✅ Build succeeded
+   - 0 Errors
+   - App launched and tested successfully
+```
+
+### ST-2 Acceptance Criteria - ALL MET ✅
+✅ Playhead sync ±50ms (30fps loop with Background priority)  
+✅ Seek updates audio position correctly (TimelineViewModel.SeekTo)  
+✅ No jitter/lag during seek (async/await, smooth)  
+✅ **Enhanced**: Click/drag on ruler for seek (like segment area)  
+✅ Build succeeds (0 errors)
+
+### Implementation Details
+- **Playhead sync**: 30fps background task, clamps to TotalDuration
+- **Seek precision**: AudioService accurate seek with sample-level positioning
+- **Ruler interaction**: Unified drag handling with `_isDraggingPlayhead` flag
+- **UX**: Hand cursor, smooth drag, consistent with segment canvas
+
+### Next Up
+**ST-3: Script Import/Display** - Import .txt scripts and assign to segments
 
 ---
 

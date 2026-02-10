@@ -75,7 +75,11 @@
                     <RowDefinition Height="48"/>
                 </Grid.RowDefinitions>
                 <!-- Row 0: empty label, Ruler -->
-                <Border Grid.Row="0" Grid.Column="1" Background="#1a1a1a" Height="40">
+                <Border Grid.Row="0" Grid.Column="1" Background="#1a1a1a" Height="40"
+                        MouseDown="RulerBorder_MouseDown"
+                        MouseMove="RulerBorder_MouseMove"
+                        MouseUp="RulerBorder_MouseUp"
+                        Cursor="Hand">
                     <controls:TimelineRulerControl x:Name="RulerControl"
                                                    Height="40"
                                                    ClipToBounds="True"
