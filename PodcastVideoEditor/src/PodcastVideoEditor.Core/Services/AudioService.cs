@@ -3,8 +3,12 @@ using PodcastVideoEditor.Core.Models;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Core.Services
@@ -15,12 +19,15 @@ namespace PodcastVideoEditor.Core.Services
     public class AudioService : IDisposable
     {
         private IWavePlayer? _wavePlayer;
-        private string? _currentAudioPath;
+        private string? _sourceAudioPath;
+        private string? _playbackAudioPath;
         private AudioFileReader? _audioFileReader;
         private SampleAggregator? _sampleAggregator;
         private double _actualDurationSeconds; // Actual duration from reading samples (more accurate than metadata)
         private long _totalSampleCount; // Total samples in file for accurate position tracking
         private WaveFormat? _waveFormat; // Cached wave format for calculations
+        private string? _decodedAudioPath;
+        private bool _isDecodedCache;
 
         public event EventHandler<PlaybackStoppedEventArgs>? PlaybackStopped;
         public event EventHandler<EventArgs>? PlaybackStarted;
@@ -63,10 +70,15 @@ namespace PodcastVideoEditor.Core.Services
                     // Cleanup previous audio
                     _audioFileReader?.Dispose();
                     _sampleAggregator = null;
+                    bool sameSource = string.Equals(_sourceAudioPath, filePath, StringComparison.OrdinalIgnoreCase);
+                    if (!sameSource)
+                        CleanupDecodedCache();
 
-                    // Load new audio file
-                    _audioFileReader = new AudioFileReader(filePath);
-                    _currentAudioPath = filePath;
+                    // Load new audio file (decode M4A/AAC to WAV cache for accurate seek)
+                    string playbackPath = GetPlaybackPath(filePath);
+                    _audioFileReader = new AudioFileReader(playbackPath);
+                    _sourceAudioPath = filePath;
+                    _playbackAudioPath = playbackPath;
 
                     var metadataDuration = _audioFileReader.TotalTime;
                     _waveFormat = _audioFileReader.WaveFormat;
@@ -123,6 +135,75 @@ namespace PodcastVideoEditor.Core.Services
                     throw;
                 }
             });
+        }
+
+        private string GetPlaybackPath(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext != ".m4a" && ext != ".aac")
+                return filePath;
+
+            string cachePath = GetDecodedCachePath(filePath);
+            var sourceInfo = new FileInfo(filePath);
+            var cacheInfo = new FileInfo(cachePath);
+
+            if (cacheInfo.Exists && cacheInfo.Length > 0 && cacheInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
+            {
+                _decodedAudioPath = cachePath;
+                _isDecodedCache = true;
+                Log.Information("Using cached WAV for accurate seek: {Path}", cachePath);
+                return cachePath;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(cachePath) ?? Path.GetTempPath());
+            var sw = Stopwatch.StartNew();
+            using (var reader = new AudioFileReader(filePath))
+            {
+                WaveFileWriter.CreateWaveFile(cachePath, reader);
+            }
+            sw.Stop();
+
+            _decodedAudioPath = cachePath;
+            _isDecodedCache = true;
+            Log.Information("Decoded WAV cache created in {Ms} ms: {Path}", sw.ElapsedMilliseconds, cachePath);
+            return cachePath;
+        }
+
+        private static string GetDecodedCachePath(string filePath)
+        {
+            string hash = ComputeHash(filePath);
+            string fileName = $"audio-cache-{hash}.wav";
+            string cacheDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "AudioCache");
+            return Path.Combine(cacheDir, fileName);
+        }
+
+        private static string ComputeHash(string input)
+        {
+            using var sha = SHA256.Create();
+            byte[] bytes = Encoding.UTF8.GetBytes(input);
+            byte[] hash = sha.ComputeHash(bytes);
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        private void CleanupDecodedCache()
+        {
+            if (!_isDecodedCache || string.IsNullOrEmpty(_decodedAudioPath))
+                return;
+
+            try
+            {
+                if (File.Exists(_decodedAudioPath))
+                    File.Delete(_decodedAudioPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to delete decoded WAV cache: {Path}", _decodedAudioPath);
+            }
+            finally
+            {
+                _decodedAudioPath = null;
+                _isDecodedCache = false;
+            }
         }
 
         /// <summary>
@@ -182,20 +263,62 @@ namespace PodcastVideoEditor.Core.Services
 
             // Use actual duration (sample-counted) for clamping, not metadata TotalTime which can be wrong for VBR MP3
             double maxDuration = _actualDurationSeconds > 0 ? _actualDurationSeconds : _audioFileReader.TotalTime.TotalSeconds;
-            positionSeconds = Math.Clamp(positionSeconds, 0, maxDuration);
-            var position = TimeSpan.FromSeconds(positionSeconds);
-            _audioFileReader.CurrentTime = position;
+            double clampedPosition = Math.Clamp(positionSeconds, 0, maxDuration);
+
+            bool wasPlaying = _wavePlayer?.PlaybackState == PlaybackState.Playing;
+            if (wasPlaying)
+                _wavePlayer?.Pause();
+
+            // Seek to coarse position first (decoder may snap to keyframes)
+            _audioFileReader.CurrentTime = TimeSpan.FromSeconds(clampedPosition);
+            double actualReaderTime = _audioFileReader.CurrentTime.TotalSeconds;
+
+            // Accurate seek on-demand: decode and discard samples to reach exact target time
+            if (_waveFormat != null)
+            {
+                double deltaSeconds = clampedPosition - actualReaderTime;
+                if (Math.Abs(deltaSeconds) > 0.02)
+                {
+                    if (deltaSeconds < 0)
+                    {
+                        // Rewind slightly and then skip forward to the exact point
+                        double rewindTime = Math.Max(0, clampedPosition - 1.0);
+                        _audioFileReader.CurrentTime = TimeSpan.FromSeconds(rewindTime);
+                        actualReaderTime = _audioFileReader.CurrentTime.TotalSeconds;
+                        deltaSeconds = clampedPosition - actualReaderTime;
+                    }
+
+                    if (deltaSeconds > 0)
+                    {
+                        int sampleRate = _waveFormat.SampleRate;
+                        int channels = _waveFormat.Channels;
+                        long samplesToSkip = (long)(deltaSeconds * sampleRate * channels);
+                        long skipped = 0;
+                        var skipBuffer = new float[8192];
+
+                        while (skipped < samplesToSkip)
+                        {
+                            int toRead = (int)Math.Min(skipBuffer.Length, samplesToSkip - skipped);
+                            int read = _audioFileReader.Read(skipBuffer, 0, toRead);
+                            if (read <= 0)
+                                break;
+                            skipped += read;
+                        }
+                    }
+                }
+            }
+
             _sampleAggregator?.Reset();
-            
-            // Sync the sample counter to match the seek position.
-            // This ensures GetCurrentPosition() returns accurate values after seek.
             if (_waveFormat != null && _sampleAggregator != null)
             {
-                long seekSampleCount = (long)(positionSeconds * _waveFormat.SampleRate * _waveFormat.Channels);
+                long seekSampleCount = (long)(clampedPosition * _waveFormat.SampleRate * _waveFormat.Channels);
                 _sampleAggregator.SetPlayedSamples(seekSampleCount);
             }
-            
-            Log.Debug("Seek to {Position}s (sample counter synced)", positionSeconds);
+
+            if (wasPlaying)
+                _wavePlayer?.Play();
+
+            Log.Debug("Seek to {Position}s (accurate seek on-demand)", clampedPosition);
         }
 
         /// <summary>
@@ -305,12 +428,12 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public float[] GetPeakSamples(int binCount)
         {
-            if (string.IsNullOrEmpty(_currentAudioPath) || !File.Exists(_currentAudioPath) || binCount <= 0)
+            if (string.IsNullOrEmpty(_playbackAudioPath) || !File.Exists(_playbackAudioPath) || binCount <= 0)
                 return Array.Empty<float>();
 
             try
             {
-                using var reader = new AudioFileReader(_currentAudioPath);
+                using var reader = new AudioFileReader(_playbackAudioPath);
                 
                 // Count actual samples
                 long actualTotalSamples = 0;
@@ -372,7 +495,7 @@ namespace PodcastVideoEditor.Core.Services
 
         public PlaybackState PlaybackState => _wavePlayer?.PlaybackState ?? PlaybackState.Stopped;
         public bool IsPlaying => PlaybackState == PlaybackState.Playing;
-        public string? CurrentAudioPath => _currentAudioPath;
+        public string? CurrentAudioPath => _sourceAudioPath;
 
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
@@ -385,6 +508,7 @@ namespace PodcastVideoEditor.Core.Services
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
             _sampleAggregator = null;
+            CleanupDecodedCache();
             Log.Information("AudioService disposed");
         }
     }
