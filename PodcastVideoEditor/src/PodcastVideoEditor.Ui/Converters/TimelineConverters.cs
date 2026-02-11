@@ -132,7 +132,7 @@ namespace PodcastVideoEditor.Ui.Converters
     }
 
     /// <summary>
-    /// Converts time value (in seconds) to display format with 1 decimal place.
+    /// Converts time value (in seconds) to display format with 2 decimal places (matches script format [start → end]).
     /// </summary>
     [ValueConversion(typeof(double), typeof(string))]
     public class TimeValueConverter : IValueConverter
@@ -141,9 +141,9 @@ namespace PodcastVideoEditor.Ui.Converters
         {
             if (double.TryParse(value?.ToString(), out double timeSeconds))
             {
-                return $"{timeSeconds:F1}";
+                return $"{timeSeconds:F2}";
             }
-            return "0.0";
+            return "0.00";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

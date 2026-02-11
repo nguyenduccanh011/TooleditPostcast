@@ -15,15 +15,44 @@
         <conv:DurationDisplayConverter x:Key="DurationDisplayConverter"/>
         <conv:PixelsPerSecondConverter x:Key="PixelsPerSecondConverter"/>
         <conv:TimeValueConverter x:Key="TimeValueConverter"/>
+        <!-- Thumb template tối giản: bỏ template mặc định gây khối trắng -->
+        <Style x:Key="TransparentThumbStyle" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="#2d3a4a"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ResizeThumbStyle" TargetType="Thumb" BasedOn="{StaticResource TransparentThumbStyle}"/>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
+        <!-- ST-3a: Script paste panel -->
+        <Expander Grid.Row="0" Header="Script (dán định dạng [start → end] text)" IsExpanded="False"
+                  Background="#2d2d2d" Foreground="#e0e0e0" Margin="0,0,0,4">
+            <StackPanel Margin="10,8">
+                <TextBox Text="{Binding ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
+                         Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
+                         BorderBrush="#546e7a" BorderThickness="1"
+                         TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
+                         VerticalContentAlignment="Top"
+                         ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
+                <Button Content="Áp dụng script" Command="{Binding ApplyScriptCommand}"
+                        HorizontalAlignment="Left" Margin="0,8,0,0"
+                        Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
+            </StackPanel>
+        </Expander>
+
         <!-- Status Bar: MinHeight so buttons and text are not clipped -->
-        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
+        <Border Grid.Row="1" Background="#2d2d2d" Padding="10,8" MinHeight="44">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -58,7 +87,7 @@
         </Border>
 
         <!-- Timeline Content: Ctrl+Wheel = zoom, Wheel = pan (scroll) -->
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" 
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" 
                      VerticalScrollBarVisibility="Auto"
                      CanContentScroll="False"
                      x:Name="TimelineScroller"
@@ -104,94 +133,59 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border x:Name="SegmentBlock"
-                                       Height="60"
-                                       Background="#37474f"
-                                       BorderBrush="#546e7a"
-                                       BorderThickness="1"
-                                       CornerRadius="3"
-                                       Cursor="Hand">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Effect">
-                                                <Setter.Value>
-                                                    <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.3"/>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </Border.Style>
-                                    <Grid>
-                                        <Thumb x:Name="MoveThumb"
+                                <Grid x:Name="SegmentRoot" Height="60" Cursor="Hand">
+                                    <Grid.Effect>
+                                        <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.7"/>
+                                    </Grid.Effect>
+                                    <Border x:Name="SegmentFill" Background="#2d3a4a" BorderBrush="#43a047" BorderThickness="2,0,2,0"
+                                            CornerRadius="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                        <Grid x:Name="SegmentContentLayer">
+                                        <Thumb x:Name="MoveThumb" Style="{StaticResource TransparentThumbStyle}"
                                               Cursor="SizeAll"
-                                              Background="Transparent"
                                               HorizontalAlignment="Stretch"
                                               VerticalAlignment="Stretch"
-                                              Panel.ZIndex="1"
+                                              Panel.ZIndex="0"
                                               MouseDown="MoveThumb_MouseDown"
                                               DragStarted="MoveThumb_DragStarted"
                                               DragDelta="MoveThumb_DragDelta"
                                               DragCompleted="MoveThumb_DragCompleted"/>
-                                        <Border Padding="5" Panel.ZIndex="0">
-                                            <StackPanel Orientation="Vertical">
-                                                <TextBlock Text="{Binding Text}" 
+                                        <StackPanel Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Orientation="Vertical">
+                                            <TextBlock Text="Segment" Foreground="#81c784" FontSize="9" Margin="0,0,0,2"/>
+                                            <TextBlock Text="{Binding Text}" 
                                                          Foreground="#e0e0e0"
                                                          FontWeight="Bold"
                                                          FontSize="11"
                                                          TextTrimming="CharacterEllipsis"/>
-                                                <TextBlock Foreground="#b0bec5"
+                                            <TextBlock Foreground="#b0bec5"
                                                          FontSize="9">
-                                                    <Run Text="Duration: "/>
-                                                    <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                    <Run Text=" - "/>
-                                                    <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                    <Run Text="s"/>
-                                                </TextBlock>
-                                            </StackPanel>
-                                        </Border>
-                                        <Thumb x:Name="ResizeLeftThumb"
+                                                <Run Text="Duration: "/>
+                                                <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                <Run Text=" - "/>
+                                                <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                <Run Text="s"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <Thumb x:Name="ResizeLeftThumb" Style="{StaticResource ResizeThumbStyle}"
                                               HorizontalAlignment="Left"
                                               Width="8"
                                               Cursor="SizeWE"
-                                              Background="Transparent"
                                               Opacity="0"
                                               Panel.ZIndex="2"
                                               DragDelta="ResizeLeftThumb_DragDelta"
                                               DragStarted="ResizeLeftThumb_DragStarted"
-                                              DragCompleted="ResizeLeftThumb_DragCompleted">
-                                            <Thumb.Style>
-                                                <Style TargetType="Thumb">
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Setter Property="Background" Value="#64b5f6"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Thumb.Style>
-                                        </Thumb>
-                                        <Thumb x:Name="ResizeThumb"
+                                              DragCompleted="ResizeLeftThumb_DragCompleted"/>
+                                        <Thumb x:Name="ResizeThumb" Style="{StaticResource ResizeThumbStyle}"
                                               HorizontalAlignment="Right"
                                               Width="8"
                                               Cursor="SizeWE"
-                                              Background="Transparent"
                                               Opacity="0"
                                               Panel.ZIndex="2"
                                               DragDelta="ResizeThumb_DragDelta"
                                               DragStarted="ResizeThumb_DragStarted"
-                                              DragCompleted="ResizeThumb_DragCompleted">
-                                            <Thumb.Style>
-                                                <Style TargetType="Thumb">
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                            <Setter Property="Background" Value="#64b5f6"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Thumb.Style>
-                                        </Thumb>
-                                    </Grid>
-                                </Border>
+                                              DragCompleted="ResizeThumb_DragCompleted"/>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

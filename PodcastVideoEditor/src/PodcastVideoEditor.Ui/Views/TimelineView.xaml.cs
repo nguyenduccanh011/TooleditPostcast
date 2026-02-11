@@ -9,10 +9,32 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Serilog;
 
 namespace PodcastVideoEditor.Ui.Views
 {
+    /// <summary>
+    /// Cached brushes for segment selection state (avoid allocations on every update).
+    /// </summary>
+    internal static class SegmentSelectionBrushes
+    {
+        internal static readonly SolidColorBrush SelectedFill;
+        internal static readonly SolidColorBrush NormalFill;
+        internal static readonly SolidColorBrush SelectedBorder;
+        internal static readonly SolidColorBrush NormalBorder;
+
+        static SegmentSelectionBrushes()
+        {
+            SelectedFill = new SolidColorBrush(Color.FromRgb(0x35, 0x4a, 0x5f));
+            NormalFill = new SolidColorBrush(Color.FromRgb(0x2d, 0x3a, 0x4a));
+            SelectedBorder = new SolidColorBrush(Color.FromRgb(0x64, 0xb5, 0xf6));
+            NormalBorder = new SolidColorBrush(Color.FromRgb(0x43, 0xa0, 0x47));
+            SelectedFill.Freeze();
+            NormalFill.Freeze();
+            SelectedBorder.Freeze();
+            NormalBorder.Freeze();
+        }
+    }
+
     /// <summary>
     /// Code-behind for TimelineView.xaml
     /// Handles drag-resize interactions and playhead sync.
@@ -25,7 +47,6 @@ namespace PodcastVideoEditor.Ui.Views
         private bool _isResizingSegment;
         private bool _isResizingLeft;
         private bool _isDraggingSegment;
-        private double _resizeStartX;
         private double _segmentOriginalEndTime;
         private double _segmentOriginalStartTime;
         private double _resizeDeltaX;
@@ -103,14 +124,16 @@ namespace PodcastVideoEditor.Ui.Views
                 };
                 _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
-                // Subscribe to segments collection changes
+                // Subscribe to segments collection changes — defer layout so new item container exists
                 _segmentsCollectionChangedHandler = (s, args) =>
                 {
-                    UpdateSegmentLayout();
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
+                    {
+                        if (IsLoaded)
+                            UpdateSegmentLayout();
+                    }));
                 };
                 _viewModel.Segments.CollectionChanged += _segmentsCollectionChangedHandler;
-
-                Log.Information("TimelineView loaded, ViewModel connected");
             }
         }
 
@@ -123,7 +146,6 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel != null && _segmentsCollectionChangedHandler != null)
                 _viewModel.Segments.CollectionChanged -= _segmentsCollectionChangedHandler;
             _zoomTimer.Stop();
-            Log.Information("TimelineView unloaded");
         }
 
         /// <summary>
@@ -177,15 +199,15 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Update segment block layout (position and size) based on timeline properties.
+        /// When limitToSegment is set, only that segment is updated (for drag/resize performance).
         /// </summary>
-        private void UpdateSegmentLayout()
+        private void UpdateSegmentLayout(Segment? limitToSegment = null)
         {
             if (_viewModel == null || SegmentsItemsControl == null)
                 return;
 
             try
             {
-                // Get all segment borders from ItemsControl
                 for (int i = 0; i < SegmentsItemsControl.Items.Count; i++)
                 {
                     var presenter = SegmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(i) as ContentPresenter;
@@ -197,24 +219,25 @@ namespace PodcastVideoEditor.Ui.Views
                     if (presenter.Content is not Segment segment)
                         continue;
 
-                    var border = FindVisualChild<Border>(presenter);
-                    if (border == null)
+                    if (limitToSegment != null && segment != limitToSegment)
                         continue;
 
-                    // Calculate position and width (proportional to timeline; no large minimum so 0.1s looks like 0.1s)
+                    var rootGrid = FindVisualChild<System.Windows.Controls.Grid>(presenter);
+                    if (rootGrid == null)
+                        continue;
+
                     double pixelX = _viewModel.TimeToPixels(segment.StartTime);
                     double pixelWidth = _viewModel.TimeToPixels(segment.EndTime - segment.StartTime);
-                    pixelWidth = Math.Max(4, pixelWidth); // tiny min so resize handle stays grabbable
+                    pixelWidth = Math.Max(4, pixelWidth);
 
-                    // Set Canvas position on ContentPresenter (Canvas's direct child), NOT on Border
                     Canvas.SetLeft(presenter, pixelX);
                     Canvas.SetTop(presenter, 10);
-                    border.Width = pixelWidth;
+                    rootGrid.Width = pixelWidth;
                 }
             }
-            catch (Exception ex)
+            catch (InvalidOperationException)
             {
-                Log.Warning(ex, "Error updating segment layout");
+                // Visual tree may not be ready; will retry on next layout pass
             }
         }
 
@@ -239,29 +262,19 @@ namespace PodcastVideoEditor.Ui.Views
                     if (presenter.Content is not Segment segment)
                         continue;
 
-                    var border = FindVisualChild<Border>(presenter);
-                    if (border == null)
+                    var segmentFill = FindVisualChild<Border>(presenter);
+                    if (segmentFill == null)
                         continue;
 
                     bool isSelected = segment == _viewModel.SelectedSegment;
-
-                    if (isSelected)
-                    {
-                        border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x64, 0xb5, 0xf6));
-                        border.BorderThickness = new Thickness(2);
-                        border.Background = new SolidColorBrush(Color.FromRgb(0x45, 0x5a, 0x64));
-                    }
-                    else
-                    {
-                        border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x54, 0x6e, 0x7a));
-                        border.BorderThickness = new Thickness(1);
-                        border.Background = new SolidColorBrush(Color.FromRgb(0x37, 0x47, 0x4f));
-                    }
+                    segmentFill.Background = isSelected ? SegmentSelectionBrushes.SelectedFill : SegmentSelectionBrushes.NormalFill;
+                    segmentFill.BorderBrush = isSelected ? SegmentSelectionBrushes.SelectedBorder : SegmentSelectionBrushes.NormalBorder;
+                    segmentFill.BorderThickness = new Thickness(2, 0, 2, 0);
                 }
             }
-            catch (Exception ex)
+            catch (InvalidOperationException)
             {
-                Log.Warning(ex, "Error updating segment selection");
+                // Visual tree may not be ready
             }
         }
 
@@ -321,8 +334,7 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 Focus();
                 _viewModel?.SelectSegment(segment);
@@ -337,17 +349,13 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is Thumb thumb && 
                 thumb.Parent is Grid grid && 
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 _isResizingLeft = false;
                 _isResizingSegment = true;
-                _resizeStartX = e.HorizontalOffset;
                 _segmentOriginalEndTime = segment.EndTime;
                 _resizeDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
-
-                Log.Debug("Resize right started for segment: {SegmentId}", segment.Id);
             }
         }
 
@@ -358,16 +366,13 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 _isResizingSegment = false;
                 _isResizingLeft = true;
                 _resizeLeftOriginalStartTime = segment.StartTime;
                 _resizeLeftDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
-
-                Log.Debug("Resize left started for segment: {SegmentId}", segment.Id);
             }
         }
 
@@ -381,8 +386,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (sender is Thumb thumb && 
                 thumb.Parent is Grid grid && 
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 // Calculate new end time
                 _resizeDeltaX += e.HorizontalChange;
@@ -408,7 +412,10 @@ namespace PodcastVideoEditor.Ui.Views
                 }
 
                 if (updated)
+                {
                     EnsureSegmentVisibleInScroll(segment);
+                    UpdateSegmentLayout(segment);
+                }
             }
         }
 
@@ -422,8 +429,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 _resizeLeftDeltaX += e.HorizontalChange;
                 double timeDelta = _viewModel.PixelsToTime(_resizeLeftDeltaX);
@@ -444,7 +450,10 @@ namespace PodcastVideoEditor.Ui.Views
                 }
 
                 if (updated)
+                {
                     EnsureSegmentVisibleInScroll(segment);
+                    UpdateSegmentLayout(segment);
+                }
             }
         }
 
@@ -457,7 +466,7 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
-            Log.Debug("Resize right completed");
+            UpdateSegmentLayout();
         }
 
         /// <summary>
@@ -469,7 +478,7 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeLeftDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
-            Log.Debug("Resize left completed");
+            UpdateSegmentLayout();
         }
 
         /// <summary>
@@ -479,8 +488,7 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 _isDraggingSegment = true;
                 _segmentOriginalStartTime = segment.StartTime;
@@ -488,7 +496,6 @@ namespace PodcastVideoEditor.Ui.Views
                 _moveDeltaX = 0;
                 grid.Cursor = Cursors.SizeAll;
                 _viewModel?.SelectSegment(segment);
-                Log.Debug("Move started for segment: {SegmentId}", segment.Id);
             }
         }
 
@@ -502,8 +509,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
-                grid.Parent is Border border &&
-                border.DataContext is Segment segment)
+                grid.DataContext is Segment segment)
             {
                 _moveDeltaX += e.HorizontalChange;
                 double pixelDelta = _moveDeltaX;
@@ -547,7 +553,10 @@ namespace PodcastVideoEditor.Ui.Views
                 }
 
                 if (updated)
+                {
                     EnsureSegmentVisibleInScroll(segment);
+                    UpdateSegmentLayout(segment);
+                }
             }
         }
 
@@ -559,10 +568,8 @@ namespace PodcastVideoEditor.Ui.Views
             _isDraggingSegment = false;
             _moveDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
-            {
                 grid.Cursor = Cursors.Arrow;
-            }
-            Log.Debug("Move completed");
+            UpdateSegmentLayout();
         }
 
         /// <summary>
@@ -617,13 +624,12 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void RulerBorder_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (_viewModel == null)
+            if (_viewModel == null || RulerControl == null)
                 return;
 
             Focus();
             _isDraggingPlayhead = true;
-            
-            // Get click position relative to the ruler control
+
             var position = e.GetPosition(RulerControl);
             double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
             _viewModel.SeekTo(newTime);
@@ -635,7 +641,7 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void RulerBorder_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_isDraggingPlayhead && _viewModel != null)
+            if (_isDraggingPlayhead && _viewModel != null && RulerControl != null)
             {
                 var position = e.GetPosition(RulerControl);
                 double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));

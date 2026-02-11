@@ -50,17 +50,31 @@ Củng cố Timeline với track audio (waveform/track), đồng bộ playhead c
 
 ---
 
-#### ST-3: Script Import / Display
-**Objective:** Import file script (txt) và gán nội dung vào segment text; hoặc hiển thị script theo segment (đã có field Text trên Segment).
-**Status:** 🔲 TODO
+#### ST-3: Script Import / Display (Paste-only, định dạng có cấu trúc)
+**Objective:** Ô nhập để **dán (paste)** script vào project; parse định dạng `[start → end] text` và tạo/cập nhật segment. Không dùng file .txt.
+**Status:** ✅ **COMPLETED** (2026-02-11)
 
-**Acceptance Criteria:**
-- [ ] Có cách import script (file .txt hoặc paste) vào project
-- [ ] Nội dung script có thể gán vào segment (ví dụ: từng đoạn theo thời gian, hoặc split by paragraph/line)
-- [ ] UI hiển thị/ chỉnh sửa script per segment (SegmentEditorPanel đã có Text — có thể mở rộng)
-- [ ] Build succeeds (0 errors)
+**Định dạng script (bắt buộc):**
+```
+[start_sec → end_sec]  Nội dung text
+```
+Ví dụ: `[0.00 → 6.04]  Chào mừng đến với podcast...` — mỗi dòng = một segment (Start, End, Text).
 
-**Notes:** Không dùng AI segmentation (v1.1); v1.0 manual hoặc split đơn giản theo dòng/đoạn.
+**Acceptance Criteria (tổng):**
+- [x] Có ô nhập (paste) script và nút Áp dụng
+- [x] Parser: chuỗi → danh sách (Start, End, Text) theo regex `[X.XX → Y.YY] content`
+- [x] Áp dụng script: thay thế toàn bộ segment bằng danh sách từ script (persist qua ReplaceSegmentsAndSaveAsync)
+- [x] SegmentEditorPanel binding Text đã có — hoạt động sau khi áp dụng
+- [x] Build succeeds (0 errors)
+
+**Chia nhỏ (đã thực hiện):**
+- **ST-3a** — UI: Expander "Script (dán định dạng [start → end] text)" + TextBox + nút "Áp dụng script" ✅
+- **ST-3b** — ScriptParser.Parse() trong Core/Utilities/ScriptParser.cs ✅
+- **ST-3c** — ApplyScriptCommand → ReplaceSegmentsAsync (ProjectService) + refresh Segments ✅
+- **ST-3d** — SegmentEditorPanel đã bind SelectedSegment.Text ✅
+- **ST-3e** — Build succeeded ✅
+
+**Notes:** Không dùng AI segmentation (v1.1). Multi-track (media/text/sticker kiểu CapCut) để sau Phase 3 — xem `docs/script-and-timeline-plan.md`.
 
 ---
 
@@ -79,7 +93,7 @@ ST-3 (Script) — độc lập, có thể làm sau ST-1/ST-2
 ### Phase 3 Progress (TP-003)
 - [x] ST-1: 100% (Audio track in timeline) ✅
 - [x] ST-2: 100% (Timeline sync precision) ✅
-- [ ] ST-3: 0% (Script import/display) — **Current**
+- [x] ST-3: 100% (Script import/display — paste-only) ✅
 
 **Phase 2 (TP-002):** ✅ Đã đóng (ST-7–ST-12 done). Chi tiết lưu trong worklog/state.
 
@@ -87,12 +101,11 @@ ST-3 (Script) — độc lập, có thể làm sau ST-1/ST-2
 
 ## Next Action
 
-**Current Subtask:** ST-3 — Script Import/Display.
+**Current Subtask:** TP-003 ST-3 đã xong. Phase 3 (Script & Timeline) hoàn tất.
 
 **Resume Instructions:**
-- Đọc `docs/active.md` → thực hiện ST-3 (BUILDER). Tạo UI import script .txt, gán vào segment Text field.
-- ST-1 & ST-2 đã xong: Timeline có audio waveform, playhead sync chính xác, click/drag ruler để seek.
-- Trước khi làm Phase 5/6: nhớ đưa #10, #11, #12 vào TP tương ứng (xem `docs/state.md` Phase Commitments).
+- ST-3 (Script paste + áp dụng) đã implement: ScriptParser, UI Expander + TextBox + nút "Áp dụng script", ReplaceSegmentsAsync persist. Test thủ công: mở project → mở Expander Script → dán script mẫu → Áp dụng script → kiểm tra timeline + Segment Properties.
+- Tiếp theo: Phase 4 (AI & Automation) hoặc Phase 5/6; nhớ đưa #10, #11, #12 vào TP (xem `docs/state.md` Phase Commitments).
 
 ---
 

@@ -36,6 +36,12 @@ public partial class Segment : ObservableObject
     [ObservableProperty]
     private int order;
 
+    /// <summary>
+    /// Segment kind: "visual" (media/background), "text" (script), etc. DB column added by AddSegmentKind migration; required for INSERT.
+    /// </summary>
+    [ObservableProperty]
+    private string kind = "visual";
+
     // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }
 }

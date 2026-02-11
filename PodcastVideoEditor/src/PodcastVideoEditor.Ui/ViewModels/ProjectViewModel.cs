@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
@@ -156,6 +157,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 IsLoading = false;
             }
+        }
+
+        /// <summary>
+        /// Replace segments of current project and save (ST-3 script apply).
+        /// </summary>
+        public async Task ReplaceSegmentsAndSaveAsync(IEnumerable<Segment> newSegments)
+        {
+            if (CurrentProject == null)
+                throw new InvalidOperationException("No project loaded");
+            await _projectService.ReplaceSegmentsAsync(CurrentProject, newSegments);
         }
 
         /// <summary>

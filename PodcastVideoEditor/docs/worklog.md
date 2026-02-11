@@ -12,6 +12,30 @@
 **ST-12 Completed:** 2026-02-08 ✅ | **Phase 2: 100%**
 **Phase 3 ST-1 Completed:** 2026-02-08 ✅
 **Phase 3 ST-2 Completed:** 2026-02-10 ✅
+**Phase 3 ST-3 Completed:** 2026-02-11 ✅ | **Phase 3: 100%**
+
+---
+
+## Session 14: Feb 11, 2026 - ST-3 Script Import (Paste-only)
+
+**Status:** ✅ ST-3 COMPLETE
+
+### What Was Done
+- [x] **ST-3b** ScriptParser (Core/Utilities/ScriptParser.cs): Parse `[start → end] text` → List<ParsedSegment>; regex, skip invalid lines.
+- [x] **ST-3a** UI: Expander "Script (dán định dạng [start → end] text)" trên TimelineView với TextBox đa dòng + nút "Áp dụng script".
+- [x] **ST-3c** ApplyScriptCommand (TimelineViewModel): Parse → tạo Segment list → ReplaceSegmentsAndSaveAsync (ProjectViewModel → ProjectService.ReplaceSegmentsAsync) → refresh Segments. Persist đúng (xóa segment cũ, thêm mới).
+- [x] **ST-3d** SegmentEditorPanel đã bind SelectedSegment.Text — không đổi.
+- [x] Build succeeded (0 errors).
+
+### Files Created
+- `Core/Utilities/ScriptParser.cs` — ParsedSegment record, Parse(), TryParseLine().
+
+### Files Modified
+- `Ui/ViewModels/TimelineViewModel.cs` — ScriptPasteText, ApplyScriptAsync, CanApplyScript, OnScriptPasteTextChanged.
+- `Ui/Views/TimelineView.xaml` — Expander + TextBox + Button; Grid row 0 script panel, row 1 status bar, row 2 scroll.
+- `Ui/ViewModels/ProjectViewModel.cs` — ReplaceSegmentsAndSaveAsync().
+- `Core/Services/ProjectService.cs` — ReplaceSegmentsAsync(project, newSegments).
+- `docs/active.md`, `docs/state.md`, `docs/worklog.md` — ST-3 done, Phase 3 complete.
 
 ---
 

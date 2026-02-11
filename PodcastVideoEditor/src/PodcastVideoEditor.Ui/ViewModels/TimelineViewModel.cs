@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Utilities;
 using Serilog;
 using System;
 using System.Collections.ObjectModel;
@@ -43,10 +44,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private double pixelsPerSecond = 10.0; // calculated
 
         [ObservableProperty]
-        private double gridSize = 0.1; // 100ms grid snapping
+        private double gridSize = 0.01; // 10ms grid snapping (2 decimal places, matches script [start → end])
 
         [ObservableProperty]
         private string statusMessage = "Timeline ready";
+
+        /// <summary>
+        /// Raw script text for paste (ST-3). Format: [start → end] text per line.
+        /// </summary>
+        [ObservableProperty]
+        private string scriptPasteText = string.Empty;
 
         /// <summary>
         /// Peak samples for waveform display (audio track in timeline). ST-1 / Issue #13.
@@ -73,6 +80,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (e.PropertyName == nameof(ProjectViewModel.CurrentProject))
                 {
                     LoadSegmentsFromProject();
+                    ApplyScriptCommand.NotifyCanExecuteChanged();
                 }
             };
 
@@ -219,11 +227,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Snap time value to grid.
+        /// Snap time value to grid (2 decimal places to match script format).
         /// </summary>
         private double SnapToGrid(double timeSeconds)
         {
-            return Math.Round(timeSeconds / GridSize) * GridSize;
+            return Math.Round(Math.Round(timeSeconds / GridSize) * GridSize, 2);
         }
 
         /// <summary>
@@ -270,6 +278,65 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error adding segment");
             }
         }
+
+        /// <summary>
+        /// Apply pasted script: parse [start → end] text, replace all segments, persist (ST-3).
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanApplyScript))]
+        public async Task ApplyScriptAsync()
+        {
+            try
+            {
+                if (_projectViewModel.CurrentProject == null)
+                {
+                    StatusMessage = "No project loaded";
+                    return;
+                }
+
+                var parsed = ScriptParser.Parse(ScriptPasteText);
+                if (parsed.Count == 0)
+                {
+                    StatusMessage = "No valid segments (format: [start → end] text)";
+                    return;
+                }
+
+                var projectId = _projectViewModel.CurrentProject.Id;
+                var newSegments = new List<Segment>();
+                for (int i = 0; i < parsed.Count; i++)
+                {
+                    var p = parsed[i];
+                    newSegments.Add(new Segment
+                    {
+                        ProjectId = projectId,
+                        StartTime = Math.Round(p.Start, 2),
+                        EndTime = Math.Round(p.End, 2),
+                        Text = p.Text,
+                        TransitionType = "fade",
+                        TransitionDuration = 0.5,
+                        Order = i
+                    });
+                }
+
+                await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
+
+                Segments.Clear();
+                SelectedSegment = null;
+                foreach (var s in _projectViewModel.CurrentProject!.Segments)
+                    Segments.Add(s);
+                StatusMessage = $"Script applied: {newSegments.Count} segment(s)";
+                Log.Information("Script applied: {Count} segments", newSegments.Count);
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException?.Message ?? ex.Message;
+                StatusMessage = $"Error applying script: {message}";
+                Log.Error(ex, "Error applying script: {Message}", ex.Message);
+            }
+        }
+
+        private bool CanApplyScript() => _projectViewModel.CurrentProject != null && !string.IsNullOrWhiteSpace(ScriptPasteText);
+
+        partial void OnScriptPasteTextChanged(string value) => ApplyScriptCommand.NotifyCanExecuteChanged();
 
         /// <summary>
         /// Clear all segments from the timeline (ST-9 plan: ClearAllSegmentsCommand).
