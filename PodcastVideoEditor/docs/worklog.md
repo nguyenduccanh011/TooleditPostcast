@@ -15,6 +15,8 @@
 **Phase 3 ST-3 Completed:** 2026-02-11 ✅ | **Phase 3: 100%**
 **Phase 4 (TP-004) ST-1, ST-2, ST-3 Completed:** 2026-02-12 ✅
 
+**[2026-02-12] ROLE: BUILDER/ANALYST — ST-2 kiểm tra; preview Viewbox (bỏ cuộn); thêm docs layout CapCut + thiết kế Elements/Segment & gộp panel. Session paused, ST-2 còn đồng bộ aspect với Project.**
+
 ---
 
 ## Session 15: Feb 12, 2026 - Multi-track Timeline (TP-004) - ST-1–4 Foundation & ViewModel

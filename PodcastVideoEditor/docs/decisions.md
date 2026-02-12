@@ -509,7 +509,7 @@ Các quyết định và nhiệm vụ sau đã được ghi chi tiết trong **`
 | Phase 6 | #12 | UI Editor tab — tối ưu gọn đẹp giống CapCut. |
 | Multi-track (sau Phase 3) | — | Timeline đa track, segment đa loại: thiết kế chi tiết `docs/MULTI-TRACK-TIMELINE-DESIGN.md`. |
 
-**Nguồn chi tiết:** `docs/issues.md` (Issue #10–#13). **Bảng Phase Commitments:** `docs/state.md`. **Multi-track timeline:** `docs/MULTI-TRACK-TIMELINE-DESIGN.md`.
+**Nguồn chi tiết:** `docs/issues.md` (Issue #10–#13). **Bảng Phase Commitments:** `docs/state.md`. **Multi-track timeline:** `docs/MULTI-TRACK-TIMELINE-DESIGN.md`. **Elements gắn Segment + gộp panel Properties:** `docs/ELEMENTS-SEGMENTS-AND-PROPERTIES-PANEL-DESIGN.md`.
 
 ---
 

@@ -36,13 +36,14 @@ Bù khoảng trống MVP: **segment visual** có thể gắn ảnh (tối thiể
 
 #### ST-2: Preview — Chọn tỉ lệ khung hình (aspect ratio)
 **Objective:** Preview (canvas/vùng xem) có khung theo tỉ lệ đã chọn (9:16, 16:9, 1:1, 4:5); đồng bộ với project/render settings.
-**Status:** ⏳ **NOT STARTED**
+**Status:** ⏳ **IN PROGRESS** — **CURRENT**
 
 **Acceptance Criteria:**
-- [ ] Trong Editor: có cách chọn aspect ratio cho preview (dropdown hoặc nút: 9:16, 16:9, 1:1, 4:5). Giá trị lưu vào Project (đã có Project.AspectRatio hoặc RenderSettings) hoặc ViewModel preview.
-- [ ] Khung preview (CanvasView hoặc vùng hiển thị tương đương) đổi kích thước/letterbox theo tỉ lệ chọn — không vỡ layout; nội dung scale/fit trong khung.
+- [x] Trong Editor: có cách chọn aspect ratio cho preview (dropdown hoặc nút: 9:16, 16:9, 1:1, 4:5). Giá trị lưu vào Project (đã có Project.AspectRatio hoặc RenderSettings) hoặc ViewModel preview.
+- [ ] **Lưu/load với Project:** Giá trị chọn trong Canvas chưa đồng bộ với `Project.RenderSettings.AspectRatio` (mở project không load tỉ lệ vào Canvas; Save không ghi tỉ lệ từ Canvas vào project).
+- [x] Khung preview (CanvasView hoặc vùng hiển thị tương đương) đổi kích thước/letterbox theo tỉ lệ chọn — không vỡ layout; nội dung scale/fit trong khung.
 - [ ] Render settings (Resolution/AspectRatio) có thể đồng bộ với tỉ lệ preview (hoặc tách riêng; MVP tối thiểu preview đúng tỉ lệ).
-- [ ] Build succeeds (0 errors).
+- [x] Build succeeds (0 errors) — Core build OK; full build fail khi app đang chạy do lock file (không phải lỗi biên dịch).
 
 **Implementation Notes:**
 - Project.AspectRatio đã có ("9:16"); RenderViewModel có SelectedAspectRatio. Cần binding aspect ratio từ Project hoặc EditorViewModel xuống Canvas/Preview (CanvasViewModel.CanvasWidth/Height hoặc PreviewFrame aspect).
@@ -258,28 +259,44 @@ ST-1 → ST-2 → ST-3 → ST-4 → ST-5 ✅ | ST-6, ST-7 hoãn (làm sau)
 - [ ] ST-6, ST-7: ⏸️ Hoãn (polish)
 
 ### MVP Visual & Preview Progress (TP-005)
-- [ ] ST-1: Gắn ảnh vào segment visual — **CURRENT**
-- [ ] ST-2: Preview chọn tỉ lệ khung hình
+- [ ] ST-1: Gắn ảnh vào segment visual
+- [ ] ST-2: Preview chọn tỉ lệ khung hình — **CURRENT**
 - [ ] ST-3: Preview composite theo timeline (visual + text + audio)
 
 ---
 
 ## Next Action
 
-**Current Subtask:** TP-005 ST-1 — Gắn ảnh (và tùy chọn video) vào segment visual — MVP.
+**Current Subtask:** TP-005 ST-2 — Preview chọn tỉ lệ khung hình (aspect ratio).
 
-**Resume Instructions (ST-1):**
-- Thêm luồng "Chọn ảnh" cho segment visual: Segment Property Panel hoặc context — nút mở file ảnh/video → tạo Asset (FilePath) → gán Segment.BackgroundAssetId → persist.
-- Kiểm tra Asset trong DbContext/ProjectService; nếu chưa có bảng Assets thì migration. Segment panel binding SelectedSegment + hiển thị thumbnail/path + nút Chọn ảnh.
-- Build 0 errors; test: tạo segment visual → chọn ảnh → lưu → mở lại project thấy ảnh gán đúng.
+**Resume Instructions (ST-2):**
+- Trong Editor: dropdown hoặc nút chọn aspect ratio (9:16, 16:9, 1:1, 4:5). Lưu vào Project (Project.AspectRatio / RenderSettings) hoặc ViewModel preview.
+- Khung preview (CanvasView hoặc vùng hiển thị): đổi kích thước/letterbox theo tỉ lệ; nội dung scale/fit trong khung (Viewbox hoặc tính Width/Height từ ratio).
+- Đồng bộ với render settings (MVP tối thiểu preview đúng tỉ lệ). Build 0 errors.
 
-**Sau ST-1:** ST-2 (Preview aspect ratio) rồi ST-3 (Preview composite sync). Hoặc ST-1 → ST-3 rồi ST-2.
+**ST-1 (Gắn ảnh segment):** Có thể làm trước/song song; ST-3 cần ST-1. **Sau ST-2:** ST-1 hoặc ST-3 tùy thứ tự ưu tiên.
 
 **TP-004 ST-6/ST-7:** Vẫn hoãn (polish). Phase 5 (Render) sau khi TP-005 xong.
 
+**Còn thiếu ST-2:** Đồng bộ aspect ratio với Project — khi mở project load `RenderSettings.AspectRatio` vào CanvasViewModel; khi đổi tỉ lệ hoặc Save ghi từ CanvasViewModel vào CurrentProject.RenderSettings.AspectRatio.
+
 ---
 
-Last updated: 2026-02-12 (TP-005 added; ST-1 = next)
+Last updated: 2026-02-12 (Session 17 paused; ST-2 in progress)
+
+---
+
+## Session 17 Summary
+
+**Dates:** 2026-02-12 | **Status:** ⏸️ Session Paused (ST-2 in progress)
+
+### Done in This Session
+- Kiểm tra ST-2 acceptance criteria: dropdown + Viewbox preview ✅; lưu/load aspect với Project ❌.
+- **Preview không cuộn:** Thay ScrollViewer bằng Viewbox (CanvasView.xaml) — scale-to-fit kiểu CapCut.
+- **Docs:** EDITOR-LAYOUT-CAPCUT-ANALYSIS.md (phân tích khung CapCut vs Editor); ELEMENTS-SEGMENTS-AND-PROPERTIES-PANEL-DESIGN.md (element→segment, gộp panel Properties, Timeline full bottom). Cập nhật archive.md, decisions.md.
+
+### Next Session
+- **ST-2:** Hoàn thành đồng bộ aspect ratio với Project (load/save). Sau đó ST-1 hoặc ST-3.
 
 ---
 
@@ -306,13 +323,14 @@ Last updated: 2026-02-12 (TP-005 added; ST-1 = next)
 
 ## Resuming Next Session
 
-**Next:** TP-005 ST-1 — Gắn ảnh vào segment visual (MVP).
+**Current:** TP-005 ST-2 — Preview aspect ratio (đã có dropdown + Viewbox; còn **lưu/load với Project**).
 
-**Quick Start ST-1:**
-1. Đọc `docs/active.md` → TP-005 ST-1 Acceptance Criteria & Implementation Notes.
-2. Kiểm tra Asset trong Core (model + DbContext + migration nếu chưa có bảng).
-3. Segment Property Panel (hoặc tương đương): nút "Chọn ảnh" / "Chọn file" → OpenFileDialog (image/video) → tạo Asset → gán Segment.BackgroundAssetId → SaveSegment/UpdateSegment.
-4. Build + manual test: chọn segment visual → chọn ảnh → lưu → reload project.
+**Quick Start ST-2 (phần còn lại):**
+1. Khi mở project: từ `CurrentProject.RenderSettings.AspectRatio` set `CanvasViewModel.SelectedAspectRatio` và gọi ApplyAspectRatio (trong OpenProjectAsync hoặc khi CurrentProject thay đổi).
+2. Khi Save hoặc khi đổi tỉ lệ: ghi `CanvasViewModel.SelectedAspectRatio` vào `CurrentProject.RenderSettings.AspectRatio` trước khi UpdateProjectAsync.
+3. (Tùy chọn) Đồng bộ RenderViewModel.SelectedAspectRatio với Project khi load/save.
+
+**Nếu chuyển sang ST-1:** Đọc `docs/active.md` TP-005 ST-1; Segment panel nút Chọn ảnh → Asset → Segment.BackgroundAssetId.
 
 **Sau TP-005:** Phase 5 (Render #10, #11). Phase 4 (AI) hoặc Phase 6 (ST-6/ST-7, #12) tùy ưu tiên.
 

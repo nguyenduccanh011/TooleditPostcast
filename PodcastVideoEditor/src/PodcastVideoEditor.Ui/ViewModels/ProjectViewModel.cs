@@ -18,6 +18,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
     public partial class ProjectViewModel : ObservableObject
     {
         private readonly ProjectService _projectService;
+        private readonly CanvasViewModel _canvasViewModel;
+        private readonly RenderViewModel _renderViewModel;
 
         [ObservableProperty]
         private Project? currentProject;
@@ -37,9 +39,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = string.Empty;
 
-        public ProjectViewModel(ProjectService projectService)
+        public ProjectViewModel(ProjectService projectService, CanvasViewModel canvasViewModel, RenderViewModel renderViewModel)
         {
             _projectService = projectService;
+            _canvasViewModel = canvasViewModel;
+            _renderViewModel = renderViewModel;
         }
 
         /// <summary>
@@ -102,6 +106,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Projects.Add(project);
                 CurrentProject = project;
 
+                // Initialize render/preview settings in UI from the new project's settings
+                var aspect = project.RenderSettings.AspectRatio;
+                if (!string.IsNullOrWhiteSpace(aspect))
+                {
+                    _canvasViewModel.SelectedAspectRatio = aspect;
+                    _renderViewModel.SelectedAspectRatio = aspect;
+                }
+
                 // Reset form
                 NewProjectName = string.Empty;
                 SelectedAudioPath = string.Empty;
@@ -141,6 +153,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (loadedProject != null)
                 {
                     CurrentProject = loadedProject;
+
+                    // Sync render/preview settings from project into UI view models
+                    var aspect = loadedProject.RenderSettings.AspectRatio;
+                    if (!string.IsNullOrWhiteSpace(aspect))
+                    {
+                        _canvasViewModel.SelectedAspectRatio = aspect;
+                        _renderViewModel.SelectedAspectRatio = aspect;
+                    }
+
                     StatusMessage = $"Project opened: {loadedProject.Name}";
                     Log.Information("Project opened: {ProjectId} - {ProjectName}", loadedProject.Id, loadedProject.Name);
                 }
@@ -200,6 +221,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
+                // Sync aspect ratio from UI (canvas) back into project settings before saving
+                if (!string.IsNullOrWhiteSpace(_canvasViewModel.SelectedAspectRatio))
+                {
+                    CurrentProject.RenderSettings.AspectRatio = _canvasViewModel.SelectedAspectRatio;
+                }
+
                 await _projectService.UpdateProjectAsync(CurrentProject);
                 StatusMessage = $"Project '{CurrentProject.Name}' saved successfully";
                 Log.Information("Project saved: {ProjectId}", CurrentProject.Id);
@@ -260,6 +287,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void SetAudioPath(string audioPath)
         {
             SelectedAudioPath = audioPath;
+        }
+
+        /// <summary>
+        /// Add an asset to the current project and persist it. Returns the created asset or null when no project is loaded.
+        /// </summary>
+        public async Task<Asset?> AddAssetToCurrentProjectAsync(string filePath, string type = "Image")
+        {
+            if (CurrentProject == null)
+            {
+                StatusMessage = "No project loaded";
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                StatusMessage = "Invalid file path";
+                return null;
+            }
+
+            try
+            {
+                var asset = await _projectService.AddAssetAsync(CurrentProject.Id, filePath, type);
+                CurrentProject.Assets.Add(asset);
+                StatusMessage = $"Asset added: {asset.FileName}";
+                Log.Information("Asset added to current project {ProjectId}: {AssetId}", CurrentProject.Id, asset.Id);
+                return asset;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error adding asset: {ex.Message}";
+                Log.Error(ex, "Error adding asset to project {ProjectId}", CurrentProject.Id);
+                return null;
+            }
         }
     }
 }

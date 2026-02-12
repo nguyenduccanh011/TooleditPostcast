@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Models;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -20,6 +21,64 @@ namespace PodcastVideoEditor.Core.Services
         public ProjectService(AppDbContext context)
         {
             _context = context;
+        }
+
+        /// <summary>
+        /// Add a media asset to a project. The source file is copied into AppData/PodcastVideoEditor/assets/{projectId}.
+        /// Returns the persisted Asset entity.
+        /// </summary>
+        public async Task<Asset> AddAssetAsync(string projectId, string sourceFilePath, string type = "Image")
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
+
+            if (string.IsNullOrWhiteSpace(sourceFilePath))
+                throw new ArgumentException("File path cannot be empty", nameof(sourceFilePath));
+
+            var fileInfo = new FileInfo(sourceFilePath);
+            if (!fileInfo.Exists)
+                throw new FileNotFoundException("Asset file not found", sourceFilePath);
+
+            var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PodcastVideoEditor", "assets", projectId);
+            Directory.CreateDirectory(appData);
+
+            var safeName = Path.GetFileNameWithoutExtension(fileInfo.Name);
+            var extension = fileInfo.Extension;
+            var destinationFileName = $"{safeName}_{Guid.NewGuid():N}{extension}";
+            var destinationPath = Path.Combine(appData, destinationFileName);
+            File.Copy(fileInfo.FullName, destinationPath, overwrite: false);
+
+            var asset = new Asset
+            {
+                ProjectId = projectId,
+                Name = fileInfo.Name,
+                Type = type,
+                FilePath = destinationPath,
+                FileName = fileInfo.Name,
+                Extension = extension,
+                FileSize = fileInfo.Length,
+                Width = null,
+                Height = null,
+                Duration = null,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Assets.Add(asset);
+            await _context.SaveChangesAsync();
+
+            Log.Information("Asset added to project {ProjectId}: {AssetId} ({Name})", projectId, asset.Id, asset.Name);
+            return asset;
+        }
+
+        /// <summary>
+        /// Retrieve an asset by ID.
+        /// </summary>
+        public Task<Asset?> GetAssetByIdAsync(string assetId)
+        {
+            if (string.IsNullOrWhiteSpace(assetId))
+                throw new ArgumentException("Asset ID cannot be empty", nameof(assetId));
+
+            return _context.Assets.FirstOrDefaultAsync(a => a.Id == assetId);
         }
 
         /// <summary>

@@ -51,11 +51,11 @@ public partial class MainWindow : Window
             _dbContext.Database.EnsureCreated();
 
             var projectService = new ProjectService(_dbContext);
-            _projectViewModel = new ProjectViewModel(projectService);
             _renderViewModel = new RenderViewModel();
             _audioService = new AudioService();
             _visualizerViewModel = new VisualizerViewModel(_audioService);
             _canvasViewModel = new CanvasViewModel(_visualizerViewModel);
+            _projectViewModel = new ProjectViewModel(projectService, _canvasViewModel, _renderViewModel);
             _audioPlayerViewModel = new AudioPlayerViewModel(_audioService);
             _timelineViewModel = new TimelineViewModel(_audioService, _projectViewModel);
 

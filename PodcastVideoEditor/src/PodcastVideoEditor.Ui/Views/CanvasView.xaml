@@ -109,18 +109,22 @@
             <Separator/>
             <Button Content="Clear" Command="{Binding ClearAllCommand}" Padding="8,4" Background="#D32F2F" Foreground="White"/>
             <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Foreground="White" VerticalAlignment="Center"/>
+            <Separator/>
+            <TextBlock Text="Aspect" Margin="8,0,4,0" VerticalAlignment="Center" Foreground="White"/>
+            <ComboBox Width="90"
+                      ItemsSource="{Binding AspectRatioOptions}"
+                      SelectedItem="{Binding SelectedAspectRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      Background="#1e1e1e" Foreground="White" BorderBrush="#3E3E42" BorderThickness="1"/>
         </ToolBar>
 
-        <!-- Canvas Area -->
+        <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
         <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#404040" BorderThickness="1">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <Viewbox Stretch="Uniform" StretchDirection="Both">
                 <Canvas x:Name="MainCanvas"
                         Background="#2d2d2d"
                         Width="{Binding CanvasWidth}"
                         Height="{Binding CanvasHeight}"
                         MouseDown="OnCanvasMouseDown">
-                    
-                    <!-- Elements rendered here -->
                     <ItemsControl ItemsSource="{Binding Elements}"
                                  ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
                         <ItemsControl.ItemContainerStyle>
@@ -138,7 +142,7 @@
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
                 </Canvas>
-            </ScrollViewer>
+            </Viewbox>
         </Border>
 
         <!-- Status Bar -->

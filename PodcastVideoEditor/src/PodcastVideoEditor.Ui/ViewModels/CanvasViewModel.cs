@@ -19,6 +19,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly DispatcherTimer? _visualizerTimer;
         private bool _disposed;
 
+        public ObservableCollection<string> AspectRatioOptions { get; } = new()
+        {
+            "9:16", "16:9", "1:1", "4:5"
+        };
+
         [ObservableProperty]
         private ObservableCollection<CanvasElement> elements = new();
 
@@ -51,9 +56,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private WriteableBitmap? visualizerBitmapSource;
 
+        [ObservableProperty]
+        private string selectedAspectRatio = "9:16";
+
         public CanvasViewModel()
         {
             PropertyEditor = new PropertyEditorViewModel();
+            ApplyAspectRatio(selectedAspectRatio);
         }
 
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
@@ -66,6 +75,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerTimer.Tick += OnVisualizerTimerTick;
             PropertyEditor = new PropertyEditorViewModel();
             PropertyEditor.OnVisualizerElementConfigChanged = SyncVisualizerFromElement;
+            ApplyAspectRatio(selectedAspectRatio);
         }
 
         private void SyncVisualizerFromElement(VisualizerElement element)
@@ -356,8 +366,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void ResetCanvas()
         {
             ClearAll();
-            CanvasWidth = 1920;
-            CanvasHeight = 1080;
+            ApplyAspectRatio(SelectedAspectRatio);
             LogMessage("Canvas reset to default");
         }
 
@@ -376,6 +385,29 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public CanvasElement? GetElementById(string id) =>
             Elements.FirstOrDefault(e => e.Id == id);
+
+        partial void OnSelectedAspectRatioChanged(string value)
+        {
+            ApplyAspectRatio(value);
+        }
+
+        private void ApplyAspectRatio(string aspectRatio)
+        {
+            var parts = aspectRatio.Split(':');
+            if (parts.Length != 2 ||
+                !double.TryParse(parts[0], out var w) ||
+                !double.TryParse(parts[1], out var h) ||
+                w <= 0 || h <= 0)
+            {
+                w = 9;
+                h = 16;
+            }
+
+            const double baseHeight = 1080.0;
+            CanvasHeight = baseHeight;
+            CanvasWidth = Math.Round(baseHeight * (w / h));
+            StatusMessage = $"Preview ratio set to {w}:{h} ({CanvasWidth}x{CanvasHeight})";
+        }
 
         public void Dispose()
         {

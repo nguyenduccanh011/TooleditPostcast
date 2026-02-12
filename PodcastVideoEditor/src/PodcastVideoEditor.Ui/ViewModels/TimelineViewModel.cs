@@ -92,6 +92,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Expose the owning ProjectViewModel for panels that need project-level operations (e.g., assets).
+        /// </summary>
+        public ProjectViewModel ProjectViewModel => _projectViewModel;
+
+        /// <summary>
         /// Load tracks from current project, including all segments for each track.
         /// </summary>
         private void LoadTracksFromProject()
