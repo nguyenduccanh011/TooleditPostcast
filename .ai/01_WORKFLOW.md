@@ -18,7 +18,7 @@
 - `docs/db.md` (COLD) - Database schema
 - `docs/archive.md` (COLD) - Index của tất cả tài liệu chi tiết
 
-**Lưu ý:** Các tài liệu chi tiết (design.md, user-flow.md, feature-specific docs) được tổ chức trong `docs/archive.md`. Chỉ đọc khi cần implementation details để tránh token waste. Để hiểu tổng quan, xem `docs/decisions.md` và `docs/arch.md`.
+**Lưu ý:** Các tài liệu chi tiết (design, feature-specific docs) được liệt kê trong `docs/archive.md`. Chỉ đọc khi cần implementation details để tránh token waste. Để hiểu tổng quan, xem `docs/decisions.md` và `docs/arch.md`. **Khi `state.md` hoặc `active.md` tham chiếu rõ file (vd `docs/MULTI-TRACK-TIMELINE-DESIGN.md`) cho một phase/TP:** đọc file đó khi implement TP/ST tương ứng.
 
 ## Gates (checkpoints)
 ### G1: Scope/Goal Gate
@@ -59,7 +59,7 @@
 - `docs/arch.md` - Architecture overview (có references đến chi tiết)
 - `docs/design.md` - Chi tiết design modules (xem khi implement backend/frontend)
 - `docs/user-flow.md` - Chi tiết user flows (xem khi implement UI)
-- Feature docs - Xem `docs/archive.md` để biết danh sách đầy đủ
+- Feature / design docs — Xem `docs/archive.md` để biết danh sách; nếu TP/ST trong `active.md` ghi "đọc docs/XXX.md" thì đọc file đó khi implement
 
 ## Session end checklist (bắt buộc)
 - Cập nhật `docs/active.md`:

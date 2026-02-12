@@ -41,10 +41,9 @@ Nếu agent mới hoặc cần refresh kiến thức:
   - Khi nào đọc: Chỉ khi cần chi tiết kiến trúc/API/DB
   - Mục đích: Hiểu cấu trúc kỹ thuật chi tiết
 
-- `docs/design.md`, `docs/user-flow.md`, feature docs (COLD docs)
-  - Khi nào đọc: Chỉ khi cần implementation details cụ thể
-  - Mục đích: Xem chi tiết design/user flow/feature specs
-  - Xem `docs/archive.md` để biết danh sách đầy đủ các tài liệu chi tiết
+- `docs/archive.md` + feature/design docs (COLD)
+  - Khi nào đọc: Khi cần implementation details; hoặc khi `state.md`/`active.md` tham chiếu rõ file (vd Multi-track → `docs/MULTI-TRACK-TIMELINE-DESIGN.md`)
+  - Mục đích: Danh sách tài liệu chi tiết trong `docs/archive.md`; đọc file được tham chiếu trong TP/ST
 
 ### Bước 4: Đọc quy trình role (khi chọn role)
 Sau khi xác định role cần dùng:

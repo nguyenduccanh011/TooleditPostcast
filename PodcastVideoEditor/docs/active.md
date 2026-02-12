@@ -74,7 +74,7 @@ Ví dụ: `[0.00 → 6.04]  Chào mừng đến với podcast...` — mỗi dòn
 - **ST-3d** — SegmentEditorPanel đã bind SelectedSegment.Text ✅
 - **ST-3e** — Build succeeded ✅
 
-**Notes:** Không dùng AI segmentation (v1.1). Multi-track (media/text/sticker kiểu CapCut) để sau Phase 3 — xem `docs/script-and-timeline-plan.md`.
+**Notes:** Không dùng AI segmentation (v1.1). Multi-track (media/text/sticker kiểu CapCut) để sau Phase 3 — thiết kế chi tiết: `docs/MULTI-TRACK-TIMELINE-DESIGN.md`.
 
 ---
 
@@ -106,6 +106,7 @@ ST-3 (Script) — độc lập, có thể làm sau ST-1/ST-2
 **Resume Instructions:**
 - ST-3 (Script paste + áp dụng) đã implement: ScriptParser, UI Expander + TextBox + nút "Áp dụng script", ReplaceSegmentsAsync persist. Test thủ công: mở project → mở Expander Script → dán script mẫu → Áp dụng script → kiểm tra timeline + Segment Properties.
 - Tiếp theo: Phase 4 (AI & Automation) hoặc Phase 5/6; nhớ đưa #10, #11, #12 vào TP (xem `docs/state.md` Phase Commitments).
+- **Nếu chọn phase Multi-track timeline:** Tạo TP trong `active.md`; **đọc `docs/MULTI-TRACK-TIMELINE-DESIGN.md`** trước khi viết ST và ghi rõ trong TP (vd "Prerequisite: đọc MULTI-TRACK-TIMELINE-DESIGN.md"). Danh sách tài liệu chi tiết: `docs/archive.md`.
 
 ---
 

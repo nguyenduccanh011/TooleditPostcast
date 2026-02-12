@@ -73,7 +73,7 @@ JSON Config:       System.Text.Json
 |-------|------|--------|--------|
 | **Phase 1** | Core Engine & Audio | ✅ DONE (100%) | Feb 6-7 |
 | **Phase 2** | Canvas Editor & Visualizer | ✅ DONE (100%) | Feb 7 - Mar 7 |
-| **Phase 3** | Script & Timeline | ⏳ TODO | Week 7-8 |
+| **Phase 3** | Script & Timeline | ✅ DONE (100%) | Week 7-8 |
 | **Phase 4** | AI & Automation | ⏳ TODO | Week 9-10 |
 | **Phase 5** | Render Pipeline | ⏳ TODO | Week 11-13 |
 | **Phase 6** | Polish & QA | ⏳ TODO | Week 14-15 |
@@ -166,6 +166,7 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 ## Immediate Next Steps
 
 - **Phase 3 (TP-003):** ✅ Done. ST-3 (Script paste + áp dụng) đã implement. Test thủ công khi cần. Tiếp: Phase 4 hoặc Phase 5/6 (xem `docs/active.md`).
+- **Multi-track timeline (thiết kế):** Đề xuất chi tiết đã có trong `docs/MULTI-TRACK-TIMELINE-DESIGN.md` (Track entity, Segment.TrackId, collision per-track, Add segment = visual, script apply vào track text). Triển khai khi chọn phase Multi-track.
 
 ---
 
@@ -179,7 +180,7 @@ Các nhiệm vụ sau đã được ghi chi tiết trong **`docs/issues.md`**; k
 | **Phase 5** | **#10**, **#11** | #10: **Output path**: chọn thư mục xuất, nút "Mở file/thư mục", (tùy chọn) danh sách renders. #11: **Render từ Canvas** (bỏ ảnh tĩnh hardcode); output = frame từ Canvas/segment. |
 | **Phase 6** | **#12** | #12: **UI Editor tab** — tối ưu gọn đẹp giống CapCut (layout, spacing, panel collapse). |
 
-**Quy trình:** Session Start đọc `state.md` + `active.md`; khi tạo TP mới hoặc bắt đầu phase → mở `docs/issues.md` và rà số issue trên để đưa vào subtask / acceptance criteria.
+**Quy trình:** Session Start đọc `state.md` + `active.md`; khi tạo TP mới hoặc bắt đầu phase → mở `docs/issues.md` và rà số issue trên để đưa vào subtask / acceptance criteria. **Phase Multi-track timeline:** đọc `docs/MULTI-TRACK-TIMELINE-DESIGN.md` trước khi viết ST; tham chiếu trong TP (trong `active.md`).
 
 ---
 

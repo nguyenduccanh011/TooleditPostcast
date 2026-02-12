@@ -454,6 +454,29 @@ await _renderService.RenderAsync(config, progress);
 
 ---
 
+## ADR: Multi-track Timeline & Segment Types (Design Proposal)
+
+**Date:** 2026-02-12
+
+### Problem
+Timeline hiện là một list segment phẳng; cần hỗ trợ nhiều track (text, visual, audio) kiểu CapCut, nhiều track cùng loại, segment nhiều loại, và "Add segment" mặc định visual (chọn ảnh) để chuẩn bị module Assets.
+
+### Decision
+- **Track** là entity mới: Project 1—N Track; mỗi Track có Order, TrackType (text/visual/audio), Name, IsLocked, IsVisible.
+- **Segment** thuộc một Track (Segment.TrackId); giữ Segment.Kind. Va chạm chỉ kiểm tra **cùng track**.
+- Project mới tạo sẵn 3 track: Text 1, Visual 1, Audio (audio có thể chỉ hiển thị waveform).
+- **Add segment:** mặc định thêm segment **visual** vào track đang chọn (hoặc Visual 1); sau gán ảnh qua Assets.
+- **Script apply:** thay thế segments của track text (Text 1), không đụng track khác.
+
+### Rationale
+- Độc lập track: cùng thời điểm có segment trên nhiều track (text + visual + visual) không xung đột.
+- Add segment = visual: thống nhất với flow "chọn ảnh" và module Assets sau.
+- Thiết kế chi tiết: `docs/MULTI-TRACK-TIMELINE-DESIGN.md`.
+
+### Status: PROPOSED (chưa implement; triển khai khi phase Multi-track)
+
+---
+
 ## Summary of Key Decisions
 
 | Decision | Choice | Rationale |
@@ -484,8 +507,9 @@ Các quyết định và nhiệm vụ sau đã được ghi chi tiết trong **`
 | Phase 5 | #10 | Output path: chọn thư mục xuất, nút Mở file/thư mục, (tùy chọn) danh sách renders. |
 | Phase 5 | #11 | Render từ Canvas (bỏ ảnh tĩnh); output = frame từ Canvas/segment. |
 | Phase 6 | #12 | UI Editor tab — tối ưu gọn đẹp giống CapCut. |
+| Multi-track (sau Phase 3) | — | Timeline đa track, segment đa loại: thiết kế chi tiết `docs/MULTI-TRACK-TIMELINE-DESIGN.md`. |
 
-**Nguồn chi tiết:** `docs/issues.md` (Issue #10–#13). **Bảng Phase Commitments:** `docs/state.md`.
+**Nguồn chi tiết:** `docs/issues.md` (Issue #10–#13). **Bảng Phase Commitments:** `docs/state.md`. **Multi-track timeline:** `docs/MULTI-TRACK-TIMELINE-DESIGN.md`.
 
 ---
 
