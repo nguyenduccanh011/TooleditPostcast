@@ -81,6 +81,7 @@
                     <Grid MinHeight="900">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="320" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -96,14 +97,30 @@
                                                          DataContext="{Binding AudioPlayerViewModel}" />
                         </Border>
 
-                        <!-- Row 1: Canvas (center) + Property panel (right) -->
-                        <views:CanvasView Grid.Row="1" Grid.Column="0" DataContext="{Binding CanvasViewModel}" />
-                        <Border Grid.Row="1" Grid.Column="1" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
+                        <!-- Row 1: Script paste panel (full width) -->
+                        <Expander Grid.Row="1" Grid.ColumnSpan="2" Header="Script (dán định dạng [start → end] text)" IsExpanded="False"
+                                  Background="#2d2d2d" Foreground="#e0e0e0" Margin="10,0,10,0">
+                            <StackPanel Margin="10,8">
+                                <TextBox x:Name="ScriptPasteTextBox" Text="{Binding TimelineViewModel.ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
+                                         BorderBrush="#546e7a" BorderThickness="1"
+                                         TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
+                                         VerticalContentAlignment="Top"
+                                         ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
+                                <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
+                                        HorizontalAlignment="Left" Margin="0,8,0,0"
+                                        Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- Row 2: Canvas (center) + Property panel (right) -->
+                        <views:CanvasView Grid.Row="2" Grid.Column="0" DataContext="{Binding CanvasViewModel}" />
+                        <Border Grid.Row="2" Grid.Column="1" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
                             <views:PropertyEditorView DataContext="{Binding CanvasViewModel.PropertyEditor}" />
                         </Border>
 
-                        <!-- Row 2: Timeline + Segment editor -->
-                        <Border Grid.Row="2" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                        <!-- Row 3: Timeline + Segment editor -->
+                        <Border Grid.Row="3" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="3*" />
@@ -115,8 +132,8 @@
                             </Grid>
                         </Border>
 
-                        <!-- Row 3: Render -->
-                        <Border Grid.Row="3" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                        <!-- Row 4: Render -->
+                        <Border Grid.Row="4" Grid.ColumnSpan="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
                             <views:RenderView DataContext="{Binding RenderViewModel}" />
                         </Border>
                     </Grid>

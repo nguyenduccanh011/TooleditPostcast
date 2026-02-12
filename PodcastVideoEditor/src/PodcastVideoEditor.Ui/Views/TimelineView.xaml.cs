@@ -1,4 +1,5 @@
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Ui.Converters;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.Collections.Specialized;
@@ -56,7 +57,7 @@ namespace PodcastVideoEditor.Ui.Views
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
-        private NotifyCollectionChangedEventHandler? _segmentsCollectionChangedHandler;
+        private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
 
         public TimelineView()
         {
@@ -80,9 +81,7 @@ namespace PodcastVideoEditor.Ui.Views
                 if (TimelineScroller != null)
                     TimelineScroller.PreviewMouseWheel += TimelineScroller_PreviewMouseWheel;
 
-                // Update canvas width when timeline width changes
-                TimelineCanvas.Width = _viewModel.TimelineWidth;
-                // PlayheadLine spans full height (288) in XAML
+                // Timeline width is bound in XAML (RulerControl, track canvases, etc.)
 
                 // Draw initial ruler
                 InvalidateRuler();
@@ -109,10 +108,10 @@ namespace PodcastVideoEditor.Ui.Views
                     else if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
                     {
                         UpdateSegmentSelection();
+                        UpdateSegmentLayout(_viewModel.SelectedSegment);
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.TimelineWidth))
                     {
-                        TimelineCanvas.Width = _viewModel.TimelineWidth;
                         InvalidateRuler();
                         UpdateSegmentLayout();
                         InvalidateWaveform();
@@ -124,8 +123,8 @@ namespace PodcastVideoEditor.Ui.Views
                 };
                 _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
-                // Subscribe to segments collection changes — defer layout so new item container exists
-                _segmentsCollectionChangedHandler = (s, args) =>
+                // Subscribe to tracks collection changes — defer layout so new item container exists
+                _tracksCollectionChangedHandler = (s, args) =>
                 {
                     Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
                     {
@@ -133,7 +132,7 @@ namespace PodcastVideoEditor.Ui.Views
                             UpdateSegmentLayout();
                     }));
                 };
-                _viewModel.Segments.CollectionChanged += _segmentsCollectionChangedHandler;
+                _viewModel.Tracks.CollectionChanged += _tracksCollectionChangedHandler;
             }
         }
 
@@ -143,8 +142,8 @@ namespace PodcastVideoEditor.Ui.Views
                 TimelineScroller.PreviewMouseWheel -= TimelineScroller_PreviewMouseWheel;
             if (_viewModel != null && _viewModelPropertyChangedHandler != null)
                 _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
-            if (_viewModel != null && _segmentsCollectionChangedHandler != null)
-                _viewModel.Segments.CollectionChanged -= _segmentsCollectionChangedHandler;
+            if (_viewModel != null && _tracksCollectionChangedHandler != null)
+                _viewModel.Tracks.CollectionChanged -= _tracksCollectionChangedHandler;
             _zoomTimer.Stop();
         }
 
@@ -199,40 +198,74 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Update segment block layout (position and size) based on timeline properties.
-        /// When limitToSegment is set, only that segment is updated (for drag/resize performance).
+        /// Iterates through all track canvases and updates segment positioning within each track.
         /// </summary>
         private void UpdateSegmentLayout(Segment? limitToSegment = null)
         {
-            if (_viewModel == null || SegmentsItemsControl == null)
+            if (_viewModel == null)
                 return;
 
             try
             {
-                for (int i = 0; i < SegmentsItemsControl.Items.Count; i++)
+                // With multi-track layout, we need to find all segment ItemsControls within track rows
+                if (TracksItemsControl == null)
+                    return;
+
+                // Iterate through each track item
+                for (int trackIndex = 0; trackIndex < TracksItemsControl.Items.Count; trackIndex++)
                 {
-                    var presenter = SegmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(i) as ContentPresenter;
-                    if (presenter == null)
+                    // Get the container for this track (which holds the entire track row Grid)
+                    var trackContainer = TracksItemsControl.ItemContainerGenerator.ContainerFromIndex(trackIndex) as ContentPresenter;
+                    if (trackContainer == null)
                         continue;
 
-                    presenter.ApplyTemplate();
+                    trackContainer.ApplyTemplate();
 
-                    if (presenter.Content is not Segment segment)
+                    // Find the nested ItemsControl (SegmentsItemsControl) within this track row
+                    var segmentsItemsControl = FindVisualChild<ItemsControl>(trackContainer);
+                    if (segmentsItemsControl == null)
                         continue;
 
-                    if (limitToSegment != null && segment != limitToSegment)
+                    var track = TracksItemsControl.Items[trackIndex] as PodcastVideoEditor.Core.Models.Track;
+                    if (track == null || track.TrackType == "audio")
                         continue;
+                    double trackHeight = TrackHeightConverter.GetHeight(track.TrackType);
 
-                    var rootGrid = FindVisualChild<System.Windows.Controls.Grid>(presenter);
-                    if (rootGrid == null)
-                        continue;
+                    // Update positioning for each segment in this track
+                    for (int segmentIndex = 0; segmentIndex < segmentsItemsControl.Items.Count; segmentIndex++)
+                    {
+                        var presenter = segmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(segmentIndex) as ContentPresenter;
+                        if (presenter == null)
+                            continue;
 
-                    double pixelX = _viewModel.TimeToPixels(segment.StartTime);
-                    double pixelWidth = _viewModel.TimeToPixels(segment.EndTime - segment.StartTime);
-                    pixelWidth = Math.Max(4, pixelWidth);
+                        presenter.ApplyTemplate();
 
-                    Canvas.SetLeft(presenter, pixelX);
-                    Canvas.SetTop(presenter, 10);
-                    rootGrid.Width = pixelWidth;
+                        if (presenter.Content is not Segment segment)
+                            continue;
+
+                        if (limitToSegment != null && segment != limitToSegment)
+                            continue;
+
+                        var rootGrid = FindVisualChild<System.Windows.Controls.Grid>(presenter);
+                        if (rootGrid == null)
+                            continue;
+
+                        // Calculate position and size
+                        double pixelX = _viewModel.TimeToPixels(segment.StartTime);
+                        double pixelWidth = _viewModel.TimeToPixels(segment.EndTime - segment.StartTime);
+                        pixelWidth = Math.Max(4, pixelWidth);
+
+                        // Set Canvas positioning (relative to the parent Canvas)
+                        Canvas.SetLeft(presenter, pixelX);
+                        double segmentHeight = rootGrid.ActualHeight;
+                        if (segmentHeight <= 0 || double.IsNaN(segmentHeight))
+                            segmentHeight = rootGrid.Height;
+                        if (segmentHeight <= 0 || double.IsNaN(segmentHeight))
+                            segmentHeight = 40;
+                        double verticalCenter = Math.Max(0, (trackHeight - segmentHeight) / 2);
+                        Canvas.SetTop(presenter, verticalCenter);
+                        rootGrid.Width = pixelWidth;
+                    }
                 }
             }
             catch (InvalidOperationException)
@@ -242,34 +275,53 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Update visual selection state of segments.
+        /// Update visual selection state of segments across all tracks.
         /// </summary>
         private void UpdateSegmentSelection()
         {
-            if (_viewModel == null || SegmentsItemsControl == null)
+            if (_viewModel == null)
                 return;
 
             try
             {
-                for (int i = 0; i < SegmentsItemsControl.Items.Count; i++)
+                if (TracksItemsControl == null)
+                    return;
+
+                // Iterate through each track item
+                for (int trackIndex = 0; trackIndex < TracksItemsControl.Items.Count; trackIndex++)
                 {
-                    var presenter = SegmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(i) as ContentPresenter;
-                    if (presenter == null)
+                    var trackContainer = TracksItemsControl.ItemContainerGenerator.ContainerFromIndex(trackIndex) as ContentPresenter;
+                    if (trackContainer == null)
                         continue;
 
-                    presenter.ApplyTemplate();
+                    trackContainer.ApplyTemplate();
 
-                    if (presenter.Content is not Segment segment)
+                    // Find the nested ItemsControl (SegmentsItemsControl) within this track row
+                    var segmentsItemsControl = FindVisualChild<ItemsControl>(trackContainer);
+                    if (segmentsItemsControl == null)
                         continue;
 
-                    var segmentFill = FindVisualChild<Border>(presenter);
-                    if (segmentFill == null)
-                        continue;
+                    // Update selection state for each segment in this track
+                    for (int segmentIndex = 0; segmentIndex < segmentsItemsControl.Items.Count; segmentIndex++)
+                    {
+                        var presenter = segmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(segmentIndex) as ContentPresenter;
+                        if (presenter == null)
+                            continue;
 
-                    bool isSelected = segment == _viewModel.SelectedSegment;
-                    segmentFill.Background = isSelected ? SegmentSelectionBrushes.SelectedFill : SegmentSelectionBrushes.NormalFill;
-                    segmentFill.BorderBrush = isSelected ? SegmentSelectionBrushes.SelectedBorder : SegmentSelectionBrushes.NormalBorder;
-                    segmentFill.BorderThickness = new Thickness(2, 0, 2, 0);
+                        presenter.ApplyTemplate();
+
+                        if (presenter.Content is not Segment segment)
+                            continue;
+
+                        var segmentFill = FindVisualChild<Border>(presenter);
+                        if (segmentFill == null)
+                            continue;
+
+                        bool isSelected = segment == _viewModel.SelectedSegment;
+                        segmentFill.Background = isSelected ? SegmentSelectionBrushes.SelectedFill : SegmentSelectionBrushes.NormalFill;
+                        segmentFill.BorderBrush = isSelected ? SegmentSelectionBrushes.SelectedBorder : SegmentSelectionBrushes.NormalBorder;
+                        segmentFill.BorderThickness = new Thickness(2, 0, 2, 0);
+                    }
                 }
             }
             catch (InvalidOperationException)
@@ -583,7 +635,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
-            HandlePlayheadClick(e.GetPosition(TimelineCanvas).X);
+            var canvas = sender as IInputElement;
+            HandlePlayheadClick(canvas != null ? e.GetPosition(canvas).X : 0);
             e.Handled = true;
         }
 
@@ -592,9 +645,9 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void TimelineCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_isDraggingPlayhead)
+            if (_isDraggingPlayhead && sender is IInputElement canvas)
             {
-                HandlePlayheadClick(e.GetPosition(TimelineCanvas).X);
+                HandlePlayheadClick(e.GetPosition(canvas).X);
             }
         }
 

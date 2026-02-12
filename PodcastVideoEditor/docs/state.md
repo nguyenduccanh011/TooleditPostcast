@@ -79,14 +79,29 @@ JSON Config:       System.Text.Json
 | **Phase 6** | Polish & QA | ⏳ TODO | Week 14-15 |
 | **Release** | v1.0 | ⏳ TODO | Week 16 |
 
+### Thứ tự TP so với các Phase khác
+
+| Thứ tự | TP / Phase | Ghi chú |
+|--------|------------|--------|
+| 1 | Phase 1 (TP-001) | ✅ Done |
+| 2 | Phase 2 (TP-002) | ✅ Done |
+| 3 | Phase 3 (TP-003) | ✅ Done |
+| 4 | **Multi-track timeline** (TP riêng) hoặc Phase 4 | **Nên làm Multi-track trước Phase 5** (Phase 5 Render cần segment theo track + z-order; xem `MULTI-TRACK-TIMELINE-DESIGN.md` mục 7). |
+| 5 | Phase 4 (AI & Automation) | Có thể trước hoặc sau Multi-track (ít phụ thuộc). |
+| 6 | Phase 5 (Render Pipeline) | **Sau Multi-track** (issue #10, #11). |
+| 7 | Phase 6 (Polish & QA) | Sau Phase 5. |
+
+**Khuyến nghị:** Làm **Multi-track** ngay sau Phase 3 (trước Phase 5), rồi Phase 4 hoặc Phase 5 tùy ưu tiên product.
+
 ---
 
-## Current Phase: BUILD (Phase 3 — TP-003)
+## Current Phase: BUILD (TP-004 Multi-track Timeline)
 
-**Active Task Pack:** TP-003-SCRIPT-TIMELINE  
-**Status:** Phase 3 (Script & Timeline) ✅ hoàn tất. ST-1 ✅, ST-2 ✅, ST-3 (Script paste/apply) ✅ (2026-02-11).
+**Active Task Pack:** TP-004-MULTI-TRACK-TIMELINE  
+**Status:** ST-1 → ST-5 ✅ hoàn tất. **ST-6** (Track Header UI & Selection) — đang thực hiện. ST-7 (Segment Panel) — chưa làm.  
+**Chi tiết:** Xem `docs/active.md`.
 
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-12
 
 ---
 
@@ -184,4 +199,4 @@ Các nhiệm vụ sau đã được ghi chi tiết trong **`docs/issues.md`**; k
 
 ---
 
-Last updated: 2026-02-08
+Last updated: 2026-02-12

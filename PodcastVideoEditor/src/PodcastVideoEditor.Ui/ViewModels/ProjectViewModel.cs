@@ -7,6 +7,7 @@ using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Ui.ViewModels
@@ -160,13 +161,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Replace segments of current project and save (ST-3 script apply).
+        /// Replace segments of the text track in current project and save (ST-3 script apply).
+        /// Finds the first text track (typically "Text 1") and replaces its segments.
         /// </summary>
         public async Task ReplaceSegmentsAndSaveAsync(IEnumerable<Segment> newSegments)
         {
             if (CurrentProject == null)
                 throw new InvalidOperationException("No project loaded");
-            await _projectService.ReplaceSegmentsAsync(CurrentProject, newSegments);
+
+            // Find the text track (first track with TrackType = "text")
+            var textTrack = CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == "text");
+            if (textTrack == null)
+                throw new InvalidOperationException("No text track found in project");
+
+            // Use new ReplaceSegmentsOfTrackAsync for multi-track support
+            await _projectService.ReplaceSegmentsOfTrackAsync(CurrentProject, textTrack.Id, newSegments);
+
+            // Reload project from DB so in-memory Tracks/Segments match (fixes timeline not updating after Apply Script)
+            var refreshed = await _projectService.GetProjectAsync(CurrentProject.Id);
+            if (refreshed != null)
+                CurrentProject = refreshed;
         }
 
         /// <summary>

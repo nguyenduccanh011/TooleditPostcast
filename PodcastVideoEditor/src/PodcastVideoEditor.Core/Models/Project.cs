@@ -41,6 +41,14 @@ public class Project
     public RenderSettings RenderSettings { get; set; } = new();
 
     // Navigation properties
+    /// <summary>
+    /// Timeline tracks (text, visual, audio lanes).
+    /// Multi-track support: each project has one or more tracks.
+    /// Segments belong to tracks rather than directly to the project.
+    /// Cascade delete: removing a project deletes all its tracks and segments.
+    /// </summary>
+    public ICollection<Track> Tracks { get; set; } = [];
+
     public ICollection<Segment> Segments { get; set; } = [];
     public ICollection<Element> Elements { get; set; } = [];
     public ICollection<Asset> Assets { get; set; } = [];

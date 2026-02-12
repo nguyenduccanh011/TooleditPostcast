@@ -2,7 +2,7 @@
 setlocal
 pushd "%~dp0"
 
-dotnet build "src\PodcastVideoEditor.slnx"
+dotnet build "src\PodcastVideoEditor.sln"
 
 popd
 endlocal

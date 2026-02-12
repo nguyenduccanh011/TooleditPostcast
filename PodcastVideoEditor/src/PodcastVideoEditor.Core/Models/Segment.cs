@@ -42,6 +42,20 @@ public partial class Segment : ObservableObject
     [ObservableProperty]
     private string kind = "visual";
 
+    /// <summary>
+    /// Foreign key to the track this segment belongs to.
+    /// Multi-track support: each segment is contained in exactly one track.
+    /// Nullable during migration; becomes NOT NULL after data migration (ST-2).
+    /// </summary>
+    [ObservableProperty]
+    private string? trackId;
+
     // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }
+
+    /// <summary>
+    /// Reference to the track this segment belongs to.
+    /// Navigation property for EF Core relationship.
+    /// </summary>
+    public Track? Track { get; set; }
 }

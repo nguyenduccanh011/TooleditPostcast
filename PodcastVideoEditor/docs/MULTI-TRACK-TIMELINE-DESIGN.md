@@ -5,6 +5,8 @@
 **Trạng thái:** Đề xuất thiết kế (chưa implement).  
 **Tham chiếu:** `state.md` Phase Commitments, `active.md` (multi-track để sau Phase 3), ảnh tham khảo CapCut.
 
+**Thứ tự so với các TP/Phase khác:** Xem `state.md` mục **Thứ tự TP so với các Phase khác**. Tóm tắt: Multi-track **sau Phase 3**, **trước Phase 5** (Render Pipeline cần segment theo track + z-order, mục 7 bên dưới). Có thể làm trước hoặc sau Phase 4 (AI & Automation).
+
 ---
 
 ## 1. Tổng quan
@@ -213,15 +215,25 @@ Gợi ý: **Audio** có thể là track đặc biệt “chỉ hiển thị wave
 
 ---
 
-## 9. Thứ tự triển khai đề xuất
+## 9. Thứ tự ưu tiên triển khai (để tạo ST trong TP)
 
-1. **Core/Models:** Thêm `Track.cs`, cập nhật `Segment` (TrackId), `Project` (Tracks).
-2. **Database:** Migration thêm bảng Tracks, cột Segment.TrackId, dữ liệu mặc định (track + gán segment cũ vào Visual 1).
-3. **ProjectService / DatabaseService:** CRUD Track; khi load project include Tracks + Segments; ReplaceSegments → thay bằng “ReplaceSegmentsOfTrack(project, trackId, newSegments)” hoặc tương đương; tạo project mới tạo 3 track mặc định.
-4. **TimelineViewModel:** Nguồn dữ liệu = Tracks; collision theo track; Add segment vào selected track (default Visual 1), Kind = "visual"; Apply script → track text.
-5. **TimelineView (XAML):** N hàng track (ItemsControl Tracks → mỗi item một row: header + segment canvas); playhead span toàn bộ; scroll đồng bộ.
-6. **Segment property panel:** Giữ nguyên; khi có Assets, thêm control chọn ảnh cho segment visual.
-7. **Sau:** Module Assets (upload, picker), “Clear track”, thêm track (add/remove track).
+Thứ tự dưới đây đã sắp theo **ưu tiên và phụ thuộc**: làm xong bước trước mới làm bước sau. Có thể map 1:1 thành ST-1, ST-2, ... khi tạo Task Pack trong `active.md`.
+
+| Ưu tiên | ID   | Nội dung | Phụ thuộc | Ghi chú |
+|---------|------|----------|-----------|--------|
+| **P1**  | ST-1 | **Core/Models:** Thêm `Track.cs`; cập nhật `Segment` (TrackId); `Project` (Tracks). | — | Nền tảng dữ liệu; không đụng DB/UI. |
+| **P1**  | ST-2 | **Database:** Migration bảng Tracks, cột Segment.TrackId; migration dữ liệu (3 track mặc định + gán segment cũ vào Visual 1); TrackId NOT NULL + FK. | ST-1 | Xem mục 4. Migration. |
+| **P1**  | ST-3 | **ProjectService / DatabaseService:** CRUD Track; khi load project include Tracks + Segments; ReplaceSegments → thay bằng “ReplaceSegmentsOfTrack(project, trackId, newSegments)” hoặc tương đương; tạo project mới → 3 track mặc định (mục 3). | ST-2 | Script apply sẽ gọi ReplaceSegmentsOfTrack(track text). |
+| **P2**  | ST-4 | **TimelineViewModel:** Nguồn = Tracks (ObservableCollection); SelectedTrack; collision theo track; Add segment → selected track (default Visual 1), Kind = visual; Apply script → track text. | ST-3 | Logic nghiệp vụ (mục 5). |
+| **P2**  | ST-5 | **TimelineView (XAML):** Layout cột trái (track header) + cột phải; N hàng track (ItemsControl Tracks → mỗi row: header + segment canvas); chiều cao theo loại (mục 6.4); playhead span toàn bộ; scroll đồng bộ. | ST-4 | UI chính (mục 6). |
+| **P2**  | ST-6 | **Track header & UX:** Icon/tên/lock/visibility mỗi track; track đang chọn (click segment hoặc vùng trống); nút Add segment (visual) rõ ràng. | ST-5 | Mục 6.6, 6.7. |
+| **P3**  | ST-7 | **Segment property panel:** Giữ binding hiện tại; đảm bảo hoạt động với segment thuộc track (SelectedSegment). Khi có Assets: thêm control chọn ảnh (phase sau). | ST-5 | Có thể làm song song với ST-6 nếu ít conflict. |
+| **Sau** | —   | Module Assets; Clear track; Add/Delete track (E, H trong mục 11). | ST-7 | Ngoài scope MVP Multi-track. |
+
+**Tóm tắt ưu tiên:**
+- **P1 (bắt buộc trước):** Models → DB migration → Services (ST-1, ST-2, ST-3).
+- **P2 (core feature):** ViewModel → Timeline UI → Track header & Add segment (ST-4, ST-5, ST-6).
+- **P3 (hoàn thiện):** Property panel tương thích (ST-7).
 
 ---
 

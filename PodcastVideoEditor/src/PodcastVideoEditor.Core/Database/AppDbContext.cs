@@ -41,6 +41,11 @@ public class AppDbContext : DbContext
     public DbSet<Segment> Segments { get; set; } = null!;
 
     /// <summary>
+    /// Tracks table (multi-track timeline support)
+    /// </summary>
+    public DbSet<Track> Tracks { get; set; } = null!;
+
+    /// <summary>
     /// Elements table
     /// </summary>
     public DbSet<Element> Elements { get; set; } = null!;
@@ -70,9 +75,22 @@ public class AppDbContext : DbContext
 
         // Configure Project relationships
         builder.Entity<Project>()
+            .HasMany(p => p.Tracks)
+            .WithOne(t => t.Project)
+            .HasForeignKey(t => t.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Project>()
             .HasMany(p => p.Segments)
             .WithOne(s => s.Project)
             .HasForeignKey(s => s.ProjectId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Configure Track-Segment relationship (multi-track support)
+        builder.Entity<Track>()
+            .HasMany(t => t.Segments)
+            .WithOne(s => s.Track)
+            .HasForeignKey(s => s.TrackId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Project>()
@@ -94,9 +112,17 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         // Index for performance
+        builder.Entity<Track>()
+            .HasIndex(t => t.ProjectId)
+            .HasDatabaseName("IX_Track_ProjectId");
+
         builder.Entity<Segment>()
             .HasIndex(s => s.ProjectId)
             .HasDatabaseName("IX_Segment_ProjectId");
+
+        builder.Entity<Segment>()
+            .HasIndex(s => s.TrackId)
+            .HasDatabaseName("IX_Segment_TrackId");
 
         builder.Entity<Element>()
             .HasIndex(e => e.ProjectId)

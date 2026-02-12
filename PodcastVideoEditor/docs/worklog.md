@@ -13,6 +13,211 @@
 **Phase 3 ST-1 Completed:** 2026-02-08 ✅
 **Phase 3 ST-2 Completed:** 2026-02-10 ✅
 **Phase 3 ST-3 Completed:** 2026-02-11 ✅ | **Phase 3: 100%**
+**Phase 4 (TP-004) ST-1, ST-2, ST-3 Completed:** 2026-02-12 ✅
+
+---
+
+## Session 15: Feb 12, 2026 - Multi-track Timeline (TP-004) - ST-1–4 Foundation & ViewModel
+
+**Status:** ✅ **ST-1, ST-2, ST-3, ST-4 COMPLETE** (P1-P2 Priority - Foundation + Core Logic)
+
+### What Was Done
+
+#### **ST-1: Core Data Models - Track & Segment**
+- [x] Created `Core/Models/Track.cs` with full properties (Id, ProjectId, Order, TrackType, Name, IsLocked, IsVisible, Segments).
+- [x] Updated `Segment.cs`: Added `TrackId` (FK, nullable initially), added `Track` navigation property.
+- [x] Updated `Project.cs`: Added `Tracks` collection (ICollection<Track>).
+- [x] Configured EF Core relationships in `AppDbContext`:
+  - Project 1–N Track (cascade delete)
+  - Track 1–N Segment (cascade delete)
+  - Segment N–1 Track (FK, cascade)
+  - Added indexes: IX_Track_ProjectId, IX_Segment_TrackId
+- [x] Build succeeded (0 errors).
+
+#### **ST-2: EF Core Migration - Add Tracks Table & Data Migration**
+- [x] Created migration: `20260212034910_AddMultiTrackSupport.cs`
+- [x] **Data migration in Up():**
+  - Create 3 default tracks per project:
+    - Text 1 (Order 0, text lane)
+    - Visual 1 (Order 1, visual lane)
+    - Audio (Order 2, audio lane)
+  - Assign existing segments to Visual 1 track (backward compat)
+  - AlterColumn Segment.TrackId to NOT NULL
+- [x] `dotnet ef database update` applied successfully with all tracks seeded.
+
+#### **ST-3: ProjectService & DatabaseService - CRUD Track & Load/Save**
+- [x] **Updated `ProjectService`:**
+  - `CreateProjectAsync()`: Now creates project with 3 default tracks (Text 1, Visual 1, Audio)
+  - `GetAllProjectsAsync()`: Include Tracks + ThenInclude Segments
+  - `GetProjectAsync()`: Include Tracks + ThenInclude Segments
+  - `ReplaceSegmentsAsync()` marked [Obsolete] + added new `ReplaceSegmentsOfTrackAsync(project, trackId, newSegments)` for ST-3 script apply per-track
+  - Added CRUD methods: `GetTracksAsync()`, `GetTrackByIdAsync()`, `UpdateTrackAsync()`, `DeleteTrackAsync()`
+- [x] **Updated `ProjectViewModel.ReplaceSegmentsAndSaveAsync()`:**
+  - Now finds text track (first track with TrackType="text")
+  - Calls `ReplaceSegmentsOfTrackAsync()` instead of obsolete ReplaceSegmentsAsync()
+  - Added `using System.Linq` for FirstOrDefault()
+- [x] Build succeeded (0 errors).
+
+#### **ST-4: TimelineViewModel - Multi-track Logic & State Management**
+- [x] **Replaced Segments collection with Tracks collection:**
+  - Changed `ObservableCollection<Segment> Segments` → `ObservableCollection<Track> Tracks`
+  - Added `SelectedTrack` property (track being edited)
+  - Removed direct Segments collection; access segments via track.Segments
+- [x] **Updated LoadSegmentsFromProject() → LoadTracksFromProject():**
+  - Load tracks from project ordered by Order
+  - Set SelectedTrack default (first visual track or first track)
+  - Properly include segments in each track
+- [x] **Updated collision checking per-track:**
+  - Renamed CheckCollision → CheckCollisionInTrack(segment, trackId, excludeSegment)
+  - Added CheckCollisionInTrack (only checks segments within same track)
+  - Added GetSegmentsForTrack(trackId) helper for view binding
+  - Added GetAllSegmentsFromTracks() helper for internal logic
+- [x] **Updated AddSegmentAtPlayhead():**
+  - Now adds to SelectedTrack (must be visual track)
+  - Sets Kind = "visual", TrackId = SelectedTrack.Id
+  - Validates track type (visual only)
+  - Uses CheckCollisionInTrack for same-track only collision detection
+- [x] **Updated ApplyScriptAsync():**
+  - Find text track (first track with TrackType="text")
+  - Create segments with Kind="text", TrackId = text track ID
+  - Call ProjectViewModel.ReplaceSegmentsAndSaveAsync() → uses ReplaceSegmentsOfTrackAsync()
+  - Reload tracks via LoadTracksFromProject()
+- [x] **Updated segment operations:**
+  - ClearAllSegments() → clears selected track only
+  - DeleteSelectedSegment() → remove from SelectedTrack.Segments
+  - DuplicateSelectedSegment() → duplicate within same track, with TrackId
+- [x] **Updated UpdateSegmentTiming() & TrySnapToBoundary():**
+  - Pass Track reference for per-track collision detection
+  - Snap behavior respects track boundaries only
+- [x] **Updated SelectSegment():**
+  - Also sets SelectedTrack = track containing segment
+  - Ensures consistent multi-track context
+- [x] **Updated TimelineView.xaml.cs:**
+  - Subscribe to Tracks.CollectionChanged instead of Segments.CollectionChanged
+  - Renamed _segmentsCollectionChangedHandler → _tracksCollectionChangedHandler
+- [x] Build succeeded (0 errors).
+
+### Files Modified (ST-4)
+- `Ui/ViewModels/TimelineViewModel.cs` — Complete refactor to multi-track support:
+  - Replaced Segments → Tracks collection
+  - Updated LoadSegmentsFromProject → LoadTracksFromProject
+  - Updated CheckCollision → CheckCollisionInTrack (per-track)
+  - Updated AddSegmentAtPlayhead, ApplyScriptAsync, ClearAllSegments, DeleteSelectedSegment, DuplicateSelectedSegment
+  - Updated UpdateSegmentTiming, TrySnapToBoundary
+  - Added SelectedTrack, SelectSegment() track update, helper methods
+- `Ui/Views/TimelineView.xaml.cs` — Updated subscription:
+  - Tracks.CollectionChanged instead of Segments.CollectionChanged
+  - Renamed handler fields
+
+### Build Status (Session 15)
+
+---
+
+## Session 16: Feb 12, 2026 - Multi-track Timeline (TP-004) - ST-5 UI Layout
+
+**Status:** ✅ **ST-5 COMPLETE** (P2 Priority - Core UI Feature)
+
+**Duration:** ~1 hour | **Objective:** Implement Grid layout for multi-track display with per-track segment canvases.
+
+### What Was Done
+
+#### **ST-5: TimelineView UI Layout - N Tracks + Header Column**
+
+**Files Created:**
+- `Ui/Converters/TrackHeightConverter.cs` — Converts TrackType string to row height (double):
+  - "text" → 48px
+  - "audio" → 48px
+  - "visual" → 100px
+  - default → 48px
+
+**Files Modified (Major Refactor):**
+
+1. **TimelineView.xaml** — Complete layout restructure:
+   - **Added resource:** `<conv:TrackHeightConverter/>` to UserControl.Resources
+   - **Grid structure:** 2 columns (header=56px, timeline=*), 3 rows (ruler, tracks, waveform)
+   - **Row 0 (Ruler):** TimelineRulerControl with "Timeline" label
+   - **Row 1 (Tracks - NEW ItemsControl):**
+     - ItemsControl bound to `{Binding Tracks}`
+     - ItemsPanel: StackPanel (Orientation="Vertical") for dynamic row generation
+     - ItemTemplate: DataTemplate with Track header + segment canvas:
+       - Left (56px): Border with Track.Name TextBlock
+       - Right (*): Canvas with nested ItemsControl for segments
+       - Height: `{Binding TrackType, Converter={StaticResource TrackHeightConverter}}`
+     - Each segment: Canvas.SetLeft/Top positioning, event handlers for playhead+drag
+   - **Row 2 (Waveform):** WaveformControl with "Audio" label
+   - **Playhead Layer:** Canvas spanning Grid.RowSpan="3" with Line (X1=0, Y1=0, X2=0, Y2=10000, clipped)
+
+2. **TimelineView.xaml.cs** — Event handler refactoring:
+   - **UpdateSegmentLayout():** Refactored to iterate multi-track structure
+     - Iterate TracksItemsControl.Items (Track objects)
+     - For each track: find container via ItemContainerGenerator.ContainerFromIndex()
+     - Find nested SegmentsItemsControl within track container
+     - For each segment: update Canvas positioning (Left, Top, Width)
+   - **UpdateSegmentSelection():** Similarly refactored to color-code selected segment across all tracks
+   - **TimelineCanvas_mouseDo MouseDown/Move/Up:** Updated to use `sender as IInputElement` instead of fixed TimelineCanvas reference
+     - Now works with any track canvas that raised the event
+     - Playhead seek logic unchanged
+
+### Architecture & Layout
+
+**Grid Layout Flow:**
+```
+ScrollViewer (H/V bars auto)
+  └─ Grid (2 col: label=56px, timeline=*)
+      ├─ Row 0: "Timeline" label + Ruler control
+      ├─ Row 1: ItemsControl<Track>
+      │   └─ ItemsPanel: StackPanel (vertical)
+      │       └─ For each Track:
+      │           ├─ Grid Row (Height=TrackHeightConverter)
+      │           ├─ Column 0: Header border + Track.Name
+      │           ├─ Column 1: Canvas (segments)
+      │           │   └─ ItemsControl<Segment>
+      │           │       └─ For each Segment:
+      │           │           ├─ Grid (Heights=40px for MVP)
+      │           │           ├─ Canvas.Left = TimeToPixels(StartTime)
+      │           │           ├─ Canvas.Top = 5px
+      │           │           └─ Width = TimeToPixels(Duration)
+      │           └─ Event handlers: TimelineCanvas_MouseDown/Move/Up
+      └─ Row 2: "Audio" label + Waveform control
+      └─ Playhead Canvas: Single Line (X1=0, Y2=10000, clipped)
+```
+
+**Key Design Decisions:**
+- **Dynamic rows via StackPanel:** Avoids complexity of dynamic Grid.Row generation
+- **per-track ItemsControl:** Each track has its own ItemsControl<Segment> (isolation, per-track collision checks)
+- **Height converter:** Encapsulates row height logic (TrackType → pixels)
+- **Canvas absolute positioning:** Segments use Canvas.SetLeft/Top for pixel-precise placement
+- **Event handler reuse:** TimelineCanvas_* methods still work (use sender instead of fixed reference)
+- **Segment heights:** MVP uses fixed 40px (can be made dynamic per segment in future)
+
+### Acceptance Criteria Met ✅
+- ✅ Grid layout: 2 columns (header + timeline)
+- ✅ RowDefinitions: ruler + ItemsControl(Tracks) + waveform
+- ✅ Track rows: dynamic N tracks from Tracks collection
+- ✅ Row heights: text/audio=48px, visual=100px (converter binding)
+- ✅ Header column: Icon placeholder + Track.Name display (simple MVP)
+- ✅ Timeline column: Segments ItemsControl per-track canvas
+- ✅ Scroll: ScrollViewer with auto bars, ruler scrolls horizontally
+- ✅ Playhead: Single Line spanning ruler/tracks/waveform
+- ✅ Build: 0 errors
+
+### Build Status (Session 16)
+✅ Build succeeded (0 Errors)
+- TrackHeightConverter: Created successfully
+- XAML multi-track layout: All bindings, converters compile
+- CodeBehind refactoring: UpdateSegmentLayout, UpdateSegmentSelection updated
+- Event handlers: TimelineCanvas_MouseDown/Move/Up working with multiple track canvases
+
+### Known Limitations
+- **Header styling:** No icons, lock button, visibility eye (deferred to ST-6)
+- **Segment heights:** Fixed 40px within each track (can be parameterized in future)
+- **No virtualization:** All tracks render (add VirtualizingStackPanel for many tracks)
+- **Playhead height:** Hard-coded Y2=10000 (could bind to dynamic sum of track heights)
+
+### Next Steps (ST-6, P2 Priority)
+- Implement track header UI: icons (T/V/audio), lock/visibility toggles, track selection highlight
+- Track selection: Click header → select track; Click segment → select track + segment
+- Context menus for track operations (lock, visibility, delete)
 
 ---
 

@@ -15,6 +15,14 @@
         <conv:DurationDisplayConverter x:Key="DurationDisplayConverter"/>
         <conv:PixelsPerSecondConverter x:Key="PixelsPerSecondConverter"/>
         <conv:TimeValueConverter x:Key="TimeValueConverter"/>
+        <conv:TrackHeightConverter x:Key="TrackHeightConverter"/>
+        <Style x:Key="HideAudioTrackBorder" TargetType="Border">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding TrackType}" Value="audio">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <!-- Thumb template tối giản: bỏ template mặc định gây khối trắng -->
         <Style x:Key="TransparentThumbStyle" TargetType="Thumb">
             <Setter Property="Template">
@@ -31,28 +39,11 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- ST-3a: Script paste panel -->
-        <Expander Grid.Row="0" Header="Script (dán định dạng [start → end] text)" IsExpanded="False"
-                  Background="#2d2d2d" Foreground="#e0e0e0" Margin="0,0,0,4">
-            <StackPanel Margin="10,8">
-                <TextBox Text="{Binding ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
-                         Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
-                         BorderBrush="#546e7a" BorderThickness="1"
-                         TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
-                         VerticalContentAlignment="Top"
-                         ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
-                <Button Content="Áp dụng script" Command="{Binding ApplyScriptCommand}"
-                        HorizontalAlignment="Left" Margin="0,8,0,0"
-                        Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
-            </StackPanel>
-        </Expander>
-
         <!-- Status Bar: MinHeight so buttons and text are not clipped -->
-        <Border Grid.Row="1" Background="#2d2d2d" Padding="10,8" MinHeight="44">
+        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -86,133 +77,197 @@
             </Grid>
         </Border>
 
-        <!-- Timeline Content: Ctrl+Wheel = zoom, Wheel = pan (scroll) -->
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" 
-                     VerticalScrollBarVisibility="Auto"
-                     CanContentScroll="False"
-                     x:Name="TimelineScroller"
+        <!-- Timeline Content: Fixed headers + scrollable content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" 
+                     HorizontalScrollBarVisibility="Disabled"
+                     x:Name="OuterScroller"
                      Background="#252525">
-            <!-- Grid: col0 = label (56px), col1 = timeline content (align ruler + segment + waveform) -->
-            <Grid Width="{Binding TimelineContentWidth}">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="56"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="40"/>
-                    <RowDefinition Height="200"/>
-                    <RowDefinition Height="48"/>
-                </Grid.RowDefinitions>
-                <!-- Row 0: empty label, Ruler -->
-                <Border Grid.Row="0" Grid.Column="1" Background="#1a1a1a" Height="40"
-                        MouseDown="RulerBorder_MouseDown"
-                        MouseMove="RulerBorder_MouseMove"
-                        MouseUp="RulerBorder_MouseUp"
-                        Cursor="Hand">
-                    <controls:TimelineRulerControl x:Name="RulerControl"
-                                                   Height="40"
-                                                   ClipToBounds="True"
-                                                   Width="{Binding TimelineWidth}"
-                                                   PixelsPerSecond="{Binding PixelsPerSecond}"
-                                                   TotalDuration="{Binding TotalDuration}"/>
-                </Border>
-                <!-- Row 1: empty label, Segment track -->
-                <Canvas Grid.Row="1" Grid.Column="1" Background="#2d2d2d" x:Name="TimelineCanvas"
-                       ClipToBounds="True"
-                       Width="{Binding TimelineWidth}"
-                       Height="200"
-                       MouseDown="TimelineCanvas_MouseDown"
-                       MouseMove="TimelineCanvas_MouseMove"
-                       MouseUp="TimelineCanvas_MouseUp">
-                    <ItemsControl ItemsSource="{Binding Segments}" 
-                                 x:Name="SegmentsItemsControl">
+
+                <!-- Col 0: Fixed Track Headers (no horizontal scroll) - MUST use same structure as Col 1 -->
+                <Grid Grid.Column="0" Background="#252525">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="40"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="48"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Row 0: Ruler header -->
+                    <Border Grid.Row="0" Height="40" Background="#1a1a1a" BorderBrush="#37474f" BorderThickness="0,0,1,0">
+                        <TextBlock Text="Timeline" VerticalAlignment="Center" Margin="8,0"
+                                   Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
+                    </Border>
+
+                    <!-- Row 1: Track headers (generated from Tracks collection) -->
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <Canvas Background="Transparent" Width="{Binding TimelineWidth}"/>
+                                <StackPanel Orientation="Vertical"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid x:Name="SegmentRoot" Height="60" Cursor="Hand">
-                                    <Grid.Effect>
-                                        <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.7"/>
-                                    </Grid.Effect>
-                                    <Border x:Name="SegmentFill" Background="#2d3a4a" BorderBrush="#43a047" BorderThickness="2,0,2,0"
-                                            CornerRadius="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                        <Grid x:Name="SegmentContentLayer">
-                                        <Thumb x:Name="MoveThumb" Style="{StaticResource TransparentThumbStyle}"
-                                              Cursor="SizeAll"
-                                              HorizontalAlignment="Stretch"
-                                              VerticalAlignment="Stretch"
-                                              Panel.ZIndex="0"
-                                              MouseDown="MoveThumb_MouseDown"
-                                              DragStarted="MoveThumb_DragStarted"
-                                              DragDelta="MoveThumb_DragDelta"
-                                              DragCompleted="MoveThumb_DragCompleted"/>
-                                        <StackPanel Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Orientation="Vertical">
-                                            <TextBlock Text="Segment" Foreground="#81c784" FontSize="9" Margin="0,0,0,2"/>
-                                            <TextBlock Text="{Binding Text}" 
-                                                         Foreground="#e0e0e0"
-                                                         FontWeight="Bold"
-                                                         FontSize="11"
-                                                         TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Foreground="#b0bec5"
-                                                         FontSize="9">
-                                                <Run Text="Duration: "/>
-                                                <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                <Run Text=" - "/>
-                                                <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                <Run Text="s"/>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <Thumb x:Name="ResizeLeftThumb" Style="{StaticResource ResizeThumbStyle}"
-                                              HorizontalAlignment="Left"
-                                              Width="8"
-                                              Cursor="SizeWE"
-                                              Opacity="0"
-                                              Panel.ZIndex="2"
-                                              DragDelta="ResizeLeftThumb_DragDelta"
-                                              DragStarted="ResizeLeftThumb_DragStarted"
-                                              DragCompleted="ResizeLeftThumb_DragCompleted"/>
-                                        <Thumb x:Name="ResizeThumb" Style="{StaticResource ResizeThumbStyle}"
-                                              HorizontalAlignment="Right"
-                                              Width="8"
-                                              Cursor="SizeWE"
-                                              Opacity="0"
-                                              Panel.ZIndex="2"
-                                              DragDelta="ResizeThumb_DragDelta"
-                                              DragStarted="ResizeThumb_DragStarted"
-                                              DragCompleted="ResizeThumb_DragCompleted"/>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
+                                <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
+                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0"
+                                    Style="{StaticResource HideAudioTrackBorder}">
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="4,0"
+                                               Foreground="#81c784" FontWeight="SemiBold" FontSize="10"/>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </Canvas>
-                <!-- Row 2: "Audio" label (col0), waveform (col1) - aligned with ruler/segment -->
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Audio" VerticalAlignment="Center" Margin="8,0"
-                           Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
-                <Border Grid.Row="2" Grid.Column="1" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,0,0" Height="48" ClipToBounds="True">
-                    <controls:WaveformControl x:Name="WaveformControl"
-                                              ClipToBounds="True"
-                                              Height="48"
-                                              Width="{Binding AudioContentWidth}"
-                                              HorizontalAlignment="Left"
-                                              Peaks="{Binding AudioPeaks}"
-                                              PixelsPerSecond="{Binding PixelsPerSecond}"
-                                              TotalDuration="{Binding TotalDuration}"/>
-                </Border>
-                <!-- Playhead: one line across ruler + segment + audio (288px), drawn on top -->
-                <Canvas Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" 
-                        Width="{Binding TimelineWidth}" Height="288"
-                        IsHitTestVisible="False" ClipToBounds="True">
-                    <Line x:Name="PlayheadLine"
-                         X1="0" Y1="0" X2="0" Y2="288"
-                         Stroke="#64b5f6" StrokeThickness="2"
-                         Canvas.Left="0" Canvas.Top="0"
-                         StrokeDashArray="5,5"/>
-                </Canvas>
+
+                    <!-- Row 2: Waveform header -->
+                    <Border Grid.Row="2" Height="48" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,1,0">
+                        <TextBlock Text="Audio" VerticalAlignment="Center" Margin="8,0"
+                                   Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
+                    </Border>
+                </Grid>
+
+                <!-- Col 1: Scrollable Content (horizontal scroll only) -->
+                <ScrollViewer Grid.Column="1" 
+                             HorizontalScrollBarVisibility="Auto" 
+                             VerticalScrollBarVisibility="Disabled"
+                             x:Name="TimelineScroller"
+                             CanContentScroll="False">
+                    <Grid Width="{Binding TimelineWidth}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="40"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="48"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Row 0: Ruler -->
+                        <Border Grid.Row="0" Background="#1a1a1a" Height="40"
+                                MouseDown="RulerBorder_MouseDown"
+                                MouseMove="RulerBorder_MouseMove"
+                                MouseUp="RulerBorder_MouseUp"
+                                Cursor="Hand"
+                                BorderBrush="#37474f" BorderThickness="0">
+                            <controls:TimelineRulerControl x:Name="RulerControl"
+                                                           HorizontalAlignment="Left"
+                                                           Height="40"
+                                                           ClipToBounds="True"
+                                                           Width="{Binding TimelineWidth}"
+                                                           PixelsPerSecond="{Binding PixelsPerSecond}"
+                                                           TotalDuration="{Binding TotalDuration}"/>
+                        </Border>
+
+                        <!-- Row 1: Track Contents -->
+                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}" x:Name="TracksItemsControl">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Vertical"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                        <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
+                                            Background="#2d2d2d" BorderBrush="#37474f" BorderThickness="0"
+                                            Style="{StaticResource HideAudioTrackBorder}">
+                                        <Canvas Background="#2d2d2d" 
+                                               ClipToBounds="True"
+                                               Width="{Binding DataContext.TimelineWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=800}"
+                                               MouseDown="TimelineCanvas_MouseDown"
+                                               MouseMove="TimelineCanvas_MouseMove"
+                                               MouseUp="TimelineCanvas_MouseUp">
+                                        <ItemsControl ItemsSource="{Binding Segments}" x:Name="SegmentsItemsControl">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Background="Transparent" Width="{Binding RelativeSource={RelativeSource AncestorType=Canvas}, Path=Width}"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid x:Name="SegmentRoot" Height="40" Cursor="Hand">
+                                                        <Grid.Effect>
+                                                            <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.7"/>
+                                                        </Grid.Effect>
+                                                        <Border x:Name="SegmentFill" Background="#2d3a4a" BorderBrush="#43a047" BorderThickness="2,0,2,0"
+                                                                CornerRadius="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                            <Grid x:Name="SegmentContentLayer">
+                                                                <Thumb x:Name="MoveThumb" Style="{StaticResource TransparentThumbStyle}"
+                                                                      Cursor="SizeAll"
+                                                                      HorizontalAlignment="Stretch"
+                                                                      VerticalAlignment="Stretch"
+                                                                      Panel.ZIndex="0"
+                                                                      MouseDown="MoveThumb_MouseDown"
+                                                                      DragStarted="MoveThumb_DragStarted"
+                                                                      DragDelta="MoveThumb_DragDelta"
+                                                                      DragCompleted="MoveThumb_DragCompleted"/>
+                                                                <StackPanel Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Orientation="Vertical">
+                                                                    <TextBlock Text="Segment" Foreground="#81c784" FontSize="9" Margin="0,0,0,2"/>
+                                                                    <TextBlock Text="{Binding Text}" 
+                                                                                 Foreground="#e0e0e0"
+                                                                                 FontWeight="Bold"
+                                                                                 FontSize="11"
+                                                                                 TextTrimming="CharacterEllipsis"/>
+                                                                    <TextBlock Foreground="#b0bec5" FontSize="8">
+                                                                        <Run Text="Duration: "/>
+                                                                        <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                                        <Run Text=" - "/>
+                                                                        <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                                        <Run Text="s"/>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                                <Thumb x:Name="ResizeLeftThumb" Style="{StaticResource ResizeThumbStyle}"
+                                                                      HorizontalAlignment="Left"
+                                                                      Width="8"
+                                                                      Cursor="SizeWE"
+                                                                      Opacity="0"
+                                                                      Panel.ZIndex="2"
+                                                                      DragDelta="ResizeLeftThumb_DragDelta"
+                                                                      DragStarted="ResizeLeftThumb_DragStarted"
+                                                                      DragCompleted="ResizeLeftThumb_DragCompleted"/>
+                                                                <Thumb x:Name="ResizeThumb" Style="{StaticResource ResizeThumbStyle}"
+                                                                      HorizontalAlignment="Right"
+                                                                      Width="8"
+                                                                      Cursor="SizeWE"
+                                                                      Opacity="0"
+                                                                      Panel.ZIndex="2"
+                                                                      DragDelta="ResizeThumb_DragDelta"
+                                                                      DragStarted="ResizeThumb_DragStarted"
+                                                                      DragCompleted="ResizeThumb_DragCompleted"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Canvas>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Row 2: Waveform -->
+                        <Border Grid.Row="2" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,0,0" Height="48" ClipToBounds="True">
+                            <controls:WaveformControl x:Name="WaveformControl"
+                                                      ClipToBounds="True"
+                                                      Height="48"
+                                                      Width="{Binding AudioContentWidth}"
+                                                      HorizontalAlignment="Left"
+                                                      Peaks="{Binding AudioPeaks}"
+                                                      PixelsPerSecond="{Binding PixelsPerSecond}"
+                                                      TotalDuration="{Binding TotalDuration}"/>
+                        </Border>
+
+                        <!-- Playhead: spans across ruler + tracks + waveform -->
+                        <Canvas Grid.Row="0" Grid.RowSpan="3"
+                                Width="{Binding TimelineWidth}"
+                                IsHitTestVisible="False" ClipToBounds="True">
+                            <Line x:Name="PlayheadLine"
+                                 X1="0" Y1="0" X2="0" Y2="10000"
+                                 Stroke="#64b5f6" StrokeThickness="2"
+                                 Canvas.Left="0" Canvas.Top="0"
+                                 StrokeDashArray="5,5"/>
+                        </Canvas>
+                    </Grid>
+                </ScrollViewer>
             </Grid>
         </ScrollViewer>
     </Grid>
