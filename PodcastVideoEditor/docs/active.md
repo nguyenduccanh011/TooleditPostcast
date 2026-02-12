@@ -1,9 +1,92 @@
-# Active Task Pack - Multi-track Timeline
+# Active Task Pack
 
-## Current Phase: Multi-track Timeline (TP-004)
+## Current Phase: TP-005 MVP Visual & Preview
+
+**Task Pack hiện tại:** TP-005-MVP-VISUAL-AND-PREVIEW  
+**Bối cảnh:** TP-004 (Multi-track) core đã xong (ST-1..ST-5). Khoảng trống MVP: (1) gắn ảnh/video vào segment visual, (2) preview chọn tỉ lệ khung hình, (3) preview hiển thị theo timeline (visual + text + audio).  
+**Prerequisite:** Đã đọc `docs/state.md` mục **MVP Gap & Roadmap**; hiểu multi-track (Tracks, Segment.TrackId, z-order) từ TP-004.
+
+---
+
+## Task Pack: TP-005 MVP Visual & Preview
+
+### Overview
+Bù khoảng trống MVP: **segment visual** có thể gắn ảnh (tối thiểu); **preview** cho phép chọn tỉ lệ khung hình và hiển thị composite theo timeline (segment visual, text, audio sync). Nền tảng cho Phase 5 (Render từ Canvas).
+
+### Subtasks (ST)
+
+#### ST-1: Gắn ảnh (và tùy chọn video) vào segment visual — MVP
+**Objective:** User có thể gán media (ít nhất ảnh) cho segment visual; dữ liệu lưu qua Asset hoặc path; Segment.BackgroundAssetId được set.
+**Status:** ⏳ **NOT STARTED** — **CURRENT**
+
+**Acceptance Criteria:**
+- [ ] Có luồng chọn file ảnh (và tùy chọn video) cho segment đang chọn: ví dụ nút "Chọn ảnh" / "Chọn file" trong Segment Property Panel hoặc context menu segment.
+- [ ] Khi chọn file: tạo Asset (ProjectId, FilePath, Type=Image/Video) và gán `Segment.BackgroundAssetId = asset.Id`; hoặc MVP đơn giản: lưu path vào Asset rồi gán. Persist (ProjectService / DatabaseService).
+- [ ] Segment visual không có ảnh: hiển thị placeholder trong timeline/preview (đã có RenderHelper placeholder; có thể tái dùng).
+- [ ] Build succeeds (0 errors).
+
+**Implementation Notes:**
+- Asset entity đã có (Core/Models/Asset.cs); cần AssetService (hoặc ProjectService) AddAssetAsync, GetAssetById; DbSet Assets nếu chưa có.
+- Segment panel: binding SelectedSegment; khi có segment visual → hiển thị nút "Chọn ảnh" + thumbnail/path hiện tại; chọn file → tạo/lấy Asset → UpdateSegmentAsync(segment với BackgroundAssetId).
+- File dialog: OpenFileDialog (WPF) filter ảnh/video; copy file vào AppData project hoặc lưu path tùy quyết định (docs/decisions.md).
+
+**Phụ thuộc:** TP-004 core (Segment.TrackId, Tracks). Không phụ thuộc ST-2/ST-3.
+
+---
+
+#### ST-2: Preview — Chọn tỉ lệ khung hình (aspect ratio)
+**Objective:** Preview (canvas/vùng xem) có khung theo tỉ lệ đã chọn (9:16, 16:9, 1:1, 4:5); đồng bộ với project/render settings.
+**Status:** ⏳ **NOT STARTED**
+
+**Acceptance Criteria:**
+- [ ] Trong Editor: có cách chọn aspect ratio cho preview (dropdown hoặc nút: 9:16, 16:9, 1:1, 4:5). Giá trị lưu vào Project (đã có Project.AspectRatio hoặc RenderSettings) hoặc ViewModel preview.
+- [ ] Khung preview (CanvasView hoặc vùng hiển thị tương đương) đổi kích thước/letterbox theo tỉ lệ chọn — không vỡ layout; nội dung scale/fit trong khung.
+- [ ] Render settings (Resolution/AspectRatio) có thể đồng bộ với tỉ lệ preview (hoặc tách riêng; MVP tối thiểu preview đúng tỉ lệ).
+- [ ] Build succeeds (0 errors).
+
+**Implementation Notes:**
+- Project.AspectRatio đã có ("9:16"); RenderViewModel có SelectedAspectRatio. Cần binding aspect ratio từ Project hoặc EditorViewModel xuống Canvas/Preview (CanvasViewModel.CanvasWidth/Height hoặc PreviewFrame aspect).
+- XAML: khung preview với AspectRatio constraint (Viewbox, hoặc tính Width/Height từ ratio). Tham khảo `docs/editor-preview-and-image-api-plan.md` mục 2.
+
+**Phụ thuộc:** Không bắt buộc ST-1. Có thể làm song song hoặc sau ST-1.
+
+---
+
+#### ST-3: Preview — Composite theo timeline (visual + text + audio sync)
+**Objective:** Tại mỗi thời điểm playhead, preview hiển thị đúng: segment visual (ảnh tương ứng), segment text (subtitle/script), audio đã phát — composite theo track và z-order.
+**Status:** ⏳ **NOT STARTED**
+
+**Acceptance Criteria:**
+- [ ] Khi playhead thay đổi (play hoặc scrub): xác định "active segments" mỗi track (StartTime ≤ playhead < EndTime); z-order theo track Order (track trên = front).
+- [ ] **Visual track:** Vẽ ảnh của segment active (từ Segment.BackgroundAssetId → Asset.FilePath); không có ảnh → placeholder. Một track visual chỉ một segment active tại một thời điểm (không overlap).
+- [ ] **Text track:** Hiển thị Text của segment text active (overlay subtitle/script). Có thể dùng layer text trên canvas hoặc TextBlock overlay.
+- [ ] **Audio:** Đã có sync play với playhead (TimelineViewModel); không cần đổi nếu đã đúng.
+- [ ] Preview cập nhật khi playhead thay đổi (timer hoặc event PlayheadPosition changed); mượt khi play (~30fps đủ).
+- [ ] Build succeeds (0 errors). Manual test: load project, gán ảnh segment, play → preview đổi ảnh/text theo timeline.
+
+**Implementation Notes:**
+- TimelineViewModel đã có PlayheadPosition, Tracks, SegmentsForTrack (hoặc tương đương). Cần API "GetActiveSegmentsAtTime(double t)" → dict trackId → Segment (hoặc list theo z-order).
+- CanvasViewModel hoặc PreviewViewModel: subscribe PlayheadPosition; tại mỗi t lấy active segments → vẽ nền (ảnh visual) + overlay text. Canvas hiện có Elements (title, logo, visualizer) — cần thêm layer "timeline background" từ segment visual + layer "timeline text" từ segment text; hoặc tách PreviewControl riêng chỉ composite timeline.
+- Asset path → load bitmap (WPF/Skia) — cache nhỏ theo segment/asset để tránh load lại mỗi frame.
+
+**Phụ thuộc:** ST-1 (có ảnh gán segment). ST-2 (tỉ lệ) có thể độc lập nhưng UX tốt hơn khi có cả hai.
+
+---
+
+### Dependencies TP-005
+
+```
+ST-1 (Gắn ảnh segment) ──┬──► ST-3 (Preview composite)
+ST-2 (Preview aspect)   ──┘
+```
+- **ST-1** trước **ST-3** (composite cần ảnh từ segment). **ST-2** có thể song song ST-1 hoặc trước/sau.
+- **Thứ tự đề xuất:** ST-1 → ST-2 → ST-3 (hoặc ST-1 → ST-3 rồi ST-2 nếu ưu tiên composite trước tỉ lệ).
+
+---
+
+## Task Pack: TP-004 Multi-track Timeline (đã core xong)
 
 **Duration Target:** Week 9-10 (per state.md)  
-**Task Pack:** TP-004-MULTI-TRACK-TIMELINE  
 **Prerequisite:** Đã đọc & hiểu `docs/MULTI-TRACK-TIMELINE-DESIGN.md` (mục 1-11)
 
 ---
@@ -116,7 +199,7 @@ Chuyển đổi timeline từ **flat segments** sang **multi-track architecture*
 
 #### ST-6: Track Header UI & Selection Logic
 **Objective:** Implement track header (cột trái mỗi row), icon/tên/lock/visibility; track selection (click segment → select track).
-**Status:** ⏳ **NOT STARTED**
+**Status:** ⏸️ **DEFERRED** — Không bắt buộc MVP; làm cuối khi hoàn thiện (polish).
 
 **Acceptance Criteria:**
 - [ ] Track header template: icon (Unicode text: "T" text, "V" visual, 🔊 audio), tên track (Text binding Track.Name), lock icon (binding IsLocked, click toggle), visibility eye icon (binding IsVisible, click toggle).
@@ -136,7 +219,7 @@ Chuyển đổi timeline từ **flat segments** sang **multi-track architecture*
 
 #### ST-7: Segment Property Panel Compatibility
 **Objective:** Đảm bảo Segment Editor Panel hiện tại vẫn bind & hoạt động với multi-track.
-**Status:** ⏳ **NOT STARTED**
+**Status:** ⏸️ **DEFERRED** — Làm sau khi muốn hoàn thiện (cùng ST-6).
 
 **Acceptance Criteria:**
 - [ ] SegmentEditorPanel binding SelectedSegment — không đổi.
@@ -154,10 +237,10 @@ Chuyển đổi timeline từ **flat segments** sang **multi-track architecture*
 ### Dependencies Between Subtasks
 
 ```
-ST-1 → ST-2 → ST-3 → ST-4 → ST-5 → ST-6 → ST-7
+ST-1 → ST-2 → ST-3 → ST-4 → ST-5 ✅ | ST-6, ST-7 hoãn (làm sau)
 ```
-- **Sequential:** Mỗi ST phụ thuộc vào predecessor (data model → db → service → viewmodel → UI → header → panel).
-- **Không parallel:** dữ liệu thay đổi, cần migrate đúng, service cập nhật rồi mới viewmodel.
+- **Core (xong):** ST-1..ST-5 — multi-track data, UI layout đã đủ cho MVP.
+- **ST-6, ST-7:** Hoãn — làm sau khi muốn hoàn thiện (Track header + Segment panel).
 
 ---
 
@@ -171,31 +254,32 @@ ST-1 → ST-2 → ST-3 → ST-4 → ST-5 → ST-6 → ST-7
 **Phase 2 (TP-002):** ✅ Đã đóng (ST-7–ST-12 done). Chi tiết lưu trong worklog/state.
 
 ### Multi-track Timeline Progress (TP-004)
-- [x] ST-1: (Data Models Track & Segment) ✅
-- [x] ST-2: (Migration) ✅
-- [x] ST-3: (ProjectService & DatabaseService) ✅
-- [x] ST-4: (TimelineViewModel) ✅
-- [x] ST-5: (TimelineView UI Layout) ✅
-- [ ] ST-6: (Track Header & Selection) — **CURRENT** (P2 priority)
-- [ ] ST-7: (SegmentEditorPanel Compatibility) — P3 priority
+- [x] ST-1..ST-5: ✅ Core done
+- [ ] ST-6, ST-7: ⏸️ Hoãn (polish)
+
+### MVP Visual & Preview Progress (TP-005)
+- [ ] ST-1: Gắn ảnh vào segment visual — **CURRENT**
+- [ ] ST-2: Preview chọn tỉ lệ khung hình
+- [ ] ST-3: Preview composite theo timeline (visual + text + audio)
 
 ---
 
 ## Next Action
 
-**Current Subtask:** TP-004 ST-6 — Track Header UI & Selection Logic.
+**Current Subtask:** TP-005 ST-1 — Gắn ảnh (và tùy chọn video) vào segment visual — MVP.
 
-**Resume Instructions:**
-- ST-6: Implement track header UI with icons & selection:
-  - Track header template: Unicode icon ("T" text, "V" visual, "🔊" audio) + Track.Name
-  - Selection styling: Click header/track area → SelectedTrack binding + highlight effect
-  - Lock/visibility toggles (MVP): Buttons or click handlers for IsLocked/IsVisible (full ST-6 features)
-  - Test: Click empty area in track → select track, click segment → select segment + track
-- Build xác nhận succeeds (0 errors).
+**Resume Instructions (ST-1):**
+- Thêm luồng "Chọn ảnh" cho segment visual: Segment Property Panel hoặc context — nút mở file ảnh/video → tạo Asset (FilePath) → gán Segment.BackgroundAssetId → persist.
+- Kiểm tra Asset trong DbContext/ProjectService; nếu chưa có bảng Assets thì migration. Segment panel binding SelectedSegment + hiển thị thumbnail/path + nút Chọn ảnh.
+- Build 0 errors; test: tạo segment visual → chọn ảnh → lưu → mở lại project thấy ảnh gán đúng.
+
+**Sau ST-1:** ST-2 (Preview aspect ratio) rồi ST-3 (Preview composite sync). Hoặc ST-1 → ST-3 rồi ST-2.
+
+**TP-004 ST-6/ST-7:** Vẫn hoãn (polish). Phase 5 (Render) sau khi TP-005 xong.
 
 ---
 
-Last updated: 2026-02-12 Session 16 (ST-1 through ST-5 complete, P2 UI layer ✅)
+Last updated: 2026-02-12 (TP-005 added; ST-1 = next)
 
 ---
 
@@ -212,41 +296,24 @@ Last updated: 2026-02-12 Session 16 (ST-1 through ST-5 complete, P2 UI layer ✅
   - Build verified: ✅ 0 Errors
 
 ### P1 Foundation + P2 UI Progress
-- **P1 (Foundation):** 100% complete (ST-1 through ST-4)
-  - Data models, migration, services, ViewModel logic all multi-track enabled
-- **P2 (UI):** 50% complete (ST-5 complete, ST-6 ready)
-  - ST-5 ✅ Layout complete (N tracks rendered, segment canvases working)
-  - ST-6 🔜 Track headers (icons, lock, visibility, selection) — **NEXT**
+- **P1 (Foundation):** 100% (ST-1..ST-4)
+- **P2 (UI):** ST-5 ✅ Layout complete. ST-6, ST-7 hoãn — làm sau khi muốn hoàn thiện.
 
 ### Build Status
-✅ **0 Errors** | All changes compile successfully | Ready to resume ST-6
+✅ **0 Errors** | TP-004 core done. **Next:** TP-005 ST-1.
 
 ---
 
 ## Resuming Next Session
 
-**Next Subtask:** TP-004 ST-6 — Track Header UI & Selection Logic
+**Next:** TP-005 ST-1 — Gắn ảnh vào segment visual (MVP).
 
-**Quick Start:**
-1. Open `docs/active.md` to review ST-6 AC
-2. Create track header template in TimelineView.xaml:
-   - Add Unicode icons: "T" (text), "V" (visual), "🔊" (audio)
-   - Display Track.Name + icons in header cells
-   - Implement SelectedTrack binding for selection highlight
-3. Add lock/visibility toggle buttons (MVP simple buttons)
-4. Update ViewModel commands if needed for track selection
-5. Test: Load project → click track header → verify SelectedTrack updates
+**Quick Start ST-1:**
+1. Đọc `docs/active.md` → TP-005 ST-1 Acceptance Criteria & Implementation Notes.
+2. Kiểm tra Asset trong Core (model + DbContext + migration nếu chưa có bảng).
+3. Segment Property Panel (hoặc tương đương): nút "Chọn ảnh" / "Chọn file" → OpenFileDialog (image/video) → tạo Asset → gán Segment.BackgroundAssetId → SaveSegment/UpdateSegment.
+4. Build + manual test: chọn segment visual → chọn ảnh → lưu → reload project.
 
-**Files to Modify:**
-- `Ui/Views/TimelineView.xaml` — Track header template enhancement
-- `Ui/ViewModels/TimelineViewModel.cs` — Track selection command (if needed)
-- Consider: `Ui/Views/TimelineView.xaml.cs` — Click handlers for header selection
-
-**Expected Output:**
-- ST-6 AC all met ✅
-- Build: 0 Errors
-- Visual: Tracks show icons + names, selection highlights track row
-
-**Estimated Duration:** 1-1.5 hours
+**Sau TP-005:** Phase 5 (Render #10, #11). Phase 4 (AI) hoặc Phase 6 (ST-6/ST-7, #12) tùy ưu tiên.
 
 ---

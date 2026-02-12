@@ -86,22 +86,51 @@ JSON Config:       System.Text.Json
 | 1 | Phase 1 (TP-001) | ✅ Done |
 | 2 | Phase 2 (TP-002) | ✅ Done |
 | 3 | Phase 3 (TP-003) | ✅ Done |
-| 4 | **Multi-track timeline** (TP riêng) hoặc Phase 4 | **Nên làm Multi-track trước Phase 5** (Phase 5 Render cần segment theo track + z-order; xem `MULTI-TRACK-TIMELINE-DESIGN.md` mục 7). |
-| 5 | Phase 4 (AI & Automation) | Có thể trước hoặc sau Multi-track (ít phụ thuộc). |
-| 6 | Phase 5 (Render Pipeline) | **Sau Multi-track** (issue #10, #11). |
-| 7 | Phase 6 (Polish & QA) | Sau Phase 5. |
+| 4 | Multi-track (TP-004) | ✅ Core done; ST-6/ST-7 hoãn. |
+| 5 | **TP-005 MVP Visual & Preview** | **NEXT** — Gắn ảnh segment; Preview aspect + composite sync. |
+| 6 | Phase 5 (Render Pipeline) | Sau TP-005 (issue #10, #11). |
+| 7 | Phase 4 (AI) hoặc Phase 6 | Tùy ưu tiên. Phase 6: ST-6/ST-7, #12. |
 
-**Khuyến nghị:** Làm **Multi-track** ngay sau Phase 3 (trước Phase 5), rồi Phase 4 hoặc Phase 5 tùy ưu tiên product.
+**Khuyến nghị:** Làm **Multi-track** ngay sau Phase 3 (trước Phase 5), rồi **TP-005 MVP Preview & Visual** (khoảng trống MVP), rồi Phase 5 Render. Chi tiết thứ tự: mục **MVP Gap & Roadmap** bên dưới.
 
 ---
 
-## Current Phase: BUILD (TP-004 Multi-track Timeline)
+## MVP Gap & Roadmap (Khoảng trống MVP — đã chốt 2026-02-12)
 
-**Active Task Pack:** TP-004-MULTI-TRACK-TIMELINE  
-**Status:** ST-1 → ST-5 ✅ hoàn tất. **ST-6** (Track Header UI & Selection) — đang thực hiện. ST-7 (Segment Panel) — chưa làm.  
-**Chi tiết:** Xem `docs/active.md`.
+**Bối cảnh:** Để đạt MVP thực sự dùng được, cần bù hai khoảng trống:
 
-**Last Updated:** 2026-02-12
+1. **Track segment visual — tối thiểu gắn ảnh (hoặc video) vào segment**
+   - Hiện tại: `Segment.BackgroundAssetId` và model `Asset` (FilePath) đã có; **thiếu** luồng người dùng: chọn ảnh/file → gán vào segment visual.
+   - MVP cần: User có thể gán **ít nhất ảnh** (path hoặc Asset) cho từng segment visual; preview và render dùng đúng ảnh đó. Video clip có thể để bước sau.
+
+2. **Preview — tối thiểu chọn tỉ lệ khung hình + hiển thị theo timeline**
+   - **Chọn tỉ lệ:** Preview (canvas) có khung theo aspect ratio (9:16, 16:9, 1:1, 4:5); đồng bộ với render settings.
+   - **Preview theo timeline:** Tại mỗi thời điểm playhead, preview hiển thị đúng nội dung: segment **visual** (ảnh tương ứng), segment **text** (subtitle/script), **audio** (đã có play). Tức composite theo track + z-order, sync với timeline.
+
+**Task Pack mới:** **TP-005 MVP VISUAL & PREVIEW** — làm **sau TP-004 core**, **trước Phase 5 (Render Pipeline)**. Phase 5 render từ Canvas/frame composite sẽ tái dùng logic composite từ TP-005.
+
+**Thứ tự ưu tiên tổng thể:**
+
+| Thứ tự | TP / Phase | Trạng thái | Ghi chú |
+|--------|------------|------------|--------|
+| 1 | Phase 1 (TP-001) | ✅ Done | |
+| 2 | Phase 2 (TP-002) | ✅ Done | |
+| 3 | Phase 3 (TP-003) | ✅ Done | |
+| 4 | Multi-track (TP-004) | ✅ Core done (ST-1..ST-5); ST-6/ST-7 hoãn | |
+| 5 | **TP-005 MVP Visual & Preview** | ⏳ **NEXT** | Gắn ảnh vào segment visual; Preview aspect ratio + composite sync timeline. |
+| 6 | Phase 5 (Render Pipeline) | ⏳ TODO | #10 output path, #11 render từ Canvas; dùng composite từ TP-005. |
+| 7 | Phase 4 (AI & Automation) | ⏳ TODO | Có thể trước/sau Phase 5. |
+| 8 | Phase 6 (Polish & QA) | ⏳ TODO | ST-6/ST-7, #12 UI Editor. |
+
+---
+
+## Current Phase: BUILD (TP-005 MVP Visual & Preview)
+
+**Active Task Pack:** TP-005-MVP-VISUAL-AND-PREVIEW  
+**Status:** Chưa bắt đầu. Nhiệm vụ tiếp theo: **TP-005** — Gắn ảnh vào segment visual (MVP) + Preview tỉ lệ + Preview composite theo timeline.  
+**Chi tiết:** Xem `docs/active.md` (Task Pack TP-005).
+
+**Last Updated:** 2026-02-12 (MVP Gap & TP-005 added)
 
 ---
 
@@ -180,8 +209,9 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 
 ## Immediate Next Steps
 
-- **Phase 3 (TP-003):** ✅ Done. ST-3 (Script paste + áp dụng) đã implement. Test thủ công khi cần. Tiếp: Phase 4 hoặc Phase 5/6 (xem `docs/active.md`).
-- **Multi-track timeline (thiết kế):** Đề xuất chi tiết đã có trong `docs/MULTI-TRACK-TIMELINE-DESIGN.md` (Track entity, Segment.TrackId, collision per-track, Add segment = visual, script apply vào track text). Triển khai khi chọn phase Multi-track.
+- **TP-004 (Multi-track):** ✅ Core done (ST-1..ST-5). ST-6/ST-7 hoãn (polish).
+- **TP-005 (MVP Visual & Preview):** **Tiếp theo** — Gắn ảnh vào segment visual; Preview chọn tỉ lệ + composite theo timeline. Chi tiết ST trong `docs/active.md`.
+- **Phase 5 (Render):** Sau TP-005; dùng logic composite từ preview. Phase 4 (AI) và Phase 6 (Polish) theo thứ tự ưu tiên (xem bảng trên).
 
 ---
 
@@ -199,4 +229,4 @@ Các nhiệm vụ sau đã được ghi chi tiết trong **`docs/issues.md`**; k
 
 ---
 
-Last updated: 2026-02-12
+Last updated: 2026-02-12 (MVP Gap & Roadmap; TP-005 next)
