@@ -8,7 +8,6 @@
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
              Background="#1e1e1e" Foreground="White"
-             Loaded="OnCanvasLoaded"
              KeyDown="OnCanvasKeyDown"
              FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}">
 
@@ -123,9 +122,27 @@
                 <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
                     <Border Background="#2d2d2d" />
 
+                    <!-- GPU-accelerated video preview (MediaElement) -->
+                    <!-- Note: Source is set from code-behind, not binding -->
+                    <MediaElement x:Name="VideoPreview"
+                                  LoadedBehavior="Manual"
+                                  ScrubbingEnabled="True"
+                                  IsMuted="True"
+                                  Stretch="UniformToFill"
+                                  Width="{Binding CanvasWidth}"
+                                  Height="{Binding CanvasHeight}"
+                                  IsHitTestVisible="False"
+                                  RenderOptions.BitmapScalingMode="HighQuality"
+                                  Visibility="{Binding IsVideoMode, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!-- Static image preview (fallback) -->
                     <Image Source="{Binding ActiveVisualImage}"
                            Stretch="UniformToFill"
-                           IsHitTestVisible="False"/>
+                           Width="{Binding CanvasWidth}"
+                           Height="{Binding CanvasHeight}"
+                           IsHitTestVisible="False"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           Visibility="{Binding IsVideoMode, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
 
                     <TextBlock Text="No active visual segment"
                                Foreground="#cccccc"

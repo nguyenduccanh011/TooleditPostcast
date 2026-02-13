@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Utilities;
 using PodcastVideoEditor.Ui.Converters;
 using PodcastVideoEditor.Ui.Helpers;
 using System;
@@ -23,7 +24,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
-        private readonly Dictionary<string, BitmapSource> _assetFrameCache = new();
+        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(800); // Increased capacity with LRU
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
@@ -65,6 +66,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private BitmapSource? activeVisualImage;
+
+        [ObservableProperty]
+        private Uri? videoSource;
+
+        [ObservableProperty]
+        private TimeSpan videoPosition;
+
+        [ObservableProperty]
+        private bool isVideoMode;
 
         [ObservableProperty]
         private string activeTextContent = string.Empty;
@@ -495,6 +505,58 @@ namespace PodcastVideoEditor.Ui.ViewModels
             ActiveTextContent = textPair.segment?.Text ?? string.Empty;
             IsTextOverlayVisible = !string.IsNullOrWhiteSpace(ActiveTextContent);
 
+            // Try GPU-accelerated MediaElement first for video assets
+            if (visualPair.segment != null && !string.IsNullOrWhiteSpace(visualPair.segment.BackgroundAssetId))
+            {
+                var asset = FindAssetById(visualPair.segment.BackgroundAssetId);
+                
+                // Check if asset is a video (by Type or file extension)
+                bool isVideo = asset != null && 
+                    (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase) ||
+                     (!string.IsNullOrWhiteSpace(asset.FilePath) && 
+                      (asset.FilePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                       asset.FilePath.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) ||
+                       asset.FilePath.EndsWith(".mov", StringComparison.OrdinalIgnoreCase) ||
+                       asset.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
+                       asset.FilePath.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase))));
+                
+                if (isVideo)
+                {
+                    // Use MediaElement for smooth GPU-accelerated video preview
+                    if (!string.IsNullOrWhiteSpace(asset!.FilePath) && File.Exists(asset.FilePath))
+                    {
+                        try
+                        {
+                            var newUri = new Uri(asset.FilePath, UriKind.Absolute);
+                            // Only change Source if file changed (avoid reload on every scrub)
+                            if (VideoSource?.LocalPath != newUri.LocalPath)
+                            {
+                                VideoSource = newUri;
+                                Serilog.Log.Information("Video source CHANGED: {Path}", asset.FilePath);
+                            }
+                            // Always update position for scrubbing
+                            var segmentOffset = playheadSeconds - visualPair.segment.StartTime;
+                            VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
+                            IsVideoMode = true;
+                            IsVisualPlaceholderVisible = false;
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            Serilog.Log.Warning(ex, "Failed to set video source: {Path}", asset.FilePath);
+                        }
+                    }
+                    else
+                    {
+                        Serilog.Log.Warning("Video file not found or empty path: {Path}", asset?.FilePath);
+                    }
+                }
+            }
+
+            // Fallback to static image for non-video assets
+            IsVideoMode = false;
+            VideoSource = null;
+            
             BitmapSource? frame = null;
             if (visualPair.segment != null && !string.IsNullOrWhiteSpace(visualPair.segment.BackgroundAssetId))
             {
@@ -571,11 +633,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 return null;
 
-            lock (_assetFrameCache)
-            {
-                if (_assetFrameCache.TryGetValue(cacheKey, out var cached))
-                    return cached;
-            }
+            // Check LRU cache first
+            if (_assetFrameCache.TryGet(cacheKey, out var cached))
+                return cached;
 
             try
             {
@@ -587,12 +647,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 bmp.EndInit();
                 bmp.Freeze();
 
-                lock (_assetFrameCache)
-                {
-                    if (_assetFrameCache.Count > 500)
-                        _assetFrameCache.Clear();
-                    _assetFrameCache[cacheKey] = bmp;
-                }
+                // Add to LRU cache (auto-evicts if full)
+                _assetFrameCache.Add(cacheKey, bmp);
 
                 return bmp;
             }
@@ -605,6 +661,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private void ClearActivePreview()
         {
             ActiveVisualImage = null;
+            VideoSource = null;
+            IsVideoMode = false;
             ActiveTextContent = string.Empty;
             ActiveVisualSegment = null;
             ActiveTextSegment = null;

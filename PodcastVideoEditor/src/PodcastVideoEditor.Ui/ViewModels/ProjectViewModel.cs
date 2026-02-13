@@ -20,6 +20,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly ProjectService _projectService;
         private readonly CanvasViewModel _canvasViewModel;
         private readonly RenderViewModel _renderViewModel;
+        private readonly ThumbnailPreGenerationService _thumbnailService;
 
         [ObservableProperty]
         private Project? currentProject;
@@ -44,6 +45,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _projectService = projectService;
             _canvasViewModel = canvasViewModel;
             _renderViewModel = renderViewModel;
+            _thumbnailService = new ThumbnailPreGenerationService(maxConcurrent: 2);
         }
 
         /// <summary>
@@ -192,6 +194,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                     StatusMessage = $"Project opened: {loadedProject.Name}";
                     Log.Information("Project opened: {ProjectId} - {ProjectName}", loadedProject.Id, loadedProject.Name);
+                    
+                    // Pre-generate thumbnails in background for smooth timeline scrubbing
+                    _ = _thumbnailService.PreGenerateThumbnailsForProjectAsync(loadedProject);
                 }
                 else
                 {

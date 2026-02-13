@@ -25,6 +25,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private CancellationTokenSource? _playheadSyncCts;
         private bool _isPlayheadSyncing;
 
+        // Debouncing for timeline seek operations
+        private CancellationTokenSource? _seekDebounceCts;
+        private const int SeekDebounceMs = 100; // 100ms debounce - reduce excessive converter calls
+
         [ObservableProperty]
         private ObservableCollection<Track> tracks = new();
 
@@ -77,6 +81,38 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public double TimelineContentWidth => TimelineWidth + 56;
         /// <summary>Width of audio waveform content (duration only, no extra buffer).</summary>
         public double AudioContentWidth => TimeToPixels(TotalDuration);
+
+        /// <summary>
+        /// Called when PlayheadPosition changes. Implements debouncing to reduce excessive updates during seek.
+        /// </summary>
+        partial void OnPlayheadPositionChanged(double value)
+        {
+            // Cancel previous debounce
+            _seekDebounceCts?.Cancel();
+            _seekDebounceCts = new CancellationTokenSource();
+
+            // Debounce thumbnail updates during seeking for smoother UX
+            var cts = _seekDebounceCts;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(SeekDebounceMs, cts.Token);
+                    
+                    // After debounce period, allow thumbnail updates
+                    await Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        // This triggers bindings to update
+                        // Canvas and converters will react to this change
+                        OnPropertyChanged(nameof(PlayheadPosition));
+                    });
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when seeking quickly
+                }
+            });
+        }
 
         public TimelineViewModel(AudioService audioService, ProjectViewModel projectViewModel)
         {

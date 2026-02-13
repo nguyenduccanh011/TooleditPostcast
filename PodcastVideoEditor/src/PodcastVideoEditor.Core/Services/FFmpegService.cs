@@ -258,12 +258,18 @@ public static class FFmpegService
         try
         {
             var timeStr = timeSeconds.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-            // Method 1: -ss before -i (fast seek); use -frames:v 1 and -update 1 per FFmpeg docs
-            var args = $"-y -ss {timeStr} -i \"{videoPath}\" -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
+            // Method 1: -ss before -i (fast seek) with GPU hardware acceleration
+            // -hwaccel auto: tries D3D11VA/DXVA2/NVDEC/QuickSync depending on available GPU
+            var args = $"-y -hwaccel auto -ss {timeStr} -i \"{videoPath}\" -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
             var ok = RunFfmpegCaptureFrame(args, outputImagePath);
             if (ok)
                 return true;
-            // Method 2: -ss after -i (accurate seek, slower) for problematic files
+            // Method 2: Fallback without hwaccel if GPU decode fails
+            args = $"-y -ss {timeStr} -i \"{videoPath}\" -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
+            ok = RunFfmpegCaptureFrame(args, outputImagePath);
+            if (ok)
+                return true;
+            // Method 3: -ss after -i (accurate seek, slower) for problematic files
             args = $"-y -i \"{videoPath}\" -ss {timeStr} -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
             return RunFfmpegCaptureFrame(args, outputImagePath);
         }
@@ -276,6 +282,10 @@ public static class FFmpegService
 
     private static bool RunFfmpegCaptureFrame(string arguments, string outputImagePath)
     {
+        // Log hardware acceleration status for first few calls
+        if (arguments.Contains("-hwaccel"))
+            Log.Debug("FFmpeg GPU decode enabled: {Args}", arguments.Substring(0, Math.Min(100, arguments.Length)));
+        
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -290,8 +300,13 @@ public static class FFmpegService
         };
         process.Start();
         process.StandardOutput.ReadToEnd();
-        process.StandardError.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
         process.WaitForExit(TimeSpan.FromSeconds(15));
+        
+        // Log hardware acceleration errors
+        if (stderr.Contains("hwaccel") && !stderr.Contains("successfully"))
+            Log.Warning("FFmpeg hwaccel warning: {Stderr}", stderr.Substring(0, Math.Min(200, stderr.Length)));
+        
         return process.ExitCode == 0 && File.Exists(outputImagePath);
     }
 
@@ -314,6 +329,7 @@ public static class FFmpegService
 
     /// <summary>
     /// Get or create a thumbnail image path for a video at the given time. Uses a cache directory.
+    /// SYNCHRONOUS - may block UI. Use GetOrCreateVideoThumbnailPathAsync when possible.
     /// </summary>
     public static string? GetOrCreateVideoThumbnailPath(string videoPath, double timeSeconds)
     {
@@ -329,6 +345,41 @@ public static class FFmpegService
         if (File.Exists(outPath))
             return outPath;
         return ExtractVideoFrameToImage(fullVideoPath, timeSeconds, outPath) ? outPath : null;
+    }
+
+    /// <summary>
+    /// Get or create a thumbnail image path for a video at the given time. Uses a cache directory.
+    /// ASYNC version - runs FFmpeg in background thread to avoid blocking UI.
+    /// </summary>
+    public static async Task<string?> GetOrCreateVideoThumbnailPathAsync(
+        string videoPath, 
+        double timeSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(videoPath))
+            return null;
+        
+        var fullVideoPath = Path.GetFullPath(videoPath);
+        if (!File.Exists(fullVideoPath))
+            return null;
+        
+        // Check cache first (fast, sync)
+        var outPath = GetThumbnailCachePathFor(fullVideoPath, timeSeconds);
+        if (File.Exists(outPath))
+            return outPath;
+        
+        // Run extraction in background thread
+        return await Task.Run(() =>
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return null;
+            
+            EnsureInitializedSync();
+            if (!IsInitialized())
+                return null;
+            
+            return ExtractVideoFrameToImage(fullVideoPath, timeSeconds, outPath) ? outPath : null;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

@@ -293,4 +293,28 @@ namespace PodcastVideoEditor.Ui.Converters
             return true;
         }
     }
+
+    /// <summary>
+    /// Convert bool to Visibility (inverted).
+    /// </summary>
+    public class InverseBoolToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool visible)
+            {
+                return visible ? Visibility.Collapsed : Visibility.Visible;
+            }
+            return Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is Visibility visibility)
+            {
+                return visibility != Visibility.Visible;
+            }
+            return false;
+        }
+    }
 }

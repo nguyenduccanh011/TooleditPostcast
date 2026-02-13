@@ -15,6 +15,7 @@
         <converters:AlignmentToTextAlignmentConverter x:Key="AlignmentToTextAlignmentConverter"/>
         <converters:ScaleModeConverter x:Key="ScaleModeConverter"/>
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter"/>
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter"/>
         <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
     </Application.Resources>

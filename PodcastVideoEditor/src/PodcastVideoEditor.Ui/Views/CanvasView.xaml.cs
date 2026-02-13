@@ -1,9 +1,10 @@
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.ViewModels;
+using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 
 namespace PodcastVideoEditor.Ui.Views
 {
@@ -14,6 +15,7 @@ namespace PodcastVideoEditor.Ui.Views
     {
         private CanvasViewModel? _viewModel;
         private Canvas? _mainCanvas;
+        private MediaElement? _videoPreview;
         private Point _dragStartPoint;
         private bool _isDragging;
         private double _originalX;
@@ -22,41 +24,138 @@ namespace PodcastVideoEditor.Ui.Views
         public CanvasView()
         {
             InitializeComponent();
+            
+            // Get x:Name references directly - NO FindChild needed
+            _videoPreview = (MediaElement)FindName("VideoPreview");
+            _mainCanvas = (Canvas)FindName("MainCanvas");
+            
+            Loaded += OnCanvasLoaded;
+            Unloaded += OnCanvasUnloaded;
+            DataContextChanged += OnDataContextChanged;
+        }
+
+        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            // Unsubscribe from old ViewModel
+            if (e.OldValue is CanvasViewModel oldVm)
+            {
+                oldVm.PropertyChanged -= OnViewModelPropertyChanged;
+            }
+
+            // Subscribe to new ViewModel
+            _viewModel = e.NewValue as CanvasViewModel;
+            if (_viewModel != null)
+            {
+                _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+                
+                // Sync VideoSource if already set when DataContext changes
+                if (_viewModel.VideoSource != null && _videoPreview != null)
+                    SetVideoSource(_viewModel.VideoSource);
+            }
         }
 
         private void OnCanvasLoaded(object sender, RoutedEventArgs e)
         {
-            _viewModel = DataContext as CanvasViewModel;
-            _mainCanvas = FindChild<Canvas>(this, "MainCanvas");
+            // Fallback: try FindName again if constructor didn't find them
+            _videoPreview ??= (MediaElement?)FindName("VideoPreview");
+            _mainCanvas ??= (Canvas?)FindName("MainCanvas");
+            
             _viewModel?.EnsureVisualizerTimer();
+            
+            // Sync VideoSource if already set before Loaded fires
+            if (_viewModel?.VideoSource != null && _videoPreview != null)
+                SetVideoSource(_viewModel.VideoSource);
+        }
+
+        private void OnCanvasUnloaded(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel != null)
+            {
+                _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            }
+        }
+
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(CanvasViewModel.VideoPosition) && _videoPreview != null)
+            {
+                SyncVideoPosition();
+            }
+            else if (e.PropertyName == nameof(CanvasViewModel.VideoSource))
+            {
+                if (_viewModel?.VideoSource != null && _videoPreview != null)
+                    SetVideoSource(_viewModel.VideoSource);
+                else if (_viewModel?.VideoSource == null && _videoPreview != null)
+                    _videoPreview.Source = null;
+            }
         }
 
         /// <summary>
-        /// Find child element by name in visual tree
+        /// Sets MediaElement.Source and subscribes to MediaOpened event
+        /// Called both from PropertyChanged handler and manual sync on Load
         /// </summary>
-        private T? FindChild<T>(DependencyObject parent, string childName) where T : DependencyObject
+        private void SetVideoSource(Uri videoSource)
         {
-            if (parent == null) return null;
+            if (_videoPreview == null) return;
 
-            T? foundChild = null;
-
-            int childrenCount = VisualTreeHelper.GetChildrenCount(parent);
-            for (int i = 0; i < childrenCount; i++)
+            try
             {
-                DependencyObject child = VisualTreeHelper.GetChild(parent, i);
-                
-                if (child is T typedChild && child is FrameworkElement fe && fe.Name == childName)
-                {
-                    foundChild = typedChild;
-                    break;
-                }
+                _videoPreview.MediaOpened -= OnMediaOpened;
+                _videoPreview.MediaFailed -= OnMediaFailed;
+                _videoPreview.MediaOpened += OnMediaOpened;
+                _videoPreview.MediaFailed += OnMediaFailed;
 
-                foundChild = FindChild<T>(child, childName);
-                if (foundChild != null)
-                    break;
+                _videoPreview.Source = videoSource;
+                // LoadedBehavior="Manual" requires Play() to trigger loading
+                _videoPreview.Play();
             }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Failed to set MediaElement.Source");
+            }
+        }
 
-            return foundChild;
+        private void OnMediaFailed(object? sender, ExceptionRoutedEventArgs e)
+        {
+            Serilog.Log.Warning(e.ErrorException, "MediaElement failed: {Message}", e.ErrorException?.Message);
+            if (_videoPreview != null)
+                _videoPreview.MediaFailed -= OnMediaFailed;
+        }
+
+        private void OnMediaOpened(object? sender, RoutedEventArgs e)
+        {
+            if (_videoPreview != null)
+            {
+                _videoPreview.MediaOpened -= OnMediaOpened;
+                // Play then Pause to render the first frame
+                _videoPreview.Play();
+                _videoPreview.Pause();
+                SyncVideoPosition();
+            }
+        }
+
+        private void SyncVideoPosition()
+        {
+            if (_videoPreview == null || _viewModel == null)
+                return;
+
+            try
+            {
+                // Sync MediaElement position with ViewModel
+                var targetPosition = _viewModel.VideoPosition;
+                if (_videoPreview.Position != targetPosition && _videoPreview.NaturalDuration.HasTimeSpan)
+                {
+                    var duration = _videoPreview.NaturalDuration.TimeSpan;
+                    if (targetPosition <= duration)
+                    {
+                        _videoPreview.Position = targetPosition;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore position sync errors during media loading
+            }
         }
 
         /// <summary>

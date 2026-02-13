@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Utilities;
 using PodcastVideoEditor.Ui.Helpers;
 using Serilog;
 
@@ -209,12 +210,12 @@ namespace PodcastVideoEditor.Ui.Converters
     /// <summary>
     /// Converts (BackgroundAssetId, Assets collection) to ImageSource for segment thumbnail (CapCut-style preview).
     /// Values: [0]=BackgroundAssetId (string), [1]=Assets (IEnumerable or ICollection of Asset).
-    /// Returns BitmapImage for Image assets, null otherwise. Caches by file path for performance.
+    /// Returns BitmapImage for Image assets, null otherwise. Uses LRU cache for performance.
     /// </summary>
     public class SegmentThumbnailSourceConverter : IMultiValueConverter
     {
-        private static readonly Dictionary<string, BitmapImage> s_cache = new();
-        private const int ThumbnailDecodePixelWidth = 80;
+        private static readonly LRUCache<string, BitmapImage> s_cache = new(1000); // Increased from 500
+        private const int ThumbnailDecodePixelWidth = 60; // Reduced from 120 for faster loading
 
         internal static Uri? CreateFileUriStatic(string fullPath)
         {
@@ -277,23 +278,21 @@ namespace PodcastVideoEditor.Ui.Converters
                     }
                 }
                 imagePath = Path.GetFullPath(thumbPath);
-                lock (s_cache)
+                // Check LRU cache
+                if (s_cache.TryGet(cacheKey, out var videoCache))
                 {
-                    if (s_cache.TryGetValue(cacheKey, out var cached))
-                    {
-                        if (File.Exists(thumbPath))
-                            return cached;
-                        s_cache.Remove(cacheKey);
-                    }
+                    if (File.Exists(thumbPath))
+                        return videoCache;
+                    s_cache.Remove(cacheKey);
                 }
             }
             else
                 return null!;
-            lock (s_cache)
-            {
-                if (s_cache.TryGetValue(cacheKey, out var cached))
-                    return cached;
-            }
+            
+            // Check LRU cache before loading
+            if (s_cache.TryGet(cacheKey, out var cached))
+                return cached;
+            
             try
             {
                 var uri = CreateFileUriStatic(imagePath);
@@ -306,11 +305,9 @@ namespace PodcastVideoEditor.Ui.Converters
                 bmp.DecodePixelWidth = ThumbnailDecodePixelWidth;
                 bmp.EndInit();
                 bmp.Freeze();
-                lock (s_cache)
-                {
-                    if (s_cache.Count < 500)
-                        s_cache[cacheKey] = bmp;
-                }
+                
+                // Add to LRU cache (auto-evicts if full)
+                s_cache.Add(cacheKey, bmp);
                 return bmp;
             }
             catch (Exception ex)
@@ -502,7 +499,7 @@ namespace PodcastVideoEditor.Ui.Converters
             if (d <= 0)
                 result = new[] { 0.0 };
             else
-                result = new[] { 0.0, d * 0.25, d * 0.5, d * 0.75, d };
+                result = new[] { 0.0, d * 0.5, d };  // 3 frames: start, middle, end
 
             if (!string.IsNullOrWhiteSpace(seg.Id))
             {
@@ -525,11 +522,14 @@ namespace PodcastVideoEditor.Ui.Converters
 
     /// <summary>
     /// Returns BitmapImage for video frame at segment.StartTime + timeOffset. Values: [0]=timeOffset (double), [1]=Segment, [2]=Assets.
+    /// Uses LRU cache for efficient memory management.
     /// </summary>
     public class VideoFrameAtTimeConverter : IMultiValueConverter
     {
-        private static readonly Dictionary<string, BitmapImage> s_frameCache = new();
-        private const int DecodeWidth = 60;
+        private static readonly LRUCache<string, BitmapImage> s_frameCache = new(1000); // Increased cache
+        private const int DecodeWidth = 40; // Smaller = faster decode
+        private static DateTime _lastGenerateTime = DateTime.MinValue;
+        private const int ThrottleMs = 16; // ~60fps max generation rate
 
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
@@ -556,6 +556,21 @@ namespace PodcastVideoEditor.Ui.Converters
             if (timeInVideo < 0)
                 timeInVideo = 0;
             var cacheKey = $"{asset.FilePath}|{timeInVideo:F2}";
+            
+            // Check LRU cache first
+            if (s_frameCache.TryGet(cacheKey, out var cachedFrame))
+                return cachedFrame;
+            
+            // Throttle generation during rapid scrolling
+            if (isDeferring)
+                return null!; // Skip during drag/resize
+            
+            var now = DateTime.UtcNow;
+            if ((now - _lastGenerateTime).TotalMilliseconds < ThrottleMs)
+                return null!; // Skip if generating too fast
+            
+            _lastGenerateTime = now;
+            
             var thumbPath = FFmpegService.GetOrCreateVideoThumbnailPath(asset.FilePath, timeInVideo);
             if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
             {
@@ -569,13 +584,7 @@ namespace PodcastVideoEditor.Ui.Converters
                 else
                     return null!;
             }
-            lock (s_frameCache)
-            {
-                if (s_frameCache.TryGetValue(cacheKey, out var cached) && File.Exists(thumbPath))
-                    return cached;
-                if (s_frameCache.TryGetValue(cacheKey, out _) && !File.Exists(thumbPath))
-                    s_frameCache.Remove(cacheKey);
-            }
+            
             try
             {
                 var fullPath = Path.GetFullPath(thumbPath!);
@@ -589,11 +598,9 @@ namespace PodcastVideoEditor.Ui.Converters
                 bmp.DecodePixelWidth = DecodeWidth;
                 bmp.EndInit();
                 bmp.Freeze();
-                lock (s_frameCache)
-                {
-                    if (s_frameCache.Count < 300)
-                        s_frameCache[cacheKey] = bmp;
-                }
+                
+                // Add to LRU cache
+                s_frameCache.Add(cacheKey, bmp);
                 return bmp;
             }
             catch

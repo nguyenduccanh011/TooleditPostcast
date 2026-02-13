@@ -140,7 +140,11 @@
                              HorizontalScrollBarVisibility="Auto" 
                              VerticalScrollBarVisibility="Disabled"
                              x:Name="TimelineScroller"
-                             CanContentScroll="False">
+                             CanContentScroll="False"
+                             PanningMode="HorizontalOnly"
+                             PanningDeceleration="0.001"
+                             PanningRatio="1"
+                             CacheMode="BitmapCache">
                     <Grid Width="{Binding TimelineWidth}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="40"/>
@@ -229,7 +233,7 @@
                                                                                     </MultiBinding>
                                                                                 </TextBlock.Visibility>
                                                                             </TextBlock>
-                                                                            <!-- Layer 1: Video strip - 5 frame theo thời gian (0%, 25%, 50%, 75%, 100% segment), scale khi mở rộng -->
+                                                                            <!-- Layer 1: Video strip - 3 frames for faster performance (0%, 50%, 100% segment) -->
                                                                             <ItemsControl x:Name="SegmentStripItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="1" AlternationCount="10">
                                                                                 <ItemsControl.ItemsSource>
                                                                                     <MultiBinding Converter="{StaticResource SegmentStripTimesConverter}">
@@ -246,8 +250,6 @@
                                                                                                 <ColumnDefinition Width="*"/>
                                                                                                 <ColumnDefinition Width="*"/>
                                                                                                 <ColumnDefinition Width="*"/>
-                                                                                                <ColumnDefinition Width="*"/>
-                                                                                                <ColumnDefinition Width="*"/>
                                                                                             </Grid.ColumnDefinitions>
                                                                                         </Grid>
                                                                                     </ItemsPanelTemplate>
@@ -259,8 +261,12 @@
                                                                                 </ItemsControl.ItemContainerStyle>
                                                                                 <ItemsControl.ItemTemplate>
                                                                                     <DataTemplate>
-                                                                                        <Border Margin="1,0" CornerRadius="2" ClipToBounds="True">
-                                                                                            <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="LowQuality">
+                                                                                        <Border Margin="1,0" CornerRadius="2" ClipToBounds="True"
+                                                                                                CacheMode="BitmapCache"
+                                                                                                RenderOptions.CachingHint="Cache">
+                                                                                            <Image Stretch="UniformToFill" 
+                                                                                                   RenderOptions.BitmapScalingMode="Fant"
+                                                                                                   RenderOptions.EdgeMode="Aliased">
                                                                                                 <Image.Source>
                                                                                                     <MultiBinding Converter="{StaticResource VideoFrameAtTimeConverter}">
                                                                                                         <Binding Path="."/>
@@ -275,7 +281,11 @@
                                                                                 </ItemsControl.ItemTemplate>
                                                                             </ItemsControl>
                                                                             <!-- Single thumbnail (image or video first frame when strip empty); hidden when segment has asset -->
-                                                                            <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="LowQuality" HorizontalAlignment="Left" Width="44" Margin="2,0" Panel.ZIndex="2">
+                                                                            <Image Stretch="UniformToFill" 
+                                                                                   RenderOptions.BitmapScalingMode="HighQuality" 
+                                                                                   RenderOptions.CachingHint="Cache"
+                                                                                   CacheMode="BitmapCache"
+                                                                                   HorizontalAlignment="Left" Width="44" Margin="2,0" Panel.ZIndex="2">
                                                                                 <Image.Source>
                                                                                     <MultiBinding Converter="{StaticResource SegmentThumbnailSourceConverter}">
                                                                                         <Binding Path="BackgroundAssetId"/>
