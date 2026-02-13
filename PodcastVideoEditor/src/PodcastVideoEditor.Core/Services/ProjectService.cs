@@ -439,6 +439,7 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Get recent projects (last 5).
+        /// Includes basic project info only - use GetProjectAsync for full details.
         /// </summary>
         public async Task<List<Project>> GetRecentProjectsAsync(int count = 5)
         {

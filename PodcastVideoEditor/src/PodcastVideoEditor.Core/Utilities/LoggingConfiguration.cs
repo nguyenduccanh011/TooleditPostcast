@@ -19,6 +19,8 @@ public static class LoggingConfiguration
 
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
+            // Console logging disabled for production (uncomment for debugging)
+            // .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
             .WriteTo.File(
                 path: Path.Combine(logsPath, "app-.txt"),
                 rollingInterval: RollingInterval.Day,

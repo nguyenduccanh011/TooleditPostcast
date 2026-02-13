@@ -168,6 +168,34 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ProjectsListBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        var listBox = sender as System.Windows.Controls.ListBox;
+        if (listBox == null) return;
+        
+        // Manually sync selection if binding failed (belt-and-suspenders approach)
+        if (listBox.SelectedItem is Core.Models.Project selectedProject)
+        {
+            if (_projectViewModel.CurrentProject?.Id != selectedProject.Id)
+                _projectViewModel.CurrentProject = selectedProject;
+        }
+    }
+
+    private async void ProjectsList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Double-click to open project from the list
+        if (_projectViewModel.CurrentProject != null)
+        {
+            await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
+            await LoadProjectAudioAsync();
+            MainTabControl.SelectedIndex = 1;
+        }
+        else
+        {
+            MessageBox.Show("Please select a project first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private void ExitMenu_Click(object sender, RoutedEventArgs e)
     {
         Close();

@@ -330,7 +330,7 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public double GetCurrentPosition()
         {
-            if (_waveFormat == null)
+            if (_waveFormat == null || _audioFileReader == null)
                 return 0;
             
             // PRIMARY: Use the sample counter from SampleAggregator.
@@ -349,7 +349,14 @@ namespace PodcastVideoEditor.Core.Services
             }
             
             // Fallback to CurrentTime (only if SampleAggregator is not yet initialized)
-            return _audioFileReader?.CurrentTime.TotalSeconds ?? 0;
+            try
+            {
+                return _audioFileReader.CurrentTime.TotalSeconds;
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         /// <summary>

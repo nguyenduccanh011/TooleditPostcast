@@ -47,27 +47,54 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Called when CurrentProject changes (MVVM Toolkit auto-generated partial method).
+        /// </summary>
+        partial void OnCurrentProjectChanged(Project? value)
+        {
+            // Log only when project is selected (not NULL)
+            if (value != null)
+                Log.Information("Project selected: {ProjectName}", value.Name);
+        }
+
+        /// <summary>
         /// Load all projects from database.
         /// </summary>
         [RelayCommand]
         public async Task LoadProjectsAsync()
         {
+            if (IsLoading)
+                return; // Prevent re-entrant loads
+
             IsLoading = true;
             StatusMessage = "Loading projects...";
+
+            // IMPORTANT: Preserve current selection during reload
+            var currentProjectId = CurrentProject?.Id;
 
             try
             {
                 // Use recent-first list to mirror commercial UX of "Recent Projects" and keep the list lean.
                 var projectList = await _projectService.GetRecentProjectsAsync(10);
+                
                 Projects.Clear();
 
+                var seen = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var project in projectList)
                 {
-                    Projects.Add(project);
+                    if (seen.Add(project.Id))
+                        Projects.Add(project);
+                }
+
+                // Restore selection if the project still exists
+                if (!string.IsNullOrEmpty(currentProjectId))
+                {
+                    var restoredProject = Projects.FirstOrDefault(p => p.Id == currentProjectId);
+                    if (restoredProject != null)
+                        CurrentProject = restoredProject;
                 }
 
                 StatusMessage = $"Loaded {projectList.Count} project(s)";
-                Log.Information("Projects loaded: {Count}", projectList.Count);
+                Log.Information("Loaded {Count} project(s)", projectList.Count);
             }
             catch (Exception ex)
             {

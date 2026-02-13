@@ -51,14 +51,39 @@
 
                         <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
                             <StackPanel>
-                                <TextBlock Text="Recent Projects" FontSize="14" FontWeight="Bold" Margin="0,0,0,10" />
-                                <ListBox ItemsSource="{Binding Projects}"
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="Recent Projects" FontSize="14" FontWeight="Bold" />
+                                    <TextBlock Text="{Binding Projects.Count, StringFormat=' ({0})'}" FontSize="14" FontWeight="Bold" Foreground="#AAAAAA" Margin="5,0,0,0" />
+                                </StackPanel>
+                                <ListBox x:Name="ProjectsListBox"
+                                         ItemsSource="{Binding Projects}"
                                          SelectedItem="{Binding CurrentProject, Mode=TwoWay}"
+                                         IsSynchronizedWithCurrentItem="True"
                                          Height="240"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderThickness="0">
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderThickness="0"
+                                         SelectionChanged="ProjectsListBox_SelectionChanged"
+                                         MouseDoubleClick="ProjectsList_MouseDoubleClick">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="Padding" Value="8,6" />
+                                            <Setter Property="Margin" Value="0,1" />
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#2A2D2E" />
+                                                    <Setter Property="Cursor" Value="Hand" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#094771" />
+                                                    <Setter Property="Foreground" Value="#FFFFFF" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Margin="0,4">
+                                            <StackPanel Margin="0,4" Background="Transparent">
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                                 <TextBlock Text="{Binding AudioPath}" FontSize="11" Foreground="#AAAAAA" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
@@ -67,6 +92,21 @@
                                 </ListBox>
                             </StackPanel>
                         </Border>
+
+                        <!-- Debug Info Panel (uncomment when debugging selection issues)
+                        <StackPanel Margin="0,15,0,0">
+                            <TextBlock Text="Debug Info" FontWeight="Bold" Margin="0,0,0,6" />
+                            <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                                <StackPanel>
+                                    <TextBlock TextWrapping="Wrap">
+                                        <Run Text="Selected Project: " />
+                                        <Run Text="{Binding CurrentProject.Name, FallbackValue='None'}" FontWeight="Bold" Foreground="#FFA500" />
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding CurrentProject.Id, StringFormat='ID: {0}', FallbackValue='No project selected'}" FontSize="10" Foreground="#888" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        -->
 
                         <StackPanel Margin="0,15,0,0">
                             <TextBlock Text="Status" FontWeight="Bold" Margin="0,0,0,6" />
