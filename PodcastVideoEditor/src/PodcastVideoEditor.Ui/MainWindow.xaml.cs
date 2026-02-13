@@ -68,6 +68,8 @@ public partial class MainWindow : Window
             _audioPlayerViewModel = new AudioPlayerViewModel(_audioService);
             _timelineViewModel = new TimelineViewModel(_audioService, _projectViewModel);
 
+            _canvasViewModel.AttachProjectAndTimeline(_projectViewModel, _timelineViewModel);
+
             _mainViewModel = new MainViewModel(
                 _projectViewModel,
                 _renderViewModel,

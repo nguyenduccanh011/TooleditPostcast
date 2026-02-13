@@ -1,10 +1,16 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.Converters;
+using PodcastVideoEditor.Ui.Helpers;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
@@ -17,7 +23,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
+        private readonly Dictionary<string, BitmapSource> _assetFrameCache = new();
+        private ProjectViewModel? _projectViewModel;
+        private TimelineViewModel? _timelineViewModel;
+        private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
+        private PropertyChangedEventHandler? _projectPropertyChangedHandler;
         private bool _disposed;
+        private string? _lastVisualSegmentId;
+        private string? _lastVisualFrameKey;
 
         public ObservableCollection<string> AspectRatioOptions { get; } = new()
         {
@@ -50,6 +63,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = "Ready";
 
+        [ObservableProperty]
+        private BitmapSource? activeVisualImage;
+
+        [ObservableProperty]
+        private string activeTextContent = string.Empty;
+
+        [ObservableProperty]
+        private bool isVisualPlaceholderVisible = true;
+
+        [ObservableProperty]
+        private bool isTextOverlayVisible;
+
+        [ObservableProperty]
+        private Segment? activeVisualSegment;
+
+        [ObservableProperty]
+        private Segment? activeTextSegment;
+
         /// <summary>
         /// Bitmap for visualizer elements on canvas. Updates ~30fps when audio is playing.
         /// </summary>
@@ -63,6 +94,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             PropertyEditor = new PropertyEditorViewModel();
             ApplyAspectRatio(selectedAspectRatio);
+        }
+
+        /// <summary>
+        /// Attach project and timeline references so preview can react to playhead changes.
+        /// </summary>
+        public void AttachProjectAndTimeline(ProjectViewModel projectViewModel, TimelineViewModel timelineViewModel)
+        {
+            _projectViewModel = projectViewModel ?? throw new ArgumentNullException(nameof(projectViewModel));
+            _timelineViewModel = timelineViewModel ?? throw new ArgumentNullException(nameof(timelineViewModel));
+
+            _timelinePropertyChangedHandler ??= OnTimelinePropertyChanged;
+            _projectPropertyChangedHandler ??= OnProjectPropertyChanged;
+
+            _timelineViewModel.PropertyChanged += _timelinePropertyChangedHandler;
+            _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
+
+            UpdateActivePreview(_timelineViewModel.PlayheadPosition);
         }
 
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
@@ -409,11 +457,172 @@ namespace PodcastVideoEditor.Ui.ViewModels
             StatusMessage = $"Preview ratio set to {w}:{h} ({CanvasWidth}x{CanvasHeight})";
         }
 
+        private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (_timelineViewModel == null || _projectViewModel == null)
+                return;
+
+            if (e.PropertyName == nameof(TimelineViewModel.PlayheadPosition))
+                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+        }
+
+        private void OnProjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ProjectViewModel.CurrentProject))
+            {
+                _assetFrameCache.Clear();
+                _lastVisualFrameKey = null;
+                _lastVisualSegmentId = null;
+                UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
+            }
+        }
+
+        private void UpdateActivePreview(double playheadSeconds)
+        {
+            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
+            {
+                ClearActivePreview();
+                return;
+            }
+
+            var active = _timelineViewModel.GetActiveSegmentsAtTime(playheadSeconds);
+            var visualPair = active.FirstOrDefault(p => string.Equals(p.track.TrackType, "visual", StringComparison.OrdinalIgnoreCase));
+            var textPair = active.FirstOrDefault(p => string.Equals(p.track.TrackType, "text", StringComparison.OrdinalIgnoreCase));
+
+            ActiveVisualSegment = visualPair.segment;
+            ActiveTextSegment = textPair.segment;
+
+            ActiveTextContent = textPair.segment?.Text ?? string.Empty;
+            IsTextOverlayVisible = !string.IsNullOrWhiteSpace(ActiveTextContent);
+
+            BitmapSource? frame = null;
+            if (visualPair.segment != null && !string.IsNullOrWhiteSpace(visualPair.segment.BackgroundAssetId))
+            {
+                var asset = FindAssetById(visualPair.segment.BackgroundAssetId);
+                if (asset != null)
+                {
+                    frame = LoadFrameForAsset(asset, visualPair.segment, playheadSeconds);
+                }
+            }
+
+            ActiveVisualImage = frame;
+            IsVisualPlaceholderVisible = ActiveVisualSegment == null || ActiveVisualImage == null;
+        }
+
+        private Asset? FindAssetById(string? assetId)
+        {
+            if (string.IsNullOrWhiteSpace(assetId))
+                return null;
+
+            var assets = _projectViewModel?.CurrentProject?.Assets;
+            return assets?.FirstOrDefault(a => string.Equals(a.Id, assetId, StringComparison.Ordinal));
+        }
+
+        private BitmapSource? LoadFrameForAsset(Asset asset, Segment segment, double playheadSeconds)
+        {
+            if (string.IsNullOrWhiteSpace(asset.FilePath) || !File.Exists(asset.FilePath))
+                return null;
+
+            if (string.Equals(asset.Type, "Image", StringComparison.OrdinalIgnoreCase))
+            {
+                var key = asset.Id ?? asset.FilePath;
+                if (_lastVisualSegmentId == segment.Id && _lastVisualFrameKey == key && ActiveVisualImage != null)
+                    return ActiveVisualImage;
+
+                var bmp = LoadBitmapFromPath(asset.FilePath, key);
+                _lastVisualSegmentId = segment.Id;
+                _lastVisualFrameKey = key;
+                return bmp;
+            }
+
+            if (!string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var timeIntoVideo = Math.Max(0, playheadSeconds - segment.StartTime);
+            var quantized = Math.Round(timeIntoVideo, 1); // ~10fps to avoid excessive FFmpeg calls
+            var frameKey = $"{asset.Id}|{quantized:F2}";
+
+            if (_lastVisualSegmentId == segment.Id && _lastVisualFrameKey == frameKey && ActiveVisualImage != null)
+                return ActiveVisualImage;
+
+            if (_timelineViewModel?.IsDeferringThumbnailUpdate == true)
+                return ActiveVisualImage;
+
+            var thumbPath = FFmpegService.GetOrCreateVideoThumbnailPath(asset.FilePath, timeIntoVideo);
+            if (string.IsNullOrWhiteSpace(thumbPath) || !File.Exists(thumbPath))
+            {
+                var fallbackPath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, timeIntoVideo);
+                if (!VideoThumbnailFallback.TryCaptureFrameToFile(asset.FilePath, timeIntoVideo, fallbackPath))
+                    return ActiveVisualImage;
+                thumbPath = fallbackPath;
+            }
+
+            var bmpFrame = LoadBitmapFromPath(thumbPath, frameKey);
+            if (bmpFrame != null)
+            {
+                _lastVisualSegmentId = segment.Id;
+                _lastVisualFrameKey = frameKey;
+            }
+            return bmpFrame;
+        }
+
+        private BitmapSource? LoadBitmapFromPath(string path, string cacheKey)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                return null;
+
+            lock (_assetFrameCache)
+            {
+                if (_assetFrameCache.TryGetValue(cacheKey, out var cached))
+                    return cached;
+            }
+
+            try
+            {
+                var uri = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = uri;
+                bmp.EndInit();
+                bmp.Freeze();
+
+                lock (_assetFrameCache)
+                {
+                    if (_assetFrameCache.Count > 500)
+                        _assetFrameCache.Clear();
+                    _assetFrameCache[cacheKey] = bmp;
+                }
+
+                return bmp;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private void ClearActivePreview()
+        {
+            ActiveVisualImage = null;
+            ActiveTextContent = string.Empty;
+            ActiveVisualSegment = null;
+            ActiveTextSegment = null;
+            IsTextOverlayVisible = false;
+            IsVisualPlaceholderVisible = true;
+        }
+
         public void Dispose()
         {
             if (_disposed)
                 return;
             _disposed = true;
+
+            if (_timelineViewModel != null && _timelinePropertyChangedHandler != null)
+                _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
+            if (_projectViewModel != null && _projectPropertyChangedHandler != null)
+                _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
+
             PropertyEditor?.Dispose();
             _visualizerTimer?.Stop();
             Serilog.Log.Debug("CanvasViewModel disposed");

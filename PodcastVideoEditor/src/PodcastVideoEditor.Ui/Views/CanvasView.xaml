@@ -120,28 +120,57 @@
         <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
         <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#404040" BorderThickness="1">
             <Viewbox Stretch="Uniform" StretchDirection="Both">
-                <Canvas x:Name="MainCanvas"
-                        Background="#2d2d2d"
-                        Width="{Binding CanvasWidth}"
-                        Height="{Binding CanvasHeight}"
-                        MouseDown="OnCanvasMouseDown">
-                    <ItemsControl ItemsSource="{Binding Elements}"
-                                 ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
-                        <ItemsControl.ItemContainerStyle>
-                            <Style TargetType="ContentPresenter">
-                                <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                                <Setter Property="Canvas.ZIndex" Value="{Binding ZIndex}"/>
-                                <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            </Style>
-                        </ItemsControl.ItemContainerStyle>
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <Canvas/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                </Canvas>
+                <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
+                    <Border Background="#2d2d2d" />
+
+                    <Image Source="{Binding ActiveVisualImage}"
+                           Stretch="UniformToFill"
+                           IsHitTestVisible="False"/>
+
+                    <TextBlock Text="No active visual segment"
+                               Foreground="#cccccc"
+                               FontStyle="Italic"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Background="#33000000"
+                               Padding="12,6"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding IsVisualPlaceholderVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <Border Background="#80000000"
+                            VerticalAlignment="Bottom"
+                            Padding="12"
+                            IsHitTestVisible="False"
+                            Visibility="{Binding IsTextOverlayVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="{Binding ActiveTextContent}"
+                                   Foreground="White"
+                                   TextWrapping="Wrap"
+                                   FontSize="20"/>
+                    </Border>
+
+                    <Canvas x:Name="MainCanvas"
+                            Background="Transparent"
+                            Width="{Binding CanvasWidth}"
+                            Height="{Binding CanvasHeight}"
+                            MouseDown="OnCanvasMouseDown">
+                        <ItemsControl ItemsSource="{Binding Elements}"
+                                     ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                    <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                    <Setter Property="Canvas.ZIndex" Value="{Binding ZIndex}"/>
+                                    <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <Canvas/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </Canvas>
+                </Grid>
             </Viewbox>
         </Border>
 

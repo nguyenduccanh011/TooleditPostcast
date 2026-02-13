@@ -749,6 +749,29 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Get active segments at the given time across all tracks, ordered by track.Order (top to bottom).
+        /// </summary>
+        public List<(Track track, Segment segment)> GetActiveSegmentsAtTime(double timeSeconds)
+        {
+            var results = new List<(Track track, Segment segment)>();
+
+            foreach (var track in Tracks)
+            {
+                if (track.Segments == null)
+                    continue;
+
+                var seg = track.Segments.FirstOrDefault(s => s.StartTime <= timeSeconds && timeSeconds < s.EndTime);
+                if (seg != null)
+                    results.Add((track, seg));
+            }
+
+            return results
+                .OrderBy(r => r.track.Order)
+                .ThenBy(r => r.segment.StartTime)
+                .ToList();
+        }
+
+        /// <summary>
         /// Seek playhead (and audio) to the specified position in seconds.
         /// Must be called when user clicks on timeline - otherwise sync loop overwrites PlayheadPosition.
         /// </summary>
