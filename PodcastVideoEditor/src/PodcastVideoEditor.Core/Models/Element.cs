@@ -70,6 +70,17 @@ public class Element
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Optional: segment this element is attached to. When set, element is only visible during segment's [StartTime, EndTime].
+    /// Null = global overlay (always visible or until explicitly attached).
+    /// </summary>
+    public string? SegmentId { get; set; }
+
     // Navigation
     public Project? Project { get; set; }
+
+    /// <summary>
+    /// Segment this element belongs to (when SegmentId is set).
+    /// </summary>
+    public Segment? Segment { get; set; }
 }

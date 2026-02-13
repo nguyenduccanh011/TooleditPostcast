@@ -64,6 +64,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private float[] audioPeaks = Array.Empty<float>();
 
+        /// <summary>
+        /// When true, defer thumbnail strip updates (during resize/drag) to avoid FFmpeg blocking UI.
+        /// </summary>
+        [ObservableProperty]
+        private bool isDeferringThumbnailUpdate;
+
         private const int WaveformBinCount = 2400;
         private int _audioPeaksLoadVersion;
 

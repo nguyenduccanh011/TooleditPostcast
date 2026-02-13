@@ -408,6 +408,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _segmentOriginalEndTime = segment.EndTime;
                 _resizeDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
+                _viewModel!.IsDeferringThumbnailUpdate = true;
             }
         }
 
@@ -425,6 +426,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _resizeLeftOriginalStartTime = segment.StartTime;
                 _resizeLeftDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
+                _viewModel!.IsDeferringThumbnailUpdate = true;
             }
         }
 
@@ -518,6 +520,7 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
+            _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
         }
 
@@ -530,6 +533,7 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeLeftDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
+            _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
         }
 
@@ -548,6 +552,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _moveDeltaX = 0;
                 grid.Cursor = Cursors.SizeAll;
                 _viewModel?.SelectSegment(segment);
+                _viewModel!.IsDeferringThumbnailUpdate = true;
             }
         }
 
@@ -621,6 +626,7 @@ namespace PodcastVideoEditor.Ui.Views
             _moveDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
+            _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
         }
 

@@ -31,6 +31,7 @@
 | **PROJECT-STATUS-FEB7.md**, **SESSION-REPORT-FEB7.md** | Báo cáo trạng thái / session. | Tham khảo lịch sử. |
 | **EDITOR-LAYOUT-CAPCUT-ANALYSIS.md** | Phân tích khung thành phần CapCut vs Editor; preview không cuộn; gợi ý tăng diện tích preview. | Chỉnh layout Editor (#12, Phase 6). |
 | **ELEMENTS-SEGMENTS-AND-PROPERTIES-PANEL-DESIGN.md** | Elements kéo thả vào segment (thuộc tính thời gian); gộp Segment + Element properties một khung; Timeline full bottom; đánh giá không hỏng code. | Implement drag element→segment; refactor panel Properties; layout Editor. |
+| **ELEMENT-TO-SEGMENT-FLOW-PLAN.md** | Kế hoạch triển khai chi tiết: Element.SegmentId, luồng tạo element từ Timeline (CapCut-style), preview composite theo playhead, thứ tự implement. | Implement element gắn segment; TP-005 ST-3; add element từ Timeline. |
 
 ---
 

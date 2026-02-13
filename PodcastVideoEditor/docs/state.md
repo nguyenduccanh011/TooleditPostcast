@@ -127,10 +127,10 @@ JSON Config:       System.Text.Json
 ## Current Phase: BUILD (TP-005 MVP Visual & Preview)
 
 **Active Task Pack:** TP-005-MVP-VISUAL-AND-PREVIEW  
-**Status:** Chưa bắt đầu. Nhiệm vụ tiếp theo: **TP-005** — Gắn ảnh vào segment visual (MVP) + Preview tỉ lệ + Preview composite theo timeline.  
-**Chi tiết:** Xem `docs/active.md` (Task Pack TP-005).
+**Status:** ST-1 ✅ done (gắn ảnh segment); ST-2 ✅ done. Tiếp theo: **B** (Element-Segment bước 3 Load/Save Canvas) hoặc **C** (ST-3 Preview composite).  
+**Chi tiết:** `docs/active.md` (Task Pack TP-005 + Next Task).
 
-**Last Updated:** 2026-02-12 (MVP Gap & TP-005 added)
+**Last Updated:** 2026-02-12 (ST-1 done)
 
 ---
 
@@ -210,7 +210,7 @@ Drag&Drop:         GongSolutions.WPF.DragDrop 4.x
 ## Immediate Next Steps
 
 - **TP-004 (Multi-track):** ✅ Core done (ST-1..ST-5). ST-6/ST-7 hoãn (polish).
-- **TP-005 (MVP Visual & Preview):** **Tiếp theo** — Gắn ảnh vào segment visual; Preview chọn tỉ lệ + composite theo timeline. Chi tiết ST trong `docs/active.md`.
+- **TP-005 (MVP Visual & Preview):** ST-1 ✅, ST-2 ✅. **Tiếp theo:** **B** (Element-Segment bước 3 Load/Save Canvas) hoặc **C** (ST-3 Preview composite). Chi tiết: `docs/active.md`.
 - **Phase 5 (Render):** Sau TP-005; dùng logic composite từ preview. Phase 4 (AI) và Phase 6 (Polish) theo thứ tự ưu tiên (xem bảng trên).
 
 ---

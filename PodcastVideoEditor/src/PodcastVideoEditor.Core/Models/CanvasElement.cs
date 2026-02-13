@@ -107,6 +107,12 @@ namespace PodcastVideoEditor.Core.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
+        /// Optional: ID of the segment this element is attached to. When set, element is only shown during segment's [StartTime, EndTime].
+        /// Null = global overlay (always visible).
+        /// </summary>
+        public string? SegmentId { get; set; }
+
+        /// <summary>
         /// Validate the element's properties.
         /// Returns true if valid, false otherwise.
         /// </summary>

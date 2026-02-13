@@ -17,13 +17,13 @@ Bù khoảng trống MVP: **segment visual** có thể gắn ảnh (tối thiể
 
 #### ST-1: Gắn ảnh (và tùy chọn video) vào segment visual — MVP
 **Objective:** User có thể gán media (ít nhất ảnh) cho segment visual; dữ liệu lưu qua Asset hoặc path; Segment.BackgroundAssetId được set.
-**Status:** ⏳ **NOT STARTED** — **CURRENT**
+**Status:** ✅ **COMPLETE**
 
 **Acceptance Criteria:**
-- [ ] Có luồng chọn file ảnh (và tùy chọn video) cho segment đang chọn: ví dụ nút "Chọn ảnh" / "Chọn file" trong Segment Property Panel hoặc context menu segment.
-- [ ] Khi chọn file: tạo Asset (ProjectId, FilePath, Type=Image/Video) và gán `Segment.BackgroundAssetId = asset.Id`; hoặc MVP đơn giản: lưu path vào Asset rồi gán. Persist (ProjectService / DatabaseService).
-- [ ] Segment visual không có ảnh: hiển thị placeholder trong timeline/preview (đã có RenderHelper placeholder; có thể tái dùng).
-- [ ] Build succeeds (0 errors).
+- [x] Có luồng chọn file ảnh (và tùy chọn video) cho segment đang chọn: ví dụ nút "Chọn ảnh" / "Chọn file" trong Segment Property Panel hoặc context menu segment.
+- [x] Khi chọn file: tạo Asset (ProjectId, FilePath, Type=Image/Video) và gán `Segment.BackgroundAssetId = asset.Id`; hoặc MVP đơn giản: lưu path vào Asset rồi gán. Persist (ProjectService / DatabaseService).
+- [x] Segment visual không có ảnh: hiển thị placeholder trong timeline/preview (đã có RenderHelper placeholder; có thể tái dùng).
+- [x] Build succeeds (0 errors).
 
 **Implementation Notes:**
 - Asset entity đã có (Core/Models/Asset.cs); cần AssetService (hoặc ProjectService) AddAssetAsync, GetAssetById; DbSet Assets nếu chưa có.
@@ -259,30 +259,70 @@ ST-1 → ST-2 → ST-3 → ST-4 → ST-5 ✅ | ST-6, ST-7 hoãn (làm sau)
 - [ ] ST-6, ST-7: ⏸️ Hoãn (polish)
 
 ### MVP Visual & Preview Progress (TP-005)
-- [ ] ST-1: Gắn ảnh vào segment visual
-- [ ] ST-2: Preview chọn tỉ lệ khung hình — **CURRENT**
+- [x] ST-1: Gắn ảnh vào segment visual — **DONE**
+- [x] ST-2: Preview chọn tỉ lệ khung hình — **DONE** (load/save với Project đã triển khai)
 - [ ] ST-3: Preview composite theo timeline (visual + text + audio)
 
----
-
-## Next Action
-
-**Current Subtask:** TP-005 ST-2 — Preview chọn tỉ lệ khung hình (aspect ratio).
-
-**Resume Instructions (ST-2):**
-- Trong Editor: dropdown hoặc nút chọn aspect ratio (9:16, 16:9, 1:1, 4:5). Lưu vào Project (Project.AspectRatio / RenderSettings) hoặc ViewModel preview.
-- Khung preview (CanvasView hoặc vùng hiển thị): đổi kích thước/letterbox theo tỉ lệ; nội dung scale/fit trong khung (Viewbox hoặc tính Width/Height từ ratio).
-- Đồng bộ với render settings (MVP tối thiểu preview đúng tỉ lệ). Build 0 errors.
-
-**ST-1 (Gắn ảnh segment):** Có thể làm trước/song song; ST-3 cần ST-1. **Sau ST-2:** ST-1 hoặc ST-3 tùy thứ tự ưu tiên.
-
-**TP-004 ST-6/ST-7:** Vẫn hoãn (polish). Phase 5 (Render) sau khi TP-005 xong.
-
-**Còn thiếu ST-2:** Đồng bộ aspect ratio với Project — khi mở project load `RenderSettings.AspectRatio` vào CanvasViewModel; khi đổi tỉ lệ hoặc Save ghi từ CanvasViewModel vào CurrentProject.RenderSettings.AspectRatio.
+### Element → Segment flow (CapCut-style)
+- **Plan:** `docs/ELEMENT-TO-SEGMENT-FLOW-PLAN.md`
+- **Đã làm:** Model `Element.SegmentId`, `CanvasElement.SegmentId`; migration `AddElementSegmentId`; `ProjectService.AddElementAsync`, `UpdateElementAsync`. Load project đã Include Elements.
+- **Tiếp theo:** Load/Save sync Canvas ↔ Project.Elements (map Element ↔ CanvasElement); Preview composite theo playhead (GetActiveSegmentsAtTime, ActiveElements); Timeline “Add element” (PendingElementType, click track → Segment + Element).
 
 ---
 
-Last updated: 2026-02-12 (Session 17 paused; ST-2 in progress)
+## Nhiệm vụ tiếp theo (đủ chi tiết để thực hiện theo quy trình)
+
+**Khi Session Start:** Đọc `docs/state.md` + `docs/active.md`. Chọn **một** nhiệm vụ dưới đây làm trước (ưu tiên đề xuất: **A** hoặc **B**).
+
+### Lựa chọn A — TP-005 ST-1: Gắn ảnh vào segment visual (MVP) ✅ DONE
+
+**Mục tiêu thực hiện:** User có thể gán ảnh (hoặc file media) cho segment visual đang chọn; dữ liệu lưu qua Asset và `Segment.BackgroundAssetId`; mở lại project vẫn đúng ảnh.
+
+**Acceptance Criteria:**
+- [x] Có nút "Chọn ảnh" / "Chọn file" trong Segment Property Panel khi chọn segment (track visual).
+- [x] Chọn file → tạo Asset (ProjectService.AddAssetAsync), gán `Segment.BackgroundAssetId = asset.Id`, persist (UpdateSegment hoặc qua ProjectService).
+- [x] Segment không có ảnh: hiển thị placeholder trong timeline/preview (có thể tái dùng RenderHelper).
+- [x] Build 0 errors.
+
+**Implementation Notes:** Đọc `docs/active.md` ST-1 (Implementation Notes). File: `SegmentEditorPanel.xaml` / `.cs`, `ProjectService` (AddAsset đã có), segment update.
+
+**Đọc trước khi làm:** `docs/active.md` TP-005 ST-1; `docs/issues.md` nếu có issue liên quan.
+
+### Lựa chọn B — Element-Segment bước 3: Load/Save Canvas (sync Project.Elements ↔ CanvasViewModel)
+
+**Mục tiêu thực hiện:** Khi mở project, danh sách elements từ DB (Project.Elements) được map sang CanvasElement (có SegmentId, X, Y, Width, Height, Type, …) và đổ vào CanvasViewModel.Elements. Khi Save project, thay đổi trên Canvas được ghi lại vào Project.Elements và persist.
+
+**Acceptance Criteria:**
+- [ ] **Load:** Sau OpenProjectAsync (hoặc khi CurrentProject thay đổi), CanvasViewModel.Elements được điền từ CurrentProject.Elements: mỗi Element (Core) → CanvasElement tương ứng (TitleElement/TextElement/…), gán SegmentId, Id, X, Y, Width, Height, ZIndex, PropertiesJson. Cần mapper Element → CanvasElement theo Type.
+- [ ] **Save:** Trước UpdateProjectAsync, CanvasViewModel.Elements map ngược thành Project.Elements (SegmentId, X, Y, Width, Height, PropertiesJson); thêm/cập nhật/xóa so với CurrentProject.Elements, rồi UpdateProjectAsync(CurrentProject).
+- [ ] Elements tạo bằng nút Add Title/Text/… trên Canvas sau Save phải nằm trong Project.Elements; lần sau Open hiện lại.
+- [ ] Build 0 errors.
+
+**Implementation Notes:** Đọc `docs/ELEMENT-TO-SEGMENT-FLOW-PLAN.md` mục 3.1, mục 5. File: `ProjectViewModel` (OpenProjectAsync sync Elements vào Canvas; SaveProjectAsync sync Canvas → Project.Elements), `CanvasViewModel` (LoadElementsFromProject, GetElementsForProjectSave hoặc tương đương), mapper Element ↔ CanvasElement. ProjectService.UpdateProjectAsync đã ghi project; đảm bảo Project.Elements được cập nhật.
+
+**Đọc trước khi làm:** `docs/ELEMENT-TO-SEGMENT-FLOW-PLAN.md`; `Core/Models/Element.cs`, `CanvasElement.cs`; `ProjectService.GetProjectAsync` (đã Include Elements).
+
+**Prerequisite:** Đã chạy migration AddElementSegmentId (`dotnet ef database update --project PodcastVideoEditor.Core --startup-project PodcastVideoEditor.Ui` từ thư mục `src`; đóng app trước khi chạy).
+
+### Lựa chọn C — TP-005 ST-3: Preview composite theo timeline
+
+**Mục tiêu thực hiện:** Tại mỗi thời điểm playhead, preview hiển thị đúng segment visual (ảnh), segment text (subtitle), audio sync; composite theo track và z-order.
+
+**Acceptance Criteria / Implementation:** Đọc `docs/active.md` TP-005 ST-3; `docs/ELEMENT-TO-SEGMENT-FLOW-PLAN.md` mục 3.4. Cần GetActiveSegmentsAtTime(t), ActiveElements hoặc layer vẽ theo playhead.
+
+**Phụ thuộc:** ST-1 giúp test đầy đủ; có thể làm trước với placeholder.
+
+---
+
+## Next Action (tóm tắt)
+
+- **Current Subtask:** ST-1 ✅ done. Tiếp theo: **B** (Element-Segment bước 3 Load/Save Canvas) hoặc **C** (ST-3 Preview composite theo timeline).
+- **Migration:** Nếu làm B — chạy `dotnet ef database update` (đóng app, từ `src`).
+- **TP-004 ST-6/ST-7:** Hoãn. **ST-2:** Đã xong.
+
+---
+
+Last updated: 2026-02-12 (Next task: objective + acceptance criteria + implementation notes)
 
 ---
 
@@ -323,14 +363,11 @@ Last updated: 2026-02-12 (Session 17 paused; ST-2 in progress)
 
 ## Resuming Next Session
 
-**Current:** TP-005 ST-2 — Preview aspect ratio (đã có dropdown + Viewbox; còn **lưu/load với Project**).
+**Current:** TP-005 ST-1 ✅ done. ST-2 ✅ done. **Tiếp theo:** **B** (Element-Segment bước 3 Load/Save Canvas) hoặc **C** (ST-3 Preview composite theo timeline).
 
-**Quick Start ST-2 (phần còn lại):**
-1. Khi mở project: từ `CurrentProject.RenderSettings.AspectRatio` set `CanvasViewModel.SelectedAspectRatio` và gọi ApplyAspectRatio (trong OpenProjectAsync hoặc khi CurrentProject thay đổi).
-2. Khi Save hoặc khi đổi tỉ lệ: ghi `CanvasViewModel.SelectedAspectRatio` vào `CurrentProject.RenderSettings.AspectRatio` trước khi UpdateProjectAsync.
-3. (Tùy chọn) Đồng bộ RenderViewModel.SelectedAspectRatio với Project khi load/save.
+**Nếu làm B:** Đọc `docs/ELEMENT-TO-SEGMENT-FLOW-PLAN.md` mục 3.1, 5; sync Project.Elements ↔ CanvasViewModel khi Open/Save.
 
-**Nếu chuyển sang ST-1:** Đọc `docs/active.md` TP-005 ST-1; Segment panel nút Chọn ảnh → Asset → Segment.BackgroundAssetId.
+**Nếu làm C:** Đọc `docs/active.md` TP-005 ST-3; GetActiveSegmentsAtTime(t), layer vẽ theo playhead.
 
 **Sau TP-005:** Phase 5 (Render #10, #11). Phase 4 (AI) hoặc Phase 6 (ST-6/ST-7, #12) tùy ưu tiên.
 

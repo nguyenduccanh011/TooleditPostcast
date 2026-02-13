@@ -145,6 +145,7 @@ public static class FFmpegService
     {
         var commonPaths = new[]
         {
+            @"C:\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe",
             @"C:\ffmpeg\bin\ffmpeg.exe",
             @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
             @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
@@ -235,6 +236,119 @@ public static class FFmpegService
     public static bool IsInitialized()
     {
         return !string.IsNullOrEmpty(_ffmpegPath) && File.Exists(_ffmpegPath);
+    }
+
+    /// <summary>
+    /// Extract a single frame from a video file at the given time (seconds) and save as PNG.
+    /// Used for timeline segment thumbnails. Blocks briefly; call from background or cache result.
+    /// </summary>
+    /// <param name="videoPath">Full path to video file</param>
+    /// <param name="timeSeconds">Time position in seconds</param>
+    /// <param name="outputImagePath">Full path for output PNG file</param>
+    /// <returns>True if extraction succeeded and file exists</returns>
+    public static bool ExtractVideoFrameToImage(string videoPath, double timeSeconds, string outputImagePath)
+    {
+        if (string.IsNullOrEmpty(_ffmpegPath) || !File.Exists(_ffmpegPath))
+            return false;
+        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+            return false;
+        var dir = Path.GetDirectoryName(outputImagePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        try
+        {
+            var timeStr = timeSeconds.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+            // Method 1: -ss before -i (fast seek); use -frames:v 1 and -update 1 per FFmpeg docs
+            var args = $"-y -ss {timeStr} -i \"{videoPath}\" -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
+            var ok = RunFfmpegCaptureFrame(args, outputImagePath);
+            if (ok)
+                return true;
+            // Method 2: -ss after -i (accurate seek, slower) for problematic files
+            args = $"-y -i \"{videoPath}\" -ss {timeStr} -frames:v 1 -f image2 -q:v 2 -update 1 \"{outputImagePath}\"";
+            return RunFfmpegCaptureFrame(args, outputImagePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "ExtractVideoFrameToImage failed: {Video} @ {Time}s", videoPath, timeSeconds);
+            return false;
+        }
+    }
+
+    private static bool RunFfmpegCaptureFrame(string arguments, string outputImagePath)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+        process.Start();
+        process.StandardOutput.ReadToEnd();
+        process.StandardError.ReadToEnd();
+        process.WaitForExit(TimeSpan.FromSeconds(15));
+        return process.ExitCode == 0 && File.Exists(outputImagePath);
+    }
+
+    /// <summary>
+    /// Try to initialize FFmpeg synchronously (find in PATH or common locations) if not yet initialized.
+    /// Called when we need a video thumbnail so thumbnails work even before user opens Settings.
+    /// </summary>
+    public static void EnsureInitializedSync()
+    {
+        if (IsInitialized())
+            return;
+        lock (typeof(FFmpegService))
+        {
+            if (IsInitialized())
+                return;
+            if (TryFindInSystemPath() || TryFindCommonLocations())
+                Log.Information("FFmpeg initialized synchronously for thumbnails: {Path}", _ffmpegPath);
+        }
+    }
+
+    /// <summary>
+    /// Get or create a thumbnail image path for a video at the given time. Uses a cache directory.
+    /// </summary>
+    public static string? GetOrCreateVideoThumbnailPath(string videoPath, double timeSeconds)
+    {
+        if (string.IsNullOrWhiteSpace(videoPath))
+            return null;
+        var fullVideoPath = Path.GetFullPath(videoPath);
+        if (!File.Exists(fullVideoPath))
+            return null;
+        EnsureInitializedSync();
+        if (!IsInitialized())
+            return null;
+        var outPath = GetThumbnailCachePathFor(fullVideoPath, timeSeconds);
+        if (File.Exists(outPath))
+            return outPath;
+        return ExtractVideoFrameToImage(fullVideoPath, timeSeconds, outPath) ? outPath : null;
+    }
+
+    /// <summary>
+    /// Returns the cache file path for a video thumbnail at the given time (for use by fallback methods e.g. WPF MediaPlayer).
+    /// </summary>
+    public static string GetThumbnailCachePathFor(string videoPath, double timeSeconds)
+    {
+        var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PodcastVideoEditor", "thumbnails");
+        Directory.CreateDirectory(appData);
+        var fullPath = Path.GetFullPath(videoPath);
+        var hash = HashString($"{fullPath}|{timeSeconds:F2}");
+        return Path.Combine(appData, hash + ".png");
+    }
+
+    private static string HashString(string value)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(value);
+        var hash = sha.ComputeHash(bytes);
+        return BitConverter.ToString(hash).Replace("-", "")[..16];
     }
 
     /// <summary>

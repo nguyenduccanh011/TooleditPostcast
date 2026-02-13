@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
     private readonly string _appDataPath;
+    private bool _initialLoadDone;
 
     public MainWindow()
     {
@@ -48,7 +49,15 @@ public partial class MainWindow : Window
                 .Options;
 
             _dbContext = new AppDbContext(options);
-            _dbContext.Database.EnsureCreated();
+            try
+            {
+                _dbContext.Database.Migrate();
+            }
+            catch (Exception migrateEx)
+            {
+                Log.Warning(migrateEx, "Database migration failed, falling back to EnsureCreated");
+                _dbContext.Database.EnsureCreated();
+            }
 
             var projectService = new ProjectService(_dbContext);
             _renderViewModel = new RenderViewModel();
@@ -67,6 +76,7 @@ public partial class MainWindow : Window
                 _visualizerViewModel,
                 _timelineViewModel);
             DataContext = _mainViewModel;
+            Log.Information("MainWindow DataContext set, Projects count will load on Loaded");
 
             _audioPlayerViewModel.AudioLoaded += OnAudioLoaded;
 
@@ -85,6 +95,13 @@ public partial class MainWindow : Window
         AppDataPathText.Text = _appDataPath;
         await LoadProjectsSafeAsync();
         await InitializeFfmpegStatusAsync();
+        _initialLoadDone = true;
+    }
+
+    private async void MainTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_initialLoadDone && MainTabControl.SelectedIndex == 0)
+            await LoadProjectsSafeAsync();
     }
 
     private async Task LoadProjectsSafeAsync()
@@ -92,6 +109,7 @@ public partial class MainWindow : Window
         try
         {
             await _projectViewModel.LoadProjectsAsync();
+            Log.Information("Projects loaded: {Count}", _projectViewModel.Projects.Count);
         }
         catch (Exception ex)
         {

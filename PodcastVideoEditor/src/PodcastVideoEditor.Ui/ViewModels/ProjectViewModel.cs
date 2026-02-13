@@ -57,7 +57,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
-                var projectList = await _projectService.GetAllProjectsAsync();
+                // Use recent-first list to mirror commercial UX of "Recent Projects" and keep the list lean.
+                var projectList = await _projectService.GetRecentProjectsAsync(10);
                 Projects.Clear();
 
                 foreach (var project in projectList)

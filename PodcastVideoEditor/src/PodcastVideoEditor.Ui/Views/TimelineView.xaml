@@ -16,6 +16,13 @@
         <conv:PixelsPerSecondConverter x:Key="PixelsPerSecondConverter"/>
         <conv:TimeValueConverter x:Key="TimeValueConverter"/>
         <conv:TrackHeightConverter x:Key="TrackHeightConverter"/>
+        <conv:SegmentNoImagePlaceholderVisibilityConverter x:Key="SegmentNoImagePlaceholderVisibilityConverter"/>
+        <conv:SegmentThumbnailSourceConverter x:Key="SegmentThumbnailSourceConverter"/>
+        <conv:SegmentThumbnailBrushConverter x:Key="SegmentThumbnailBrushConverter"/>
+        <conv:SegmentVideoPlaceholderVisibilityConverter x:Key="SegmentVideoPlaceholderVisibilityConverter"/>
+        <conv:AssetIdToSingleThumbVisibilityConverter x:Key="AssetIdToSingleThumbVisibilityConverter"/>
+        <conv:SegmentStripTimesConverter x:Key="SegmentStripTimesConverter"/>
+        <conv:VideoFrameAtTimeConverter x:Key="VideoFrameAtTimeConverter"/>
         <Style x:Key="HideAudioTrackBorder" TargetType="Border">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding TrackType}" Value="audio">
@@ -199,21 +206,116 @@
                                                                       DragStarted="MoveThumb_DragStarted"
                                                                       DragDelta="MoveThumb_DragDelta"
                                                                       DragCompleted="MoveThumb_DragCompleted"/>
-                                                                <StackPanel Margin="5" Panel.ZIndex="1" IsHitTestVisible="False" Orientation="Vertical">
-                                                                    <TextBlock Text="Segment" Foreground="#81c784" FontSize="9" Margin="0,0,0,2"/>
-                                                                    <TextBlock Text="{Binding Text}" 
-                                                                                 Foreground="#e0e0e0"
-                                                                                 FontWeight="Bold"
-                                                                                 FontSize="11"
-                                                                                 TextTrimming="CharacterEllipsis"/>
-                                                                    <TextBlock Foreground="#b0bec5" FontSize="8">
-                                                                        <Run Text="Duration: "/>
-                                                                        <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                                        <Run Text=" - "/>
-                                                                        <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
-                                                                        <Run Text="s"/>
-                                                                    </TextBlock>
-                                                                </StackPanel>
+                                                                <Grid Panel.ZIndex="1" IsHitTestVisible="False" Margin="4,2">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto" MinWidth="100"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <!-- Preview area: tiled image (when segment long) or video strip (multiple frames) -->
+                                                                    <Border Grid.Column="0" CornerRadius="3" VerticalAlignment="Stretch" MinWidth="60">
+                                                                        <Border.Background>
+                                                                            <MultiBinding Converter="{StaticResource SegmentThumbnailBrushConverter}">
+                                                                                <Binding Path="BackgroundAssetId"/>
+                                                                                <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                            </MultiBinding>
+                                                                        </Border.Background>
+                                                                        <Grid>
+                                                                            <!-- Layer 0: "Video" placeholder text (behind thumbnails so thumbnails draw on top) -->
+                                                                            <TextBlock Text="Video" Foreground="#64b5f6" FontSize="9" VerticalAlignment="Center" HorizontalAlignment="Center" Panel.ZIndex="0">
+                                                                                <TextBlock.Visibility>
+                                                                                    <MultiBinding Converter="{StaticResource SegmentVideoPlaceholderVisibilityConverter}">
+                                                                                        <Binding Path="BackgroundAssetId"/>
+                                                                                        <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                    </MultiBinding>
+                                                                                </TextBlock.Visibility>
+                                                                            </TextBlock>
+                                                                            <!-- Layer 1: Video strip - 5 frame theo thời gian (0%, 25%, 50%, 75%, 100% segment), scale khi mở rộng -->
+                                                                            <ItemsControl x:Name="SegmentStripItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Panel.ZIndex="1" AlternationCount="10">
+                                                                                <ItemsControl.ItemsSource>
+                                                                                    <MultiBinding Converter="{StaticResource SegmentStripTimesConverter}">
+                                                                                        <Binding Path="DataContext" RelativeSource="{RelativeSource Self}"/>
+                                                                                        <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                        <Binding Path="DataContext.EndTime" RelativeSource="{RelativeSource Self}"/>
+                                                                                        <Binding Path="DataContext.IsDeferringThumbnailUpdate" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                    </MultiBinding>
+                                                                                </ItemsControl.ItemsSource>
+                                                                                <ItemsControl.ItemsPanel>
+                                                                                    <ItemsPanelTemplate>
+                                                                                        <Grid>
+                                                                                            <Grid.ColumnDefinitions>
+                                                                                                <ColumnDefinition Width="*"/>
+                                                                                                <ColumnDefinition Width="*"/>
+                                                                                                <ColumnDefinition Width="*"/>
+                                                                                                <ColumnDefinition Width="*"/>
+                                                                                                <ColumnDefinition Width="*"/>
+                                                                                            </Grid.ColumnDefinitions>
+                                                                                        </Grid>
+                                                                                    </ItemsPanelTemplate>
+                                                                                </ItemsControl.ItemsPanel>
+                                                                                <ItemsControl.ItemContainerStyle>
+                                                                                    <Style TargetType="ContentPresenter">
+                                                                                        <Setter Property="Grid.Column" Value="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource Self}}"/>
+                                                                                    </Style>
+                                                                                </ItemsControl.ItemContainerStyle>
+                                                                                <ItemsControl.ItemTemplate>
+                                                                                    <DataTemplate>
+                                                                                        <Border Margin="1,0" CornerRadius="2" ClipToBounds="True">
+                                                                                            <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="LowQuality">
+                                                                                                <Image.Source>
+                                                                                                    <MultiBinding Converter="{StaticResource VideoFrameAtTimeConverter}">
+                                                                                                        <Binding Path="."/>
+                                                                                                        <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                                                                        <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                                        <Binding Path="DataContext.IsDeferringThumbnailUpdate" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                                    </MultiBinding>
+                                                                                                </Image.Source>
+                                                                                            </Image>
+                                                                                        </Border>
+                                                                                    </DataTemplate>
+                                                                                </ItemsControl.ItemTemplate>
+                                                                            </ItemsControl>
+                                                                            <!-- Single thumbnail (image or video first frame when strip empty); hidden when segment has asset -->
+                                                                            <Image Stretch="UniformToFill" RenderOptions.BitmapScalingMode="LowQuality" HorizontalAlignment="Left" Width="44" Margin="2,0" Panel.ZIndex="2">
+                                                                                <Image.Source>
+                                                                                    <MultiBinding Converter="{StaticResource SegmentThumbnailSourceConverter}">
+                                                                                        <Binding Path="BackgroundAssetId"/>
+                                                                                        <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                    </MultiBinding>
+                                                                                </Image.Source>
+                                                                                <Image.Visibility>
+                                                                                    <MultiBinding Converter="{StaticResource AssetIdToSingleThumbVisibilityConverter}">
+                                                                                        <Binding Path="BackgroundAssetId"/>
+                                                                                        <Binding Path="DataContext.ProjectViewModel.CurrentProject.Assets" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                                                    </MultiBinding>
+                                                                                </Image.Visibility>
+                                                                            </Image>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                                        <TextBlock Text="Segment" Foreground="#81c784" FontSize="9" Margin="0,0,0,1"/>
+                                                                        <TextBlock Text="{Binding Text}" 
+                                                                                   Foreground="#e0e0e0"
+                                                                                   FontWeight="Bold"
+                                                                                   FontSize="10"
+                                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                        <TextBlock Foreground="#ffb74d" FontSize="8" FontStyle="Italic" Margin="0,0,0,0">
+                                                                            <TextBlock.Visibility>
+                                                                                <MultiBinding Converter="{StaticResource SegmentNoImagePlaceholderVisibilityConverter}">
+                                                                                    <Binding Path="Kind"/>
+                                                                                    <Binding Path="BackgroundAssetId"/>
+                                                                                </MultiBinding>
+                                                                            </TextBlock.Visibility>
+                                                                            <Run Text="No image"/>
+                                                                        </TextBlock>
+                                                                        <TextBlock Foreground="#b0bec5" FontSize="8">
+                                                                            <Run Text="Duration: "/>
+                                                                            <Run Text="{Binding EndTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                                            <Run Text=" - "/>
+                                                                            <Run Text="{Binding StartTime, Converter={StaticResource TimeValueConverter}}"/>
+                                                                            <Run Text="s"/>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                </Grid>
                                                                 <Thumb x:Name="ResizeLeftThumb" Style="{StaticResource ResizeThumbStyle}"
                                                                       HorizontalAlignment="Left"
                                                                       Width="8"

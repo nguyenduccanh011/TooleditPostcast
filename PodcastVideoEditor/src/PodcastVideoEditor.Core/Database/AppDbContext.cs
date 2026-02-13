@@ -128,6 +128,16 @@ public class AppDbContext : DbContext
             .HasIndex(e => e.ProjectId)
             .HasDatabaseName("IX_Element_ProjectId");
 
+        builder.Entity<Element>()
+            .HasIndex(e => e.SegmentId)
+            .HasDatabaseName("IX_Element_SegmentId");
+
+        builder.Entity<Element>()
+            .HasOne(e => e.Segment)
+            .WithMany()
+            .HasForeignKey(e => e.SegmentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.Entity<Asset>()
             .HasIndex(a => a.ProjectId)
             .HasDatabaseName("IX_Asset_ProjectId");

@@ -337,6 +337,37 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
+        /// Add an element to a project. Use SegmentId to attach the element to a segment (optional).
+        /// </summary>
+        public async Task<Element> AddElementAsync(string projectId, Element element)
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            element.ProjectId = projectId;
+            _context.Elements.Add(element);
+            await _context.SaveChangesAsync();
+            Log.Information("Element added to project {ProjectId}: {ElementId} (SegmentId: {SegmentId})", projectId, element.Id, element.SegmentId ?? "null");
+            return element;
+        }
+
+        /// <summary>
+        /// Update an existing element (e.g. SegmentId, X, Y, Width, Height, PropertiesJson).
+        /// </summary>
+        public async Task<Element> UpdateElementAsync(Element element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            _context.Elements.Update(element);
+            await _context.SaveChangesAsync();
+            Log.Information("Element updated: {ElementId}", element.Id);
+            return element;
+        }
+
+        /// <summary>
         /// Delete a track by ID. All segments in the track are also deleted (cascade).
         /// </summary>
         public async Task DeleteTrackAsync(string trackId)
