@@ -439,13 +439,16 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Get recent projects (last 5).
-        /// Includes basic project info only - use GetProjectAsync for full details.
+        /// Includes tracks and their segments - essential for timeline display.
+        /// Assets, Elements, and BGM are loaded on-demand when project is opened.
         /// </summary>
         public async Task<List<Project>> GetRecentProjectsAsync(int count = 5)
         {
             try
             {
                 return await _context.Projects
+                    .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
                     .OrderByDescending(p => p.UpdatedAt)
                     .Take(count)
                     .ToListAsync();
