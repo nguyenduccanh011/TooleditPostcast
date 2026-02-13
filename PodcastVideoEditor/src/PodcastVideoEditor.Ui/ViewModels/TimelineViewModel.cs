@@ -102,6 +102,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     LoadTracksFromProject();
                     ApplyScriptCommand.NotifyCanExecuteChanged();
+                    AddSegmentWithAssetCommand.NotifyCanExecuteChanged();
                 }
             };
 
@@ -244,9 +245,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Check if adding/modifying segment creates collision with others.
-        /// </summary>
-        /// <summary>
         /// Check collision for a segment within a specific track.
         /// </summary>
         private bool CheckCollisionInTrack(Segment segment, string trackId, Segment? excludeSegment = null)
@@ -358,6 +356,74 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error adding segment");
             }
         }
+
+        /// <summary>
+        /// Add a new visual segment at playhead with the given asset as background. Used from Elements/Media panel.
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanAddSegmentWithAsset))]
+        public void AddSegmentWithAsset(Asset? asset)
+        {
+            if (asset == null) return;
+            try
+            {
+                if (_projectViewModel.CurrentProject == null)
+                {
+                    StatusMessage = "No project loaded";
+                    return;
+                }
+
+                var targetTrack = SelectedTrack?.TrackType == "visual"
+                    ? SelectedTrack
+                    : Tracks.FirstOrDefault(t => t.TrackType == "visual");
+                if (targetTrack == null)
+                {
+                    StatusMessage = "No visual track found";
+                    return;
+                }
+
+                double endTime = PlayheadPosition + 5.0;
+                if (TotalDuration > 0 && endTime > TotalDuration)
+                    endTime = TotalDuration;
+
+                var newSegment = new Segment
+                {
+                    ProjectId = _projectViewModel.CurrentProject.Id,
+                    TrackId = targetTrack.Id,
+                    StartTime = SnapToGrid(PlayheadPosition),
+                    EndTime = SnapToGrid(endTime),
+                    Text = asset.Name ?? "Segment",
+                    BackgroundAssetId = asset.Id,
+                    Kind = "visual",
+                    TransitionType = "fade",
+                    TransitionDuration = 0.5,
+                    Order = targetTrack.Segments.Count
+                };
+
+                if (newSegment.EndTime <= newSegment.StartTime)
+                {
+                    StatusMessage = "No room at playhead (near end of timeline)";
+                    return;
+                }
+                if (CheckCollisionInTrack(newSegment, targetTrack.Id))
+                {
+                    StatusMessage = "Segment overlaps with existing segment in this track";
+                    return;
+                }
+
+                targetTrack.Segments.Add(newSegment);
+                SelectSegment(newSegment);
+                StatusMessage = "Segment added with media";
+                Log.Information("Segment added with asset {AssetId} at {StartTime}s", asset.Id, newSegment.StartTime);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error adding segment: {ex.Message}";
+                Log.Error(ex, "Error adding segment with asset");
+            }
+        }
+
+        private bool CanAddSegmentWithAsset(Asset? asset) =>
+            asset != null && _projectViewModel.CurrentProject != null && Tracks.Any(t => t.TrackType == "visual");
 
         /// <summary>
         /// Apply pasted script: parse [start → end] text, replace text track segments, persist (ST-3, multi-track).
