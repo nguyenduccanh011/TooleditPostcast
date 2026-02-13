@@ -33,6 +33,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private string? _lastVisualSegmentId;
         private string? _lastVisualFrameKey;
 
+        // Performance: throttle canvas updates to ~60fps
+        private DateTime _lastCanvasUpdateTime = DateTime.MinValue;
+        private const int CanvasUpdateThrottleMs = 16; // ~60fps
+
+        // Performance: dictionary cache for O(1) asset lookup instead of LINQ FirstOrDefault
+        private Dictionary<string, Asset>? _assetDictionary;
+        private int _assetDictionaryVersion;
+
         public ObservableCollection<string> AspectRatioOptions { get; } = new()
         {
             "9:16", "16:9", "1:1", "4:5"
@@ -473,7 +481,29 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
 
             if (e.PropertyName == nameof(TimelineViewModel.PlayheadPosition))
-                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+            {
+                var playhead = _timelineViewModel.PlayheadPosition;
+
+                // Fast path: if in video mode, just update position (GPU-accelerated, very cheap)
+                if (IsVideoMode && ActiveVisualSegment != null)
+                {
+                    // Check if playhead is still within the same segment
+                    if (playhead >= ActiveVisualSegment.StartTime && playhead < ActiveVisualSegment.EndTime)
+                    {
+                        var segmentOffset = playhead - ActiveVisualSegment.StartTime;
+                        VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
+                        return; // Skip full UpdateActivePreview — no segment change
+                    }
+                }
+
+                // Throttle full canvas updates to ~60fps
+                var now = DateTime.UtcNow;
+                if ((now - _lastCanvasUpdateTime).TotalMilliseconds < CanvasUpdateThrottleMs)
+                    return;
+                _lastCanvasUpdateTime = now;
+
+                UpdateActivePreview(playhead);
+            }
         }
 
         private void OnProjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -481,6 +511,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (e.PropertyName == nameof(ProjectViewModel.CurrentProject))
             {
                 _assetFrameCache.Clear();
+                _assetDictionary = null; // Invalidate asset dictionary
                 _lastVisualFrameKey = null;
                 _lastVisualSegmentId = null;
                 UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
@@ -577,7 +608,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return null;
 
             var assets = _projectViewModel?.CurrentProject?.Assets;
-            return assets?.FirstOrDefault(a => string.Equals(a.Id, assetId, StringComparison.Ordinal));
+            if (assets == null)
+                return null;
+
+            // Use dictionary cache for O(1) lookup instead of LINQ FirstOrDefault O(n)
+            if (_assetDictionary == null || _assetDictionaryVersion != assets.Count)
+            {
+                _assetDictionary = new Dictionary<string, Asset>(assets.Count, StringComparer.Ordinal);
+                foreach (var a in assets)
+                {
+                    if (!string.IsNullOrWhiteSpace(a.Id))
+                        _assetDictionary[a.Id] = a;
+                }
+                _assetDictionaryVersion = assets.Count;
+            }
+
+            return _assetDictionary.TryGetValue(assetId, out var found) ? found : null;
         }
 
         private BitmapSource? LoadFrameForAsset(Asset asset, Segment segment, double playheadSeconds)

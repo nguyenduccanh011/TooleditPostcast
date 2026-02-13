@@ -1,6 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -216,6 +218,9 @@ namespace PodcastVideoEditor.Ui.Converters
     {
         private static readonly LRUCache<string, BitmapImage> s_cache = new(1000); // Increased from 500
         private const int ThumbnailDecodePixelWidth = 60; // Reduced from 120 for faster loading
+        // Track pending async generation
+        private static readonly HashSet<string> s_pendingKeys = new();
+        private static readonly object s_pendingLock = new();
 
         internal static Uri? CreateFileUriStatic(string fullPath)
         {
@@ -265,25 +270,60 @@ namespace PodcastVideoEditor.Ui.Converters
             else if (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
             {
                 cacheKey = asset.FilePath + "_v0";
-                var thumbPath = FFmpegService.GetOrCreateVideoThumbnailPath(asset.FilePath, 0);
-                if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
-                {
-                    var cachePath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, 0);
-                    if (VideoThumbnailFallback.TryCaptureFrameToFile(asset.FilePath, 0, cachePath))
-                        thumbPath = cachePath;
-                    else
-                    {
-                        Log.Debug("Video thumbnail missing: FFmpeg init={Init}, path={Path}", FFmpegService.IsInitialized(), asset.FilePath);
-                        return null!;
-                    }
-                }
-                imagePath = Path.GetFullPath(thumbPath);
-                // Check LRU cache
+                
+                // Check LRU cache first (fast path)
                 if (s_cache.TryGet(cacheKey, out var videoCache))
+                    return videoCache;
+                
+                // Check if thumbnail file already exists (disk cache)
+                var existingPath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, 0);
+                if (File.Exists(existingPath))
                 {
-                    if (File.Exists(thumbPath))
-                        return videoCache;
-                    s_cache.Remove(cacheKey);
+                    imagePath = Path.GetFullPath(existingPath);
+                }
+                else
+                {
+                    // ASYNC fire-and-forget: generate thumbnail without blocking UI
+                    lock (s_pendingLock)
+                    {
+                        if (!s_pendingKeys.Contains(cacheKey))
+                        {
+                            s_pendingKeys.Add(cacheKey);
+                            var capturedPath = asset.FilePath;
+                            var capturedKey = cacheKey;
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var thumbPath = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedPath, 0);
+                                    if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
+                                        return;
+                                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                                    {
+                                        try
+                                        {
+                                            var uri = CreateFileUriStatic(Path.GetFullPath(thumbPath));
+                                            if (uri == null) return;
+                                            var bmp = new BitmapImage();
+                                            bmp.BeginInit();
+                                            bmp.CacheOption = BitmapCacheOption.OnLoad;
+                                            bmp.UriSource = uri;
+                                            bmp.DecodePixelWidth = ThumbnailDecodePixelWidth;
+                                            bmp.EndInit();
+                                            bmp.Freeze();
+                                            s_cache.Add(capturedKey, bmp);
+                                        }
+                                        catch { }
+                                    });
+                                }
+                                finally
+                                {
+                                    lock (s_pendingLock) { s_pendingKeys.Remove(capturedKey); }
+                                }
+                            });
+                        }
+                    }
+                    return null!; // Placeholder until async generation completes
                 }
             }
             else
@@ -522,7 +562,7 @@ namespace PodcastVideoEditor.Ui.Converters
 
     /// <summary>
     /// Returns BitmapImage for video frame at segment.StartTime + timeOffset. Values: [0]=timeOffset (double), [1]=Segment, [2]=Assets.
-    /// Uses LRU cache for efficient memory management.
+    /// Uses LRU cache for efficient memory management. Generates thumbnails async on cache miss (fire-and-forget).
     /// </summary>
     public class VideoFrameAtTimeConverter : IMultiValueConverter
     {
@@ -530,6 +570,9 @@ namespace PodcastVideoEditor.Ui.Converters
         private const int DecodeWidth = 40; // Smaller = faster decode
         private static DateTime _lastGenerateTime = DateTime.MinValue;
         private const int ThrottleMs = 16; // ~60fps max generation rate
+        // Track pending async generation to avoid duplicate work
+        private static readonly HashSet<string> s_pendingKeys = new();
+        private static readonly object s_pendingLock = new();
 
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
@@ -571,42 +614,52 @@ namespace PodcastVideoEditor.Ui.Converters
             
             _lastGenerateTime = now;
             
-            var thumbPath = FFmpegService.GetOrCreateVideoThumbnailPath(asset.FilePath, timeInVideo);
-            if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
+            // Check if already being generated async
+            lock (s_pendingLock)
             {
-                // When dragging/resize defers work, avoid generating new frames; fallback only when not deferring to keep UI smooth.
-                if (isDeferring)
-                    return null!;
+                if (s_pendingKeys.Contains(cacheKey))
+                    return null!; // Already in progress
+            }
 
-                var cachePath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, timeInVideo);
-                if (VideoThumbnailFallback.TryCaptureFrameToFile(asset.FilePath, timeInVideo, cachePath))
-                    thumbPath = cachePath;
-                else
-                    return null!;
-            }
+            // ASYNC fire-and-forget: generate thumbnail in background, then update UI
+            lock (s_pendingLock) { s_pendingKeys.Add(cacheKey); }
             
-            try
+            var capturedAssetPath = asset.FilePath;
+            _ = Task.Run(async () =>
             {
-                var fullPath = Path.GetFullPath(thumbPath!);
-                var uri = SegmentThumbnailSourceConverter.CreateFileUriStatic(fullPath);
-                if (uri == null)
-                    return null!;
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = uri;
-                bmp.DecodePixelWidth = DecodeWidth;
-                bmp.EndInit();
-                bmp.Freeze();
-                
-                // Add to LRU cache
-                s_frameCache.Add(cacheKey, bmp);
-                return bmp;
-            }
-            catch
-            {
-                return null!;
-            }
+                try
+                {
+                    var thumbPath = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedAssetPath, timeInVideo);
+                    if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
+                        return;
+                    
+                    // Load bitmap on UI thread and add to cache
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        try
+                        {
+                            var fullPath = Path.GetFullPath(thumbPath!);
+                            var uri = SegmentThumbnailSourceConverter.CreateFileUriStatic(fullPath);
+                            if (uri == null) return;
+                            var bmp = new BitmapImage();
+                            bmp.BeginInit();
+                            bmp.CacheOption = BitmapCacheOption.OnLoad;
+                            bmp.UriSource = uri;
+                            bmp.DecodePixelWidth = DecodeWidth;
+                            bmp.EndInit();
+                            bmp.Freeze();
+                            s_frameCache.Add(cacheKey, bmp);
+                        }
+                        catch { /* ignore load errors */ }
+                    });
+                }
+                finally
+                {
+                    lock (s_pendingLock) { s_pendingKeys.Remove(cacheKey); }
+                }
+            });
+            
+            return null!; // Return null immediately, cached value used on next binding evaluation
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)

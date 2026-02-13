@@ -20,6 +20,9 @@ namespace PodcastVideoEditor.Ui.Views
         private bool _isDragging;
         private double _originalX;
         private double _originalY;
+        // Throttle video position sync to ~30fps to avoid excessive frame decoding
+        private DateTime _lastVideoSyncTime = DateTime.MinValue;
+        private const int VideoSyncThrottleMs = 33; // ~30fps
 
         public CanvasView()
         {
@@ -138,6 +141,12 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (_videoPreview == null || _viewModel == null)
                 return;
+
+            // Throttle position sync — MediaElement with ScrubbingEnabled decodes a full frame
+            var now = DateTime.UtcNow;
+            if ((now - _lastVideoSyncTime).TotalMilliseconds < VideoSyncThrottleMs)
+                return;
+            _lastVideoSyncTime = now;
 
             try
             {

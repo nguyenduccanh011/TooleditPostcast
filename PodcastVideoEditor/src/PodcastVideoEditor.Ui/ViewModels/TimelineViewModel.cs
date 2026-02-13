@@ -25,10 +25,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private CancellationTokenSource? _playheadSyncCts;
         private bool _isPlayheadSyncing;
 
-        // Debouncing for timeline seek operations
-        private CancellationTokenSource? _seekDebounceCts;
-        private const int SeekDebounceMs = 100; // 100ms debounce - reduce excessive converter calls
-
         [ObservableProperty]
         private ObservableCollection<Track> tracks = new();
 
@@ -83,35 +79,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public double AudioContentWidth => TimeToPixels(TotalDuration);
 
         /// <summary>
-        /// Called when PlayheadPosition changes. Implements debouncing to reduce excessive updates during seek.
+        /// Called when PlayheadPosition changes.
+        /// CommunityToolkit.Mvvm already fires PropertyChanged automatically.
+        /// No debounce re-fire here — Canvas/converters handle their own throttling.
+        /// Previously this debounce re-fired PropertyChanged causing double UpdateActivePreview calls.
         /// </summary>
         partial void OnPlayheadPositionChanged(double value)
         {
-            // Cancel previous debounce
-            _seekDebounceCts?.Cancel();
-            _seekDebounceCts = new CancellationTokenSource();
-
-            // Debounce thumbnail updates during seeking for smoother UX
-            var cts = _seekDebounceCts;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(SeekDebounceMs, cts.Token);
-                    
-                    // After debounce period, allow thumbnail updates
-                    await Application.Current.Dispatcher.InvokeAsync(() =>
-                    {
-                        // This triggers bindings to update
-                        // Canvas and converters will react to this change
-                        OnPropertyChanged(nameof(PlayheadPosition));
-                    });
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when seeking quickly
-                }
-            });
+            // No-op: CommunityToolkit fires PropertyChanged("PlayheadPosition") from the setter.
+            // CanvasViewModel throttles its own updates internally.
         }
 
         public TimelineViewModel(AudioService audioService, ProjectViewModel projectViewModel)
@@ -787,24 +763,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Get active segments at the given time across all tracks, ordered by track.Order (top to bottom).
         /// </summary>
+        // Reusable list to avoid allocation on every scrub tick
+        private readonly List<(Track track, Segment segment)> _activeSegmentsBuffer = new(8);
+
         public List<(Track track, Segment segment)> GetActiveSegmentsAtTime(double timeSeconds)
         {
-            var results = new List<(Track track, Segment segment)>();
+            _activeSegmentsBuffer.Clear();
 
             foreach (var track in Tracks)
             {
                 if (track.Segments == null)
                     continue;
 
-                var seg = track.Segments.FirstOrDefault(s => s.StartTime <= timeSeconds && timeSeconds < s.EndTime);
-                if (seg != null)
-                    results.Add((track, seg));
+                foreach (var s in track.Segments)
+                {
+                    if (s.StartTime <= timeSeconds && timeSeconds < s.EndTime)
+                    {
+                        _activeSegmentsBuffer.Add((track, s));
+                        break; // Only one active segment per track
+                    }
+                }
             }
 
-            return results
-                .OrderBy(r => r.track.Order)
-                .ThenBy(r => r.segment.StartTime)
-                .ToList();
+            // Sort only if more than 1 result (common case: 1-2 tracks)
+            if (_activeSegmentsBuffer.Count > 1)
+                _activeSegmentsBuffer.Sort((a, b) => a.track.Order != b.track.Order
+                    ? a.track.Order.CompareTo(b.track.Order)
+                    : a.segment.StartTime.CompareTo(b.segment.StartTime));
+
+            return _activeSegmentsBuffer;
         }
 
         /// <summary>
