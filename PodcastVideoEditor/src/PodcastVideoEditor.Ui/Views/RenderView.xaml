@@ -50,7 +50,7 @@
                 <Button x:Name="ResolutionButton" Content="{Binding SelectedResolution}" Style="{StaticResource CompactOptionButtonStyle}"
                         Click="ResolutionButton_Click">
                     <Button.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                             <MenuItem Header="480p" Command="{Binding SetResolutionCommand}" CommandParameter="480p"/>
                             <MenuItem Header="720p" Command="{Binding SetResolutionCommand}" CommandParameter="720p"/>
                             <MenuItem Header="1080p" Command="{Binding SetResolutionCommand}" CommandParameter="1080p"/>
@@ -61,7 +61,7 @@
                 <Button x:Name="QualityButton" Content="{Binding SelectedQuality}" Style="{StaticResource CompactOptionButtonStyle}"
                         Click="QualityButton_Click">
                     <Button.ContextMenu>
-                        <ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                             <MenuItem Header="Low" Command="{Binding SetQualityCommand}" CommandParameter="Low"/>
                             <MenuItem Header="Medium" Command="{Binding SetQualityCommand}" CommandParameter="Medium"/>
                             <MenuItem Header="High" Command="{Binding SetQualityCommand}" CommandParameter="High"/>
