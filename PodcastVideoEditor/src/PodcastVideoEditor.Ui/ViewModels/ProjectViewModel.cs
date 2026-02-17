@@ -46,6 +46,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _canvasViewModel = canvasViewModel;
             _renderViewModel = renderViewModel;
             _thumbnailService = new ThumbnailPreGenerationService(maxConcurrent: 2);
+
+            // Sync preview aspect ratio to render whenever user changes it in canvas
+            _canvasViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(CanvasViewModel.SelectedAspectRatio))
+                    _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
+            };
+            _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
         }
 
         /// <summary>

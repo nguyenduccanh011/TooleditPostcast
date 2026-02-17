@@ -59,6 +59,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Set resolution from menu (used by compact resolution button).
+        /// </summary>
+        [RelayCommand]
+        public void SetResolution(string resolution)
+        {
+            if (!string.IsNullOrWhiteSpace(resolution) && ResolutionOptions.Contains(resolution))
+                SelectedResolution = resolution;
+        }
+
+        /// <summary>
+        /// Set quality from menu (used by compact quality button).
+        /// </summary>
+        [RelayCommand]
+        public void SetQuality(string quality)
+        {
+            if (!string.IsNullOrWhiteSpace(quality) && QualityOptions.Contains(quality))
+                SelectedQuality = quality;
+        }
+
+        /// <summary>
         /// Start render process.
         /// </summary>
         [RelayCommand]

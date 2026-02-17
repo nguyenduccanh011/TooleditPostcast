@@ -437,6 +437,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Set aspect ratio from menu (used by status bar ratio button).
+        /// </summary>
+        [RelayCommand]
+        public void SetAspectRatio(string aspectRatio)
+        {
+            if (!string.IsNullOrWhiteSpace(aspectRatio) && AspectRatioOptions.Contains(aspectRatio))
+                SelectedAspectRatio = aspectRatio;
+        }
+
+        /// <summary>
         /// Log a status message.
         /// </summary>
         private void LogMessage(string message)

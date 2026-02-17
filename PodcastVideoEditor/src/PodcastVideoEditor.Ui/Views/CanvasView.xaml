@@ -83,6 +83,32 @@
                                        VisualizerTemplate="{StaticResource VisualizerElementTemplate}"
                                        TitleTemplate="{StaticResource TitleElementTemplate}"
                                        TextTemplate="{StaticResource TextElementTemplate}"/>
+        <!-- Compact outline ratio button for status bar -->
+        <Style x:Key="RatioButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="BorderBrush" Value="#3E3E42"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#2A2D2E"/>
+                                <Setter Property="Foreground" Value="#CCCCCC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -108,12 +134,6 @@
             <Separator/>
             <Button Content="Clear" Command="{Binding ClearAllCommand}" Padding="8,4" Background="#D32F2F" Foreground="White"/>
             <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Foreground="White" VerticalAlignment="Center"/>
-            <Separator/>
-            <TextBlock Text="Aspect" Margin="8,0,4,0" VerticalAlignment="Center" Foreground="White"/>
-            <ComboBox Width="90"
-                      ItemsSource="{Binding AspectRatioOptions}"
-                      SelectedItem="{Binding SelectedAspectRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                      Background="#1e1e1e" Foreground="White" BorderBrush="#3E3E42" BorderThickness="1"/>
         </ToolBar>
 
         <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
@@ -191,10 +211,27 @@
             </Viewbox>
         </Border>
 
-        <!-- Status Bar -->
+        <!-- Status Bar: message left, ratio button right -->
         <StatusBar Grid.Row="2" Background="#2d2d2d" Foreground="#999999">
-            <StatusBarItem>
-                <TextBlock Text="{Binding StatusMessage}"/>
+            <StatusBarItem HorizontalAlignment="Stretch">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" FontSize="12"/>
+                    <Button x:Name="RatioButton" Grid.Column="1" Content="{Binding SelectedAspectRatio}" Style="{StaticResource RatioButtonStyle}"
+                            Foreground="#999999" Margin="8,0,0,0" Click="RatioButton_Click">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="9:16" Command="{Binding SetAspectRatioCommand}" CommandParameter="9:16"/>
+                                <MenuItem Header="16:9" Command="{Binding SetAspectRatioCommand}" CommandParameter="16:9"/>
+                                <MenuItem Header="1:1" Command="{Binding SetAspectRatioCommand}" CommandParameter="1:1"/>
+                                <MenuItem Header="4:5" Command="{Binding SetAspectRatioCommand}" CommandParameter="4:5"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </Grid>
             </StatusBarItem>
         </StatusBar>
     </Grid>
