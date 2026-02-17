@@ -56,6 +56,11 @@ public class RenderConfig
     public string AudioCodec { get; set; } = "aac";
 
     /// <summary>
+    /// Optional timeline-based visual segments. When set, renderer composes visuals by time ranges.
+    /// </summary>
+    public List<RenderVisualSegment> VisualSegments { get; set; } = [];
+
+    /// <summary>
     /// Get CRF value based on quality setting.
     /// CRF 0-51 (lower = better quality but larger file).
     /// </summary>
@@ -69,6 +74,37 @@ public class RenderConfig
             _ => 23
         };
     }
+}
+
+/// <summary>
+/// A visual segment for timeline-based rendering.
+/// </summary>
+public class RenderVisualSegment
+{
+    /// <summary>
+    /// Source media path (image or video).
+    /// </summary>
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Segment start in output timeline (seconds).
+    /// </summary>
+    public double StartTime { get; set; }
+
+    /// <summary>
+    /// Segment end in output timeline (seconds).
+    /// </summary>
+    public double EndTime { get; set; }
+
+    /// <summary>
+    /// True when source is a video clip, false for image.
+    /// </summary>
+    public bool IsVideo { get; set; }
+
+    /// <summary>
+    /// Optional source offset for video clipping (seconds).
+    /// </summary>
+    public double SourceOffsetSeconds { get; set; }
 }
 
 /// <summary>

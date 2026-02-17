@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -116,8 +117,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
-                var imagePath = await ResolveRenderImagePathAsync(project, _renderCancellationTokenSource.Token);
-                if (string.IsNullOrWhiteSpace(imagePath))
+                var timelineVisualSegments = BuildTimelineVisualSegments(project);
+                var imagePath = string.Empty;
+
+                // Fallback path for legacy single-image rendering when no timeline visual segments exist.
+                if (timelineVisualSegments.Count == 0)
+                    imagePath = await ResolveRenderImagePathAsync(project, _renderCancellationTokenSource.Token) ?? string.Empty;
+
+                if (timelineVisualSegments.Count == 0 && string.IsNullOrWhiteSpace(imagePath))
                 {
                     StatusMessage = "No visual segment/image available for render";
                     return;
@@ -127,6 +134,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     AudioPath = project.AudioPath,
                     ImagePath = imagePath,
+                    VisualSegments = timelineVisualSegments,
                     OutputPath = System.IO.Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                         "PodcastVideoEditor",
@@ -279,6 +287,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             return asset.FilePath;
+        }
+
+        private List<RenderVisualSegment> BuildTimelineVisualSegments(Project project)
+        {
+            var track = project.Tracks?
+                .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                .OrderBy(t => t.Order)
+                .FirstOrDefault();
+
+            if (track == null || track.Segments == null || track.Segments.Count == 0)
+                return [];
+
+            var segments = new List<RenderVisualSegment>();
+            foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+            {
+                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
+                    continue;
+
+                var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+                if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+                    continue;
+
+                segments.Add(new RenderVisualSegment
+                {
+                    SourcePath = asset.FilePath,
+                    StartTime = segment.StartTime,
+                    EndTime = segment.EndTime,
+                    IsVideo = IsVideoAsset(asset),
+                    SourceOffsetSeconds = 0
+                });
+            }
+
+            return segments;
         }
 
         private Segment? ResolvePreferredVisualSegment(Project project)

@@ -3,7 +3,10 @@ using Serilog;
 using PodcastVideoEditor.Core.Models;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -419,7 +422,8 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath))
             throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
 
-        if (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath))
+        var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
+        if (!hasTimelineVisuals && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
             throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
 
         if (string.IsNullOrWhiteSpace(config.OutputPath))
@@ -505,6 +509,9 @@ public static class FFmpegService
     /// </summary>
     private static string BuildFFmpegCommand(RenderConfig config)
     {
+        if (config.VisualSegments != null && config.VisualSegments.Count > 0)
+            return BuildTimelineFFmpegCommand(config);
+
         var crf = config.GetCrfValue();
 
         // FFmpeg command structure:
@@ -523,6 +530,94 @@ public static class FFmpegService
                   $"\"{config.OutputPath}\"";
 
         return args;
+    }
+
+    /// <summary>
+    /// Build FFmpeg command for timeline-based visual composition.
+    /// </summary>
+    private static string BuildTimelineFFmpegCommand(RenderConfig config)
+    {
+        var crf = config.GetCrfValue();
+        var invariant = CultureInfo.InvariantCulture;
+        var segments = config.VisualSegments
+            .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
+                        File.Exists(s.SourcePath) &&
+                        s.EndTime > s.StartTime)
+            .OrderBy(s => s.StartTime)
+            .ToList();
+
+        if (segments.Count == 0)
+            return BuildLegacySingleImageCommand(config, crf);
+
+        var args = new StringBuilder();
+        args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}:{config.ResolutionHeight}:r={config.FrameRate}:d=86400\" ");
+
+        foreach (var segment in segments)
+        {
+            if (segment.IsVideo)
+                args.Append($"-i \"{segment.SourcePath}\" ");
+            else
+                args.Append($"-loop 1 -t {(segment.EndTime - segment.StartTime).ToString("F3", invariant)} -i \"{segment.SourcePath}\" ");
+        }
+
+        args.Append($"-i \"{config.AudioPath}\" ");
+
+        var filter = new StringBuilder();
+        filter.Append("[0:v]format=yuv420p,setsar=1[base0];");
+
+        var current = "base0";
+        for (int i = 0; i < segments.Count; i++)
+        {
+            var inputIndex = i + 1;
+            var segment = segments[i];
+            var start = Math.Max(0, segment.StartTime).ToString("F3", invariant);
+            var duration = Math.Max(0.001, segment.EndTime - segment.StartTime).ToString("F3", invariant);
+            var sourceOffset = Math.Max(0, segment.SourceOffsetSeconds).ToString("F3", invariant);
+            var overlayLabel = $"ov{i}";
+
+            if (segment.IsVideo)
+            {
+                filter.Append($"[{inputIndex}:v]trim=start={sourceOffset}:duration={duration},");
+                filter.Append($"setpts=PTS-STARTPTS+{start}/TB,");
+                filter.Append($"scale={config.ResolutionWidth}:{config.ResolutionHeight},setsar=1[{overlayLabel}];");
+            }
+            else
+            {
+                filter.Append($"[{inputIndex}:v]setpts=PTS+{start}/TB,");
+                filter.Append($"scale={config.ResolutionWidth}:{config.ResolutionHeight},setsar=1[{overlayLabel}];");
+            }
+
+            var next = $"v{i}";
+            filter.Append($"[{current}][{overlayLabel}]overlay=shortest=0:eof_action=pass[{next}];");
+            current = next;
+        }
+
+        var audioInputIndex = segments.Count + 1;
+        args.Append($"-filter_complex \"{filter}\" ");
+        args.Append($"-map \"[{current}]\" -map {audioInputIndex}:a ");
+        args.Append($"-c:v {config.VideoCodec} ");
+        args.Append($"-crf {crf} ");
+        args.Append($"-r {config.FrameRate} ");
+        args.Append($"-c:a {config.AudioCodec} ");
+        args.Append("-shortest -y ");
+        args.Append($"\"{config.OutputPath}\"");
+
+        return args.ToString();
+    }
+
+    private static string BuildLegacySingleImageCommand(RenderConfig config, int crf)
+    {
+        return $"-loop 1 " +
+               $"-i \"{config.ImagePath}\" " +
+               $"-i \"{config.AudioPath}\" " +
+               $"-c:v {config.VideoCodec} " +
+               $"-crf {crf} " +
+               $"-vf \"scale={config.ResolutionWidth}:{config.ResolutionHeight}\" " +
+               $"-r {config.FrameRate} " +
+               $"-c:a {config.AudioCodec} " +
+               $"-shortest " +
+               $"-y " +
+               $"\"{config.OutputPath}\"";
     }
 
     /// <summary>
