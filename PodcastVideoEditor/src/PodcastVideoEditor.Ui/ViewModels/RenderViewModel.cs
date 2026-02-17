@@ -6,6 +6,7 @@ using PodcastVideoEditor.Core.Services;
 using Serilog;
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +17,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class RenderViewModel : ObservableObject
     {
+        private static readonly string[] VideoExtensions = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
+
         [ObservableProperty]
         private string selectedResolution = "1080p";
 
@@ -38,6 +41,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool canCancel;
 
         private CancellationTokenSource? _renderCancellationTokenSource;
+        private TimelineViewModel? _timelineViewModel;
 
         public ObservableCollection<string> ResolutionOptions { get; } = new()
         {
@@ -56,6 +60,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public RenderViewModel()
         {
+        }
+
+        public void AttachTimeline(TimelineViewModel timelineViewModel)
+        {
+            _timelineViewModel = timelineViewModel;
         }
 
         /// <summary>
@@ -107,10 +116,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
+                var imagePath = await ResolveRenderImagePathAsync(project, _renderCancellationTokenSource.Token);
+                if (string.IsNullOrWhiteSpace(imagePath))
+                {
+                    StatusMessage = "No visual segment/image available for render";
+                    return;
+                }
+
                 var config = new RenderConfig
                 {
                     AudioPath = project.AudioPath,
-                    ImagePath = "C:\\Users\\DUC CANH PC\\Downloads\\31e91cdcded4508a09c5.jpg",
+                    ImagePath = imagePath,
                     OutputPath = System.IO.Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                         "PodcastVideoEditor",
@@ -122,12 +138,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     Quality = SelectedQuality,
                     FrameRate = 30
                 };
-
-                // Create placeholder image if it doesn't exist
-                if (!System.IO.File.Exists(config.ImagePath))
-                {
-                    CreatePlaceholderImage(config.ImagePath);
-                }
 
                 var progress = new Progress<RenderProgress>(report =>
                 {
@@ -250,6 +260,77 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 Log.Error(ex, "Error creating placeholder image");
             }
+        }
+
+        private async Task<string?> ResolveRenderImagePathAsync(Project project, CancellationToken cancellationToken)
+        {
+            var segment = ResolvePreferredVisualSegment(project);
+            if (segment == null || string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+                return null;
+
+            var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+            if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+                return null;
+
+            if (IsVideoAsset(asset))
+            {
+                var frameTime = ResolveFrameTimeWithinSegment(segment);
+                return await FFmpegService.GetOrCreateVideoThumbnailPathAsync(asset.FilePath, frameTime, cancellationToken);
+            }
+
+            return asset.FilePath;
+        }
+
+        private Segment? ResolvePreferredVisualSegment(Project project)
+        {
+            if (_timelineViewModel?.SelectedSegment != null &&
+                string.Equals(_timelineViewModel.SelectedSegment.Kind, "visual", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(_timelineViewModel.SelectedSegment.BackgroundAssetId))
+            {
+                return _timelineViewModel.SelectedSegment;
+            }
+
+            var playhead = _timelineViewModel?.PlayheadPosition ?? 0;
+            var visualTracks = project.Tracks?
+                .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                .OrderBy(t => t.Order)
+                .ToList();
+
+            if (visualTracks == null || visualTracks.Count == 0)
+                return null;
+
+            foreach (var track in visualTracks)
+            {
+                var atPlayhead = track.Segments
+                    .Where(s => !string.IsNullOrWhiteSpace(s.BackgroundAssetId))
+                    .FirstOrDefault(s => playhead >= s.StartTime && playhead < s.EndTime);
+                if (atPlayhead != null)
+                    return atPlayhead;
+            }
+
+            return visualTracks
+                .SelectMany(t => t.Segments)
+                .Where(s => !string.IsNullOrWhiteSpace(s.BackgroundAssetId))
+                .OrderBy(s => s.StartTime)
+                .FirstOrDefault();
+        }
+
+        private double ResolveFrameTimeWithinSegment(Segment segment)
+        {
+            var playhead = _timelineViewModel?.PlayheadPosition ?? segment.StartTime;
+            var offset = playhead - segment.StartTime;
+            if (double.IsNaN(offset) || double.IsInfinity(offset))
+                return 0;
+            return Math.Max(0, offset);
+        }
+
+        private static bool IsVideoAsset(Asset asset)
+        {
+            if (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var ext = System.IO.Path.GetExtension(asset.FilePath);
+            return VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
         }
     }
 }

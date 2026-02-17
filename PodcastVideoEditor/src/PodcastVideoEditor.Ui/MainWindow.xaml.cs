@@ -69,6 +69,7 @@ public partial class MainWindow : Window
             _timelineViewModel = new TimelineViewModel(_audioService, _projectViewModel);
 
             _canvasViewModel.AttachProjectAndTimeline(_projectViewModel, _timelineViewModel);
+            _renderViewModel.AttachTimeline(_timelineViewModel);
 
             _mainViewModel = new MainViewModel(
                 _projectViewModel,
