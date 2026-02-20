@@ -54,6 +54,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
             };
             _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
+            _renderViewModel.ApplyProjectRenderSettings(new RenderSettings
+            {
+                AspectRatio = _canvasViewModel.SelectedAspectRatio
+            });
         }
 
         /// <summary>
@@ -149,8 +153,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (!string.IsNullOrWhiteSpace(aspect))
                 {
                     _canvasViewModel.SelectedAspectRatio = aspect;
-                    _renderViewModel.SelectedAspectRatio = aspect;
                 }
+                _renderViewModel.ApplyProjectRenderSettings(project.RenderSettings);
 
                 // Reset form
                 NewProjectName = string.Empty;
@@ -197,8 +201,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     if (!string.IsNullOrWhiteSpace(aspect))
                     {
                         _canvasViewModel.SelectedAspectRatio = aspect;
-                        _renderViewModel.SelectedAspectRatio = aspect;
                     }
+                    _renderViewModel.ApplyProjectRenderSettings(loadedProject.RenderSettings);
 
                     StatusMessage = $"Project opened: {loadedProject.Name}";
                     Log.Information("Project opened: {ProjectId} - {ProjectName}", loadedProject.Id, loadedProject.Name);
@@ -265,8 +269,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Sync aspect ratio from UI (canvas) back into project settings before saving
                 if (!string.IsNullOrWhiteSpace(_canvasViewModel.SelectedAspectRatio))
                 {
-                    CurrentProject.RenderSettings.AspectRatio = _canvasViewModel.SelectedAspectRatio;
+                    _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
                 }
+                CurrentProject.RenderSettings = _renderViewModel.BuildProjectRenderSettings();
 
                 await _projectService.UpdateProjectAsync(CurrentProject);
                 StatusMessage = $"Project '{CurrentProject.Name}' saved successfully";

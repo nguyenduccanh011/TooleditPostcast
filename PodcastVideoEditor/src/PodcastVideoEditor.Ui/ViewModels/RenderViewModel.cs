@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Utilities;
 using Serilog;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private string selectedQuality = "Medium";
+
+        [ObservableProperty]
+        private string selectedScaleMode = "Fill";
+
+        [ObservableProperty]
+        private int frameRate = 30;
+
+        [ObservableProperty]
+        private string videoCodec = "h264";
+
+        [ObservableProperty]
+        private string audioCodec = "aac";
 
         [ObservableProperty]
         private int renderProgress;
@@ -59,6 +72,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             "Low", "Medium", "High"
         };
 
+        public ObservableCollection<string> ScaleModeOptions { get; } = new()
+        {
+            "Fill", "Fit", "Stretch"
+        };
+
         public RenderViewModel()
         {
         }
@@ -86,6 +104,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             if (!string.IsNullOrWhiteSpace(quality) && QualityOptions.Contains(quality))
                 SelectedQuality = quality;
+        }
+
+        [RelayCommand]
+        public void SetScaleMode(string scaleMode)
+        {
+            if (!string.IsNullOrWhiteSpace(scaleMode) && ScaleModeOptions.Contains(scaleMode))
+                SelectedScaleMode = scaleMode;
         }
 
         /// <summary>
@@ -144,7 +169,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     ResolutionHeight = height,
                     AspectRatio = SelectedAspectRatio,
                     Quality = SelectedQuality,
-                    FrameRate = 30
+                    FrameRate = FrameRate,
+                    VideoCodec = VideoCodec,
+                    AudioCodec = AudioCodec,
+                    ScaleMode = SelectedScaleMode
                 };
 
                 var progress = new Progress<RenderProgress>(report =>
@@ -214,33 +242,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private (int width, int height) ParseResolution(string resolution)
         {
-            var baseHeight = resolution switch
-            {
-                "480p" => 480,
-                "720p" => 720,
-                "1080p" => 1080,
-                _ => 1080
-            };
-
-            // Calculate width based on aspect ratio
-            var (ratioW, ratioH) = ParseAspectRatio(SelectedAspectRatio);
-            var width = (int)(baseHeight * ratioW / ratioH);
-
-            return (width, baseHeight);
-        }
-
-        /// <summary>
-        /// Parse aspect ratio string (e.g., "9:16" -> 9, 16).
-        /// </summary>
-        private (int width, int height) ParseAspectRatio(string aspectRatio)
-        {
-            var parts = aspectRatio.Split(':');
-            if (parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h))
-            {
-                return (w, h);
-            }
-
-            return (9, 16); // Default to 9:16
+            return RenderSizing.ResolveRenderSize(resolution, SelectedAspectRatio);
         }
 
         /// <summary>
@@ -372,6 +374,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             var ext = System.IO.Path.GetExtension(asset.FilePath);
             return VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public void ApplyProjectRenderSettings(RenderSettings? settings)
+        {
+            if (settings == null)
+                return;
+
+            SelectedAspectRatio = RenderSizing.NormalizeAspectRatio(settings.AspectRatio);
+            SelectedResolution = RenderSizing.InferResolutionLabel(settings.ResolutionWidth, settings.ResolutionHeight);
+            SelectedQuality = QualityOptions.Contains(settings.Quality) ? settings.Quality : "Medium";
+            SelectedScaleMode = "Fill";
+            FrameRate = settings.FrameRate > 0 ? settings.FrameRate : 30;
+            VideoCodec = string.IsNullOrWhiteSpace(settings.VideoCodec) ? "h264" : settings.VideoCodec;
+            AudioCodec = string.IsNullOrWhiteSpace(settings.AudioCodec) ? "aac" : settings.AudioCodec;
+        }
+
+        public RenderSettings BuildProjectRenderSettings()
+        {
+            var (width, height) = ParseResolution(SelectedResolution);
+            return new RenderSettings
+            {
+                ResolutionWidth = width,
+                ResolutionHeight = height,
+                AspectRatio = RenderSizing.NormalizeAspectRatio(SelectedAspectRatio),
+                Quality = SelectedQuality,
+                FrameRate = FrameRate,
+                VideoCodec = VideoCodec,
+                AudioCodec = AudioCodec
+            };
         }
     }
 }

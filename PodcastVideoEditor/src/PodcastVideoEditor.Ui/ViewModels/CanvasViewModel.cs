@@ -469,20 +469,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private void ApplyAspectRatio(string aspectRatio)
         {
-            var parts = aspectRatio.Split(':');
-            if (parts.Length != 2 ||
-                !double.TryParse(parts[0], out var w) ||
-                !double.TryParse(parts[1], out var h) ||
-                w <= 0 || h <= 0)
-            {
-                w = 9;
-                h = 16;
-            }
+            var normalizedAspect = RenderSizing.NormalizeAspectRatio(aspectRatio);
+            var (previewWidth, previewHeight) = RenderSizing.ResolvePreviewSize(normalizedAspect, previewShortEdge: 1080);
 
-            const double baseHeight = 1080.0;
-            CanvasHeight = baseHeight;
-            CanvasWidth = Math.Round(baseHeight * (w / h));
-            StatusMessage = $"Preview ratio set to {w}:{h} ({CanvasWidth}x{CanvasHeight})";
+            CanvasWidth = previewWidth;
+            CanvasHeight = previewHeight;
+            StatusMessage = $"Preview ratio set to {normalizedAspect} ({CanvasWidth}x{CanvasHeight})";
         }
 
         private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)

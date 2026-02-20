@@ -78,12 +78,12 @@ public class RenderSettings
     /// <summary>
     /// Quality level: Low, Medium, High (affects CRF value)
     /// </summary>
-    public string Quality { get; set; } = "High";
+    public string Quality { get; set; } = "Medium";
 
     /// <summary>
     /// Target frame rate (fps)
     /// </summary>
-    public int FrameRate { get; set; } = 60;
+    public int FrameRate { get; set; } = 30;
 
     /// <summary>
     /// Codec: h264, h265, vp9, etc.

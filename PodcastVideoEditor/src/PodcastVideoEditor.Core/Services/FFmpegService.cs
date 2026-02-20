@@ -1,6 +1,7 @@
 #nullable enable
 using Serilog;
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Core.Utilities;
 using System;
 using System.Diagnostics;
 using System.Globalization;
@@ -429,8 +430,10 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
 
+        var normalizedConfig = NormalizeRenderConfig(config);
+
         // Ensure output directory exists
-        var outputDir = Path.GetDirectoryName(config.OutputPath);
+        var outputDir = Path.GetDirectoryName(normalizedConfig.OutputPath);
         if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
         {
             Directory.CreateDirectory(outputDir);
@@ -448,9 +451,9 @@ public static class FFmpegService
                 });
 
                 // Build FFmpeg command
-                var ffmpegArgs = BuildFFmpegCommand(config);
+                var ffmpegArgs = BuildFFmpegCommand(normalizedConfig);
 
-                Log.Information("Starting render: {OutputPath}", config.OutputPath);
+                Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
                 Log.Debug("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
 
                 // Execute FFmpeg
@@ -462,11 +465,11 @@ public static class FFmpegService
                     throw new InvalidOperationException($"Render failed: {output}");
                 }
 
-                if (!File.Exists(config.OutputPath))
+                if (!File.Exists(normalizedConfig.OutputPath))
                     throw new FileNotFoundException("Output file was not created");
 
-                var fileSize = new FileInfo(config.OutputPath).Length;
-                Log.Information("Render completed: {OutputPath} ({FileSize} bytes)", config.OutputPath, fileSize);
+                var fileSize = new FileInfo(normalizedConfig.OutputPath).Length;
+                Log.Information("Render completed: {OutputPath} ({FileSize} bytes)", normalizedConfig.OutputPath, fileSize);
 
                 progress?.Report(new RenderProgress
                 {
@@ -475,7 +478,7 @@ public static class FFmpegService
                     IsComplete = true
                 });
 
-                return config.OutputPath;
+                return normalizedConfig.OutputPath;
             }
             catch (Exception ex)
             {
@@ -513,6 +516,9 @@ public static class FFmpegService
             return BuildTimelineFFmpegCommand(config);
 
         var crf = config.GetCrfValue();
+        var videoCodec = MapVideoCodec(config.VideoCodec);
+        var audioCodec = MapAudioCodec(config.AudioCodec);
+        var scaleFilter = BuildScalingFilter(config);
 
         // FFmpeg command structure:
         // ffmpeg -loop 1 -i image.jpg -i audio.mp3 -c:v codec -crf value -vf scale=w:h -r fps -c:a codec -shortest output.mp4
@@ -520,11 +526,13 @@ public static class FFmpegService
         var args = $"-loop 1 " +
                   $"-i \"{config.ImagePath}\" " +
                   $"-i \"{config.AudioPath}\" " +
-                  $"-c:v {config.VideoCodec} " +
+                  $"-c:v {videoCodec} " +
                   $"-crf {crf} " +
-                  $"-vf \"scale={config.ResolutionWidth}:{config.ResolutionHeight}\" " +
+                  $"-vf \"{scaleFilter},setsar=1\" " +
+                  $"-pix_fmt yuv420p " +
                   $"-r {config.FrameRate} " +
-                  $"-c:a {config.AudioCodec} " +
+                  $"-c:a {audioCodec} " +
+                  "-movflags +faststart " +
                   $"-shortest " +
                   $"-y " + // Overwrite output file
                   $"\"{config.OutputPath}\"";
@@ -538,6 +546,8 @@ public static class FFmpegService
     private static string BuildTimelineFFmpegCommand(RenderConfig config)
     {
         var crf = config.GetCrfValue();
+        var videoCodec = MapVideoCodec(config.VideoCodec);
+        var audioCodec = MapAudioCodec(config.AudioCodec);
         var invariant = CultureInfo.InvariantCulture;
         var segments = config.VisualSegments
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
@@ -550,7 +560,7 @@ public static class FFmpegService
             return BuildLegacySingleImageCommand(config, crf);
 
         var args = new StringBuilder();
-        args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}:{config.ResolutionHeight}:r={config.FrameRate}:d=86400\" ");
+        args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d=86400\" ");
 
         foreach (var segment in segments)
         {
@@ -579,12 +589,12 @@ public static class FFmpegService
             {
                 filter.Append($"[{inputIndex}:v]trim=start={sourceOffset}:duration={duration},");
                 filter.Append($"setpts=PTS-STARTPTS+{start}/TB,");
-                filter.Append($"scale={config.ResolutionWidth}:{config.ResolutionHeight},setsar=1[{overlayLabel}];");
+                filter.Append($"{BuildScalingFilter(config)},setsar=1[{overlayLabel}];");
             }
             else
             {
                 filter.Append($"[{inputIndex}:v]setpts=PTS+{start}/TB,");
-                filter.Append($"scale={config.ResolutionWidth}:{config.ResolutionHeight},setsar=1[{overlayLabel}];");
+                filter.Append($"{BuildScalingFilter(config)},setsar=1[{overlayLabel}];");
             }
 
             var next = $"v{i}";
@@ -595,11 +605,12 @@ public static class FFmpegService
         var audioInputIndex = segments.Count + 1;
         args.Append($"-filter_complex \"{filter}\" ");
         args.Append($"-map \"[{current}]\" -map {audioInputIndex}:a ");
-        args.Append($"-c:v {config.VideoCodec} ");
+        args.Append($"-c:v {videoCodec} ");
         args.Append($"-crf {crf} ");
+        args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
-        args.Append($"-c:a {config.AudioCodec} ");
-        args.Append("-shortest -y ");
+        args.Append($"-c:a {audioCodec} ");
+        args.Append("-movflags +faststart -shortest -y ");
         args.Append($"\"{config.OutputPath}\"");
 
         return args.ToString();
@@ -607,17 +618,114 @@ public static class FFmpegService
 
     private static string BuildLegacySingleImageCommand(RenderConfig config, int crf)
     {
+        var videoCodec = MapVideoCodec(config.VideoCodec);
+        var audioCodec = MapAudioCodec(config.AudioCodec);
+        var scaleFilter = BuildScalingFilter(config);
         return $"-loop 1 " +
                $"-i \"{config.ImagePath}\" " +
                $"-i \"{config.AudioPath}\" " +
-               $"-c:v {config.VideoCodec} " +
+               $"-c:v {videoCodec} " +
                $"-crf {crf} " +
-               $"-vf \"scale={config.ResolutionWidth}:{config.ResolutionHeight}\" " +
+               $"-vf \"{scaleFilter},setsar=1\" " +
+               "-pix_fmt yuv420p " +
                $"-r {config.FrameRate} " +
-               $"-c:a {config.AudioCodec} " +
+               $"-c:a {audioCodec} " +
+               "-movflags +faststart " +
                $"-shortest " +
                $"-y " +
                $"\"{config.OutputPath}\"";
+    }
+
+    private static RenderConfig NormalizeRenderConfig(RenderConfig config)
+    {
+        var normalizedAspect = RenderSizing.NormalizeAspectRatio(config.AspectRatio);
+        var (evenWidth, evenHeight) = RenderSizing.EnsureEvenDimensions(config.ResolutionWidth, config.ResolutionHeight);
+        var frameRate = config.FrameRate <= 0 ? 30 : Math.Min(config.FrameRate, 120);
+
+        if (evenWidth != config.ResolutionWidth || evenHeight != config.ResolutionHeight)
+        {
+            Log.Warning(
+                "Adjusted render size from {OriginalWidth}x{OriginalHeight} to even dimensions {Width}x{Height}",
+                config.ResolutionWidth,
+                config.ResolutionHeight,
+                evenWidth,
+                evenHeight);
+        }
+
+        return new RenderConfig
+        {
+            AudioPath = config.AudioPath,
+            ImagePath = config.ImagePath,
+            OutputPath = config.OutputPath,
+            ResolutionWidth = evenWidth,
+            ResolutionHeight = evenHeight,
+            AspectRatio = normalizedAspect,
+            Quality = NormalizeQuality(config.Quality),
+            FrameRate = frameRate,
+            VideoCodec = string.IsNullOrWhiteSpace(config.VideoCodec) ? "h264" : config.VideoCodec,
+            AudioCodec = string.IsNullOrWhiteSpace(config.AudioCodec) ? "aac" : config.AudioCodec,
+            ScaleMode = NormalizeScaleMode(config.ScaleMode),
+            VisualSegments = config.VisualSegments?.ToList() ?? []
+        };
+    }
+
+    private static string NormalizeQuality(string quality)
+    {
+        return quality switch
+        {
+            "Low" => "Low",
+            "Medium" => "Medium",
+            "High" => "High",
+            _ => "Medium"
+        };
+    }
+
+    private static string NormalizeScaleMode(string scaleMode)
+    {
+        return scaleMode switch
+        {
+            "Fit" => "Fit",
+            "Stretch" => "Stretch",
+            _ => "Fill"
+        };
+    }
+
+    private static string MapVideoCodec(string videoCodec)
+    {
+        if (string.IsNullOrWhiteSpace(videoCodec))
+            return "libx264";
+
+        return videoCodec.Trim().ToLowerInvariant() switch
+        {
+            "h264" => "libx264",
+            "x264" => "libx264",
+            "h265" => "libx265",
+            "hevc" => "libx265",
+            "x265" => "libx265",
+            _ => videoCodec
+        };
+    }
+
+    private static string MapAudioCodec(string audioCodec)
+    {
+        if (string.IsNullOrWhiteSpace(audioCodec))
+            return "aac";
+
+        return audioCodec.Trim().ToLowerInvariant() switch
+        {
+            "mp3" => "libmp3lame",
+            _ => audioCodec
+        };
+    }
+
+    private static string BuildScalingFilter(RenderConfig config)
+    {
+        return config.ScaleMode switch
+        {
+            "Fit" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=decrease,pad={config.ResolutionWidth}:{config.ResolutionHeight}:(ow-iw)/2:(oh-ih)/2",
+            "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}",
+            _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
+        };
     }
 
     /// <summary>

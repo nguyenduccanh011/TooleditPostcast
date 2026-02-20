@@ -56,6 +56,12 @@ public class RenderConfig
     public string AudioCodec { get; set; } = "aac";
 
     /// <summary>
+    /// Scaling behavior when source media aspect ratio does not match output.
+    /// Fill = cover and crop, Fit = contain with padding, Stretch = force fill.
+    /// </summary>
+    public string ScaleMode { get; set; } = "Fill";
+
+    /// <summary>
     /// Optional timeline-based visual segments. When set, renderer composes visuals by time ranges.
     /// </summary>
     public List<RenderVisualSegment> VisualSegments { get; set; } = [];

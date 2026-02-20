@@ -68,6 +68,17 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <TextBlock Text="Scale:" Margin="20,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+                <Button x:Name="ScaleModeButton" Content="{Binding SelectedScaleMode}" Style="{StaticResource CompactOptionButtonStyle}"
+                        Click="ScaleModeButton_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="Fill" Command="{Binding SetScaleModeCommand}" CommandParameter="Fill"/>
+                            <MenuItem Header="Fit" Command="{Binding SetScaleModeCommand}" CommandParameter="Fit"/>
+                            <MenuItem Header="Stretch" Command="{Binding SetScaleModeCommand}" CommandParameter="Stretch"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
             </StackPanel>
 
             <!-- Render Progress -->
@@ -89,10 +100,15 @@
                     Background="#252526"
                     BorderBrush="#3E3E42"
                     BorderThickness="1">
-                    <TextBlock
+                    <TextBox
                         Text="{Binding StatusMessage}"
                         TextWrapping="Wrap"
                         Foreground="#FFFFFF"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        IsReadOnly="True"
+                        IsReadOnlyCaretVisible="True"
+                        VerticalScrollBarVisibility="Auto"
                         MinHeight="40" />
                 </Border>
             </StackPanel>
