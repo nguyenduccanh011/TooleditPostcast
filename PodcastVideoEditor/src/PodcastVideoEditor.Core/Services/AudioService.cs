@@ -441,45 +441,29 @@ namespace PodcastVideoEditor.Core.Services
             try
             {
                 using var reader = new AudioFileReader(_playbackAudioPath);
-                
-                // Count actual samples
-                long actualTotalSamples = 0;
-                var countBuffer = new float[8192];
-                int countRead;
-                while ((countRead = reader.Read(countBuffer, 0, countBuffer.Length)) > 0)
-                {
-                    actualTotalSamples += countRead;
-                }
-
-                // Reset for second pass
-                reader.Position = 0;
-                
                 var peaks = new float[binCount];
                 var buffer = new float[4096];
-                int binIndex = 0;
-                float maxInBin = 0f;
-                long totalRead = 0;
-                long samplesPerBin = Math.Max(1, actualTotalSamples / binCount);
+                long totalSamplesEstimate = _totalSampleCount;
+                if (totalSamplesEstimate <= 0)
+                {
+                    var totalTimeSeconds = Math.Max(0.001, reader.TotalTime.TotalSeconds);
+                    totalSamplesEstimate = (long)(totalTimeSeconds * reader.WaveFormat.SampleRate * reader.WaveFormat.Channels);
+                }
+                totalSamplesEstimate = Math.Max(totalSamplesEstimate, 1);
+                long globalSampleIndex = 0;
 
                 int read;
-                while ((read = reader.Read(buffer, 0, buffer.Length)) > 0 && binIndex < binCount)
+                while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
                 {
                     for (int i = 0; i < read; i++)
                     {
+                        int binIndex = (int)Math.Min(binCount - 1, (globalSampleIndex * binCount) / totalSamplesEstimate);
                         float abs = Math.Abs(buffer[i]);
-                        if (abs > maxInBin)
-                            maxInBin = abs;
-                        totalRead++;
-                        if (totalRead >= samplesPerBin)
-                        {
-                            peaks[binIndex++] = maxInBin;
-                            maxInBin = 0f;
-                            totalRead = 0;
-                        }
+                        if (abs > peaks[binIndex])
+                            peaks[binIndex] = abs;
+                        globalSampleIndex++;
                     }
                 }
-                if (binIndex < binCount && maxInBin > 0)
-                    peaks[binIndex] = maxInBin;
 
                 // Do not normalize: keep raw scale so different files look different
                 // (quiet file = smaller bars, loud file = taller bars). View clamps to 1.0 when drawing.

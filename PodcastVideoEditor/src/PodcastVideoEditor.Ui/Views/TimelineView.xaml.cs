@@ -58,6 +58,8 @@ namespace PodcastVideoEditor.Ui.Views
         private double _pendingZoomFactor = 1.0;
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
         private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
+        private DateTime _lastScrubPreviewTime = DateTime.MinValue;
+        private const int ScrubPreviewThrottleMs = 16;
 
         public TimelineView()
         {
@@ -246,7 +248,8 @@ namespace PodcastVideoEditor.Ui.Views
                         if (limitToSegment != null && segment != limitToSegment)
                             continue;
 
-                        var rootGrid = FindVisualChild<System.Windows.Controls.Grid>(presenter);
+                        var rootGrid = presenter.ContentTemplate?.FindName("SegmentRoot", presenter) as Grid
+                            ?? FindVisualChild<System.Windows.Controls.Grid>(presenter);
                         if (rootGrid == null)
                             continue;
 
@@ -313,7 +316,8 @@ namespace PodcastVideoEditor.Ui.Views
                         if (presenter.Content is not Segment segment)
                             continue;
 
-                        var segmentFill = FindVisualChild<Border>(presenter);
+                        var segmentFill = presenter.ContentTemplate?.FindName("SegmentFill", presenter) as Border
+                            ?? FindVisualChild<Border>(presenter);
                         if (segmentFill == null)
                             continue;
 
@@ -642,7 +646,7 @@ namespace PodcastVideoEditor.Ui.Views
             Focus();
             _isDraggingPlayhead = true;
             var canvas = sender as IInputElement;
-            HandlePlayheadClick(canvas != null ? e.GetPosition(canvas).X : 0);
+            HandlePlayheadPreview(canvas != null ? e.GetPosition(canvas).X : 0, force: true);
             e.Handled = true;
         }
 
@@ -653,7 +657,7 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (_isDraggingPlayhead && sender is IInputElement canvas)
             {
-                HandlePlayheadClick(e.GetPosition(canvas).X);
+                HandlePlayheadPreview(e.GetPosition(canvas).X, force: false);
             }
         }
 
@@ -662,6 +666,8 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void TimelineCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_isDraggingPlayhead && _viewModel != null)
+                _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
         }
 
@@ -669,13 +675,21 @@ namespace PodcastVideoEditor.Ui.Views
         /// Helper to move playhead and seek audio to clicked position.
         /// Must call SeekTo (not just set PlayheadPosition) else sync loop overwrites it.
         /// </summary>
-        private void HandlePlayheadClick(double pixelX)
+        private void HandlePlayheadPreview(double pixelX, bool force)
         {
             if (_viewModel == null)
                 return;
 
+            if (!force)
+            {
+                var now = DateTime.UtcNow;
+                if ((now - _lastScrubPreviewTime).TotalMilliseconds < ScrubPreviewThrottleMs)
+                    return;
+                _lastScrubPreviewTime = now;
+            }
+
             double newTime = _viewModel.PixelsToTime(Math.Max(0, pixelX));
-            _viewModel.SeekTo(newTime);
+            _viewModel.PreviewPlayhead(newTime);
         }
 
         /// <summary>
@@ -691,7 +705,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             var position = e.GetPosition(RulerControl);
             double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
-            _viewModel.SeekTo(newTime);
+            _viewModel.PreviewPlayhead(newTime);
             e.Handled = true;
         }
 
@@ -702,9 +716,7 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (_isDraggingPlayhead && _viewModel != null && RulerControl != null)
             {
-                var position = e.GetPosition(RulerControl);
-                double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
-                _viewModel.SeekTo(newTime);
+                HandlePlayheadPreview(e.GetPosition(RulerControl).X, force: false);
             }
         }
 
@@ -713,6 +725,8 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void RulerBorder_MouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_isDraggingPlayhead && _viewModel != null)
+                _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
         }
 
@@ -732,5 +746,3 @@ namespace PodcastVideoEditor.Ui.Views
         }
     }
 }
-
-

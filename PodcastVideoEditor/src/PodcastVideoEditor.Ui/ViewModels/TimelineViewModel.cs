@@ -24,6 +24,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly ProjectViewModel _projectViewModel;
         private CancellationTokenSource? _playheadSyncCts;
         private bool _isPlayheadSyncing;
+        private double _lastSyncedPlayhead = -1;
 
         [ObservableProperty]
         private ObservableCollection<Track> tracks = new();
@@ -71,6 +72,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isDeferringThumbnailUpdate;
 
         private const int WaveformBinCount = 2400;
+        private const int ActiveSyncIntervalMs = 33;
+        private const int IdleSyncIntervalMs = 150;
         private int _audioPeaksLoadVersion;
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
@@ -881,6 +884,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Update playhead immediately for scrub preview without forcing costly audio seek.
+        /// </summary>
+        public void PreviewPlayhead(double positionSeconds)
+        {
+            positionSeconds = Math.Clamp(positionSeconds, 0, TotalDuration);
+            PlayheadPosition = positionSeconds;
+            StatusMessage = $"Preview: {positionSeconds:F1}s";
+        }
+
+        /// <summary>
+        /// Commit a seek after scrub gesture ends.
+        /// </summary>
+        public void CommitScrubSeek(double positionSeconds) => SeekTo(positionSeconds);
+
+        /// <summary>
         /// Start playhead position sync with audio playback.
         /// </summary>
         private void StartPlayheadSync()
@@ -894,11 +912,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     try
                     {
+                        if (!_audioService.IsPlaying)
+                        {
+                            await Task.Delay(IdleSyncIntervalMs, _playheadSyncCts.Token);
+                            continue;
+                        }
+
                         var currentPosition = _audioService.GetCurrentPosition();
                         
                         // Clamp to total duration to prevent playhead overshoot
                         if (TotalDuration > 0 && currentPosition > TotalDuration)
                             currentPosition = TotalDuration;
+
+                        if (Math.Abs(currentPosition - _lastSyncedPlayhead) < 0.002)
+                        {
+                            await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
+                            continue;
+                        }
+                        _lastSyncedPlayhead = currentPosition;
                         
                         // Update on UI thread with Background priority to not block user interactions
                         // This makes the UI feel more responsive
@@ -907,7 +938,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                             PlayheadPosition = currentPosition;
                         }, System.Windows.Threading.DispatcherPriority.Background);
                         
-                        await Task.Delay(33, _playheadSyncCts.Token); // 30fps
+                        await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
                     }
                     catch (OperationCanceledException)
                     {

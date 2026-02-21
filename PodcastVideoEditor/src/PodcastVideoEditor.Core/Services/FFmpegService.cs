@@ -22,6 +22,9 @@ public static class FFmpegService
     private static string? _ffprobePath;
     private static Version? _ffmpegVersion;
     private static Process? _currentRenderProcess;
+    private static readonly object _encoderProbeLock = new();
+    private static string? _preferredH264Encoder;
+    private static string? _preferredHevcEncoder;
 
     /// <summary>
     /// Initialize FFmpeg service and validate installation
@@ -662,7 +665,7 @@ public static class FFmpegService
             AspectRatio = normalizedAspect,
             Quality = NormalizeQuality(config.Quality),
             FrameRate = frameRate,
-            VideoCodec = string.IsNullOrWhiteSpace(config.VideoCodec) ? "h264" : config.VideoCodec,
+            VideoCodec = string.IsNullOrWhiteSpace(config.VideoCodec) ? "h264_auto" : config.VideoCodec,
             AudioCodec = string.IsNullOrWhiteSpace(config.AudioCodec) ? "aac" : config.AudioCodec,
             ScaleMode = NormalizeScaleMode(config.ScaleMode),
             VisualSegments = config.VisualSegments?.ToList() ?? []
@@ -693,17 +696,95 @@ public static class FFmpegService
     private static string MapVideoCodec(string videoCodec)
     {
         if (string.IsNullOrWhiteSpace(videoCodec))
-            return "libx264";
+            return GetPreferredH264Encoder();
 
         return videoCodec.Trim().ToLowerInvariant() switch
         {
+            "h264_auto" => GetPreferredH264Encoder(),
+            "hevc_auto" => GetPreferredHevcEncoder(),
             "h264" => "libx264",
             "x264" => "libx264",
             "h265" => "libx265",
             "hevc" => "libx265",
             "x265" => "libx265",
+            "h264_nvenc" => "h264_nvenc",
+            "hevc_nvenc" => "hevc_nvenc",
+            "h264_qsv" => "h264_qsv",
+            "hevc_qsv" => "hevc_qsv",
+            "h264_amf" => "h264_amf",
+            "hevc_amf" => "hevc_amf",
             _ => videoCodec
         };
+    }
+
+    private static string GetPreferredH264Encoder()
+    {
+        EnsurePreferredEncodersInitialized();
+        return _preferredH264Encoder ?? "libx264";
+    }
+
+    private static string GetPreferredHevcEncoder()
+    {
+        EnsurePreferredEncodersInitialized();
+        return _preferredHevcEncoder ?? "libx265";
+    }
+
+    private static void EnsurePreferredEncodersInitialized()
+    {
+        if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder))
+            return;
+
+        lock (_encoderProbeLock)
+        {
+            if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder))
+                return;
+
+            _preferredH264Encoder = "libx264";
+            _preferredHevcEncoder = "libx265";
+
+            if (string.IsNullOrWhiteSpace(_ffmpegPath) || !File.Exists(_ffmpegPath))
+                return;
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = _ffmpegPath,
+                    Arguments = "-hide_banner -encoders",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process == null)
+                    return;
+
+                var output = process.StandardOutput.ReadToEnd();
+                process.WaitForExit(TimeSpan.FromSeconds(5));
+
+                if (output.Contains("h264_nvenc", StringComparison.OrdinalIgnoreCase))
+                    _preferredH264Encoder = "h264_nvenc";
+                else if (output.Contains("h264_qsv", StringComparison.OrdinalIgnoreCase))
+                    _preferredH264Encoder = "h264_qsv";
+                else if (output.Contains("h264_amf", StringComparison.OrdinalIgnoreCase))
+                    _preferredH264Encoder = "h264_amf";
+
+                if (output.Contains("hevc_nvenc", StringComparison.OrdinalIgnoreCase))
+                    _preferredHevcEncoder = "hevc_nvenc";
+                else if (output.Contains("hevc_qsv", StringComparison.OrdinalIgnoreCase))
+                    _preferredHevcEncoder = "hevc_qsv";
+                else if (output.Contains("hevc_amf", StringComparison.OrdinalIgnoreCase))
+                    _preferredHevcEncoder = "hevc_amf";
+
+                Log.Information("Preferred encoders: H264={H264}, HEVC={HEVC}", _preferredH264Encoder, _preferredHevcEncoder);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to probe FFmpeg hardware encoders. Falling back to software encoders.");
+            }
+        }
     }
 
     private static string MapAudioCodec(string audioCodec)
@@ -737,59 +818,53 @@ public static class FFmpegService
         IProgress<RenderProgress>? progress,
         CancellationToken cancellationToken)
     {
-        return await Task.Run(() =>
+        try
         {
-            try
+            var processInfo = new ProcessStartInfo
             {
-                var processInfo = new ProcessStartInfo
-                {
-                    FileName = ffmpegPath,
-                    Arguments = args,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true
-                };
+                FileName = ffmpegPath,
+                Arguments = args,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
 
-                _currentRenderProcess = Process.Start(processInfo);
-                if (_currentRenderProcess == null)
-                    return (false, "Failed to start FFmpeg process");
+            _currentRenderProcess = Process.Start(processInfo);
+            if (_currentRenderProcess == null)
+                return (false, "Failed to start FFmpeg process");
 
-                var output = string.Empty;
-                var error = string.Empty;
+            var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = _currentRenderProcess.StandardError.ReadToEndAsync(cancellationToken);
 
-                // Read output asynchronously
-                var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync();
-                var errorTask = _currentRenderProcess.StandardError.ReadToEndAsync();
-
-                // Report progress (simplified - FFmpeg doesn't provide easy frame count)
-                progress?.Report(new RenderProgress
-                {
-                    ProgressPercentage = 50,
-                    Message = "Rendering...",
-                    IsComplete = false
-                });
-
-                // Wait for completion
-                _currentRenderProcess.WaitForExit();
-
-                output = outputTask.Result;
-                error = errorTask.Result;
-
-                bool success = _currentRenderProcess.ExitCode == 0;
-                return (success, success ? output : error);
-            }
-            catch (Exception ex)
+            progress?.Report(new RenderProgress
             {
-                Log.Error(ex, "Error executing FFmpeg");
-                return (false, ex.Message);
-            }
-            finally
-            {
-                _currentRenderProcess?.Dispose();
-                _currentRenderProcess = null;
-            }
-        }, cancellationToken);
+                ProgressPercentage = 50,
+                Message = "Rendering...",
+                IsComplete = false
+            });
+
+            await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            var output = await outputTask.ConfigureAwait(false);
+            var error = await errorTask.ConfigureAwait(false);
+
+            bool success = _currentRenderProcess.ExitCode == 0;
+            return (success, success ? output : error);
+        }
+        catch (OperationCanceledException)
+        {
+            return (false, "Render canceled");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error executing FFmpeg");
+            return (false, ex.Message);
+        }
+        finally
+        {
+            _currentRenderProcess?.Dispose();
+            _currentRenderProcess = null;
+        }
     }
 }
 

@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui.Helpers;
@@ -14,7 +15,7 @@ public static class VideoThumbnailFallback
 {
     private const int ThumbnailWidth = 120;
     private const int ThumbnailHeight = 90;
-    private const int WaitMs = 300; // shorter to reduce UI stalls when fallback runs on UI thread
+    private const int WaitMs = 300;
 
     /// <summary>
     /// Capture a frame from the video at the given time and save to the specified path.
@@ -39,7 +40,7 @@ public static class VideoThumbnailFallback
             player.Open(uri);
             player.Pause();
             player.Position = TimeSpan.FromSeconds(Math.Max(0, timeSeconds));
-            System.Threading.Thread.Sleep(WaitMs);
+            WaitWithDispatcher(WaitMs);
 
             var rtb = new RenderTargetBitmap(ThumbnailWidth, ThumbnailHeight, 96, 96, PixelFormats.Pbgra32);
             var dv = new DrawingVisual();
@@ -65,5 +66,21 @@ public static class VideoThumbnailFallback
         {
             player?.Close();
         }
+    }
+
+    private static void WaitWithDispatcher(int milliseconds)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(milliseconds)
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
     }
 }

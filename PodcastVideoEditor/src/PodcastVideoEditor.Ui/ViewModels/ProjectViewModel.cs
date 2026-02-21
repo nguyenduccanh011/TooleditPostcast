@@ -15,7 +15,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// <summary>
     /// ViewModel for project management (MVVM Toolkit).
     /// </summary>
-    public partial class ProjectViewModel : ObservableObject
+    public partial class ProjectViewModel : ObservableObject, IDisposable
     {
         private readonly ProjectService _projectService;
         private readonly CanvasViewModel _canvasViewModel;
@@ -39,6 +39,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private string statusMessage = string.Empty;
+
+        private bool _disposed;
 
         public ProjectViewModel(ProjectService projectService, CanvasViewModel canvasViewModel, RenderViewModel renderViewModel)
         {
@@ -194,6 +196,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var loadedProject = await _projectService.GetProjectAsync(project.Id);
                 if (loadedProject != null)
                 {
+                    _thumbnailService.Stop();
                     CurrentProject = loadedProject;
 
                     // Sync render/preview settings from project into UI view models
@@ -315,6 +318,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 StatusMessage = $"Project '{project.Name}' deleted";
                 Log.Information("Project deleted: {ProjectId}", project.Id);
+                _thumbnailService.Stop();
             }
             catch (Exception ex)
             {
@@ -366,6 +370,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error adding asset to project {ProjectId}", CurrentProject.Id);
                 return null;
             }
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+            _disposed = true;
+            _thumbnailService.Stop();
         }
     }
 }

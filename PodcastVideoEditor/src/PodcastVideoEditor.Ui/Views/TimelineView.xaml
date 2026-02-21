@@ -110,10 +110,13 @@
                     </Border>
 
                     <!-- Row 1: Track headers (generated from Tracks collection) -->
-                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}">
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  ScrollViewer.CanContentScroll="True">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Vertical"/>
+                                <VirtualizingStackPanel Orientation="Vertical"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -140,7 +143,7 @@
                              HorizontalScrollBarVisibility="Auto" 
                              VerticalScrollBarVisibility="Disabled"
                              x:Name="TimelineScroller"
-                             CanContentScroll="False"
+                             CanContentScroll="True"
                              PanningMode="HorizontalOnly"
                              PanningDeceleration="0.001"
                              PanningRatio="1"
@@ -169,10 +172,13 @@
                         </Border>
 
                         <!-- Row 1: Track Contents -->
-                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}" x:Name="TracksItemsControl">
+                        <ItemsControl Grid.Row="1" ItemsSource="{Binding Tracks}" x:Name="TracksItemsControl"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      ScrollViewer.CanContentScroll="True">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Vertical"/>
+                                    <VirtualizingStackPanel Orientation="Vertical"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
@@ -195,9 +201,6 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid x:Name="SegmentRoot" Height="40" Cursor="Hand">
-                                                        <Grid.Effect>
-                                                            <DropShadowEffect ShadowDepth="1" BlurRadius="3" Opacity="0.7"/>
-                                                        </Grid.Effect>
                                                         <Border x:Name="SegmentFill" Background="#2d3a4a" BorderBrush="#43a047" BorderThickness="2,0,2,0"
                                                                 CornerRadius="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                                             <Grid x:Name="SegmentContentLayer">

@@ -156,6 +156,8 @@ namespace PodcastVideoEditor.Core.Services
             try
             {
                 return await _context.Projects
+                    .AsNoTracking()
+                    .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
                     .Include(p => p.Segments)
@@ -180,6 +182,8 @@ namespace PodcastVideoEditor.Core.Services
             try
             {
                 return await _context.Projects
+                    .AsNoTracking()
+                    .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
                     .Include(p => p.Segments)
@@ -447,6 +451,8 @@ namespace PodcastVideoEditor.Core.Services
             try
             {
                 return await _context.Projects
+                    .AsNoTracking()
+                    .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
                     .OrderByDescending(p => p.UpdatedAt)

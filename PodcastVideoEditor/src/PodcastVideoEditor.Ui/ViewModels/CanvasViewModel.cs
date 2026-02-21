@@ -4,7 +4,6 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
 using PodcastVideoEditor.Ui.Converters;
-using PodcastVideoEditor.Ui.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -14,6 +13,7 @@ using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Ui.ViewModels
 {
@@ -24,7 +24,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
-        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(800); // Increased capacity with LRU
+        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(300); // Keep memory budget tighter for responsive GC
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
@@ -32,6 +32,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool _disposed;
         private string? _lastVisualSegmentId;
         private string? _lastVisualFrameKey;
+        private readonly HashSet<string> _pendingVideoFrameRequests = new(StringComparer.Ordinal);
+        private readonly object _pendingVideoFrameLock = new();
 
         // Performance: throttle canvas updates to ~60fps
         private DateTime _lastCanvasUpdateTime = DateTime.MinValue;
@@ -658,13 +660,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_timelineViewModel?.IsDeferringThumbnailUpdate == true)
                 return ActiveVisualImage;
 
-            var thumbPath = FFmpegService.GetOrCreateVideoThumbnailPath(asset.FilePath, timeIntoVideo);
-            if (string.IsNullOrWhiteSpace(thumbPath) || !File.Exists(thumbPath))
+            var thumbPath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, quantized);
+            if (!File.Exists(thumbPath))
             {
-                var fallbackPath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, timeIntoVideo);
-                if (!VideoThumbnailFallback.TryCaptureFrameToFile(asset.FilePath, timeIntoVideo, fallbackPath))
-                    return ActiveVisualImage;
-                thumbPath = fallbackPath;
+                QueueVideoFrameGeneration(asset.FilePath, quantized, frameKey, segment.Id);
+                return ActiveVisualImage;
             }
 
             var bmpFrame = LoadBitmapFromPath(thumbPath, frameKey);
@@ -674,6 +674,49 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _lastVisualFrameKey = frameKey;
             }
             return bmpFrame;
+        }
+
+        private void QueueVideoFrameGeneration(string videoPath, double timeInVideo, string frameKey, string? segmentId)
+        {
+            lock (_pendingVideoFrameLock)
+            {
+                if (!_pendingVideoFrameRequests.Add(frameKey))
+                    return;
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var generated = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(videoPath, timeInVideo).ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(generated) || !File.Exists(generated))
+                        return;
+
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        var bmp = LoadBitmapFromPath(generated, frameKey);
+                        if (bmp == null || ActiveVisualSegment == null)
+                            return;
+
+                        if (!string.Equals(ActiveVisualSegment.Id, segmentId, StringComparison.Ordinal))
+                            return;
+
+                        ActiveVisualImage = bmp;
+                        _lastVisualSegmentId = segmentId;
+                        _lastVisualFrameKey = frameKey;
+                        IsVisualPlaceholderVisible = false;
+                    });
+                }
+                catch
+                {
+                    // Ignore background thumbnail failures to keep scrubbing smooth.
+                }
+                finally
+                {
+                    lock (_pendingVideoFrameLock)
+                        _pendingVideoFrameRequests.Remove(frameKey);
+                }
+            });
         }
 
         private BitmapSource? LoadBitmapFromPath(string path, string cacheKey)
@@ -692,6 +735,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 bmp.BeginInit();
                 bmp.CacheOption = BitmapCacheOption.OnLoad;
                 bmp.UriSource = uri;
+                bmp.DecodePixelWidth = 960;
                 bmp.EndInit();
                 bmp.Freeze();
 
