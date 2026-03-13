@@ -159,14 +159,11 @@
                             <views:RenderView DataContext="{Binding RenderViewModel}" />
                         </Border>
 
-                        <!-- Row 3: Audio minimized at bottom -->
-                        <Expander Grid.Row="3" Grid.ColumnSpan="3" Header="Audio" IsExpanded="False"
-                                  Background="#2d2d2d" Foreground="#e0e0e0" Margin="0">
-                            <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,1,0,0" Padding="10">
-                                <controls:AudioPlayerControl x:Name="AudioPlayerControl"
-                                                             DataContext="{Binding AudioPlayerViewModel}" />
-                            </Border>
-                        </Expander>
+                        <!-- Row 3: Audio - Always visible (important control) -->
+                        <Border Grid.Row="3" Grid.ColumnSpan="3" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                            <controls:AudioPlayerControl x:Name="AudioPlayerControl"
+                                                         DataContext="{Binding AudioPlayerViewModel}" />
+                        </Border>
                     </Grid>
                 </ScrollViewer>
             </TabItem>

@@ -253,6 +253,20 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void OnCanvasKeyDown(object sender, KeyEventArgs e)
         {
+            // ✅ Space bar for playback toggle (Play/Pause)
+            if (e.Key == Key.Space)
+            {
+                if (_viewModel != null)
+                {
+                    if (_viewModel.TogglePlayPauseCommand.CanExecute(null))
+                    {
+                        _viewModel.TogglePlayPauseCommand.Execute(null);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
             if (_viewModel?.SelectedElement == null)
                 return;
 

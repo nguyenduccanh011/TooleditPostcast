@@ -9,6 +9,7 @@
              Focusable="True">
     <UserControl.InputBindings>
         <KeyBinding Key="Delete" Command="{Binding DeleteSelectedSegmentCommand}"/>
+        <!-- Space bar for playback control is now handled by CanvasView to avoid conflicts -->
     </UserControl.InputBindings>
 
     <UserControl.Resources>
@@ -72,6 +73,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- Segment controls only - Playback controls moved to CanvasView -->
                     <Button Content="Add" Command="{Binding AddSegmentAtPlayheadCommand}"
                             Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
                     <Button Content="Duplicate" Command="{Binding DuplicateSelectedSegmentCommand}"

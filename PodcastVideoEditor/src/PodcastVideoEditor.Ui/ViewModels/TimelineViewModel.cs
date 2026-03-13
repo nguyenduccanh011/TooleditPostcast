@@ -71,6 +71,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isDeferringThumbnailUpdate;
 
+        // ✅ NEW: Playback properties for toolbar controls
+        [ObservableProperty]
+        private bool isPlaying = false;
+
+        private AudioPlayerViewModel? _audioPlayerViewModel;
+
         private const int WaveformBinCount = 2400;
         private const int ActiveSyncIntervalMs = 33;
         private const int IdleSyncIntervalMs = 150;
@@ -527,6 +533,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error clearing segments");
             }
         }
+
+        // ✅ NEW: Playback controls (wire to AudioPlayerViewModel)
+        /// <summary>
+        /// Set audio player reference for playback control.
+        /// </summary>
+        public void SetAudioPlayerViewModel(AudioPlayerViewModel audioPlayerViewModel)
+        {
+            _audioPlayerViewModel = audioPlayerViewModel;
+        }
+
+        // NOTE: Play/Pause/Stop commands have been moved to CanvasViewModel and AudioPlayerViewModel
+        // Use TogglePlayPauseCommand instead via the CanvasView playback control
 
         /// <summary>
         /// Delete selected segment.

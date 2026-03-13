@@ -208,6 +208,37 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Toggle between play and pause. If stopped, starts playback.
+        /// Single command for modern UI pattern (like CapCut).
+        /// </summary>
+        [RelayCommand]
+        public void TogglePlayPause()
+        {
+            try
+            {
+                if (!IsAudioLoaded)
+                {
+                    StatusMessage = "No audio loaded";
+                    return;
+                }
+
+                if (IsPlaying)
+                {
+                    Pause();
+                }
+                else
+                {
+                    Play();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error toggling play/pause");
+                StatusMessage = $"Error: {ex.Message}";
+            }
+        }
+
+        /// <summary>
         /// Seek to a specific position in the audio.
         /// </summary>
         [RelayCommand]

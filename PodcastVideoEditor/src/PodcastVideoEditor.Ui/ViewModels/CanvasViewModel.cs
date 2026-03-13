@@ -4,6 +4,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
 using PodcastVideoEditor.Ui.Converters;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -29,6 +30,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private TimelineViewModel? _timelineViewModel;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
         private PropertyChangedEventHandler? _projectPropertyChangedHandler;
+        private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
         private bool _disposed;
         private string? _lastVisualSegmentId;
         private string? _lastVisualFrameKey;
@@ -110,11 +112,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string selectedAspectRatio = "9:16";
 
-        public CanvasViewModel()
-        {
-            PropertyEditor = new PropertyEditorViewModel();
-            ApplyAspectRatio(selectedAspectRatio);
-        }
+        // ✅ NEW: Playback properties for overlay controls
+        [ObservableProperty]
+        private string audioPlaybackTime = "00:00";
+
+        [ObservableProperty]
+        private string audioDuration = "00:00";
+
+        [ObservableProperty]
+        private bool isPlaying = false;
+
+        private AudioPlayerViewModel? _audioPlayerViewModel;
 
         /// <summary>
         /// Attach project and timeline references so preview can react to playhead changes.
@@ -438,6 +446,107 @@ namespace PodcastVideoEditor.Ui.ViewModels
             LogMessage("Canvas reset to default");
         }
 
+        // ✅ NEW: Playback controls (wire to AudioPlayerViewModel)
+        /// <summary>
+        /// Attach audio player reference for playback control synchronization.
+        /// Properly removes old handlers and adds new ones to prevent memory leaks.
+        /// </summary>
+        public void SetAudioPlayerViewModel(AudioPlayerViewModel audioPlayerViewModel)
+        {
+            ArgumentNullException.ThrowIfNull(audioPlayerViewModel, nameof(audioPlayerViewModel));
+
+            // Unsubscribe from old audio player if exists
+            if (_audioPlayerViewModel != null && _audioPlayerPropertyChangedHandler != null)
+            {
+                _audioPlayerViewModel.PropertyChanged -= _audioPlayerPropertyChangedHandler;
+                _audioPlayerPropertyChangedHandler = null;
+            }
+
+            _audioPlayerViewModel = audioPlayerViewModel;
+
+            // Create trackable event handler for new audio player
+            _audioPlayerPropertyChangedHandler = OnAudioPlayerPropertyChanged;
+            _audioPlayerViewModel.PropertyChanged += _audioPlayerPropertyChangedHandler;
+
+            // Initialize display from audio player current state
+            AudioPlaybackTime = _audioPlayerViewModel.PositionDisplay;
+            AudioDuration = _audioPlayerViewModel.DurationDisplay;
+            IsPlaying = _audioPlayerViewModel.IsPlaying;
+        }
+
+        /// <summary>
+        /// Handles audio player property changes (position, duration, playing state).
+        /// </summary>
+        private void OnAudioPlayerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (_audioPlayerViewModel == null)
+                return;
+
+            switch (e.PropertyName)
+            {
+                case nameof(AudioPlayerViewModel.PositionDisplay):
+                    AudioPlaybackTime = _audioPlayerViewModel.PositionDisplay;
+                    break;
+                case nameof(AudioPlayerViewModel.DurationDisplay):
+                    AudioDuration = _audioPlayerViewModel.DurationDisplay;
+                    break;
+                case nameof(AudioPlayerViewModel.IsPlaying):
+                    IsPlaying = _audioPlayerViewModel.IsPlaying;
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// Toggle play/pause: modern UI pattern (CapCut-style).
+        /// Delegates to AudioPlayerViewModel's TogglePlayPauseCommand.
+        /// </summary>
+        [RelayCommand]
+        public void TogglePlayPause()
+        {
+            try
+            {
+                _audioPlayerViewModel?.TogglePlayPauseCommand.Execute(null);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error toggling play/pause");
+                StatusMessage = $"Error: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Play audio from preview (kept for backward compatibility).
+        /// Prefer TogglePlayPauseCommand for new code.
+        /// </summary>
+        [RelayCommand]
+        public void Play()
+        {
+            _audioPlayerViewModel?.PlayCommand.Execute(null);
+            StatusMessage = "▶ Playing...";
+        }
+
+        /// <summary>
+        /// Pause audio playback (kept for backward compatibility).
+        /// Prefer TogglePlayPauseCommand for new code.
+        /// </summary>
+        [RelayCommand]
+        public void Pause()
+        {
+            _audioPlayerViewModel?.PauseCommand.Execute(null);
+            StatusMessage = "⏸ Paused";
+        }
+
+        /// <summary>
+        /// Stop audio playback (kept for backward compatibility).
+        /// Prefer TogglePlayPauseCommand for new code.
+        /// </summary>
+        [RelayCommand]
+        public void Stop()
+        {
+            _audioPlayerViewModel?.StopCommand.Execute(null);
+            StatusMessage = "⏹ Stopped";
+        }
+
         /// <summary>
         /// Set aspect ratio from menu (used by status bar ratio button).
         /// </summary>
@@ -476,7 +585,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             CanvasWidth = previewWidth;
             CanvasHeight = previewHeight;
-            StatusMessage = $"Preview ratio set to {normalizedAspect} ({CanvasWidth}x{CanvasHeight})";
+            StatusMessage = $"Aspect ratio: {aspectRatio} ({(int)previewWidth}x{(int)previewHeight})";
         }
 
         private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -768,15 +877,43 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             _disposed = true;
 
-            if (_timelineViewModel != null && _timelinePropertyChangedHandler != null)
-                _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
-            if (_projectViewModel != null && _projectPropertyChangedHandler != null)
-                _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
+            try
+            {
+                // Unsubscribe from property changed events
+                if (_timelineViewModel != null && _timelinePropertyChangedHandler != null)
+                    _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
+                if (_projectViewModel != null && _projectPropertyChangedHandler != null)
+                    _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
 
-            PropertyEditor?.Dispose();
-            _visualizerTimer?.Stop();
-            Serilog.Log.Debug("CanvasViewModel disposed");
-            GC.SuppressFinalize(this);
+                // Unsubscribe from audio player
+                if (_audioPlayerViewModel != null && _audioPlayerPropertyChangedHandler != null)
+                {
+                    _audioPlayerViewModel.PropertyChanged -= _audioPlayerPropertyChangedHandler;
+                    _audioPlayerPropertyChangedHandler = null;
+                }
+
+                // Stop and dispose visualizer timer
+                if (_visualizerTimer != null)
+                {
+                    _visualizerTimer.Stop();
+                    _visualizerTimer.Tick -= OnVisualizerTimerTick;
+                }
+
+                PropertyEditor?.Dispose();
+                _pendingVideoFrameRequests.Clear();
+                _assetFrameCache.Clear();
+                Elements.Clear();
+
+                Serilog.Log.Debug("CanvasViewModel disposed");
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error during CanvasViewModel disposal");
+            }
+            finally
+            {
+                GC.SuppressFinalize(this);
+            }
         }
 
         /// <summary>
