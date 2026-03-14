@@ -160,7 +160,6 @@ namespace PodcastVideoEditor.Core.Services
                     .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
-                    .Include(p => p.Segments)
                     .Include(p => p.Elements)
                     .Include(p => p.Assets)
                     .Include(p => p.BgmTracks)
@@ -186,7 +185,6 @@ namespace PodcastVideoEditor.Core.Services
                     .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
-                    .Include(p => p.Segments)
                     .Include(p => p.Elements)
                     .Include(p => p.Assets)
                     .Include(p => p.BgmTracks)
@@ -248,35 +246,6 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Error(ex, "Error replacing segments for track {TrackId}", trackId);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Replace all segments of a project with a new list (kept for backward compatibility).
-        /// </summary>
-        [Obsolete("Use ReplaceSegmentsOfTrackAsync instead for multi-track support")]
-        public async Task ReplaceSegmentsAsync(Project project, IEnumerable<Segment> newSegments)
-        {
-            if (project == null)
-                throw new ArgumentNullException(nameof(project));
-
-            var list = newSegments.ToList();
-            var projectId = project.Id;
-            foreach (var s in list)
-                s.ProjectId = projectId;
-
-            // Copy current segments from navigation (tracked), then clear and remove from context
-            // to avoid EF Core tracking conflict when mixing RemoveRange + modified collection.
-            var toRemove = project.Segments.ToList();
-            project.Segments.Clear();
-            foreach (var s in toRemove)
-                _context.Segments.Remove(s);
-
-            foreach (var s in list)
-                project.Segments.Add(s);
-            project.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-            Log.Information("Replaced segments for project {ProjectId}: {Count} segments", projectId, list.Count);
         }
 
         /// <summary>

@@ -49,15 +49,7 @@ public partial class MainWindow : Window
                 .Options;
 
             _dbContext = new AppDbContext(options);
-            try
-            {
-                _dbContext.Database.Migrate();
-            }
-            catch (Exception migrateEx)
-            {
-                Log.Warning(migrateEx, "Database migration failed, falling back to EnsureCreated");
-                _dbContext.Database.EnsureCreated();
-            }
+            InitializeDatabase(_dbContext);
 
             var projectService = new ProjectService(_dbContext);
             _renderViewModel = new RenderViewModel();
@@ -117,6 +109,90 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Error(ex, "Error loading projects on startup");
+        }
+    }
+
+    /// <summary>
+    /// Initializes the database, applying all pending EF Core migrations.
+    /// Handles the case where the schema was created out-of-band (e.g. EnsureCreated or
+    /// a column was added directly), which causes Migrate() to fail with
+    /// "duplicate column name". We detect such stale-history conditions and repair them
+    /// before retrying the migration so that any genuinely missing columns (e.g. SegmentId)
+    /// are added correctly.
+    /// </summary>
+    private static void InitializeDatabase(AppDbContext context)
+    {
+        try
+        {
+            context.Database.Migrate();
+            Log.Information("Database migration applied successfully");
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("duplicate column name"))
+        {
+            Log.Warning(ex, "Migration conflict detected (column already exists in schema). Repairing migration history...");
+            RepairMigrationHistory(context);
+            // Retry – only genuinely missing migrations (like AddElementSegmentId) will now run
+            context.Database.Migrate();
+            Log.Information("Database migration applied successfully after history repair");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Database migration failed, falling back to EnsureCreated");
+            context.Database.EnsureCreated();
+        }
+    }
+
+    /// <summary>
+    /// Repairs the __EFMigrationsHistory table for migrations whose schema changes
+    /// were already applied to the database (e.g. via EnsureCreated or a prior run)
+    /// but whose history row is missing, causing subsequent Migrate() calls to conflict.
+    /// </summary>
+    private static void RepairMigrationHistory(AppDbContext context)
+    {
+        const string productVersion = "8.0.2";
+        var conn = context.Database.GetDbConnection();
+        bool opened = conn.State != System.Data.ConnectionState.Open;
+        if (opened) conn.Open();
+        try
+        {
+            // AddSegmentKind: adds Kind column to Segments
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260210100000_AddSegmentKind",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Kind'",
+                productVersion);
+
+            // AddSegmentAudioProperties: adds Volume/FadeInDuration/FadeOutDuration to Segments
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260313100000_AddSegmentAudioProperties",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Volume'",
+                productVersion);
+        }
+        finally
+        {
+            if (opened) conn.Close();
+        }
+    }
+
+    private static void MarkMigrationIfColumnExists(
+        System.Data.Common.DbConnection conn,
+        string migrationId,
+        string checkSql,
+        string productVersion)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = checkSql;
+        var count = (long)(checkCmd.ExecuteScalar() ?? 0L);
+        if (count > 0)
+        {
+            using var insertCmd = conn.CreateCommand();
+            insertCmd.CommandText =
+                "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES (@id, @ver)";
+            var pId = insertCmd.CreateParameter(); pId.ParameterName = "@id"; pId.Value = migrationId;
+            var pVer = insertCmd.CreateParameter(); pVer.ParameterName = "@ver"; pVer.Value = productVersion;
+            insertCmd.Parameters.Add(pId);
+            insertCmd.Parameters.Add(pVer);
+            insertCmd.ExecuteNonQuery();
+            Log.Information("Migration history repaired: marked {MigrationId} as applied", migrationId);
         }
     }
 

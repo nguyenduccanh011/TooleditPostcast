@@ -67,8 +67,9 @@ public static class ScriptParser
             return null;
 
         var text = match.Groups[3].Value.Trim();
-        if (end < start)
-            end = start;
+        // Reject inverted or zero-duration segments — they are malformed input
+        if (end <= start)
+            return null;
 
         return new ParsedSegment(start, end, text);
     }
