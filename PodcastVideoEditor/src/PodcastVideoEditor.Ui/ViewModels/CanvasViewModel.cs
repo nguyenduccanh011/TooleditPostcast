@@ -149,6 +149,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _projectPropertyChangedHandler ??= OnProjectPropertyChanged;
 
             _timelineViewModel.PropertyChanged += _timelinePropertyChangedHandler;
+            _timelineViewModel.ScriptApplied += OnScriptApplied;
             _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
 
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
@@ -359,6 +360,43 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Elements.Add(element);
             SelectElement(element);
             LogMessage($"Added Text element{(segment != null ? " + timeline segment" : "")}");
+        }
+
+        /// <summary>
+        /// Called when ApplyScriptAsync completes. Removes canvas elements that were linked to
+        /// the replaced text-track segments, then creates a new TextElement for every new segment
+        /// so script text is editable/draggable instead of being a read-only subtitle overlay.
+        /// </summary>
+        private void OnScriptApplied(object? sender, ScriptAppliedEventArgs e)
+        {
+            // Remove canvas elements that belonged to the now-replaced text-track segments
+            var orphaned = Elements
+                .Where(el => el.SegmentId != null && e.ReplacedSegmentIds.Contains(el.SegmentId))
+                .ToList();
+            foreach (var old in orphaned)
+                Elements.Remove(old);
+
+            // Create an interactive TextElement for each new segment
+            foreach (var segment in e.NewSegments)
+            {
+                var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
+                var element = new TextElement
+                {
+                    Name = label,
+                    Content = segment.Text,
+                    X = 200,
+                    Y = 250,
+                    Width = 300,
+                    Height = 80,
+                    ZIndex = Elements.Count,
+                    SegmentId = segment.Id
+                };
+                Elements.Add(element);
+            }
+
+            LogMessage($"Canvas: created {e.NewSegments.Count} text element(s) from script");
+            Log.Information("Canvas elements synced after script apply: {Count} new, {Removed} removed",
+                e.NewSegments.Count, orphaned.Count);
         }
 
         /// <summary>
@@ -1037,6 +1075,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Unsubscribe from property changed events
                 if (_timelineViewModel != null && _timelinePropertyChangedHandler != null)
                     _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
+                if (_timelineViewModel != null)
+                    _timelineViewModel.ScriptApplied -= OnScriptApplied;
                 if (_projectViewModel != null && _projectPropertyChangedHandler != null)
                     _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
 

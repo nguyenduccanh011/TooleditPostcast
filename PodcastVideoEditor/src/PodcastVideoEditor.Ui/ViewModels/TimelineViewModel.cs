@@ -638,6 +638,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 var projectId = _projectViewModel.CurrentProject.Id;
+
+                // Capture old text-track segment IDs so CanvasViewModel can remove orphaned elements
+                var oldSegmentIds = (textTrack.Segments ?? Enumerable.Empty<Segment>())
+                    .Select(s => s.Id)
+                    .ToHashSet();
+
                 var newSegments = new List<Segment>();
                 for (int i = 0; i < parsed.Count; i++)
                 {
@@ -660,6 +666,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Reload tracks from project
                 LoadTracksFromProject();
+
+                // Notify CanvasViewModel to create/refresh canvas TextElements
+                ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(oldSegmentIds, newSegments.AsReadOnly()));
+
                 StatusMessage = $"Script applied: {newSegments.Count} segment(s) in text track";
                 Log.Information("Script applied: {Count} segments in text track {TrackId}", newSegments.Count, textTrack.Id);
             }
@@ -672,6 +682,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         private bool CanApplyScript() => _projectViewModel.CurrentProject != null && !string.IsNullOrWhiteSpace(ScriptPasteText);
+
+        /// <summary>
+        /// Fired after ApplyScriptAsync successfully replaces the text track.
+        /// Carries the IDs of the segments that were removed and the new segments that were created,
+        /// so CanvasViewModel can synchronise canvas elements.
+        /// </summary>
+        public event EventHandler<ScriptAppliedEventArgs>? ScriptApplied;
 
         partial void OnScriptPasteTextChanged(string value) => ApplyScriptCommand.NotifyCanExecuteChanged();
 
@@ -1464,4 +1481,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             StopPlayheadSync();
         }
     }
+
+    /// <summary>
+    /// Event args for the <see cref="TimelineViewModel.ScriptApplied"/> event.
+    /// </summary>
+    /// <param name="ReplacedSegmentIds">IDs of text-track segments that were removed by the apply.</param>
+    /// <param name="NewSegments">The freshly-created segments that replaced them.</param>
+    public record ScriptAppliedEventArgs(
+        IReadOnlySet<string> ReplacedSegmentIds,
+        IReadOnlyList<Segment> NewSegments);
 }
