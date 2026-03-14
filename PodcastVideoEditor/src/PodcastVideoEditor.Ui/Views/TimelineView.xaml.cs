@@ -850,11 +850,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             var menu = new System.Windows.Controls.ContextMenu();
             var addVisual = new System.Windows.Controls.MenuItem { Header = "Visual Track" };
-            addVisual.Click += (_, _) => _viewModel.AddTrack("visual");
+            addVisual.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Visual);
             var addText = new System.Windows.Controls.MenuItem { Header = "Text Track" };
-            addText.Click += (_, _) => _viewModel.AddTrack("text");
+            addText.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Text);
             var addAudio = new System.Windows.Controls.MenuItem { Header = "Audio Track" };
-            addAudio.Click += (_, _) => _viewModel.AddTrack("audio");
+            addAudio.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Audio);
 
             menu.Items.Add(addVisual);
             menu.Items.Add(addText);

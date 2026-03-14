@@ -163,7 +163,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Set default selected track (first visual track or first track if none)
-                SelectedTrack = sortedTracks.FirstOrDefault(t => t.TrackType == "visual") ?? sortedTracks.FirstOrDefault();
+                SelectedTrack = sortedTracks.FirstOrDefault(t => t.TrackType == TrackTypes.Visual) ?? sortedTracks.FirstOrDefault();
 
                 StatusMessage = $"Loaded {Tracks.Count} track(s)";
                 Log.Information("Tracks loaded: {Count}", Tracks.Count);
@@ -346,9 +346,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Use first visual track for adding (Add = visual segment). If user had selected a text segment, still add to Visual 1.
-                var targetTrack = SelectedTrack?.TrackType == "visual"
+                var targetTrack = SelectedTrack?.TrackType == TrackTypes.Visual
                     ? SelectedTrack
-                    : Tracks.FirstOrDefault(t => t.TrackType == "visual");
+                    : Tracks.FirstOrDefault(t => t.TrackType == TrackTypes.Visual);
 
                 if (targetTrack == null)
                 {
@@ -368,7 +368,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     StartTime = SnapToGrid(PlayheadPosition),
                     EndTime = SnapToGrid(endTime),
                     Text = "New Segment",
-                    Kind = "visual",
+                    Kind = SegmentKinds.Visual,
                     TransitionType = "fade",
                     TransitionDuration = 0.5,
                     Order = targetTrack.Segments.Count
@@ -416,7 +416,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Auto-route to correct track type based on asset type
-                string targetTrackType = string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase) ? "audio" : "visual";
+                string targetTrackType = string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase) ? TrackTypes.Audio : TrackTypes.Visual;
                 string segmentKind = targetTrackType;
 
                 var targetTrack = (SelectedTrack != null && string.Equals(SelectedTrack.TrackType, targetTrackType, StringComparison.OrdinalIgnoreCase))
@@ -500,7 +500,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             try
             {
                 // Determine segment kind based on asset type and track type
-                string kind = string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase) ? "audio" : "visual";
+                string kind = string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase) ? SegmentKinds.Audio : SegmentKinds.Visual;
 
                 // Determine duration: use asset duration if available, else default 5s
                 double duration = asset.Duration > 0 ? asset.Duration.Value : 5.0;
@@ -560,9 +560,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             return trackType switch
             {
-                "visual" => assetType is "image" or "video",
-                "audio" => assetType is "audio",
-                "text" => false, // Text segments created via script, not drag-drop
+                TrackTypes.Visual => assetType is "image" or "video",
+                TrackTypes.Audio => assetType is "audio",
+                TrackTypes.Text => false, // Text segments created via script, not drag-drop
                 _ => false
             };
         }
@@ -623,7 +623,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Find text track (first track with TrackType = "text")
-                var textTrack = _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == "text");
+                var textTrack = _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
                 if (textTrack == null)
                 {
                     StatusMessage = "No text track found in project";
@@ -655,7 +655,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         StartTime = Math.Round(p.Start, 2),
                         EndTime = Math.Round(p.End, 2),
                         Text = p.Text,
-                        Kind = "text",
+                        Kind = SegmentKinds.Text,
                         TransitionType = "fade",
                         TransitionDuration = 0.5,
                         Order = i
@@ -928,9 +928,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var maxOrder = Tracks.Count > 0 ? Tracks.Max(t => t.Order) + 1 : 0;
             var typeName = trackType switch
             {
-                "text" => "Text",
-                "visual" => "Visual",
-                "audio" => "Audio",
+                TrackTypes.Text => "Text",
+                TrackTypes.Visual => "Visual",
+                TrackTypes.Audio => "Audio",
                 _ => trackType
             };
 
@@ -1357,7 +1357,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Track? audioTrack = null;
                 foreach (var (track, segment) in activeSegments)
                 {
-                    if (string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase)
+                    if (string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
                         && !string.IsNullOrEmpty(segment.BackgroundAssetId))
                     {
                         audioSegment = segment;

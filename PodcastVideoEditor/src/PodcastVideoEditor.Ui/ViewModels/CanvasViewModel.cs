@@ -244,15 +244,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var element = new TitleElement
             {
                 Name = $"Title {Elements.Count + 1}",
-                X = 50,
-                Y = 50,
+                X = Math.Max(0, (CanvasWidth - 400) / 2),
+                Y = Math.Max(0, CanvasHeight * 0.08),
                 Width = 400,
                 Height = 100,
                 ZIndex = Elements.Count
             };
 
             // Link to timeline segment so user can control visibility time range
-            var segment = _timelineViewModel?.CreateSegmentForElement("text", element.Name);
+            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 
@@ -270,14 +270,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var element = new LogoElement
             {
                 Name = $"Logo {Elements.Count + 1}",
-                X = 100,
-                Y = 100,
+                X = Math.Max(0, CanvasWidth - 220),
+                Y = 20,
                 Width = 200,
                 Height = 200,
                 ZIndex = Elements.Count
             };
 
-            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 
@@ -295,14 +295,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var element = new VisualizerElement
             {
                 Name = $"Visualizer {Elements.Count + 1}",
-                X = 200,
-                Y = 200,
+                X = Math.Max(0, (CanvasWidth - 600) / 2),
+                Y = Math.Max(0, (CanvasHeight - 400) / 2),
                 Width = 600,
                 Height = 400,
                 ZIndex = Elements.Count
             };
 
-            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 
@@ -321,14 +321,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var element = new ImageElement
             {
                 Name = $"Image {Elements.Count + 1}",
-                X = 150,
-                Y = 150,
+                X = Math.Max(0, (CanvasWidth - 300) / 2),
+                Y = Math.Max(0, (CanvasHeight - 300) / 2),
                 Width = 300,
                 Height = 300,
                 ZIndex = Elements.Count
             };
 
-            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 
@@ -346,14 +346,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var element = new TextElement
             {
                 Name = $"Text {Elements.Count + 1}",
-                X = 200,
-                Y = 250,
-                Width = 300,
+                X = Math.Max(0, (CanvasWidth - 600) / 2),
+                Y = Math.Max(0, CanvasHeight - 160),
+                Width = 600,
                 Height = 80,
                 ZIndex = Elements.Count
             };
 
-            var segment = _timelineViewModel?.CreateSegmentForElement("text", element.Name);
+            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 
@@ -376,7 +376,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             foreach (var old in orphaned)
                 Elements.Remove(old);
 
-            // Create an interactive TextElement for each new segment
+            // Create an interactive TextElement for each new segment, positioned at subtitle area (center-bottom)
+            double subtitleX = Math.Max(0, (CanvasWidth - 600) / 2);
+            double subtitleY = Math.Max(0, CanvasHeight - 160);
             foreach (var segment in e.NewSegments)
             {
                 var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
@@ -384,9 +386,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     Name = label,
                     Content = segment.Text,
-                    X = 200,
-                    Y = 250,
-                    Width = 300,
+                    X = subtitleX,
+                    Y = subtitleY,
+                    Width = 600,
                     Height = 80,
                     ZIndex = Elements.Count,
                     SegmentId = segment.Id
@@ -751,9 +753,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             foreach (var pair in active)
             {
-                if (string.Equals(pair.track.TrackType, "visual", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(pair.track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
                     visualPairs.Add(pair);
-                else if (string.Equals(pair.track.TrackType, "text", StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(pair.track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
                     textPairs.Add(pair);
                 // Audio type segments are not visual — skip for preview rendering
             }
@@ -1179,31 +1181,5 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
-        /// <summary>
-        /// Export element list as JSON (for saving to database).
-        /// </summary>
-        [Obsolete("Use SaveElementsAsync instead for proper DB persistence")]
-        public string ExportAsJson()
-        {
-            return System.Text.Json.JsonSerializer.Serialize(Elements);
-        }
-
-        /// <summary>
-        /// Import elements from JSON.
-        /// </summary>
-        [Obsolete("Use LoadElementsFromProject instead for proper DB persistence")]
-        public void ImportFromJson(string json)
-        {
-            try
-            {
-                // Implementation: deserialize JSON to Elements
-                Elements.Clear();
-                LogMessage("Imported elements from JSON");
-            }
-            catch (Exception ex)
-            {
-                LogMessage($"Import failed: {ex.Message}");
-            }
-        }
     }
 }

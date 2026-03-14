@@ -110,7 +110,7 @@ namespace PodcastVideoEditor.Core.Services
                     { 
                         ProjectId = project.Id, 
                         Order = 0, 
-                        TrackType = "text", 
+                        TrackType = TrackTypes.Text, 
                         Name = "Text 1", 
                         IsLocked = false, 
                         IsVisible = true 
@@ -119,7 +119,7 @@ namespace PodcastVideoEditor.Core.Services
                     { 
                         ProjectId = project.Id, 
                         Order = 1, 
-                        TrackType = "visual", 
+                        TrackType = TrackTypes.Visual, 
                         Name = "Visual 1", 
                         IsLocked = false, 
                         IsVisible = true 
@@ -128,7 +128,7 @@ namespace PodcastVideoEditor.Core.Services
                     { 
                         ProjectId = project.Id, 
                         Order = 2, 
-                        TrackType = "audio", 
+                        TrackType = TrackTypes.Audio, 
                         Name = "Audio", 
                         IsLocked = false, 
                         IsVisible = true 

@@ -228,8 +228,9 @@ namespace PodcastVideoEditor.Ui.Views
                 var offsetX = currentPoint.X - _dragStartPoint.X;
                 var offsetY = currentPoint.Y - _dragStartPoint.Y;
 
-                _viewModel.SelectedElement.X = _originalX + offsetX;
-                _viewModel.SelectedElement.Y = _originalY + offsetY;
+                var el = _viewModel.SelectedElement;
+                el.X = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
+                el.Y = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
             }
         }
 
@@ -282,26 +283,39 @@ namespace PodcastVideoEditor.Ui.Views
                     e.Handled = true;
                     break;
 
-                // Arrow keys for fine positioning
+                // Arrow keys for fine positioning (clamped to canvas bounds)
                 case Key.Left:
-                    _viewModel.SelectedElement.X -= (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                {
+                    double nudge = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                    _viewModel.SelectedElement.X = Math.Max(0, _viewModel.SelectedElement.X - nudge);
                     e.Handled = true;
                     break;
-
+                }
                 case Key.Right:
-                    _viewModel.SelectedElement.X += (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                {
+                    double nudge = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                    _viewModel.SelectedElement.X = Math.Min(
+                        _viewModel.CanvasWidth - _viewModel.SelectedElement.Width,
+                        _viewModel.SelectedElement.X + nudge);
                     e.Handled = true;
                     break;
-
+                }
                 case Key.Up:
-                    _viewModel.SelectedElement.Y -= (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                {
+                    double nudge = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                    _viewModel.SelectedElement.Y = Math.Max(0, _viewModel.SelectedElement.Y - nudge);
                     e.Handled = true;
                     break;
-
+                }
                 case Key.Down:
-                    _viewModel.SelectedElement.Y += (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                {
+                    double nudge = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 10 : 1;
+                    _viewModel.SelectedElement.Y = Math.Min(
+                        _viewModel.CanvasHeight - _viewModel.SelectedElement.Height,
+                        _viewModel.SelectedElement.Y + nudge);
                     e.Handled = true;
                     break;
+                }
             }
         }
     }
