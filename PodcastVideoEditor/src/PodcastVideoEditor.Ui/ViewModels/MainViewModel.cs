@@ -1,4 +1,5 @@
 #nullable enable
+using PodcastVideoEditor.Core.Services;
 using System;
 using System.ComponentModel;
 
@@ -14,6 +15,8 @@ public sealed class MainViewModel : IDisposable
     private readonly TimelineViewModel _timelineViewModel;
     private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
     private bool _disposed;
+
+    public SelectionSyncService SelectionSyncService { get; }
 
     public MainViewModel(
         ProjectViewModel projectViewModel,
@@ -37,9 +40,13 @@ public sealed class MainViewModel : IDisposable
         _audioPlayerViewModel = audioPlayerViewModel;
         _timelineViewModel = timelineViewModel;
 
-        // ✅ Wire ViewModels for unified playback control
+        // Wire ViewModels for unified playback control
         canvasViewModel.SetAudioPlayerViewModel(audioPlayerViewModel);
-        timelineViewModel.SetAudioPlayerViewModel(audioPlayerViewModel);
+
+        // ✅ Wire SelectionSyncService for canvas↔timeline selection sync
+        SelectionSyncService = new SelectionSyncService();
+        canvasViewModel.SetSelectionSyncService(SelectionSyncService);
+        timelineViewModel.SetSelectionSyncService(SelectionSyncService);
 
         // Subscribe to playback state changes for UI sync (trackable event handler)
         _audioPlayerPropertyChangedHandler = OnAudioPlayerPropertyChanged;

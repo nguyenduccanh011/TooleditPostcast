@@ -10,6 +10,10 @@
         Foreground="#FFFFFF"
         Loaded="MainWindow_Loaded"
         Closing="MainWindow_Closing">
+    <Window.InputBindings>
+        <KeyBinding Key="B" Modifiers="Control"
+                    Command="{Binding TimelineViewModel.SplitSelectedSegmentAtPlayheadCommand}"/>
+    </Window.InputBindings>
     <DockPanel>
         <Menu DockPanel.Dock="Top" Background="#252526" Foreground="#FFFFFF">
             <MenuItem Header="File">

@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PodcastVideoEditor.Core.Models;
 
@@ -49,6 +50,35 @@ public partial class Segment : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string? trackId;
+
+    /// <summary>
+    /// Volume level for audio/video segments (0.0 = silent, 1.0 = full volume).
+    /// Applies to audio playback when this segment is active.
+    /// </summary>
+    [ObservableProperty]
+    private double volume = 1.0;
+
+    /// <summary>
+    /// Fade-in duration in seconds from the segment's start time.
+    /// Audio/video volume ramps from 0 to Volume over this duration.
+    /// </summary>
+    [ObservableProperty]
+    private double fadeInDuration;
+
+    /// <summary>
+    /// Fade-out duration in seconds before the segment's end time.
+    /// Audio/video volume ramps from Volume to 0 over this duration.
+    /// </summary>
+    [ObservableProperty]
+    private double fadeOutDuration;
+
+    /// <summary>
+    /// UI-only: waveform peak data for audio segments (not persisted to DB).
+    /// Loaded asynchronously by TimelineViewModel after segment is added/loaded.
+    /// </summary>
+    [ObservableProperty]
+    [property: NotMapped]
+    private float[]? waveformPeaks;
 
     // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }

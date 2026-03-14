@@ -28,6 +28,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(300); // Keep memory budget tighter for responsive GC
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
+        private SelectionSyncService? _selectionSyncService;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
         private PropertyChangedEventHandler? _projectPropertyChangedHandler;
         private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
@@ -104,6 +105,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private Segment? activeTextSegment;
 
         /// <summary>
+        /// Background image layers from all active visual tracks, ordered back-to-front (highest Track.Order first).
+        /// Each entry is a BitmapSource for a non-video visual segment.
+        /// The frontmost video (if any) is rendered via MediaElement, not included here.
+        /// </summary>
+        public ObservableCollection<BitmapSource> BackgroundLayers { get; } = new();
+
+        /// <summary>
+        /// All active text overlays from active text tracks, ordered by Track.Order (front first).
+        /// </summary>
+        public ObservableCollection<string> ActiveTextOverlays { get; } = new();
+
+        /// <summary>
         /// Bitmap for visualizer elements on canvas. Updates ~30fps when audio is playing.
         /// </summary>
         [ObservableProperty]
@@ -139,6 +152,32 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
 
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+        }
+
+        /// <summary>
+        /// Set selection sync service for bidirectional canvas↔timeline selection.
+        /// </summary>
+        public void SetSelectionSyncService(SelectionSyncService selectionSyncService)
+        {
+            _selectionSyncService = selectionSyncService;
+
+            // When timeline segment is selected, highlight linked canvas elements
+            _selectionSyncService.TimelineSelectionChanged += OnTimelineSegmentSelected;
+        }
+
+        private void OnTimelineSegmentSelected(string? segmentId, bool playheadInRange)
+        {
+            if (string.IsNullOrEmpty(segmentId))
+            {
+                // Deselect
+                SelectElement(null);
+                return;
+            }
+
+            // Highlight linked canvas element regardless of playhead position.
+            // Matches commercial editor behavior: selecting a timeline segment always highlights its element.
+            var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
+            SelectElement(linked); // SelectElement(null) when no element is linked — deselects canvas
         }
 
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
@@ -211,9 +250,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
+            // Link to timeline segment so user can control visibility time range
+            var segment = _timelineViewModel?.CreateSegmentForElement("text", element.Name);
+            if (segment != null)
+                element.SegmentId = segment.Id;
+
             Elements.Add(element);
             SelectElement(element);
-            LogMessage($"Added Title element");
+            LogMessage($"Added Title element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
@@ -232,9 +276,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
+            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            if (segment != null)
+                element.SegmentId = segment.Id;
+
             Elements.Add(element);
             SelectElement(element);
-            LogMessage($"Added Logo element");
+            LogMessage($"Added Logo element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
@@ -253,10 +301,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
+            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            if (segment != null)
+                element.SegmentId = segment.Id;
+
             Elements.Add(element);
             SelectElement(element);
             EnsureVisualizerTimer();
-            LogMessage($"Added Visualizer element");
+            LogMessage($"Added Visualizer element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
@@ -275,9 +327,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
+            var segment = _timelineViewModel?.CreateSegmentForElement("visual", element.Name);
+            if (segment != null)
+                element.SegmentId = segment.Id;
+
             Elements.Add(element);
             SelectElement(element);
-            LogMessage($"Added Image element");
+            LogMessage($"Added Image element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
@@ -296,13 +352,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
+            var segment = _timelineViewModel?.CreateSegmentForElement("text", element.Name);
+            if (segment != null)
+                element.SegmentId = segment.Id;
+
             Elements.Add(element);
             SelectElement(element);
-            LogMessage($"Added Text element");
+            LogMessage($"Added Text element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
         /// Select an element on the canvas.
+        /// Notifies SelectionSyncService for canvas→timeline sync.
         /// </summary>
         public void SelectElement(CanvasElement? element)
         {
@@ -320,6 +381,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 PropertyEditor.SetSelectedElement(element);
                 if (element is VisualizerElement ve)
                     SyncVisualizerFromElement(ve);
+
+                // Notify sync service: canvas element selected → highlight segment on timeline
+                _selectionSyncService?.NotifyCanvasElementSelected(element.SegmentId);
+
                 LogMessage($"Selected: {element.Name}");
             }
             else
@@ -640,79 +705,167 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             var active = _timelineViewModel.GetActiveSegmentsAtTime(playheadSeconds);
-            var visualPair = active.FirstOrDefault(p => string.Equals(p.track.TrackType, "visual", StringComparison.OrdinalIgnoreCase));
-            var textPair = active.FirstOrDefault(p => string.Equals(p.track.TrackType, "text", StringComparison.OrdinalIgnoreCase));
 
-            ActiveVisualSegment = visualPair.segment;
-            ActiveTextSegment = textPair.segment;
+            // --- Collect ALL visual and text segments (multi-track composite) ---
+            // GetActiveSegmentsAtTime already filters by Track.IsVisible and sorts by Track.Order (0=front)
+            var visualPairs = new List<(Track track, Segment segment)>();
+            var textPairs = new List<(Track track, Segment segment)>();
 
-            ActiveTextContent = textPair.segment?.Text ?? string.Empty;
-            IsTextOverlayVisible = !string.IsNullOrWhiteSpace(ActiveTextContent);
-
-            // Try GPU-accelerated MediaElement first for video assets
-            if (visualPair.segment != null && !string.IsNullOrWhiteSpace(visualPair.segment.BackgroundAssetId))
+            foreach (var pair in active)
             {
-                var asset = FindAssetById(visualPair.segment.BackgroundAssetId);
-                
-                // Check if asset is a video (by Type or file extension)
-                bool isVideo = asset != null && 
-                    (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase) ||
-                     (!string.IsNullOrWhiteSpace(asset.FilePath) && 
-                      (asset.FilePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                       asset.FilePath.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) ||
-                       asset.FilePath.EndsWith(".mov", StringComparison.OrdinalIgnoreCase) ||
-                       asset.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
-                       asset.FilePath.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase))));
-                
-                if (isVideo)
+                if (string.Equals(pair.track.TrackType, "visual", StringComparison.OrdinalIgnoreCase))
+                    visualPairs.Add(pair);
+                else if (string.Equals(pair.track.TrackType, "text", StringComparison.OrdinalIgnoreCase))
+                    textPairs.Add(pair);
+                // Audio type segments are not visual — skip for preview rendering
+            }
+
+            // --- Multi-text composite: collect text from ALL active text tracks ---
+            ActiveTextOverlays.Clear();
+            foreach (var tp in textPairs)
+            {
+                if (!string.IsNullOrWhiteSpace(tp.segment.Text))
+                    ActiveTextOverlays.Add(tp.segment.Text);
+            }
+
+            // Legacy single-text properties (kept for backward compatibility)
+            var primaryTextPair = textPairs.Count > 0 ? textPairs[0] : default;
+            ActiveTextSegment = primaryTextPair.segment;
+            ActiveTextContent = string.Join("\n", ActiveTextOverlays);
+            IsTextOverlayVisible = ActiveTextOverlays.Count > 0;
+
+            // --- Multi-visual composite: iterate visual tracks by z-order ---
+            // Strategy: frontmost video → MediaElement; other images → BackgroundLayers
+            var primaryVisualPair = visualPairs.Count > 0 ? visualPairs[0] : default;
+            ActiveVisualSegment = primaryVisualPair.segment;
+
+            bool videoHandled = false;
+            BackgroundLayers.Clear();
+
+            // Try to find a video asset in the frontmost visual segment
+            if (primaryVisualPair.segment != null && !string.IsNullOrWhiteSpace(primaryVisualPair.segment.BackgroundAssetId))
+            {
+                var asset = FindAssetById(primaryVisualPair.segment.BackgroundAssetId);
+                if (asset != null && IsVideoAsset(asset))
                 {
-                    // Use MediaElement for smooth GPU-accelerated video preview
-                    if (!string.IsNullOrWhiteSpace(asset!.FilePath) && File.Exists(asset.FilePath))
+                    if (!string.IsNullOrWhiteSpace(asset.FilePath) && File.Exists(asset.FilePath))
                     {
                         try
                         {
                             var newUri = new Uri(asset.FilePath, UriKind.Absolute);
-                            // Only change Source if file changed (avoid reload on every scrub)
                             if (VideoSource?.LocalPath != newUri.LocalPath)
                             {
                                 VideoSource = newUri;
                                 Serilog.Log.Information("Video source CHANGED: {Path}", asset.FilePath);
                             }
-                            // Always update position for scrubbing
-                            var segmentOffset = playheadSeconds - visualPair.segment.StartTime;
+                            var segmentOffset = playheadSeconds - primaryVisualPair.segment.StartTime;
                             VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
                             IsVideoMode = true;
-                            IsVisualPlaceholderVisible = false;
-                            return;
+                            videoHandled = true;
                         }
                         catch (Exception ex)
                         {
                             Serilog.Log.Warning(ex, "Failed to set video source: {Path}", asset.FilePath);
                         }
                     }
-                    else
-                    {
-                        Serilog.Log.Warning("Video file not found or empty path: {Path}", asset?.FilePath);
-                    }
                 }
             }
 
-            // Fallback to static image for non-video assets
-            IsVideoMode = false;
-            VideoSource = null;
-            
-            BitmapSource? frame = null;
-            if (visualPair.segment != null && !string.IsNullOrWhiteSpace(visualPair.segment.BackgroundAssetId))
+            if (!videoHandled)
             {
-                var asset = FindAssetById(visualPair.segment.BackgroundAssetId);
-                if (asset != null)
+                IsVideoMode = false;
+                VideoSource = null;
+            }
+
+            // Load image layers for all visual segments (skip the one handled as video)
+            // Add from back to front: highest Order (background) first in collection
+            for (int i = visualPairs.Count - 1; i >= 0; i--)
+            {
+                var (track, segment) = visualPairs[i];
+
+                // If this is the primary video segment already handled by MediaElement, skip
+                if (videoHandled && i == 0)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+                    continue;
+
+                var layerAsset = FindAssetById(segment.BackgroundAssetId);
+                if (layerAsset == null)
+                    continue;
+
+                var layerFrame = LoadFrameForAsset(layerAsset, segment, playheadSeconds);
+                if (layerFrame != null)
+                    BackgroundLayers.Add(layerFrame);
+            }
+
+            // Legacy single-image property: set to frontmost non-video visual (or null)
+            if (!videoHandled && visualPairs.Count > 0)
+            {
+                var frontAsset = FindAssetById(primaryVisualPair.segment?.BackgroundAssetId);
+                ActiveVisualImage = frontAsset != null
+                    ? LoadFrameForAsset(frontAsset, primaryVisualPair.segment!, playheadSeconds)
+                    : null;
+            }
+            else if (!videoHandled)
+            {
+                ActiveVisualImage = null;
+            }
+
+            IsVisualPlaceholderVisible = ActiveVisualSegment == null && BackgroundLayers.Count == 0 && !IsVideoMode;
+            UpdateElementVisibility(active);
+        }
+
+        /// <summary>
+        /// Check if an asset is a video file (by Type or file extension).
+        /// </summary>
+        private static bool IsVideoAsset(Asset asset)
+        {
+            if (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (string.IsNullOrWhiteSpace(asset.FilePath))
+                return false;
+            return asset.FilePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                   asset.FilePath.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) ||
+                   asset.FilePath.EndsWith(".mov", StringComparison.OrdinalIgnoreCase) ||
+                   asset.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
+                   asset.FilePath.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Update visibility of canvas elements based on their SegmentId.
+        /// Elements with SegmentId=null are always visible (global overlays).
+        /// Elements with a SegmentId are only visible when that segment is active at the current playhead.
+        /// </summary>
+        private void UpdateElementVisibility(List<(Track track, Segment segment)> activeSegments)
+        {
+            if (Elements.Count == 0)
+                return;
+
+            // Build a set of active segment IDs for O(1) lookup
+            HashSet<string>? activeSegmentIds = null;
+            foreach (var (_, seg) in activeSegments)
+            {
+                if (seg != null)
                 {
-                    frame = LoadFrameForAsset(asset, visualPair.segment, playheadSeconds);
+                    activeSegmentIds ??= new HashSet<string>(StringComparer.Ordinal);
+                    activeSegmentIds.Add(seg.Id);
                 }
             }
 
-            ActiveVisualImage = frame;
-            IsVisualPlaceholderVisible = ActiveVisualSegment == null || ActiveVisualImage == null;
+            foreach (var element in Elements)
+            {
+                if (string.IsNullOrEmpty(element.SegmentId))
+                {
+                    // Global overlay — always visible
+                    element.IsVisible = true;
+                }
+                else
+                {
+                    // Segment-bound — visible only when segment is active
+                    element.IsVisible = activeSegmentIds != null && activeSegmentIds.Contains(element.SegmentId);
+                }
+            }
         }
 
         private Asset? FindAssetById(string? assetId)
@@ -869,6 +1022,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
             ActiveTextSegment = null;
             IsTextOverlayVisible = false;
             IsVisualPlaceholderVisible = true;
+            BackgroundLayers.Clear();
+            ActiveTextOverlays.Clear();
         }
 
         public void Dispose()
@@ -917,18 +1072,86 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Save canvas elements to the database via ProjectService.
+        /// Converts CanvasElements → Elements and replaces all elements in the project.
+        /// </summary>
+        public async Task SaveElementsAsync(ProjectService projectService)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+            {
+                LogMessage("No project loaded - cannot save elements");
+                return;
+            }
+
+            try
+            {
+                var projectId = _projectViewModel.CurrentProject.Id;
+                var dbElements = ElementMapper.ToElements(Elements, projectId);
+                await projectService.ReplaceElementsAsync(projectId, dbElements);
+                LogMessage($"Saved {dbElements.Count} element(s) to project");
+                Log.Information("Canvas elements saved: {Count} for project {ProjectId}", dbElements.Count, projectId);
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Error saving elements: {ex.Message}");
+                Log.Error(ex, "Error saving canvas elements");
+            }
+        }
+
+        /// <summary>
+        /// Load canvas elements from the current project's Elements collection.
+        /// Converts DB Elements → CanvasElements and populates the canvas.
+        /// </summary>
+        public void LoadElementsFromProject()
+        {
+            if (_projectViewModel?.CurrentProject == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var projectElements = _projectViewModel.CurrentProject.Elements;
+                if (projectElements == null || projectElements.Count == 0)
+                {
+                    Elements.Clear();
+                    SelectedElement = null;
+                    PropertyEditor.SetSelectedElement(null);
+                    return;
+                }
+
+                var canvasElements = ElementMapper.ToCanvasElements(projectElements);
+                Elements.Clear();
+                foreach (var ce in canvasElements)
+                    Elements.Add(ce);
+
+                SelectedElement = null;
+                PropertyEditor.SetSelectedElement(null);
+                EnsureVisualizerTimer();
+                LogMessage($"Loaded {canvasElements.Count} element(s) from project");
+                Log.Information("Canvas elements loaded: {Count} from project {ProjectId}",
+                    canvasElements.Count, _projectViewModel.CurrentProject.Id);
+            }
+            catch (Exception ex)
+            {
+                LogMessage($"Error loading elements: {ex.Message}");
+                Log.Error(ex, "Error loading canvas elements from project");
+            }
+        }
+
+        /// <summary>
         /// Export element list as JSON (for saving to database).
         /// </summary>
+        [Obsolete("Use SaveElementsAsync instead for proper DB persistence")]
         public string ExportAsJson()
         {
-            // Implementation: serialize Elements to JSON
-            // This will be used when saving project
             return System.Text.Json.JsonSerializer.Serialize(Elements);
         }
 
         /// <summary>
         /// Import elements from JSON.
         /// </summary>
+        [Obsolete("Use LoadElementsFromProject instead for proper DB persistence")]
         public void ImportFromJson(string json)
         {
             try

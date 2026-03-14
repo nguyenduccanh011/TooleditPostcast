@@ -22,6 +22,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly AudioService _audioService;
         private readonly ProjectViewModel _projectViewModel;
+        private SelectionSyncService? _selectionSyncService;
         private CancellationTokenSource? _playheadSyncCts;
         private bool _isPlayheadSyncing;
         private double _lastSyncedPlayhead = -1;
@@ -71,16 +72,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isDeferringThumbnailUpdate;
 
-        // ✅ NEW: Playback properties for toolbar controls
         [ObservableProperty]
         private bool isPlaying = false;
-
-        private AudioPlayerViewModel? _audioPlayerViewModel;
 
         private const int WaveformBinCount = 2400;
         private const int ActiveSyncIntervalMs = 33;
         private const int IdleSyncIntervalMs = 150;
         private int _audioPeaksLoadVersion;
+        // Cache for GetActiveSegmentsAtTime: avoid duplicate allocations within the same dispatch frame.
+        // CanvasViewModel and the audio playback loop both call this per frame.
+        private double _cachedActiveSegmentsTime = double.MinValue;
+        private List<(Track track, Segment segment)>? _cachedActiveSegments;
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
@@ -132,6 +134,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             try
             {
                 Tracks.Clear();
+                InvalidateActiveSegmentsCache();
                 SelectedTrack = null;
                 SelectedSegment = null;
 
@@ -168,6 +171,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Load waveform peaks only when audio is already loaded
                 if (_audioService.GetDuration() > 0)
                     _ = LoadAudioPeaksAsync();
+
+                // Enqueue async waveform peak loads for all audio segments
+                foreach (var track in Tracks)
+                    foreach (var seg in track.Segments)
+                        EnqueueSegmentPeakLoad(seg);
             }
             catch (Exception ex)
             {
@@ -210,6 +218,31 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_audioService.GetDuration() <= 0)
                 return Task.CompletedTask;
             return LoadAudioPeaksAsync();
+        }
+
+        /// <summary>
+        /// Enqueue an async background load of waveform peak data for an audio segment.
+        /// Non-blocking: sets Segment.WaveformPeaks on the UI thread when loading completes.
+        /// No-op if the segment has no audio asset.
+        /// </summary>
+        private void EnqueueSegmentPeakLoad(Segment segment)
+        {
+            if (string.IsNullOrEmpty(segment.BackgroundAssetId))
+                return;
+
+            var asset = _projectViewModel?.CurrentProject?.Assets?
+                .FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+
+            if (asset == null || string.IsNullOrEmpty(asset.FilePath)
+                || !string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var path = asset.FilePath;
+            _ = Task.Run(() =>
+            {
+                var peaks = AudioService.GetPeakSamplesFromFile(path, 200);
+                Application.Current?.Dispatcher.InvokeAsync(() => segment.WaveformPeaks = peaks);
+            });
         }
 
         /// <summary>
@@ -355,6 +388,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 targetTrack.Segments.Add(newSegment);
+                InvalidateActiveSegmentsCache();
                 SelectSegment(newSegment);
                 StatusMessage = targetTrack != SelectedTrack ? "Segment added to Visual 1" : "Segment added";
                 Log.Information("Segment added at {StartTime}s in track {TrackId}", newSegment.StartTime, targetTrack.Id);
@@ -381,12 +415,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                var targetTrack = SelectedTrack?.TrackType == "visual"
+                // Auto-route to correct track type based on asset type
+                string targetTrackType = string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase) ? "audio" : "visual";
+                string segmentKind = targetTrackType;
+
+                var targetTrack = (SelectedTrack != null && string.Equals(SelectedTrack.TrackType, targetTrackType, StringComparison.OrdinalIgnoreCase))
                     ? SelectedTrack
-                    : Tracks.FirstOrDefault(t => t.TrackType == "visual");
+                    : Tracks.FirstOrDefault(t => string.Equals(t.TrackType, targetTrackType, StringComparison.OrdinalIgnoreCase));
+
                 if (targetTrack == null)
                 {
-                    StatusMessage = "No visual track found";
+                    StatusMessage = $"No {targetTrackType} track found";
                     return;
                 }
 
@@ -394,19 +433,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (TotalDuration > 0 && endTime > TotalDuration)
                     endTime = TotalDuration;
 
-                var newSegment = new Segment
-                {
-                    ProjectId = _projectViewModel.CurrentProject.Id,
-                    TrackId = targetTrack.Id,
-                    StartTime = SnapToGrid(PlayheadPosition),
-                    EndTime = SnapToGrid(endTime),
-                    Text = asset.Name ?? "Segment",
-                    BackgroundAssetId = asset.Id,
-                    Kind = "visual",
-                    TransitionType = "fade",
-                    TransitionDuration = 0.5,
-                    Order = targetTrack.Segments.Count
-                };
+                var newSegment = BuildSegment(
+                    targetTrack,
+                    SnapToGrid(PlayheadPosition),
+                    SnapToGrid(endTime),
+                    segmentKind,
+                    asset.Name ?? "Segment",
+                    asset.Id);
 
                 if (newSegment.EndTime <= newSegment.StartTime)
                 {
@@ -420,7 +453,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 targetTrack.Segments.Add(newSegment);
+                InvalidateActiveSegmentsCache();
                 SelectSegment(newSegment);
+                EnqueueSegmentPeakLoad(newSegment);
                 StatusMessage = "Segment added with media";
                 Log.Information("Segment added with asset {AssetId} at {StartTime}s", asset.Id, newSegment.StartTime);
             }
@@ -432,7 +467,146 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         private bool CanAddSegmentWithAsset(Asset? asset) =>
-            asset != null && _projectViewModel.CurrentProject != null && Tracks.Any(t => t.TrackType == "visual");
+            asset != null && _projectViewModel.CurrentProject != null && Tracks.Count > 0;
+
+        /// <summary>
+        /// Create a Segment with standard defaults. Centralises Segment construction to avoid duplication.
+        /// </summary>
+        private Segment BuildSegment(Track track, double startTime, double endTime, string kind, string text, string? assetId = null)
+            => new Segment
+            {
+                ProjectId = _projectViewModel.CurrentProject!.Id,
+                TrackId = track.Id,
+                StartTime = startTime,
+                EndTime = endTime,
+                Text = text,
+                BackgroundAssetId = assetId,
+                Kind = kind,
+                TransitionType = "fade",
+                TransitionDuration = 0.5,
+                Order = track.Segments.Count
+            };
+
+        /// <summary>
+        /// Add a segment at a specific time position on a specific track, with an asset.
+        /// Used for drag-and-drop from asset panel to timeline.
+        /// Returns true if segment was added successfully.
+        /// </summary>
+        public bool AddSegmentAtPositionOnTrack(Track track, double timeSeconds, Asset asset)
+        {
+            if (_projectViewModel.CurrentProject == null || track == null || asset == null)
+                return false;
+
+            try
+            {
+                // Determine segment kind based on asset type and track type
+                string kind = string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase) ? "audio" : "visual";
+
+                // Determine duration: use asset duration if available, else default 5s
+                double duration = asset.Duration > 0 ? asset.Duration.Value : 5.0;
+                double startTime = SnapToGrid(Math.Max(0, timeSeconds));
+                double endTime = SnapToGrid(startTime + duration);
+
+                if (TotalDuration > 0 && endTime > TotalDuration)
+                    endTime = TotalDuration;
+
+                var newSegment = BuildSegment(
+                    track,
+                    startTime,
+                    endTime,
+                    kind,
+                    asset.Name ?? "Segment",
+                    asset.Id);
+
+                if (newSegment.EndTime <= newSegment.StartTime)
+                {
+                    StatusMessage = "No room at drop position";
+                    return false;
+                }
+
+                if (CheckCollisionInTrack(newSegment, track.Id))
+                {
+                    StatusMessage = "Segment would overlap with existing segment";
+                    return false;
+                }
+
+                track.Segments.Add(newSegment);
+                InvalidateActiveSegmentsCache();
+                SelectSegment(newSegment);
+                EnqueueSegmentPeakLoad(newSegment);
+                StatusMessage = $"Dropped '{asset.Name}' at {startTime:F2}s";
+                Log.Information("Segment dropped: asset {AssetId} at {StartTime}s on track {TrackId}", asset.Id, startTime, track.Id);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error dropping asset: {ex.Message}";
+                Log.Error(ex, "Error adding segment from drag-drop");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Check if an asset type is compatible with a track type.
+        /// Audio assets go to audio tracks, image/video to visual tracks.
+        /// </summary>
+        public static bool IsAssetCompatibleWithTrack(Asset asset, Track track)
+        {
+            if (asset == null || track == null)
+                return false;
+
+            var assetType = asset.Type?.ToLowerInvariant() ?? "";
+            var trackType = track.TrackType?.ToLowerInvariant() ?? "";
+
+            return trackType switch
+            {
+                "visual" => assetType is "image" or "video",
+                "audio" => assetType is "audio",
+                "text" => false, // Text segments created via script, not drag-drop
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// Create a segment on the appropriate track for a canvas element.
+        /// Returns the new Segment, or null if creation failed.
+        /// Used by CanvasViewModel to link elements to timeline segments.
+        /// </summary>
+        public Segment? CreateSegmentForElement(string trackType, string text, double duration = 5.0)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return null;
+
+            var targetTrack = Tracks.FirstOrDefault(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase));
+            if (targetTrack == null)
+            {
+                AddTrack(trackType);
+                targetTrack = Tracks.LastOrDefault(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase));
+                if (targetTrack == null)
+                    return null;
+            }
+
+            double startTime = SnapToGrid(PlayheadPosition);
+            double endTime = SnapToGrid(startTime + duration);
+            if (TotalDuration > 0 && endTime > TotalDuration)
+                endTime = TotalDuration;
+
+            var newSegment = BuildSegment(targetTrack, startTime, endTime, trackType, text);
+
+            if (newSegment.EndTime <= newSegment.StartTime)
+                return null;
+
+            if (CheckCollisionInTrack(newSegment, targetTrack.Id))
+            {
+                StatusMessage = $"Element segment overlaps existing segment";
+                return null;
+            }
+
+            targetTrack.Segments.Add(newSegment);
+            InvalidateActiveSegmentsCache();
+            Log.Information("Created element segment '{Text}' on {TrackType} track at {Start}s-{End}s", text, trackType, startTime, endTime);
+            return newSegment;
+        }
 
         /// <summary>
         /// Apply pasted script: parse [start → end] text, replace text track segments, persist (ST-3, multi-track).
@@ -534,13 +708,36 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
-        // ✅ NEW: Playback controls (wire to AudioPlayerViewModel)
         /// <summary>
-        /// Set audio player reference for playback control.
+        /// Set selection sync service for bidirectional canvas↔timeline selection.
         /// </summary>
-        public void SetAudioPlayerViewModel(AudioPlayerViewModel audioPlayerViewModel)
+        public void SetSelectionSyncService(SelectionSyncService selectionSyncService)
         {
-            _audioPlayerViewModel = audioPlayerViewModel;
+            _selectionSyncService = selectionSyncService;
+
+            // When canvas element is selected, highlight corresponding segment on timeline
+            _selectionSyncService.CanvasSelectionChanged += OnCanvasElementSelected;
+        }
+
+        private void OnCanvasElementSelected(string? segmentId)
+        {
+            if (string.IsNullOrEmpty(segmentId))
+                return;
+
+            // Find segment across all tracks
+            foreach (var track in Tracks)
+            {
+                foreach (var seg in track.Segments)
+                {
+                    if (string.Equals(seg.Id, segmentId, StringComparison.Ordinal))
+                    {
+                        SelectedSegment = seg;
+                        SelectedTrack = track;
+                        StatusMessage = $"Selected: {seg.Text}";
+                        return;
+                    }
+                }
+            }
         }
 
         // NOTE: Play/Pause/Stop commands have been moved to CanvasViewModel and AudioPlayerViewModel
@@ -567,6 +764,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 SelectedTrack.Segments.Remove(SelectedSegment);
+                InvalidateActiveSegmentsCache();
                 SelectedSegment = null;
                 StatusMessage = "Segment deleted";
                 Log.Information("Segment deleted from track {TrackId}", SelectedTrack.Id);
@@ -599,14 +797,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 var original = SelectedSegment;
-                var offset = original.EndTime - original.StartTime + 0.5; // Original duration + 0.5s gap
+                double duration = original.EndTime - original.StartTime;
 
                 var duplicate = new Segment
                 {
                     ProjectId = original.ProjectId,
                     TrackId = original.TrackId,
                     StartTime = SnapToGrid(original.EndTime + 0.5),
-                    EndTime = SnapToGrid(original.EndTime + 0.5 + offset),
+                    EndTime = SnapToGrid(original.EndTime + 0.5 + duration),
                     Text = original.Text + " (Copy)",
                     Kind = original.Kind,
                     BackgroundAssetId = original.BackgroundAssetId,
@@ -622,6 +820,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 SelectedTrack.Segments.Add(duplicate);
+                InvalidateActiveSegmentsCache();
                 SelectSegment(duplicate);
                 StatusMessage = "Segment duplicated";
                 Log.Information("Segment duplicated in track {TrackId}", SelectedTrack.Id);
@@ -631,6 +830,132 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 StatusMessage = $"Error duplicating segment: {ex.Message}";
                 Log.Error(ex, "Error duplicating segment");
             }
+        }
+
+        /// <summary>
+        /// Split the selected segment at the current playhead position (Ctrl+B).
+        /// Creates two segments: [original.Start → playhead] and [playhead → original.End].
+        /// </summary>
+        [RelayCommand]
+        public void SplitSelectedSegmentAtPlayhead()
+        {
+            try
+            {
+                if (SelectedSegment == null)
+                {
+                    StatusMessage = "No segment selected";
+                    return;
+                }
+
+                if (SelectedTrack == null)
+                {
+                    StatusMessage = "No track context";
+                    return;
+                }
+
+                var segment = SelectedSegment;
+                var splitTime = SnapToGrid(PlayheadPosition);
+
+                // Validate: playhead must be inside segment (with margin)
+                const double margin = 0.05; // 50ms minimum segment duration
+                if (splitTime <= segment.StartTime + margin || splitTime >= segment.EndTime - margin)
+                {
+                    StatusMessage = "Playhead must be inside the segment to split";
+                    return;
+                }
+
+                // Create the right half (new segment)
+                var rightHalf = new Segment
+                {
+                    ProjectId = segment.ProjectId,
+                    TrackId = segment.TrackId,
+                    StartTime = splitTime,
+                    EndTime = segment.EndTime,
+                    Text = segment.Text,
+                    Kind = segment.Kind,
+                    BackgroundAssetId = segment.BackgroundAssetId,
+                    TransitionType = segment.TransitionType,
+                    TransitionDuration = segment.TransitionDuration,
+                    Volume = segment.Volume,
+                    FadeInDuration = 0, // Right half starts clean
+                    FadeOutDuration = segment.FadeOutDuration,
+                    Order = SelectedTrack.Segments.Count
+                };
+
+                // Trim the left half (modify existing segment)
+                segment.EndTime = splitTime;
+                segment.FadeOutDuration = 0; // Left half ends clean
+
+                // Add right half to the track
+                SelectedTrack.Segments.Add(rightHalf);
+                InvalidateActiveSegmentsCache();
+                SelectSegment(rightHalf);
+                StatusMessage = $"Segment split at {splitTime:F2}s";
+                Log.Information("Segment split at {SplitTime}s in track {TrackId}", splitTime, SelectedTrack.Id);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error splitting segment: {ex.Message}";
+                Log.Error(ex, "Error splitting segment");
+            }
+        }
+
+        /// <summary>
+        /// Add a new track of the specified type to the project.
+        /// </summary>
+        public void AddTrack(string trackType, string? name = null)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return;
+
+            var maxOrder = Tracks.Count > 0 ? Tracks.Max(t => t.Order) + 1 : 0;
+            var typeName = trackType switch
+            {
+                "text" => "Text",
+                "visual" => "Visual",
+                "audio" => "Audio",
+                _ => trackType
+            };
+
+            var track = new Track
+            {
+                ProjectId = _projectViewModel.CurrentProject.Id,
+                Order = maxOrder,
+                TrackType = trackType,
+                Name = name ?? $"{typeName} {Tracks.Count(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase)) + 1}",
+                IsVisible = true,
+                IsLocked = false
+            };
+
+            Tracks.Add(track);
+            StatusMessage = $"Added track: {track.Name}";
+            Log.Information("Track added: {Name} ({Type}) at Order {Order}", track.Name, trackType, maxOrder);
+        }
+
+        /// <summary>
+        /// Remove a track (must be empty — no segments). Audio tracks with waveform-only are removable.
+        /// </summary>
+        public bool RemoveTrack(Track track)
+        {
+            if (track == null)
+                return false;
+
+            if (track.Segments != null && track.Segments.Count > 0)
+            {
+                StatusMessage = "Cannot remove track with segments. Delete segments first.";
+                return false;
+            }
+
+            Tracks.Remove(track);
+
+            // Re-index remaining track orders
+            int order = 0;
+            foreach (var t in Tracks.OrderBy(t => t.Order))
+                t.Order = order++;
+
+            StatusMessage = $"Removed track: {track.Name}";
+            Log.Information("Track removed: {Name} ({Type})", track.Name, track.TrackType);
+            return true;
         }
 
         /// <summary>
@@ -833,6 +1158,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Select a segment for editing and set its track as selected.
+        /// Notifies SelectionSyncService for canvas↔timeline sync.
         /// </summary>
         public void SelectSegment(Segment segment)
         {
@@ -844,42 +1170,56 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 SelectedTrack = Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
             }
             
+            // Notify selection sync: check if playhead is within segment bounds
+            bool playheadInRange = PlayheadPosition >= segment.StartTime && PlayheadPosition < segment.EndTime;
+            _selectionSyncService?.NotifyTimelineSegmentSelected(segment.Id, playheadInRange);
+            
             StatusMessage = $"Selected: {segment.Text}";
         }
 
         /// <summary>
         /// Get active segments at the given time across all tracks, ordered by track.Order (top to bottom).
+        /// Results are cached per exact playhead time: safe within a single UI dispatch frame.
+        /// Callers must not mutate the returned list.
         /// </summary>
-        // Reusable list to avoid allocation on every scrub tick
-        private readonly List<(Track track, Segment segment)> _activeSegmentsBuffer = new(8);
-
         public List<(Track track, Segment segment)> GetActiveSegmentsAtTime(double timeSeconds)
         {
-            _activeSegmentsBuffer.Clear();
+            // Return cached result when called multiple times for the same position (e.g. canvas + audio per frame)
+            if (_cachedActiveSegments != null && timeSeconds == _cachedActiveSegmentsTime)
+                return _cachedActiveSegments;
+
+            var result = new List<(Track track, Segment segment)>(4);
 
             foreach (var track in Tracks)
             {
-                if (track.Segments == null)
+                if (track.Segments == null || !track.IsVisible)
                     continue;
 
                 foreach (var s in track.Segments)
                 {
                     if (s.StartTime <= timeSeconds && timeSeconds < s.EndTime)
                     {
-                        _activeSegmentsBuffer.Add((track, s));
+                        result.Add((track, s));
                         break; // Only one active segment per track
                     }
                 }
             }
 
             // Sort only if more than 1 result (common case: 1-2 tracks)
-            if (_activeSegmentsBuffer.Count > 1)
-                _activeSegmentsBuffer.Sort((a, b) => a.track.Order != b.track.Order
+            if (result.Count > 1)
+                result.Sort((a, b) => a.track.Order != b.track.Order
                     ? a.track.Order.CompareTo(b.track.Order)
                     : a.segment.StartTime.CompareTo(b.segment.StartTime));
 
-            return _activeSegmentsBuffer;
+            _cachedActiveSegmentsTime = timeSeconds;
+            _cachedActiveSegments = result;
+            return result;
         }
+
+        /// <summary>
+        /// Invalidate the active segments cache. Call when tracks or segments change.
+        /// </summary>
+        private void InvalidateActiveSegmentsCache() => _cachedActiveSegments = null;
 
         /// <summary>
         /// Seek playhead (and audio) to the specified position in seconds.
@@ -948,12 +1288,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                             continue;
                         }
                         _lastSyncedPlayhead = currentPosition;
-                        
-                        // Update on UI thread with Background priority to not block user interactions
-                        // This makes the UI feel more responsive
-                        await Application.Current.Dispatcher.InvokeAsync(() =>
+
+                        var app = Application.Current;
+                        if (app == null) break;
+                        await app.Dispatcher.InvokeAsync(() =>
                         {
                             PlayheadPosition = currentPosition;
+                            UpdateSegmentAudioPlayback(currentPosition);
                         }, System.Windows.Threading.DispatcherPriority.Background);
                         
                         await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
@@ -980,7 +1321,98 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _isPlayheadSyncing = false;
             _playheadSyncCts?.Cancel();
             _playheadSyncCts?.Dispose();
+            _audioService.StopSegmentAudio();
             Log.Information("Playhead sync stopped");
+        }
+
+        /// <summary>
+        /// Check active audio segments at current playhead and play/stop segment audio accordingly.
+        /// Called from playhead sync loop during playback.
+        /// </summary>
+        private void UpdateSegmentAudioPlayback(double playheadSeconds)
+        {
+            try
+            {
+                var activeSegments = GetActiveSegmentsAtTime(playheadSeconds);
+
+                // Find first active audio segment
+                Segment? audioSegment = null;
+                Track? audioTrack = null;
+                foreach (var (track, segment) in activeSegments)
+                {
+                    if (string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrEmpty(segment.BackgroundAssetId))
+                    {
+                        audioSegment = segment;
+                        audioTrack = track;
+                        break;
+                    }
+                }
+
+                if (audioSegment == null)
+                {
+                    // No active audio segment — stop any playing segment audio
+                    if (_audioService.CurrentSegmentId != null)
+                    {
+                        Log.Debug("No active audio segment at {Time}s, stopping segment audio", playheadSeconds);
+                        _audioService.StopSegmentAudio();
+                    }
+                    return;
+                }
+
+                // Find asset file path
+                var asset = _projectViewModel?.CurrentProject?.Assets?
+                    .FirstOrDefault(a => a.Id == audioSegment.BackgroundAssetId);
+                if (asset == null || string.IsNullOrEmpty(asset.FilePath))
+                {
+                    Log.Debug("Audio segment {SegId} has no asset (AssetId={AssetId}, AssetsCount={Count})",
+                        audioSegment.Id, audioSegment.BackgroundAssetId,
+                        _projectViewModel?.CurrentProject?.Assets?.Count ?? -1);
+                    _audioService.StopSegmentAudio();
+                    return;
+                }
+
+                // Calculate volume with fade in/out
+                float volume = CalculateSegmentVolume(audioSegment, playheadSeconds);
+
+                // Play or update segment audio
+                _audioService.PlaySegmentAudio(
+                    audioSegment.Id,
+                    asset.FilePath,
+                    audioSegment.StartTime,
+                    playheadSeconds,
+                    volume);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error in segment audio playback update");
+            }
+        }
+
+        /// <summary>
+        /// Calculate effective volume for a segment at a given time, applying fade in/out curves.
+        /// </summary>
+        private static float CalculateSegmentVolume(Segment segment, double playheadSeconds)
+        {
+            float baseVolume = (float)segment.Volume;
+            double elapsed = playheadSeconds - segment.StartTime;
+            double remaining = segment.EndTime - playheadSeconds;
+
+            // Fade in
+            if (segment.FadeInDuration > 0 && elapsed < segment.FadeInDuration)
+            {
+                float fadeRatio = (float)(elapsed / segment.FadeInDuration);
+                baseVolume *= fadeRatio;
+            }
+
+            // Fade out
+            if (segment.FadeOutDuration > 0 && remaining < segment.FadeOutDuration)
+            {
+                float fadeRatio = (float)(remaining / segment.FadeOutDuration);
+                baseVolume *= fadeRatio;
+            }
+
+            return Math.Clamp(baseVolume, 0f, 1f);
         }
 
         /// <summary>

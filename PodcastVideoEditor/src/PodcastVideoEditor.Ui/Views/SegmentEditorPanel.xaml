@@ -116,9 +116,73 @@
                               TextAlignment="Right" VerticalAlignment="Center"/>
                 </Grid>
 
+                <!-- Volume -->
+                <TextBlock Text="Volume:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="70"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                           Value="{Binding SelectedSegment.Volume, UpdateSourceTrigger=PropertyChanged}"
+                           Minimum="0.0" Maximum="1.0"
+                           SmallChange="0.05" LargeChange="0.1"
+                           IsMoveToPointEnabled="True"
+                           Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1"
+                              Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
+                              TextAlignment="Right" VerticalAlignment="Center">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:P0}">
+                                <Binding Path="SelectedSegment.Volume"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </Grid>
+
+                <!-- Fade In -->
+                <TextBlock Text="Fade In:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="70"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                           Value="{Binding SelectedSegment.FadeInDuration, UpdateSourceTrigger=PropertyChanged}"
+                           Minimum="0.0" Maximum="5.0"
+                           SmallChange="0.1" LargeChange="0.5"
+                           IsMoveToPointEnabled="True"
+                           Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1"
+                              Text="{Binding SelectedSegment.FadeInDuration, Converter={StaticResource TransitionDurationConverter}}"
+                              Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
+                              TextAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Fade Out -->
+                <TextBlock Text="Fade Out:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <Grid Margin="0,0,0,15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="70"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                           Value="{Binding SelectedSegment.FadeOutDuration, UpdateSourceTrigger=PropertyChanged}"
+                           Minimum="0.0" Maximum="5.0"
+                           SmallChange="0.1" LargeChange="0.5"
+                           IsMoveToPointEnabled="True"
+                           Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
+                    <TextBlock Grid.Column="1"
+                              Text="{Binding SelectedSegment.FadeOutDuration, Converter={StaticResource TransitionDurationConverter}}"
+                              Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
+                              TextAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
                 <!-- Action Buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Duplicate Min" Command="{Binding DuplicateSelectedSegmentCommand}"
+                    <Button Content="Split (Ctrl+B)" Command="{Binding SplitSelectedSegmentAtPlayheadCommand}"
+                           Background="#007acc" Foreground="White" Padding="10,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+                    <Button Content="Duplicate" Command="{Binding DuplicateSelectedSegmentCommand}"
                            Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
                     <Button Content="Delete" Command="{Binding DeleteSelectedSegmentCommand}"
                            Background="#e53935" Foreground="White" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>

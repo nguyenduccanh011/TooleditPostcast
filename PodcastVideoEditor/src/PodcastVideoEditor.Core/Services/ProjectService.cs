@@ -395,6 +395,38 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
+        /// Replace all elements of a project with a new list (for canvas save).
+        /// Old elements are removed and new ones inserted in a single transaction.
+        /// </summary>
+        public async Task ReplaceElementsAsync(string projectId, IEnumerable<Element> newElements)
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
+
+            try
+            {
+                var oldElements = _context.Elements.Where(e => e.ProjectId == projectId).ToList();
+                foreach (var el in oldElements)
+                    _context.Elements.Remove(el);
+
+                var elementList = newElements.ToList();
+                foreach (var el in elementList)
+                {
+                    el.ProjectId = projectId;
+                    _context.Elements.Add(el);
+                }
+
+                await _context.SaveChangesAsync();
+                Log.Information("Replaced elements for project {ProjectId}: {Count} elements", projectId, elementList.Count);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error replacing elements for project {ProjectId}", projectId);
+                throw;
+            }
+        }
+
+        /// <summary>
         /// Update project.
         /// </summary>
         public async Task<Project> UpdateProjectAsync(Project project)

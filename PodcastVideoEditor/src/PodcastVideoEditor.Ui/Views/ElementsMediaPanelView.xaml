@@ -4,49 +4,151 @@
              Background="#1e1e1e"
              Foreground="#e0e0e0">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="8">
-            <TextBlock Text="Elements / Media" FontSize="14" FontWeight="Bold" Foreground="#64b5f6" Margin="0,0,0,10"/>
-
-            <!-- Script -->
-            <Expander Header="Script (dán định dạng [start → end] text)" IsExpanded="False"
-                      Background="#2d2d2d" Foreground="#e0e0e0" Margin="0,0,0,10">
-                <StackPanel Margin="8">
-                    <TextBox Text="{Binding TimelineViewModel.ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
-                             Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
-                             BorderBrush="#546e7a" BorderThickness="1"
-                             TextWrapping="Wrap" AcceptsReturn="True" Height="100" VerticalScrollBarVisibility="Auto"
-                             VerticalContentAlignment="Top"
-                             ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
-                    <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
-                            HorizontalAlignment="Left" Margin="0,8,0,0"
-                            Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
-                </StackPanel>
-            </Expander>
-
-            <!-- Media (project assets) -->
-            <TextBlock Text="Media" FontSize="12" FontWeight="SemiBold" Foreground="#b0bec5" Margin="0,4,0,6"/>
-            <ItemsControl x:Name="MediaList" ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="#2d2d2d" BorderBrush="#546e7a" BorderThickness="1" Padding="8" Margin="0,0,0,6">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#e0e0e0" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
-                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
-                                    <Button Content="Thêm vào timeline"
-                                            Command="{Binding DataContext.TimelineViewModel.AddSegmentWithAssetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Background="#43a047" Foreground="White" Padding="8,4" FontSize="11" Cursor="Hand"/>
-                                </StackPanel>
-                            </Grid>
+    <UserControl.Resources>
+        <!-- Tab header style (CapCut-like compact) -->
+        <Style x:Key="PanelTabItem" TargetType="TabItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#8a9aa8"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}" Cursor="Hand">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
                         </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
-    </ScrollViewer>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#2d3a4a"/>
+                                <Setter Property="Foreground" Value="#64b5f6"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#2a2d2e"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Asset item template (reused across tabs) -->
+        <DataTemplate x:Key="AssetItemTemplate">
+            <Border Background="#2d2d2d" BorderBrush="#546e7a" BorderThickness="1" Padding="8" Margin="0,0,0,6"
+                    MouseMove="AssetItem_MouseMove" MouseLeftButtonDown="AssetItem_MouseLeftButtonDown"
+                    Cursor="Hand" Tag="{Binding}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#e0e0e0" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                    <TextBlock Grid.Row="1" Foreground="#78909c" FontSize="10" Margin="0,2,0,0">
+                        <Run Text="{Binding Type, Mode=OneWay}"/>
+                        <Run Text=" · Kéo thả vào timeline"/>
+                    </TextBlock>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Thêm vào timeline"
+                                Command="{Binding DataContext.TimelineViewModel.AddSegmentWithAssetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}"
+                                Background="#43a047" Foreground="White" Padding="8,4" FontSize="11" Cursor="Hand"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Text="Elements / Media" FontSize="14" FontWeight="Bold" Foreground="#64b5f6" Margin="8,8,8,4"/>
+
+        <!-- Tab-based panel (CapCut-style: Media | Audio | Text | Script) -->
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
+                    Padding="0" Margin="0">
+            <TabControl.Resources>
+                <Style TargetType="TabItem" BasedOn="{StaticResource PanelTabItem}"/>
+            </TabControl.Resources>
+
+            <!-- Tab 1: Media (Image/Video assets) -->
+            <TabItem Header="Media">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,0">
+                        <TextBlock Text="Hình ảnh / Video" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <ItemsControl x:Name="MediaAssetsList"
+                                      ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}"
+                                      ItemTemplate="{StaticResource AssetItemTemplate}">
+                            <!-- Filtered in code-behind to Image/Video only -->
+                        </ItemsControl>
+                        <TextBlock x:Name="NoMediaText" Text="Chưa có media. Import từ Segment Properties."
+                                   Foreground="#546e7a" FontStyle="Italic" Margin="0,8,0,0"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 2: Audio (Audio assets) -->
+            <TabItem Header="Audio">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,0">
+                        <TextBlock Text="Audio clips" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <ItemsControl x:Name="AudioAssetsList"
+                                      ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}"
+                                      ItemTemplate="{StaticResource AssetItemTemplate}">
+                            <!-- Filtered in code-behind to Audio only -->
+                        </ItemsControl>
+                        <Button Content="Import Audio"
+                                Click="ImportAudioButton_Click"
+                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,8,0,0"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 3: Visual (All overlay elements) -->
+            <TabItem Header="Visual">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,0">
+                        <TextBlock Text="Text Elements" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <Button Content="+ Title" Command="{Binding CanvasViewModel.AddTitleElementCommand}"
+                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                        <Button Content="+ Text" Command="{Binding CanvasViewModel.AddTextElementCommand}"
+                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+
+                        <TextBlock Text="Visual Elements" Foreground="#b0bec5" FontSize="11" Margin="0,10,0,6"/>
+                        <Button Content="+ Logo" Command="{Binding CanvasViewModel.AddLogoElementCommand}"
+                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                        <Button Content="+ Image" Command="{Binding CanvasViewModel.AddImageElementCommand}"
+                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                        <Button Content="+ Visualizer" Command="{Binding CanvasViewModel.AddVisualizerElementCommand}"
+                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 4: Script (paste-format editor) -->
+            <TabItem Header="Script">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,0">
+                        <TextBlock Text="Script (dán định dạng [start → end] text)" Foreground="#b0bec5" FontSize="11"
+                                   TextWrapping="Wrap" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding TimelineViewModel.ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
+                                 BorderBrush="#546e7a" BorderThickness="1"
+                                 TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top"
+                                 ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
+                        <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"
+                                Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
 </UserControl>

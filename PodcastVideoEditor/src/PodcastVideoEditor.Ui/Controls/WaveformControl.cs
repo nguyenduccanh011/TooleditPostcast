@@ -12,7 +12,7 @@ namespace PodcastVideoEditor.Ui.Controls
         public static readonly DependencyProperty PeaksProperty =
             DependencyProperty.Register(
                 nameof(Peaks),
-                typeof(float[]),
+                typeof(object),  // Must be object: float[] typed DP causes MC4102 in DataTemplate bindings
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(Array.Empty<float>(), FrameworkPropertyMetadataOptions.AffectsRender, OnPeaksChanged));
 
@@ -30,9 +30,10 @@ namespace PodcastVideoEditor.Ui.Controls
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(60.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
 
-        public float[] Peaks
+        /// <remarks>Typed as <c>object</c> for WPF XAML DataTemplate compat (see MC4102). Only float[] values are meaningful.</remarks>
+        public object Peaks
         {
-            get => (float[])GetValue(PeaksProperty);
+            get => GetValue(PeaksProperty);
             set => SetValue(PeaksProperty, value);
         }
 
@@ -98,9 +99,11 @@ namespace PodcastVideoEditor.Ui.Controls
             }
         }
 
+        private float[] GetPeaksArray() => Peaks as float[] ?? Array.Empty<float>();
+
         private bool IsCacheInvalid(double width, double height)
         {
-            if (_cache == null || _cachedPeaks != Peaks)
+            if (_cache == null || _cachedPeaks != GetPeaksArray())
                 return true;
             if (Math.Abs(_cachedWidth - width) > 0.1 || Math.Abs(_cachedHeight - height) > 0.1)
                 return true;
@@ -118,33 +121,39 @@ namespace PodcastVideoEditor.Ui.Controls
 
         private void RebuildCache(double width, double height)
         {
-            var peaks = Peaks ?? Array.Empty<float>();
+            var peaks = GetPeaksArray();
             var group = new DrawingGroup();
 
             using (var dc = group.Open())
             {
-                if (peaks.Length == 0)
-                {
-                    // nothing to draw
-                }
-                else
+                if (peaks.Length > 0)
                 {
                     int count = peaks.Length;
                     double maxBarHeight = Math.Max(1, height - 4);
-                    double barWidth = Math.Max(0.3, (width / count) - 0.2);
+                    double slotWidth = width / count;
+                    double barWidth = Math.Max(0.3, slotWidth - 0.2);
 
-                    for (int i = 0; i < count; i++)
+                    // Use StreamGeometry: one path for all bars — much faster than N DrawRectangle calls
+                    var geo = new StreamGeometry();
+                    using (var ctx = geo.Open())
                     {
-                        float p = peaks[i];
-                        if (p <= 0)
-                            continue;
-                        if (p > 1f)
-                            p = 1f;
-                        double h = p * maxBarHeight;
-                        double x = i * (width / count);
-                        var rect = new Rect(x, height - h, barWidth, h);
-                        dc.DrawRectangle(WaveBrush, null, rect);
+                        for (int i = 0; i < count; i++)
+                        {
+                            float p = peaks[i];
+                            if (p <= 0)
+                                continue;
+                            if (p > 1f)
+                                p = 1f;
+                            double h = p * maxBarHeight;
+                            double x = i * slotWidth;
+                            ctx.BeginFigure(new Point(x, height), true, true);
+                            ctx.LineTo(new Point(x + barWidth, height), false, false);
+                            ctx.LineTo(new Point(x + barWidth, height - h), false, false);
+                            ctx.LineTo(new Point(x, height - h), false, false);
+                        }
                     }
+                    geo.Freeze();
+                    dc.DrawGeometry(WaveBrush, null, geo);
                 }
             }
 

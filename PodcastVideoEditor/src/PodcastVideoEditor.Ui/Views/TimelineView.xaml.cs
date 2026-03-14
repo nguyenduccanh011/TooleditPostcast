@@ -229,7 +229,7 @@ namespace PodcastVideoEditor.Ui.Views
                         continue;
 
                     var track = TracksItemsControl.Items[trackIndex] as PodcastVideoEditor.Core.Models.Track;
-                    if (track == null || track.TrackType == "audio")
+                    if (track == null)
                         continue;
                     double trackHeight = TrackHeightConverter.GetHeight(track.TrackType);
 
@@ -316,8 +316,9 @@ namespace PodcastVideoEditor.Ui.Views
                         if (presenter.Content is not Segment segment)
                             continue;
 
-                        var segmentFill = presenter.ContentTemplate?.FindName("SegmentFill", presenter) as Border
-                            ?? FindVisualChild<Border>(presenter);
+                        if (presenter.ContentTemplate == null)
+                            continue;
+                        var segmentFill = presenter.ContentTemplate.FindName("SegmentFill", presenter) as Border;
                         if (segmentFill == null)
                             continue;
 
@@ -743,6 +744,127 @@ namespace PodcastVideoEditor.Ui.Views
                 dep = VisualTreeHelper.GetParent(dep);
             }
             return false;
+        }
+
+        // ─── Drag-and-Drop from Asset Panel ───
+
+        private static readonly SolidColorBrush _dropHighlightBrush;
+        private static readonly SolidColorBrush _dropInvalidBrush;
+        private static readonly SolidColorBrush _trackNormalBg;
+
+        static TimelineView()
+        {
+            _dropHighlightBrush = new SolidColorBrush(Color.FromArgb(0x40, 0x43, 0xa0, 0x47)); // green tint
+            _dropInvalidBrush = new SolidColorBrush(Color.FromArgb(0x40, 0xe5, 0x39, 0x35));   // red tint
+            _trackNormalBg = new SolidColorBrush(Color.FromRgb(0x2d, 0x2d, 0x2d));
+            _dropHighlightBrush.Freeze();
+            _dropInvalidBrush.Freeze();
+            _trackNormalBg.Freeze();
+        }
+
+        /// <summary>
+        /// Validate drag-over on a track canvas. Shows visual feedback for compatible/incompatible drops.
+        /// </summary>
+        private void TrackCanvas_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+
+            if (!e.Data.GetDataPresent("PVE_Asset"))
+                return;
+
+            if (sender is not Canvas canvas)
+                return;
+
+            var track = canvas.DataContext as PodcastVideoEditor.Core.Models.Track;
+            var asset = e.Data.GetData("PVE_Asset") as Asset;
+
+            if (track == null || asset == null)
+                return;
+
+            if (TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
+            {
+                e.Effects = DragDropEffects.Copy;
+                canvas.Background = _dropHighlightBrush;
+            }
+            else
+            {
+                canvas.Background = _dropInvalidBrush;
+            }
+
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Reset visual highlight when drag leaves the track.
+        /// </summary>
+        private void TrackCanvas_DragLeave(object sender, DragEventArgs e)
+        {
+            if (sender is Canvas canvas)
+                canvas.Background = _trackNormalBg;
+        }
+
+        /// <summary>
+        /// Handle drop of an asset onto a track canvas. Creates a new segment at the drop position.
+        /// </summary>
+        private void TrackCanvas_Drop(object sender, DragEventArgs e)
+        {
+            if (sender is Canvas canvas)
+                canvas.Background = _trackNormalBg;
+
+            if (_viewModel == null)
+                return;
+
+            if (!e.Data.GetDataPresent("PVE_Asset"))
+                return;
+
+            var track = (sender as Canvas)?.DataContext as PodcastVideoEditor.Core.Models.Track;
+            var asset = e.Data.GetData("PVE_Asset") as Asset;
+
+            if (track == null || asset == null)
+                return;
+
+            if (!TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
+                return;
+
+            // Calculate drop time from pixel position
+            var dropPoint = e.GetPosition(sender as IInputElement);
+            double dropTimeSeconds = _viewModel.PixelsToTime(Math.Max(0, dropPoint.X));
+
+            bool added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, asset);
+            if (added)
+            {
+                UpdateSegmentLayout();
+                UpdateSegmentSelection();
+            }
+
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Show context menu to add a new track of the selected type.
+        /// </summary>
+        private void AddTrack_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null)
+                return;
+
+            var menu = new System.Windows.Controls.ContextMenu();
+            var addVisual = new System.Windows.Controls.MenuItem { Header = "Visual Track" };
+            addVisual.Click += (_, _) => _viewModel.AddTrack("visual");
+            var addText = new System.Windows.Controls.MenuItem { Header = "Text Track" };
+            addText.Click += (_, _) => _viewModel.AddTrack("text");
+            var addAudio = new System.Windows.Controls.MenuItem { Header = "Audio Track" };
+            addAudio.Click += (_, _) => _viewModel.AddTrack("audio");
+
+            menu.Items.Add(addVisual);
+            menu.Items.Add(addText);
+            menu.Items.Add(addAudio);
+
+            if (sender is FrameworkElement btn)
+            {
+                menu.PlacementTarget = btn;
+                menu.IsOpen = true;
+            }
         }
     }
 }

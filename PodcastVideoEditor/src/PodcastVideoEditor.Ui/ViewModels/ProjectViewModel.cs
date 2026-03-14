@@ -207,6 +207,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     }
                     _renderViewModel.ApplyProjectRenderSettings(loadedProject.RenderSettings);
 
+                    // Load canvas elements from project DB data
+                    _canvasViewModel.LoadElementsFromProject();
+
                     StatusMessage = $"Project opened: {loadedProject.Name}";
                     Log.Information("Project opened: {ProjectId} - {ProjectName}", loadedProject.Id, loadedProject.Name);
                     
@@ -275,6 +278,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
                 }
                 CurrentProject.RenderSettings = _renderViewModel.BuildProjectRenderSettings();
+
+                // Save canvas elements to DB
+                await _canvasViewModel.SaveElementsAsync(_projectService);
 
                 await _projectService.UpdateProjectAsync(CurrentProject);
                 StatusMessage = $"Project '{CurrentProject.Name}' saved successfully";

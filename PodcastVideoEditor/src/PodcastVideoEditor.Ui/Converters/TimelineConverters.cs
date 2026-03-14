@@ -667,4 +667,46 @@ namespace PodcastVideoEditor.Ui.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Converts segment Kind to Visibility. Returns Visible when Kind equals the parameter string, Collapsed otherwise.
+    /// Usage: Converter={StaticResource KindToVisibilityConverter}, ConverterParameter=audio
+    /// </summary>
+    public class KindToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var kind = value as string ?? "";
+            var target = parameter as string ?? "";
+            return string.Equals(kind, target, StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    /// <summary>
+    /// Inverse of KindToVisibilityConverter: Returns Collapsed when Kind equals the parameter, Visible otherwise.
+    /// Usage: Converter={StaticResource KindToVisibilityInverseConverter}, ConverterParameter=audio
+    /// </summary>
+    public class KindToVisibilityInverseConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var kind = value as string ?? "";
+            var target = parameter as string ?? "";
+            return string.Equals(kind, target, StringComparison.OrdinalIgnoreCase)
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

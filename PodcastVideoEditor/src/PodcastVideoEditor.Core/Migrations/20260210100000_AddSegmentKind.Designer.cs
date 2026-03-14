@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PodcastVideoEditor.Core.Database;
 
@@ -10,9 +11,11 @@ using PodcastVideoEditor.Core.Database;
 namespace PodcastVideoEditor.Core.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260210100000_AddSegmentKind")]
+    partial class AddSegmentKind
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.2");
@@ -136,9 +139,6 @@ namespace PodcastVideoEditor.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("SegmentId")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("PropertiesJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -166,9 +166,6 @@ namespace PodcastVideoEditor.Core.Migrations
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("IX_Element_ProjectId");
-
-                    b.HasIndex("SegmentId")
-                        .HasDatabaseName("IX_Element_SegmentId");
 
                     b.ToTable("Elements");
                 });
@@ -230,9 +227,6 @@ namespace PodcastVideoEditor.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TrackId")
-                        .HasColumnType("TEXT");
-
                     b.Property<double>("TransitionDuration")
                         .HasColumnType("REAL");
 
@@ -240,22 +234,10 @@ namespace PodcastVideoEditor.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<double>("Volume")
-                        .HasColumnType("REAL");
-
-                    b.Property<double>("FadeInDuration")
-                        .HasColumnType("REAL");
-
-                    b.Property<double>("FadeOutDuration")
-                        .HasColumnType("REAL");
-
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId")
                         .HasDatabaseName("IX_Segment_ProjectId");
-
-                    b.HasIndex("TrackId")
-                        .HasDatabaseName("IX_Segment_TrackId");
 
                     b.ToTable("Segments");
                 });
@@ -294,40 +276,6 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.ToTable("Templates");
                 });
 
-            modelBuilder.Entity("PodcastVideoEditor.Core.Models.Track", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsLocked")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsVisible")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProjectId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TrackType")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId")
-                        .HasDatabaseName("IX_Track_ProjectId");
-
-                    b.ToTable("Tracks");
-                });
-
             modelBuilder.Entity("PodcastVideoEditor.Core.Models.Asset", b =>
                 {
                     b.HasOne("PodcastVideoEditor.Core.Models.Project", "Project")
@@ -358,14 +306,7 @@ namespace PodcastVideoEditor.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PodcastVideoEditor.Core.Models.Segment", "Segment")
-                        .WithMany()
-                        .HasForeignKey("SegmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.Navigation("Project");
-
-                    b.Navigation("Segment");
                 });
 
             modelBuilder.Entity("PodcastVideoEditor.Core.Models.Project", b =>
@@ -420,24 +361,6 @@ namespace PodcastVideoEditor.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("PodcastVideoEditor.Core.Models.Track", "Track")
-                        .WithMany("Segments")
-                        .HasForeignKey("TrackId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Project");
-
-                    b.Navigation("Track");
-                });
-
-            modelBuilder.Entity("PodcastVideoEditor.Core.Models.Track", b =>
-                {
-                    b.HasOne("PodcastVideoEditor.Core.Models.Project", "Project")
-                        .WithMany("Tracks")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Project");
                 });
 
@@ -449,13 +372,6 @@ namespace PodcastVideoEditor.Core.Migrations
 
                     b.Navigation("Elements");
 
-                    b.Navigation("Segments");
-
-                    b.Navigation("Tracks");
-                });
-
-            modelBuilder.Entity("PodcastVideoEditor.Core.Models.Track", b =>
-                {
                     b.Navigation("Segments");
                 });
 #pragma warning restore 612, 618

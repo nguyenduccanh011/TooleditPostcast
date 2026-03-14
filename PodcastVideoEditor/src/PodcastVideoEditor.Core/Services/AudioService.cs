@@ -217,6 +217,8 @@ namespace PodcastVideoEditor.Core.Services
             if (_wavePlayer.PlaybackState != PlaybackState.Playing)
             {
                 _wavePlayer.Play();
+                if (_segmentPlayer?.PlaybackState == PlaybackState.Paused)
+                    _segmentPlayer.Play();
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 Log.Information("Playback started");
             }
@@ -230,6 +232,7 @@ namespace PodcastVideoEditor.Core.Services
             if (_wavePlayer?.PlaybackState == PlaybackState.Playing)
             {
                 _wavePlayer.Pause();
+                _segmentPlayer?.Pause();
                 PlaybackPaused?.Invoke(this, EventArgs.Empty);
                 Log.Information("Playback paused");
             }
@@ -477,6 +480,46 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
+        /// Generate peak samples for any audio file (static, for waveform display in segments).
+        /// </summary>
+        public static float[] GetPeakSamplesFromFile(string filePath, int binCount)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath) || binCount <= 0)
+                return Array.Empty<float>();
+
+            try
+            {
+                using var reader = new AudioFileReader(filePath);
+                var peaks = new float[binCount];
+                var buffer = new float[4096];
+                var totalTimeSeconds = Math.Max(0.001, reader.TotalTime.TotalSeconds);
+                long totalSamplesEstimate = (long)(totalTimeSeconds * reader.WaveFormat.SampleRate * reader.WaveFormat.Channels);
+                totalSamplesEstimate = Math.Max(totalSamplesEstimate, 1);
+                long globalSampleIndex = 0;
+
+                int read;
+                while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    for (int i = 0; i < read; i++)
+                    {
+                        int binIndex = (int)Math.Min(binCount - 1, (globalSampleIndex * binCount) / totalSamplesEstimate);
+                        float abs = Math.Abs(buffer[i]);
+                        if (abs > peaks[binIndex])
+                            peaks[binIndex] = abs;
+                        globalSampleIndex++;
+                    }
+                }
+
+                return peaks;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not compute peak samples for file: {Path}", filePath);
+                return Array.Empty<float>();
+            }
+        }
+
+        /// <summary>
         /// Get list of supported audio formats.
         /// </summary>
         public static string[] GetSupportedFormats()
@@ -488,6 +531,111 @@ namespace PodcastVideoEditor.Core.Services
         public bool IsPlaying => PlaybackState == PlaybackState.Playing;
         public string? CurrentAudioPath => _sourceAudioPath;
 
+        // ======== Secondary audio stream for segment audio playback ========
+        private WaveOutEvent? _segmentPlayer;
+        private AudioFileReader? _segmentReader;
+        private string? _currentSegmentAudioPath;
+        private string? _currentSegmentId;
+
+        /// <summary>
+        /// Play audio for a specific segment. If already playing this segment, adjusts position.
+        /// If a different segment, stops old and starts new.
+        /// </summary>
+        public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume)
+        {
+            if (!File.Exists(audioFilePath))
+                return;
+
+            double offsetInSegment = Math.Max(0, playheadPosition - segmentStartTime);
+
+            // Same segment already playing or paused — adjust volume and resync position if user seeked
+            if (_currentSegmentId == segmentId &&
+                (_segmentPlayer?.PlaybackState == PlaybackState.Playing ||
+                 _segmentPlayer?.PlaybackState == PlaybackState.Paused))
+            {
+                if (_segmentReader != null)
+                {
+                    _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+                    // Resync if playhead jumped > 200ms (user seek / scrub)
+                    double expectedOffset = Math.Max(0, playheadPosition - segmentStartTime);
+                    double currentOffset = _segmentReader.CurrentTime.TotalSeconds;
+                    if (Math.Abs(currentOffset - expectedOffset) > 0.2)
+                    {
+                        var seekTarget = TimeSpan.FromSeconds(
+                            Math.Min(expectedOffset, _segmentReader.TotalTime.TotalSeconds - 0.01));
+                        if (seekTarget >= TimeSpan.Zero)
+                            _segmentReader.CurrentTime = seekTarget;
+                    }
+                }
+                return;
+            }
+
+            // Different segment or not playing — stop old and start new
+            StopSegmentAudio();
+
+            try
+            {
+                _segmentReader = new AudioFileReader(audioFilePath);
+                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+
+                // Seek to correct offset within the segment
+                if (offsetInSegment > 0.05)
+                {
+                    var targetTime = TimeSpan.FromSeconds(Math.Min(offsetInSegment, _segmentReader.TotalTime.TotalSeconds - 0.01));
+                    if (targetTime > TimeSpan.Zero)
+                        _segmentReader.CurrentTime = targetTime;
+                }
+
+                _segmentPlayer = new WaveOutEvent { DesiredLatency = 50, NumberOfBuffers = 3 };
+                _segmentPlayer.Init(_segmentReader);
+                _segmentPlayer.Play();
+
+                _currentSegmentId = segmentId;
+                _currentSegmentAudioPath = audioFilePath;
+                Log.Debug("Segment audio started: {SegmentId} at offset {Offset}s, vol={Vol}", segmentId, offsetInSegment, volume);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to play segment audio: {Path}", audioFilePath);
+                StopSegmentAudio();
+            }
+        }
+
+        /// <summary>
+        /// Update volume for currently playing segment audio (used for fade in/out).
+        /// </summary>
+        public void SetSegmentVolume(float volume)
+        {
+            if (_segmentReader != null)
+                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+        }
+
+        /// <summary>
+        /// Stop the currently playing segment audio.
+        /// </summary>
+        public void StopSegmentAudio()
+        {
+            try
+            {
+                _segmentPlayer?.Stop();
+                _segmentPlayer?.Dispose();
+                _segmentReader?.Dispose();
+            }
+            catch { /* best effort */ }
+            finally
+            {
+                _segmentPlayer = null;
+                _segmentReader = null;
+                _currentSegmentId = null;
+                _currentSegmentAudioPath = null;
+            }
+        }
+
+        /// <summary>
+        /// Get the ID of the currently playing segment audio, or null if none.
+        /// </summary>
+        public string? CurrentSegmentId => _currentSegmentId;
+
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
             Log.Information("Playback stopped (event)");
@@ -496,6 +644,7 @@ namespace PodcastVideoEditor.Core.Services
 
         public void Dispose()
         {
+            StopSegmentAudio();
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
             _sampleAggregator = null;
