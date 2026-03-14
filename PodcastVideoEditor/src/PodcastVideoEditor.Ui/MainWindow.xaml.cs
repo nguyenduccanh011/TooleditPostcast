@@ -93,6 +93,29 @@ public partial class MainWindow : Window
         _initialLoadDone = true;
     }
 
+    /// <summary>
+    /// Global Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) undo/redo from anywhere in the window.
+    /// </summary>
+    protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled) return;
+
+        bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
+        bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
+
+        if (ctrl && !shift && e.Key == System.Windows.Input.Key.Z)
+        {
+            _mainViewModel.UndoRedoService.Undo();
+            e.Handled = true;
+        }
+        else if (ctrl && (e.Key == System.Windows.Input.Key.Y || (shift && e.Key == System.Windows.Input.Key.Z)))
+        {
+            _mainViewModel.UndoRedoService.Redo();
+            e.Handled = true;
+        }
+    }
+
     private async void MainTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
         if (_initialLoadDone && MainTabControl.SelectedIndex == 0)

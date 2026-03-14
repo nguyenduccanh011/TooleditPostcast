@@ -67,6 +67,16 @@ public class RenderConfig
     public List<RenderVisualSegment> VisualSegments { get; set; } = [];
 
     /// <summary>
+    /// Text overlay segments. Each renders as drawtext filter in the output video.
+    /// </summary>
+    public List<RenderTextSegment> TextSegments { get; set; } = [];
+
+    /// <summary>
+    /// Additional audio clip segments mixed into the output (BGM, sound effects, etc).
+    /// </summary>
+    public List<RenderAudioSegment> AudioSegments { get; set; } = [];
+
+    /// <summary>
     /// Get CRF value based on quality setting.
     /// CRF 0-51 (lower = better quality but larger file).
     /// </summary>
@@ -110,6 +120,70 @@ public class RenderVisualSegment
     /// <summary>
     /// Optional source offset for video clipping (seconds).
     /// </summary>
+    public double SourceOffsetSeconds { get; set; }
+}
+
+/// <summary>
+/// A text overlay segment for timeline-based rendering (maps to FFmpeg drawtext filter).
+/// </summary>
+public class RenderTextSegment
+{
+    /// <summary>Text to overlay.</summary>
+    public string Text { get; set; } = string.Empty;
+
+    /// <summary>Start time in output timeline (seconds).</summary>
+    public double StartTime { get; set; }
+
+    /// <summary>End time in output timeline (seconds).</summary>
+    public double EndTime { get; set; }
+
+    /// <summary>Font size in pixels (default 48).</summary>
+    public int FontSize { get; set; } = 48;
+
+    /// <summary>Font color in hex format, e.g. "white" or "0xFFFFFF".</summary>
+    public string FontColor { get; set; } = "white";
+
+    /// <summary>Optional font file path. When null, FFmpeg uses a system default.</summary>
+    public string? FontFilePath { get; set; }
+
+    /// <summary>Horizontal position expression passed to drawtext (default: centered).</summary>
+    public string XExpr { get; set; } = "(w-text_w)/2";
+
+    /// <summary>Vertical position expression passed to drawtext (default: near bottom).</summary>
+    public string YExpr { get; set; } = "h*0.85-text_h/2";
+
+    /// <summary>Box background: true to draw a semi-transparent box behind text.</summary>
+    public bool DrawBox { get; set; } = true;
+
+    /// <summary>Box color with alpha (ARGB). Default: 50% black.</summary>
+    public string BoxColor { get; set; } = "black@0.5";
+}
+
+/// <summary>
+/// An audio clip segment for timeline-based rendering (BGM, SFX, extra voice tracks).
+/// Mixed into the output via FFmpeg amix/adelay filters.
+/// </summary>
+public class RenderAudioSegment
+{
+    /// <summary>Full path to the audio file.</summary>
+    public string SourcePath { get; set; } = string.Empty;
+
+    /// <summary>When the clip should START playing in the output timeline (seconds).</summary>
+    public double StartTime { get; set; }
+
+    /// <summary>When the clip should END in the output timeline (seconds).</summary>
+    public double EndTime { get; set; }
+
+    /// <summary>Volume level (0.0–1.0).</summary>
+    public double Volume { get; set; } = 1.0;
+
+    /// <summary>Fade-in duration in seconds from StartTime.</summary>
+    public double FadeInDuration { get; set; }
+
+    /// <summary>Fade-out duration in seconds before EndTime.</summary>
+    public double FadeOutDuration { get; set; }
+
+    /// <summary>Offset into the source file where playback begins (seconds).</summary>
     public double SourceOffsetSeconds { get; set; }
 }
 

@@ -219,6 +219,7 @@
                                                                       VerticalAlignment="Stretch"
                                                                       Panel.ZIndex="0"
                                                                       MouseDown="MoveThumb_MouseDown"
+                                                                      MouseRightButtonUp="MoveThumb_MouseRightButtonUp"
                                                                       DragStarted="MoveThumb_DragStarted"
                                                                       DragDelta="MoveThumb_DragDelta"
                                                                       DragCompleted="MoveThumb_DragCompleted"/>

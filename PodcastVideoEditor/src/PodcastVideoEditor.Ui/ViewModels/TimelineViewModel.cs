@@ -84,6 +84,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private double _cachedActiveSegmentsTime = double.MinValue;
         private List<(Track track, Segment segment)>? _cachedActiveSegments;
 
+        // Undo/redo (optional — set via SetUndoRedoService from MainViewModel).
+        private UndoRedoService? _undoRedo;
+
+        /// <summary>Expose so TimelineView can record drag-complete timing changes.</summary>
+        public UndoRedoService? UndoRedoService => _undoRedo;
+
+        /// <summary>
+        /// Wire up undo/redo. Called from MainViewModel after construction.
+        /// </summary>
+        public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
+
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
         /// <summary>Width of audio waveform content (duration only, no extra buffer).</summary>
@@ -137,6 +148,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 InvalidateActiveSegmentsCache();
                 SelectedTrack = null;
                 SelectedSegment = null;
+                _undoRedo?.Clear(); // New project = clear history
 
                 if (_projectViewModel.CurrentProject?.Tracks == null || _projectViewModel.CurrentProject.Tracks.Count == 0)
                 {
@@ -390,6 +402,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 targetTrack.Segments.Add(newSegment);
                 InvalidateActiveSegmentsCache();
                 SelectSegment(newSegment);
+                _undoRedo?.Record(new SegmentAddedAction(
+                    (System.Collections.ObjectModel.ObservableCollection<Segment>)targetTrack.Segments,
+                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = targetTrack != SelectedTrack ? "Segment added to Visual 1" : "Segment added";
                 Log.Information("Segment added at {StartTime}s in track {TrackId}", newSegment.StartTime, targetTrack.Id);
             }
@@ -456,6 +471,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 InvalidateActiveSegmentsCache();
                 SelectSegment(newSegment);
                 EnqueueSegmentPeakLoad(newSegment);
+                _undoRedo?.Record(new SegmentAddedAction(
+                    (System.Collections.ObjectModel.ObservableCollection<Segment>)targetTrack.Segments,
+                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = "Segment added with media";
                 Log.Information("Segment added with asset {AssetId} at {StartTime}s", asset.Id, newSegment.StartTime);
             }
@@ -534,6 +552,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 InvalidateActiveSegmentsCache();
                 SelectSegment(newSegment);
                 EnqueueSegmentPeakLoad(newSegment);
+                _undoRedo?.Record(new SegmentAddedAction(
+                    (System.Collections.ObjectModel.ObservableCollection<Segment>)track.Segments,
+                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = $"Dropped '{asset.Name}' at {startTime:F2}s";
                 Log.Information("Segment dropped: asset {AssetId} at {StartTime}s on track {TrackId}", asset.Id, startTime, track.Id);
                 return true;
@@ -780,9 +801,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                SelectedTrack.Segments.Remove(SelectedSegment);
+                var deletedSeg = SelectedSegment;
+                var deletedTrackSegs = (System.Collections.ObjectModel.ObservableCollection<Segment>)SelectedTrack.Segments;
+                var deletedIndex = deletedTrackSegs.IndexOf(deletedSeg);
+                SelectedTrack.Segments.Remove(deletedSeg);
                 InvalidateActiveSegmentsCache();
                 SelectedSegment = null;
+                _undoRedo?.Record(new SegmentDeletedAction(
+                    deletedTrackSegs, deletedSeg, deletedIndex,
+                    InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = "Segment deleted";
                 Log.Information("Segment deleted from track {TrackId}", SelectedTrack.Id);
             }
@@ -839,6 +866,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 SelectedTrack.Segments.Add(duplicate);
                 InvalidateActiveSegmentsCache();
                 SelectSegment(duplicate);
+                _undoRedo?.Record(new SegmentAddedAction(
+                    (System.Collections.ObjectModel.ObservableCollection<Segment>)SelectedTrack.Segments,
+                    duplicate, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = "Segment duplicated";
                 Log.Information("Segment duplicated in track {TrackId}", SelectedTrack.Id);
             }
@@ -904,9 +934,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 segment.FadeOutDuration = 0; // Left half ends clean
 
                 // Add right half to the track
+                double originalEndBeforeSplit = rightHalf.EndTime; // same as segment's original EndTime
                 SelectedTrack.Segments.Add(rightHalf);
                 InvalidateActiveSegmentsCache();
                 SelectSegment(rightHalf);
+                _undoRedo?.Record(new SegmentSplitAction(
+                    (System.Collections.ObjectModel.ObservableCollection<Segment>)SelectedTrack.Segments,
+                    segment, originalEndBeforeSplit, rightHalf,
+                    InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = $"Segment split at {splitTime:F2}s";
                 Log.Information("Segment split at {SplitTime}s in track {TrackId}", splitTime, SelectedTrack.Id);
             }
@@ -1237,6 +1272,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Invalidate the active segments cache. Call when tracks or segments change.
         /// </summary>
         private void InvalidateActiveSegmentsCache() => _cachedActiveSegments = null;
+
+        /// <summary>Public wrapper used by TimelineView drag-undo callbacks.</summary>
+        public void InvalidateActiveSegmentsCachePublic() => InvalidateActiveSegmentsCache();
 
         /// <summary>
         /// Seek playhead (and audio) to the specified position in seconds.

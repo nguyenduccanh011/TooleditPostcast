@@ -29,6 +29,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private SelectionSyncService? _selectionSyncService;
+        private UndoRedoService? _undoRedo;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
         private PropertyChangedEventHandler? _projectPropertyChangedHandler;
         private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
@@ -166,6 +167,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _selectionSyncService.TimelineSelectionChanged += OnTimelineSegmentSelected;
         }
 
+        /// <summary>Wire undo/redo. Called from MainViewModel after construction.</summary>
+        public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
+
+        /// <summary>Expose so CanvasView can record element-move actions.</summary>
+        public UndoRedoService? UndoRedoService => _undoRedo;
+
         private void OnTimelineSegmentSelected(string? segmentId, bool playheadInRange)
         {
             if (string.IsNullOrEmpty(segmentId))
@@ -258,6 +265,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             SelectElement(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             LogMessage($"Added Title element{(segment != null ? " + timeline segment" : "")}");
         }
 
@@ -283,6 +291,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             SelectElement(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             LogMessage($"Added Logo element{(segment != null ? " + timeline segment" : "")}");
         }
 
@@ -309,6 +318,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Elements.Add(element);
             SelectElement(element);
             EnsureVisualizerTimer();
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             LogMessage($"Added Visualizer element{(segment != null ? " + timeline segment" : "")}");
         }
 
@@ -334,6 +344,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             SelectElement(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             LogMessage($"Added Image element{(segment != null ? " + timeline segment" : "")}");
         }
 
@@ -359,6 +370,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             SelectElement(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             LogMessage($"Added Text element{(segment != null ? " + timeline segment" : "")}");
         }
 
@@ -447,6 +459,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             var elementToDelete = SelectedElement;
+            _undoRedo?.Record(new ElementDeletedAction(Elements, elementToDelete));
             Elements.Remove(elementToDelete);
             SelectedElement = null;
             PropertyEditor.SetSelectedElement(null);
@@ -498,6 +511,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Elements.Add(cloned);
             SelectElement(cloned);
             EnsureVisualizerTimer();
+            _undoRedo?.Record(new ElementAddedAction(Elements, cloned));
             LogMessage($"Duplicated: {cloned.Name}");
         }
 

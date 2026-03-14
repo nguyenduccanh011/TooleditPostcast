@@ -1,4 +1,5 @@
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.Converters;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
@@ -54,6 +55,10 @@ namespace PodcastVideoEditor.Ui.Views
         private double _resizeLeftDeltaX;
         private double _resizeLeftOriginalStartTime;
         private double _moveDeltaX;
+        // Pre-drag snapshots used for undo recording (never reset mid-drag unlike _segmentOriginal*).
+        private double _dragUndoOriginalStart;
+        private double _dragUndoOriginalEnd;
+        private EventHandler? _undoRedoStateChangedHandler;
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
@@ -135,6 +140,17 @@ namespace PodcastVideoEditor.Ui.Views
                     }));
                 };
                 _viewModel.Tracks.CollectionChanged += _tracksCollectionChangedHandler;
+
+                // Subscribe to undo/redo state changes to refresh visual layout.
+                if (_viewModel.UndoRedoService != null)
+                {
+                    _undoRedoStateChangedHandler = (_, _) =>
+                    {
+                        UpdateSegmentLayout();
+                        UpdateSegmentSelection();
+                    };
+                    _viewModel.UndoRedoService.StateChanged += _undoRedoStateChangedHandler;
+                }
             }
         }
 
@@ -146,6 +162,8 @@ namespace PodcastVideoEditor.Ui.Views
                 _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
             if (_viewModel != null && _tracksCollectionChangedHandler != null)
                 _viewModel.Tracks.CollectionChanged -= _tracksCollectionChangedHandler;
+            if (_viewModel?.UndoRedoService != null && _undoRedoStateChangedHandler != null)
+                _viewModel.UndoRedoService.StateChanged -= _undoRedoStateChangedHandler;
             _zoomTimer.Stop();
         }
 
@@ -411,6 +429,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _isResizingLeft = false;
                 _isResizingSegment = true;
                 _segmentOriginalEndTime = segment.EndTime;
+                _dragUndoOriginalEnd = segment.EndTime; // Stable snapshot for undo
                 _resizeDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
                 _viewModel!.IsDeferringThumbnailUpdate = true;
@@ -429,6 +448,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _isResizingSegment = false;
                 _isResizingLeft = true;
                 _resizeLeftOriginalStartTime = segment.StartTime;
+                _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
                 _resizeLeftDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
                 _viewModel!.IsDeferringThumbnailUpdate = true;
@@ -524,7 +544,13 @@ namespace PodcastVideoEditor.Ui.Views
             _isResizingSegment = false;
             _resizeDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
+            {
                 grid.Cursor = Cursors.Arrow;
+                if (grid.DataContext is Segment seg && Math.Abs(seg.EndTime - _dragUndoOriginalEnd) > 0.001)
+                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
+                        seg, seg.StartTime, _dragUndoOriginalEnd, seg.StartTime, seg.EndTime,
+                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+            }
             _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
         }
@@ -537,7 +563,13 @@ namespace PodcastVideoEditor.Ui.Views
             _isResizingLeft = false;
             _resizeLeftDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
+            {
                 grid.Cursor = Cursors.Arrow;
+                if (grid.DataContext is Segment seg && Math.Abs(seg.StartTime - _dragUndoOriginalStart) > 0.001)
+                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
+                        seg, _dragUndoOriginalStart, seg.EndTime, seg.StartTime, seg.EndTime,
+                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+            }
             _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
         }
@@ -554,6 +586,8 @@ namespace PodcastVideoEditor.Ui.Views
                 _isDraggingSegment = true;
                 _segmentOriginalStartTime = segment.StartTime;
                 _segmentOriginalEndTime = segment.EndTime;
+                _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
+                _dragUndoOriginalEnd = segment.EndTime;     // Stable snapshot for undo
                 _moveDeltaX = 0;
                 grid.Cursor = Cursors.SizeAll;
                 _viewModel?.SelectSegment(segment);
@@ -630,9 +664,53 @@ namespace PodcastVideoEditor.Ui.Views
             _isDraggingSegment = false;
             _moveDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
+            {
                 grid.Cursor = Cursors.Arrow;
+                if (grid.DataContext is Segment seg &&
+                    (Math.Abs(seg.StartTime - _dragUndoOriginalStart) > 0.001 || Math.Abs(seg.EndTime - _dragUndoOriginalEnd) > 0.001))
+                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
+                        seg, _dragUndoOriginalStart, _dragUndoOriginalEnd, seg.StartTime, seg.EndTime,
+                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+            }
             _viewModel!.IsDeferringThumbnailUpdate = false;
             UpdateSegmentLayout();
+        }
+
+        /// <summary>
+        /// Right-click on a segment → show context menu with Split / Duplicate / Delete.
+        /// </summary>
+        private void MoveThumb_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel == null) return;
+
+            if (sender is Thumb thumb && thumb.Parent is Grid grid && grid.DataContext is Segment segment)
+            {
+                _viewModel.SelectSegment(segment);
+
+                var menu = new ContextMenu();
+
+                var splitItem = new MenuItem
+                {
+                    Header = "Split at Playhead",
+                    IsEnabled = _viewModel.SplitSelectedSegmentAtPlayheadCommand.CanExecute(null)
+                };
+                splitItem.Click += (_, _) => _viewModel.SplitSelectedSegmentAtPlayheadCommand.Execute(null);
+                menu.Items.Add(splitItem);
+
+                var dupItem = new MenuItem { Header = "Duplicate" };
+                dupItem.Click += (_, _) => _viewModel.DuplicateSelectedSegmentCommand.Execute(null);
+                menu.Items.Add(dupItem);
+
+                menu.Items.Add(new Separator());
+
+                var deleteItem = new MenuItem { Header = "Delete" };
+                deleteItem.Click += (_, _) => _viewModel.DeleteSelectedSegmentCommand.Execute(null);
+                menu.Items.Add(deleteItem);
+
+                menu.PlacementTarget = thumb;
+                menu.IsOpen = true;
+                e.Handled = true;
+            }
         }
 
         /// <summary>

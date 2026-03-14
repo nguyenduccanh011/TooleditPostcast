@@ -427,7 +427,10 @@ public static class FFmpegService
             throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
 
         var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
-        if (!hasTimelineVisuals && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
+        var hasTimelineText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
+        var hasTimelineAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
+        var hasAnyTimeline    = hasTimelineVisuals || hasTimelineText || hasTimelineAudio;
+        if (!hasAnyTimeline && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
             throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
 
         if (string.IsNullOrWhiteSpace(config.OutputPath))
@@ -457,7 +460,11 @@ public static class FFmpegService
                 var ffmpegArgs = BuildFFmpegCommand(normalizedConfig);
 
                 Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
-                Log.Debug("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
+                Log.Information("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
+                Log.Information("Render segments: {Visual} visual, {Text} text, {Audio} audio",
+                    normalizedConfig.VisualSegments?.Count ?? 0,
+                    normalizedConfig.TextSegments?.Count ?? 0,
+                    normalizedConfig.AudioSegments?.Count ?? 0);
 
                 // Execute FFmpeg
                 var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken);
@@ -488,7 +495,38 @@ public static class FFmpegService
                 Log.Error(ex, "Error rendering video");
                 throw;
             }
+            finally
+            {
+                // Clean up temp filter script and text files created during render
+                CleanupRenderTempFiles(normalizedConfig.OutputPath);
+            }
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Remove temporary filter script and text files created during a render.
+    /// </summary>
+    private static void CleanupRenderTempFiles(string outputPath)
+    {
+        try
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor");
+
+            // Delete filter script
+            var filterScript = Path.Combine(tempDir,
+                $"filter_{Path.GetFileNameWithoutExtension(outputPath)}.txt");
+            if (File.Exists(filterScript))
+                File.Delete(filterScript);
+
+            // Delete text segment temp files
+            var textDir = Path.Combine(tempDir, "render_text");
+            if (Directory.Exists(textDir))
+                Directory.Delete(textDir, recursive: true);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not clean up render temp files");
+        }
     }
 
     /// <summary>
@@ -515,7 +553,12 @@ public static class FFmpegService
     /// </summary>
     private static string BuildFFmpegCommand(RenderConfig config)
     {
-        if (config.VisualSegments != null && config.VisualSegments.Count > 0)
+        // Route to timeline composer when ANY segment type exists
+        var hasVisual = config.VisualSegments != null && config.VisualSegments.Count > 0;
+        var hasText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
+        var hasAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
+
+        if (hasVisual || hasText || hasAudio)
             return BuildTimelineFFmpegCommand(config);
 
         var crf = config.GetCrfValue();
@@ -545,6 +588,7 @@ public static class FFmpegService
 
     /// <summary>
     /// Build FFmpeg command for timeline-based visual composition.
+    /// Handles multi-track visuals, text overlays (drawtext), and extra audio clips (adelay+amix).
     /// </summary>
     private static string BuildTimelineFFmpegCommand(RenderConfig config)
     {
@@ -552,62 +596,224 @@ public static class FFmpegService
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var invariant = CultureInfo.InvariantCulture;
-        var segments = config.VisualSegments
+
+        var visualSegments = (config.VisualSegments ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
                         File.Exists(s.SourcePath) &&
                         s.EndTime > s.StartTime)
             .OrderBy(s => s.StartTime)
             .ToList();
 
-        if (segments.Count == 0)
+        var textSegments = (config.TextSegments ?? [])
+            .Where(s => !string.IsNullOrWhiteSpace(s.Text) && s.EndTime > s.StartTime)
+            .OrderBy(s => s.StartTime)
+            .ToList();
+
+        var audioSegments = (config.AudioSegments ?? [])
+            .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
+                        File.Exists(s.SourcePath) &&
+                        s.EndTime > s.StartTime)
+            .OrderBy(s => s.StartTime)
+            .ToList();
+
+        // When there are no visual segments AND no text/audio segments, fall back to legacy
+        if (visualSegments.Count == 0 && textSegments.Count == 0 && audioSegments.Count == 0)
             return BuildLegacySingleImageCommand(config, crf);
 
         var args = new StringBuilder();
+
+        // ── Input 0: black background canvas ──────────────────────────────
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d=86400\" ");
 
-        foreach (var segment in segments)
+        // ── Inputs 1..N : visual sources ──────────────────────────────────
+        foreach (var seg in visualSegments)
         {
-            if (segment.IsVideo)
-                args.Append($"-i \"{segment.SourcePath}\" ");
+            if (seg.IsVideo)
+                args.Append($"-i \"{seg.SourcePath}\" ");
             else
-                args.Append($"-loop 1 -t {(segment.EndTime - segment.StartTime).ToString("F3", invariant)} -i \"{segment.SourcePath}\" ");
+                // -loop 1 so the still image is available for the full timeline
+                args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
         }
 
+        // ── Input N+1: primary audio (project audio file) ─────────────────
+        var primaryAudioIndex = visualSegments.Count + 1;
         args.Append($"-i \"{config.AudioPath}\" ");
 
+        // ── Extra audio clip inputs ────────────────────────────────────────
+        var extraAudioStartIndex = primaryAudioIndex + 1;
+        foreach (var aseg in audioSegments)
+            args.Append($"-i \"{aseg.SourcePath}\" ");
+
+        // ── filter_complex ─────────────────────────────────────────────────
         var filter = new StringBuilder();
-        filter.Append("[0:v]format=yuv420p,setsar=1[base0];");
 
-        var current = "base0";
-        for (int i = 0; i < segments.Count; i++)
+        // Step 1: Prepare base canvas — normalise pixel format once
+        filter.Append($"[0:v]format=yuv420p,setsar=1[base];");
+
+        // Step 2: Scale + position each visual segment using enable= for correct timing.
+        // BUG-4 fix: use overlay enable='between(t,start,end)' + setpts=PTS-STARTPTS
+        //   so images are composited only within their window, pixel-format-safe.
+        for (int i = 0; i < visualSegments.Count; i++)
         {
-            var inputIndex = i + 1;
-            var segment = segments[i];
-            var start = Math.Max(0, segment.StartTime).ToString("F3", invariant);
-            var duration = Math.Max(0.001, segment.EndTime - segment.StartTime).ToString("F3", invariant);
-            var sourceOffset = Math.Max(0, segment.SourceOffsetSeconds).ToString("F3", invariant);
-            var overlayLabel = $"ov{i}";
+            var inputIdx = i + 1;
+            var seg = visualSegments[i];
+            var start    = seg.StartTime.ToString("F3", invariant);
+            var end      = seg.EndTime.ToString("F3", invariant);
+            var duration = (seg.EndTime - seg.StartTime).ToString("F3", invariant);
+            var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", invariant);
+            var scaledLabel = $"scaled{i}";
 
-            if (segment.IsVideo)
+            if (seg.IsVideo)
             {
-                filter.Append($"[{inputIndex}:v]trim=start={sourceOffset}:duration={duration},");
-                filter.Append($"setpts=PTS-STARTPTS+{start}/TB,");
-                filter.Append($"{BuildScalingFilter(config)},setsar=1[{overlayLabel}];");
+                // Trim source to its window, reset PTS to 0
+                filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                filter.Append($"format=yuv420p,{BuildScalingFilter(config)},setsar=1[{scaledLabel}];");
             }
             else
             {
-                filter.Append($"[{inputIndex}:v]setpts=PTS+{start}/TB,");
-                filter.Append($"{BuildScalingFilter(config)},setsar=1[{overlayLabel}];");
+                filter.Append($"[{inputIdx}:v]format=yuv420p,{BuildScalingFilter(config)},setsar=1[{scaledLabel}];");
             }
-
-            var next = $"v{i}";
-            filter.Append($"[{current}][{overlayLabel}]overlay=shortest=0:eof_action=pass[{next}];");
-            current = next;
         }
 
-        var audioInputIndex = segments.Count + 1;
-        args.Append($"-filter_complex \"{filter}\" ");
-        args.Append($"-map \"[{current}]\" -map {audioInputIndex}:a ");
+        // Step 3: Overlay each visual onto the base using enable= range
+        var currentVideo = "base";
+        for (int i = 0; i < visualSegments.Count; i++)
+        {
+            var seg     = visualSegments[i];
+            var start   = seg.StartTime.ToString("F3", invariant);
+            var end     = seg.EndTime.ToString("F3", invariant);
+            var outLabel = $"v{i}";
+
+            // For images: shift PTS so the frame appears at the right time in the output
+            if (!seg.IsVideo)
+            {
+                var scaledPtsLabel = $"scaledpts{i}";
+                filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{scaledPtsLabel}];");
+                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay=shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+            }
+            else
+            {
+                // Video: already trimmed+PTS-reset; shift into output timeline
+                var shiftedLabel = $"shifted{i}";
+                filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay=shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+            }
+            currentVideo = outLabel;
+        }
+
+        // Resolve a default font once for all text segments
+        string? resolvedDefaultFont = ResolveDefaultFontPath();
+
+        // Step 4: Text overlays via drawtext — BUG-1 fix
+        // Text content is written to temp UTF-8 files (textfile=) so Vietnamese/Unicode
+        // renders correctly regardless of Windows console codepage.
+        var textTempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text");
+        if (textSegments.Count > 0)
+            Directory.CreateDirectory(textTempDir);
+
+        for (int i = 0; i < textSegments.Count; i++)
+        {
+            var ts = textSegments[i];
+            var start = ts.StartTime.ToString("F3", invariant);
+            var end   = ts.EndTime.ToString("F3", invariant);
+            var outLabel = $"t{i}";
+
+            // Write text to a temp UTF-8 file — avoids command-line encoding corruption
+            var textFilePath = Path.Combine(textTempDir, $"seg_{i}.txt");
+            File.WriteAllText(textFilePath, ts.Text, new System.Text.UTF8Encoding(false));
+
+            var fontPath = ts.FontFilePath;
+            if (string.IsNullOrWhiteSpace(fontPath))
+                fontPath = resolvedDefaultFont;
+
+            // Escape file paths for FFmpeg filter syntax:
+            //  `:` → `\:` (literal `\:` in file = FFmpeg sees `\:` = escaped colon)
+            //  `'` → `\'`
+            var fontfileArg = string.IsNullOrWhiteSpace(fontPath)
+                ? string.Empty
+                : $"fontfile='{EscapeFilterPath(fontPath)}':";
+
+            var escapedTextFilePath = EscapeFilterPath(textFilePath);
+
+            var boxArg = ts.DrawBox
+                ? $"box=1:boxcolor={ts.BoxColor}:boxborderw=10:"
+                : string.Empty;
+
+            filter.Append($"[{currentVideo}]drawtext={fontfileArg}textfile='{escapedTextFilePath}':" +
+                          $"fontsize={ts.FontSize}:fontcolor={ts.FontColor}:" +
+                          $"{boxArg}" +
+                          $"x={ts.XExpr}:y={ts.YExpr}:" +
+                          $"enable='between(t,{start},{end})'[{outLabel}];");
+            currentVideo = outLabel;
+        }
+
+        // Step 5: Audio mixing — BUG-2 fix
+        // Build audio filter: start with primary audio, then mix in extra clips via adelay+amix
+        string audioOut;
+        if (audioSegments.Count == 0)
+        {
+            // No extra audio clips — use primary audio directly
+            audioOut = $"{primaryAudioIndex}:a";
+        }
+        else
+        {
+            // Delay each extra audio clip to its timeline position and amix all together
+            filter.Append($"[{primaryAudioIndex}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[amain];");
+
+            var mixLabels = new System.Collections.Generic.List<string> { "amain" };
+            for (int i = 0; i < audioSegments.Count; i++)
+            {
+                var aseg        = audioSegments[i];
+                var inputIdx    = extraAudioStartIndex + i;
+                var delayMs     = (long)Math.Round(aseg.StartTime * 1000);
+                var duration    = aseg.EndTime - aseg.StartTime;
+                var srcOffset   = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
+                var clipLabel   = $"aclip{i}";
+
+                // Trim clip to its window, apply volume and optional fades, then delay to output position
+                filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                filter.Append($"asetpts=PTS-STARTPTS,");
+                filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
+                if (aseg.FadeInDuration > 0)
+                    filter.Append($"afade=t=in:st=0:d={aseg.FadeInDuration.ToString("F3", invariant)},");
+                if (aseg.FadeOutDuration > 0)
+                    filter.Append($"afade=t=out:st={(duration - aseg.FadeOutDuration).ToString("F3", invariant)}:d={aseg.FadeOutDuration.ToString("F3", invariant)},");
+                filter.Append($"adelay={delayMs}|{delayMs},");
+                filter.Append($"aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[{clipLabel}];");
+                mixLabels.Add(clipLabel);
+            }
+
+            var allMixInputs = string.Concat(mixLabels.Select(l => $"[{l}]"));
+            audioOut = "amixed";
+            filter.Append($"{allMixInputs}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0[{audioOut}]");
+        }
+
+        // BUG-5 fix: strip trailing semicolon
+        var filterStr = filter.ToString().TrimEnd(';');
+
+        // Write filter to a temp script file — this avoids:
+        //   1) command-line encoding issues with Unicode text file paths
+        //   2) command-line length limits for complex filter graphs
+        //   3) nested quote/escape hell between C#, cmd.exe, and FFmpeg
+        var filterScriptPath = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor",
+            $"filter_{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
+        File.WriteAllText(filterScriptPath, filterStr, new System.Text.UTF8Encoding(false));
+        Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);
+
+        args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
+
+        // Map outputs
+        if (audioSegments.Count == 0)
+        {
+            // Simpler map when no extra audio
+            args.Append($"-map \"[{currentVideo}]\" -map {audioOut} ");
+        }
+        else
+        {
+            args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
+        }
+
         args.Append($"-c:v {videoCodec} ");
         args.Append($"-crf {crf} ");
         args.Append("-pix_fmt yuv420p ");
@@ -668,7 +874,9 @@ public static class FFmpegService
             VideoCodec = string.IsNullOrWhiteSpace(config.VideoCodec) ? "h264_auto" : config.VideoCodec,
             AudioCodec = string.IsNullOrWhiteSpace(config.AudioCodec) ? "aac" : config.AudioCodec,
             ScaleMode = NormalizeScaleMode(config.ScaleMode),
-            VisualSegments = config.VisualSegments?.ToList() ?? []
+            VisualSegments = config.VisualSegments?.ToList() ?? [],
+            TextSegments   = config.TextSegments?.ToList()  ?? [],
+            AudioSegments  = config.AudioSegments?.ToList() ?? []
         };
     }
 
@@ -810,7 +1018,53 @@ public static class FFmpegService
     }
 
     /// <summary>
-    /// Execute FFmpeg command and track progress.
+    /// Escape a file path for use inside an FFmpeg filter option value.
+    /// Colons (e.g. `C:`) and single quotes must be escaped so FFmpeg's filter parser
+    /// doesn't misinterpret them as option separators or string delimiters.
+    /// </summary>
+    private static string EscapeFilterPath(string path)
+    {
+        return path
+            .Replace("\\", "/")       // normalise to forward slashes
+            .Replace("'",  "\\'")     // escape single quotes
+            .Replace(":",  "\\:");    // escape colon (critical for Windows drive letters like C:)
+    }
+
+    /// <summary>
+    /// Resolve a default font file path for FFmpeg drawtext on the current OS.
+    /// Most FFmpeg Windows builds lack fontconfig, so a bare font name like "Arial" won't work;
+    /// an explicit .ttf path is required.
+    /// </summary>
+    private static string? ResolveDefaultFontPath()
+    {
+        // Windows: try system fonts directory
+        var winFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+        // Prefer common fonts in order of relevance
+        string[] candidates = ["arial.ttf", "segoeui.ttf", "calibri.ttf", "tahoma.ttf", "verdana.ttf"];
+        foreach (var font in candidates)
+        {
+            var path = Path.Combine(winFonts, font);
+            if (File.Exists(path))
+                return path;
+        }
+        // Linux/Mac fallback
+        string[] unixCandidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/System/Library/Fonts/Helvetica.ttc"
+        ];
+        foreach (var path in unixCandidates)
+        {
+            if (File.Exists(path))
+                return path;
+        }
+        Log.Warning("No default font found for drawtext — text overlays may fail");
+        return null;
+    }
+
+    /// <summary>
+    /// Execute FFmpeg command and report real-time progress by parsing FFmpeg's stderr output.
+    /// Progress is calculated from the "time=HH:MM:SS.ms" lines FFmpeg writes during encoding.
     /// </summary>
     private static async Task<(bool success, string output)> ExecuteFFmpegAsync(
         string ffmpegPath,
@@ -834,22 +1088,70 @@ public static class FFmpegService
             if (_currentRenderProcess == null)
                 return (false, "Failed to start FFmpeg process");
 
+            // Read stdout fully in background (usually empty for FFmpeg)
             var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);
-            var errorTask = _currentRenderProcess.StandardError.ReadToEndAsync(cancellationToken);
 
-            progress?.Report(new RenderProgress
+            // Parse stderr line-by-line for progress
+            var stderrLines = new System.Collections.Generic.List<string>();
+            double totalDurationSeconds = 0;
+
+            // First pass: try to detect total duration from the audio input headers
+            // (FFmpeg prints "Duration: HH:MM:SS.mm" for each input early in stderr)
+            var stderrReader = _currentRenderProcess.StandardError;
+            string? line;
+            while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
             {
-                ProgressPercentage = 50,
-                Message = "Rendering...",
-                IsComplete = false
-            });
+                stderrLines.Add(line);
+
+                // Detect total duration from the FIRST "Duration:" line (usually the audio input)
+                if (totalDurationSeconds <= 0 && line.Contains("Duration:"))
+                {
+                    var durationMatch = System.Text.RegularExpressions.Regex.Match(
+                        line, @"Duration:\s*(\d+):(\d+):(\d+\.\d+)");
+                    if (durationMatch.Success &&
+                        int.TryParse(durationMatch.Groups[1].Value, out var dh) &&
+                        int.TryParse(durationMatch.Groups[2].Value, out var dm) &&
+                        double.TryParse(durationMatch.Groups[3].Value,
+                            System.Globalization.NumberStyles.Float,
+                            CultureInfo.InvariantCulture, out var ds))
+                    {
+                        totalDurationSeconds = dh * 3600 + dm * 60 + ds;
+                    }
+                }
+
+                // Parse progress: "frame=  42 fps= 30 ... time=00:00:01.40 ..."
+                if (line.StartsWith("frame=", StringComparison.Ordinal) && line.Contains("time="))
+                {
+                    var timeMatch = System.Text.RegularExpressions.Regex.Match(
+                        line, @"time=(\d+):(\d+):(\d+\.\d+)");
+                    if (timeMatch.Success &&
+                        int.TryParse(timeMatch.Groups[1].Value, out var th) &&
+                        int.TryParse(timeMatch.Groups[2].Value, out var tm) &&
+                        double.TryParse(timeMatch.Groups[3].Value,
+                            System.Globalization.NumberStyles.Float,
+                            CultureInfo.InvariantCulture, out var ts))
+                    {
+                        var encodedSeconds = th * 3600 + tm * 60 + ts;
+                        int pct = totalDurationSeconds > 0
+                            ? (int)Math.Min(99, encodedSeconds / totalDurationSeconds * 100)
+                            : 50;
+
+                        progress?.Report(new RenderProgress
+                        {
+                            ProgressPercentage = pct,
+                            Message = $"Rendering... {pct}%",
+                            IsComplete = false
+                        });
+                    }
+                }
+            }
 
             await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            var output = await outputTask.ConfigureAwait(false);
-            var error = await errorTask.ConfigureAwait(false);
+            var stdout = await outputTask.ConfigureAwait(false);
 
             bool success = _currentRenderProcess.ExitCode == 0;
-            return (success, success ? output : error);
+            var fullStderr = string.Join(Environment.NewLine, stderrLines);
+            return (success, success ? stdout : fullStderr);
         }
         catch (OperationCanceledException)
         {

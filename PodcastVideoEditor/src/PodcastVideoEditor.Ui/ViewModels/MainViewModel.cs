@@ -17,6 +17,7 @@ public sealed class MainViewModel : IDisposable
     private bool _disposed;
 
     public SelectionSyncService SelectionSyncService { get; }
+    public UndoRedoService UndoRedoService { get; }
 
     public MainViewModel(
         ProjectViewModel projectViewModel,
@@ -47,6 +48,11 @@ public sealed class MainViewModel : IDisposable
         SelectionSyncService = new SelectionSyncService();
         canvasViewModel.SetSelectionSyncService(SelectionSyncService);
         timelineViewModel.SetSelectionSyncService(SelectionSyncService);
+
+        // ✅ Wire UndoRedoService for Ctrl+Z/Y support across timeline and canvas
+        UndoRedoService = new UndoRedoService();
+        timelineViewModel.SetUndoRedoService(UndoRedoService);
+        canvasViewModel.SetUndoRedoService(UndoRedoService);
 
         // Subscribe to playback state changes for UI sync (trackable event handler)
         _audioPlayerPropertyChangedHandler = OnAudioPlayerPropertyChanged;

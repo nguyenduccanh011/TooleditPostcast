@@ -1,4 +1,5 @@
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.ComponentModel;
@@ -239,6 +240,13 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void OnCanvasElementMouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_isDragging && _viewModel?.SelectedElement != null)
+            {
+                var el = _viewModel.SelectedElement;
+                if (Math.Abs(el.X - _originalX) > 0.5 || Math.Abs(el.Y - _originalY) > 0.5)
+                    _viewModel.UndoRedoService?.Record(new ElementMovedAction(el, _originalX, _originalY, el.X, el.Y));
+            }
+
             _isDragging = false;
 
             if (sender is Border border)

@@ -140,16 +140,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
+                // Use live timeline tracks (reflects unsaved changes the user made)
+                var liveProject = BuildLiveProject(project);
+
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
-                var timelineVisualSegments = BuildTimelineVisualSegments(project);
+                var timelineVisualSegments = BuildTimelineVisualSegments(liveProject);
+                var timelineTextSegments   = BuildTimelineTextSegments(liveProject);
+                var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
                 var imagePath = string.Empty;
 
-                // Fallback path for legacy single-image rendering when no timeline visual segments exist.
-                if (timelineVisualSegments.Count == 0)
-                    imagePath = await ResolveRenderImagePathAsync(project, _renderCancellationTokenSource.Token) ?? string.Empty;
+                // Fallback path for legacy single-image rendering when no timeline segments exist at all.
+                if (timelineVisualSegments.Count == 0 && timelineTextSegments.Count == 0 && timelineAudioSegments.Count == 0)
+                    imagePath = await ResolveRenderImagePathAsync(liveProject, _renderCancellationTokenSource.Token) ?? string.Empty;
 
-                if (timelineVisualSegments.Count == 0 && string.IsNullOrWhiteSpace(imagePath))
+                if (timelineVisualSegments.Count == 0 && timelineTextSegments.Count == 0
+                    && timelineAudioSegments.Count == 0 && string.IsNullOrWhiteSpace(imagePath))
                 {
                     StatusMessage = "No visual segment/image available for render";
                     return;
@@ -160,6 +166,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     AudioPath = project.AudioPath,
                     ImagePath = imagePath,
                     VisualSegments = timelineVisualSegments,
+                    TextSegments   = timelineTextSegments,
+                    AudioSegments  = timelineAudioSegments,
                     OutputPath = System.IO.Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                         "PodcastVideoEditor",
@@ -291,34 +299,144 @@ namespace PodcastVideoEditor.Ui.ViewModels
             return asset.FilePath;
         }
 
+        /// <summary>
+        /// Build a transient project copy that merges live (unsaved) timeline track state
+        /// so render always reflects what the user currently sees in the canvas/timeline.
+        /// </summary>
+        private Project BuildLiveProject(Project project)
+        {
+            if (_timelineViewModel == null)
+                return project;
+
+            // Shallow clone so we don't mutate the original project object
+            var live = new Project
+            {
+                Id             = project.Id,
+                Name           = project.Name,
+                AudioPath      = project.AudioPath,
+                Assets         = project.Assets,
+                RenderSettings = project.RenderSettings,
+                // Use live track list so unsaved segment changes are included
+                Tracks = _timelineViewModel.Tracks.ToList()
+            };
+            return live;
+        }
+
+        /// <summary>
+        /// Collect visual (image/video) segments from ALL visible visual tracks, ordered back→front.
+        /// Fixes BUG-3: previously only the first visual track was collected.
+        /// </summary>
         private List<RenderVisualSegment> BuildTimelineVisualSegments(Project project)
         {
-            var track = project.Tracks?
+            var visualTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
                 .OrderBy(t => t.Order)
-                .FirstOrDefault();
+                .ToList();
 
-            if (track == null || track.Segments == null || track.Segments.Count == 0)
+            if (visualTracks == null || visualTracks.Count == 0)
                 return [];
 
             var segments = new List<RenderVisualSegment>();
-            foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+            foreach (var track in visualTracks)
             {
-                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
-                    continue;
-
-                var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-                if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
-                    continue;
-
-                segments.Add(new RenderVisualSegment
+                if (track.Segments == null) continue;
+                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
                 {
-                    SourcePath = asset.FilePath,
-                    StartTime = segment.StartTime,
-                    EndTime = segment.EndTime,
-                    IsVideo = IsVideoAsset(asset),
-                    SourceOffsetSeconds = 0
-                });
+                    if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
+                        continue;
+
+                    var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+                    if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+                        continue;
+
+                    segments.Add(new RenderVisualSegment
+                    {
+                        SourcePath = asset.FilePath,
+                        StartTime = segment.StartTime,
+                        EndTime = segment.EndTime,
+                        IsVideo = IsVideoAsset(asset),
+                        SourceOffsetSeconds = 0
+                    });
+                }
+            }
+
+            return segments;
+        }
+
+        /// <summary>
+        /// Collect text overlay segments from all visible text tracks.
+        /// Fixes BUG-1: text segments were completely omitted from render.
+        /// </summary>
+        private static List<RenderTextSegment> BuildTimelineTextSegments(Project project)
+        {
+            var textTracks = project.Tracks?
+                .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                .OrderBy(t => t.Order)
+                .ToList();
+
+            if (textTracks == null || textTracks.Count == 0)
+                return [];
+
+            var segments = new List<RenderTextSegment>();
+            foreach (var track in textTracks)
+            {
+                if (track.Segments == null) continue;
+                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+                {
+                    if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
+                        continue;
+
+                    segments.Add(new RenderTextSegment
+                    {
+                        Text      = segment.Text,
+                        StartTime = segment.StartTime,
+                        EndTime   = segment.EndTime
+                        // FontSize, FontColor, XExpr, YExpr, DrawBox use class defaults
+                    });
+                }
+            }
+
+            return segments;
+        }
+
+        /// <summary>
+        /// Collect extra audio clip segments from all visible audio tracks.
+        /// Fixes BUG-2: audio track clips were never mixed into the render output.
+        /// </summary>
+        private static List<RenderAudioSegment> BuildTimelineAudioSegments(Project project)
+        {
+            var audioTracks = project.Tracks?
+                .Where(t => string.Equals(t.TrackType, "audio", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                .OrderBy(t => t.Order)
+                .ToList();
+
+            if (audioTracks == null || audioTracks.Count == 0)
+                return [];
+
+            var segments = new List<RenderAudioSegment>();
+            foreach (var track in audioTracks)
+            {
+                if (track.Segments == null) continue;
+                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+                {
+                    if (segment.EndTime <= segment.StartTime || string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+                        continue;
+
+                    var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+                    if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+                        continue;
+
+                    segments.Add(new RenderAudioSegment
+                    {
+                        SourcePath          = asset.FilePath,
+                        StartTime           = segment.StartTime,
+                        EndTime             = segment.EndTime,
+                        Volume              = segment.Volume,
+                        FadeInDuration      = segment.FadeInDuration,
+                        FadeOutDuration     = segment.FadeOutDuration,
+                        SourceOffsetSeconds = 0
+                    });
+                }
             }
 
             return segments;
