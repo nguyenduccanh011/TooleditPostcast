@@ -54,6 +54,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool canCancel;
 
+        /// <summary>True when the last render ended with an error/cancellation (shows notification in toolbar).</summary>
+        [ObservableProperty]
+        private bool hasError;
+
+        [ObservableProperty]
+        private string outputFolder = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "PodcastVideoEditor",
+            "Renders");
+
         private CancellationTokenSource? _renderCancellationTokenSource;
         private TimelineViewModel? _timelineViewModel;
 
@@ -133,6 +143,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             IsRendering = true;
             CanCancel = true;
+            HasError = false;
             RenderProgress = 0;
             StatusMessage = "Initializing render...";
 
@@ -140,6 +151,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
+                // Ensure output folder exists
+                if (!System.IO.Directory.Exists(OutputFolder))
+                    System.IO.Directory.CreateDirectory(OutputFolder);
+
                 // Use live timeline tracks (reflects unsaved changes the user made)
                 var liveProject = BuildLiveProject(project);
 
@@ -148,6 +163,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var timelineVisualSegments = BuildTimelineVisualSegments(liveProject);
                 var timelineTextSegments   = BuildTimelineTextSegments(liveProject);
                 var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
+
+                // Append BGM from timeline if configured and enabled
+                var bgm = _timelineViewModel?.GetActiveBgmTrack();
+                if (bgm != null && System.IO.File.Exists(bgm.AudioPath))
+                {
+                    var bgmDuration = (_timelineViewModel?.TotalDuration ?? 0) > 0
+                        ? _timelineViewModel!.TotalDuration
+                        : 3600; // fallback 1h
+                    // TODO: bgm.IsLooping is not yet implemented in the render pipeline.
+                    // When looping is needed the audio file should be repeated/trimmed in
+                    // FFmpegRenderService to fill bgmDuration instead of relying on the
+                    // single-pass audio segment below.
+                    timelineAudioSegments.Add(new PodcastVideoEditor.Core.Models.RenderAudioSegment
+                    {
+                        SourcePath      = bgm.AudioPath,
+                        StartTime       = 0,
+                        EndTime         = bgmDuration,
+                        Volume          = bgm.Volume,
+                        FadeInDuration  = bgm.FadeInSeconds,
+                        FadeOutDuration = bgm.FadeOutSeconds
+                    });
+                }
                 var imagePath = string.Empty;
 
                 // Fallback path for legacy single-image rendering when no timeline segments exist at all.
@@ -169,9 +206,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     TextSegments   = timelineTextSegments,
                     AudioSegments  = timelineAudioSegments,
                     OutputPath = System.IO.Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        "PodcastVideoEditor",
-                        "Renders",
+                        OutputFolder,
                         $"{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4"),
                     ResolutionWidth = width,
                     ResolutionHeight = height,
@@ -219,11 +254,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             catch (OperationCanceledException)
             {
                 StatusMessage = "Render cancelled by user";
+                HasError = true;
                 Log.Information("Render cancelled");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Render error: {ex.Message}";
+                HasError = true;
                 Log.Error(ex, "Render error");
             }
             finally
@@ -243,6 +280,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _renderCancellationTokenSource?.Cancel();
             FFmpegService.CancelRender();
             StatusMessage = "Cancelling render...";
+        }
+
+        /// <summary>
+        /// Browse for output folder using FolderBrowserDialog.
+        /// </summary>
+        [RelayCommand]
+        public void BrowseOutputFolder()
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "Select Output Folder",
+                InitialDirectory = System.IO.Directory.Exists(OutputFolder) ? OutputFolder : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)
+            };
+            if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+                OutputFolder = dialog.FolderName;
         }
 
         /// <summary>

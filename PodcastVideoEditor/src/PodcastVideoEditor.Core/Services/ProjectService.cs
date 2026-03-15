@@ -406,7 +406,28 @@ namespace PodcastVideoEditor.Core.Services
             try
             {
                 project.UpdatedAt = DateTime.UtcNow;
+
+                // Determine which BgmTracks already exist in DB BEFORE attaching the
+                // object graph. Projects.Update() marks every reachable entity as
+                // Modified; new BgmTrack rows (not yet in DB) must be re-marked as
+                // Added so EF emits INSERT instead of a silent no-op UPDATE.
+                var existingBgmIds = project.BgmTracks?.Count > 0
+                    ? new HashSet<string>(
+                          await _context.BgmTracks
+                              .Where(b => b.ProjectId == project.Id)
+                              .Select(b => b.Id)
+                              .ToListAsync())
+                    : new HashSet<string>();
+
                 _context.Projects.Update(project);
+
+                // Fix up any brand-new BgmTrack entities that were incorrectly
+                // stamped Modified by the graph walk above.
+                if (project.BgmTracks != null)
+                    foreach (var bgm in project.BgmTracks)
+                        if (!existingBgmIds.Contains(bgm.Id))
+                            _context.Entry(bgm).State = EntityState.Added;
+
                 await _context.SaveChangesAsync();
 
                 Log.Information("Project updated: {ProjectId}", project.Id);

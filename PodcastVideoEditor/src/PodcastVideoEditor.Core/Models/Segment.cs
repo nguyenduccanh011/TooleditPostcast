@@ -80,6 +80,14 @@ public partial class Segment : ObservableObject
     [property: NotMapped]
     private float[]? waveformPeaks;
 
+    /// <summary>
+    /// UI-only: whether this segment is part of a multi-segment selection (not persisted).
+    /// Set by TimelineViewModel when the user Ctrl/Shift+clicks segments.
+    /// </summary>
+    [ObservableProperty]
+    [property: NotMapped]
+    private bool isMultiSelected;
+
     // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }
 

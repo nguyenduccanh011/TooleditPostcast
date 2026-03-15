@@ -4,7 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
         xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
-        Title="Podcast Video Editor" Height="720" Width="1100"
+        Title="Podcast Video Editor" Height="820" MinHeight="680" Width="1100"
         WindowStartupLocation="CenterScreen"
         Background="#1E1E1E"
         Foreground="#FFFFFF"
@@ -29,6 +29,176 @@
                 <MenuItem Header="About" Click="AboutMenu_Click" />
             </MenuItem>
         </Menu>
+
+        <!--
+            Render toolbar – docked below the menu, visible only when Editor tab is active.
+            DataContext is RenderViewModel (set via code-behind on tab switch).
+        -->
+        <Border x:Name="RenderToolbar"
+                DockPanel.Dock="Top"
+                Background="#2D2D30"
+                BorderBrush="#3E3E42" BorderThickness="0,1,0,1"
+                Padding="8,3"
+                Visibility="Collapsed"
+                DataContext="{Binding DataContext.RenderViewModel, RelativeSource={RelativeSource AncestorType=Window}}">
+            <Border.Resources>
+                <!-- Compact outline dropdown button -->
+                <Style x:Key="DropBtn" TargetType="Button">
+                    <Setter Property="Background"     Value="Transparent"/>
+                    <Setter Property="Foreground"     Value="#CCCCCC"/>
+                    <Setter Property="BorderBrush"    Value="#3E3E42"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="Padding"        Value="7,3"/>
+                    <Setter Property="FontSize"       Value="12"/>
+                    <Setter Property="Height"         Value="26"/>
+                    <Setter Property="Cursor"         Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#3A3D3F"/>
+                                        <Setter Property="Foreground"               Value="#FFFFFF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Border.Resources>
+
+            <DockPanel LastChildFill="True">
+
+                <!-- Left: option dropdowns (Resolution / Quality / Scale) -->
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="0,0,8,0">
+
+                    <!-- Resolution -->
+                    <Button x:Name="TB_ResolutionButton"
+                            Style="{StaticResource DropBtn}"
+                            Content="{Binding SelectedResolution}"
+                            ToolTip="Resolution"
+                            Margin="0,0,4,0"
+                            Click="RenderTB_DropdownClick">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="480p"  Command="{Binding SetResolutionCommand}" CommandParameter="480p"/>
+                                <MenuItem Header="720p"  Command="{Binding SetResolutionCommand}" CommandParameter="720p"/>
+                                <MenuItem Header="1080p" Command="{Binding SetResolutionCommand}" CommandParameter="1080p"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+
+                    <!-- Quality -->
+                    <Button x:Name="TB_QualityButton"
+                            Style="{StaticResource DropBtn}"
+                            Content="{Binding SelectedQuality}"
+                            ToolTip="Quality"
+                            Margin="0,0,4,0"
+                            Click="RenderTB_DropdownClick">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="Low"    Command="{Binding SetQualityCommand}" CommandParameter="Low"/>
+                                <MenuItem Header="Medium" Command="{Binding SetQualityCommand}" CommandParameter="Medium"/>
+                                <MenuItem Header="High"   Command="{Binding SetQualityCommand}" CommandParameter="High"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+
+                    <!-- Scale -->
+                    <Button x:Name="TB_ScaleButton"
+                            Style="{StaticResource DropBtn}"
+                            Content="{Binding SelectedScaleMode}"
+                            ToolTip="Scale mode"
+                            Margin="0,0,8,0"
+                            Click="RenderTB_DropdownClick">
+                        <Button.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem Header="Fill"    Command="{Binding SetScaleModeCommand}" CommandParameter="Fill"/>
+                                <MenuItem Header="Fit"     Command="{Binding SetScaleModeCommand}" CommandParameter="Fit"/>
+                                <MenuItem Header="Stretch" Command="{Binding SetScaleModeCommand}" CommandParameter="Stretch"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+
+                    <!-- Separator -->
+                    <Rectangle Width="1" Fill="#3E3E42" Margin="0,4,8,4"/>
+
+                    <!-- Output folder -->
+                    <Button Style="{StaticResource DropBtn}"
+                            ToolTip="{Binding OutputFolder, StringFormat='Output: {0}'}"
+                            Command="{Binding BrowseOutputFolderCommand}"
+                            Margin="0,0,4,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="📁" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding OutputFolder}" FontSize="11" Foreground="#AAAAAA"
+                                       VerticalAlignment="Center" MaxWidth="160"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- Right: Render / Cancel buttons -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="8,0,0,0">
+
+                    <!-- Cancel -->
+                    <Button Content="Cancel"
+                            Width="70" Height="26" Margin="4,0,0,0"
+                            Background="#C0392B" Foreground="White" BorderThickness="0"
+                            IsEnabled="{Binding CanCancel}"
+                            Visibility="{Binding IsRendering, Converter={StaticResource BoolToVisibilityConverter}}"
+                            Command="{Binding CancelRenderCommand}"
+                            Cursor="Hand"/>
+
+                    <!-- Start Render -->
+                    <Button Width="100" Height="26" Margin="4,0,0,0"
+                            Background="#007ACC" Foreground="White" BorderThickness="0"
+                            Cursor="Hand"
+                            ToolTip="{Binding StatusMessage}"
+                            Command="{Binding StartRenderCommand}"
+                            CommandParameter="{Binding DataContext.ProjectViewModel.CurrentProject, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Content" Value="▶ Render"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRendering}" Value="True">
+                                        <Setter Property="Content"     Value="Rendering…"/>
+                                        <Setter Property="Background"  Value="#555555"/>
+                                        <Setter Property="IsEnabled"   Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+
+                <!-- Middle: slim progress + error notification (fills remaining space) -->
+                <Grid VerticalAlignment="Center" Margin="8,0">
+                    <!-- Progress bar (visible while rendering) -->
+                    <ProgressBar Value="{Binding RenderProgress}" Maximum="100"
+                                 Height="6" Background="#3E3E42" Foreground="#28A745"
+                                 Visibility="{Binding IsRendering, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!-- Error notification (visible on HasError) -->
+                    <Border Background="#3A1010" BorderBrush="#C0392B" BorderThickness="1"
+                            CornerRadius="3" Padding="8,2"
+                            Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="#FF6B6B"
+                                   FontSize="11" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                </Grid>
+
+            </DockPanel>
+        </Border>
 
         <TabControl x:Name="MainTabControl" Background="#1E1E1E" Foreground="#FFFFFF" SelectionChanged="MainTabControl_SelectionChanged"
                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
@@ -122,54 +292,69 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- CapCut-like Editor: 3 columns (Elements | Preview | Properties), Timeline full width, Render, Audio minimized -->
+            <!-- Resizable split-panel Editor -->
             <TabItem Header="Editor">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                              CanContentScroll="False">
-                    <Grid MinHeight="900">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="320" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                <!--
+                    Row GridSplitters:  HorizontalAlignment=Stretch + VerticalAlignment=Center
+                    Column GridSplitters: VerticalAlignment=Stretch + HorizontalAlignment=Center
+                    No custom template – lets WPF hit-test the full area reliably.
+                -->
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="3*" MinHeight="200"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="2*" MinHeight="160"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ═══════════ Row 0 : Three-column top area ═══════════ -->
+                    <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" MinWidth="200" />
-                            <ColumnDefinition Width="*" MinWidth="280" />
-                            <ColumnDefinition Width="*" MinWidth="240" MaxWidth="320" />
+                            <ColumnDefinition Width="*"  MinWidth="180"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="2*" MinWidth="280"/>
+                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="*"  MinWidth="200"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Row 0: Top row - 3 columns (Elements/Media | Preview | Properties) -->
-                        <!-- Col 0: Elements/Media (Script + Media list, add to timeline) -->
-                        <Border Grid.Row="0" Grid.Column="0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="8">
+                        <!-- Col 0: Elements / Media -->
+                        <Border Grid.Column="0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1" Padding="8">
                             <views:ElementsMediaPanelView DataContext="{Binding}" />
                         </Border>
-                        <!-- Col 1: Preview -->
-                        <Border Grid.Row="0" Grid.Column="1" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
+
+                        <!-- Vertical splitter between Elements and Canvas -->
+                        <GridSplitter Grid.Column="1"
+                                      VerticalAlignment="Stretch" HorizontalAlignment="Center"
+                                      Width="6" Background="#3E3E42" Cursor="SizeWE"
+                                      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
+
+                        <!-- Col 2: Preview / Canvas -->
+                        <Border Grid.Column="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1">
                             <views:CanvasView DataContext="{Binding CanvasViewModel}" />
                         </Border>
-                        <!-- Col 2: Properties (unified: Segment or Element based on selection) -->
-                        <Border Grid.Row="0" Grid.Column="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1,0,0,0">
+
+                        <!-- Vertical splitter between Canvas and Properties -->
+                        <GridSplitter Grid.Column="3"
+                                      VerticalAlignment="Stretch" HorizontalAlignment="Center"
+                                      Width="6" Background="#3E3E42" Cursor="SizeWE"
+                                      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
+
+                        <!-- Col 4: Properties -->
+                        <Border Grid.Column="4" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1">
                             <views:UnifiedPropertiesPanel DataContext="{Binding}" />
                         </Border>
-
-                        <!-- Row 1: Timeline full width -->
-                        <Border Grid.Row="1" Grid.ColumnSpan="3" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
-                            <views:TimelineView DataContext="{Binding TimelineViewModel}" />
-                        </Border>
-
-                        <!-- Row 2: Render -->
-                        <Border Grid.Row="2" Grid.ColumnSpan="3" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
-                            <views:RenderView DataContext="{Binding RenderViewModel}" />
-                        </Border>
-
-                        <!-- Row 3: Audio - Always visible (important control) -->
-                        <Border Grid.Row="3" Grid.ColumnSpan="3" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
-                            <controls:AudioPlayerControl x:Name="AudioPlayerControl"
-                                                         DataContext="{Binding AudioPlayerViewModel}" />
-                        </Border>
                     </Grid>
-                </ScrollViewer>
+
+                    <!-- Horizontal splitter: Top panels ↕ Timeline -->
+                    <GridSplitter Grid.Row="1"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  Height="8" Background="#3E3E42" Cursor="SizeNS"
+                                  ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"/>
+
+                    <!-- ═══════════ Row 2 : Timeline ═══════════ -->
+                    <Border Grid.Row="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0" Padding="10,4">
+                        <views:TimelineView DataContext="{Binding TimelineViewModel}" />
+                    </Border>
+                </Grid>
             </TabItem>
 
             <TabItem Header="Settings">

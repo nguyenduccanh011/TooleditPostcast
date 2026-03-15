@@ -709,4 +709,33 @@ namespace PodcastVideoEditor.Ui.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Converts seconds (double) to HH:MM:SS.mmm timecode string (HH omitted when 0).
+    /// e.g. 75.3 → "01:15.300",  3723.0 → "01:02:03.000"
+    /// </summary>
+    [ValueConversion(typeof(double), typeof(string))]
+    public class SecondsToTimecodeConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!double.TryParse(value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out double seconds))
+                return "00:00.000";
+            bool neg = seconds < 0;
+            seconds = Math.Abs(seconds);
+            int hours   = (int)(seconds / 3600);
+            int minutes = (int)((seconds % 3600) / 60);
+            double secs = seconds % 60;
+            string sign = neg ? "-" : "";
+            string formatted = hours > 0
+                ? $"{sign}{hours:D2}:{minutes:D2}:{secs:00.000}"
+                : $"{sign}{minutes:D2}:{secs:00.000}";
+            return formatted;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }

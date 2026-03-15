@@ -75,6 +75,40 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isPlaying = false;
 
+        // ── BGM (Background Music) ────────────────────────────────────────────
+        /// <summary>Path to the BGM audio file. Empty = no BGM.</summary>
+        [ObservableProperty]
+        private string bgmFilePath = string.Empty;
+
+        /// <summary>BGM volume 0–1.</summary>
+        [ObservableProperty]
+        private double bgmVolume = 0.3;
+
+        /// <summary>BGM fade-in duration in seconds.</summary>
+        [ObservableProperty]
+        private double bgmFadeIn = 2.0;
+
+        /// <summary>BGM fade-out duration in seconds.</summary>
+        [ObservableProperty]
+        private double bgmFadeOut = 2.0;
+
+        /// <summary>Whether the BGM loops to fill the full project duration.</summary>
+        [ObservableProperty]
+        private bool bgmIsLooping = false;
+
+        /// <summary>Whether the BGM is enabled for playback/render.</summary>
+        [ObservableProperty]
+        private bool bgmIsEnabled = true;
+
+        // Sync lightweight in-memory model whenever any BGM property changes via UI binding.
+        // (No DB save here – that only happens on explicit Browse/Clear so we don't
+        //  hammer the database on every slider tick.)
+        partial void OnBgmVolumeChanged(double value)     => SyncBgmToProject();
+        partial void OnBgmFadeInChanged(double value)     => SyncBgmToProject();
+        partial void OnBgmFadeOutChanged(double value)    => SyncBgmToProject();
+        partial void OnBgmIsLoopingChanged(bool value)    => SyncBgmToProject();
+        partial void OnBgmIsEnabledChanged(bool value)    => SyncBgmToProject();
+
         private const int WaveformBinCount = 2400;
         private const int ActiveSyncIntervalMs = 33;
         private const int IdleSyncIntervalMs = 150;
@@ -179,6 +213,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 StatusMessage = $"Loaded {Tracks.Count} track(s)";
                 Log.Information("Tracks loaded: {Count}", Tracks.Count);
+
+                // Load BGM settings from the project's first BGM track
+                LoadBgmFromProject();
 
                 // Load waveform peaks only when audio is already loaded
                 if (_audioService.GetDuration() > 0)
@@ -782,13 +819,48 @@ namespace PodcastVideoEditor.Ui.ViewModels
         // Use TogglePlayPauseCommand instead via the CanvasView playback control
 
         /// <summary>
-        /// Delete selected segment.
+        /// Delete selected segment (or all multi-selected segments if any are selected).
         /// </summary>
         [RelayCommand]
         public void DeleteSelectedSegment()
         {
             try
             {
+                // Multi-select delete takes priority
+                if (_multiSelectedSegments.Count > 0)
+                {
+                    int totalCount = _multiSelectedSegments.Count;
+                    // Skip segments whose track is locked
+                    var toDelete = _multiSelectedSegments
+                        .Where(seg => Tracks.FirstOrDefault(t => t.Id == seg.TrackId)?.IsLocked != true)
+                        .ToList();
+                    int skipped = totalCount - toDelete.Count;
+                    ClearMultiSelection();
+
+                    var actions = new System.Collections.Generic.List<IUndoableAction>();
+                    foreach (var seg in toDelete)
+                    {
+                        var track = Tracks.FirstOrDefault(t => t.Id == seg.TrackId);
+                        if (track?.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> segs)
+                        {
+                            int idx = segs.IndexOf(seg);
+                            segs.Remove(seg);
+                            if (SelectedSegment == seg) SelectedSegment = null;
+                            actions.Add(new SegmentDeletedAction(
+                                segs, seg, idx,
+                                InvalidateActiveSegmentsCache,
+                                s => { if (s != null) SelectSegment(s); else SelectedSegment = null; }));
+                        }
+                    }
+                    if (actions.Count > 0)
+                        _undoRedo?.Record(new CompoundAction($"Delete {actions.Count} segment(s)", actions));
+                    InvalidateActiveSegmentsCache();
+                    StatusMessage = skipped > 0
+                        ? $"{toDelete.Count} segment(s) deleted ({skipped} skipped — locked)"
+                        : $"{toDelete.Count} segment(s) deleted";
+                    return;
+                }
+
                 if (SelectedSegment == null)
                 {
                     StatusMessage = "No segment selected";
@@ -818,6 +890,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 StatusMessage = $"Error deleting segment: {ex.Message}";
                 Log.Error(ex, "Error deleting segment");
             }
+        }
+
+        /// <summary>
+        /// Select all segments across all tracks (Ctrl+A).
+        /// </summary>
+        [RelayCommand]
+        public void SelectAllSegments()
+        {
+            ClearMultiSelection();
+            foreach (var track in Tracks)
+            {
+                foreach (var seg in track.Segments)
+                {
+                    seg.IsMultiSelected = true;
+                    _multiSelectedSegments.Add(seg);
+                }
+            }
+            int total = _multiSelectedSegments.Count;
+            StatusMessage = total > 0 ? $"All {total} segment(s) selected" : "No segments to select";
         }
 
         /// <summary>
@@ -982,6 +1073,186 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Tracks.Add(track);
             StatusMessage = $"Added track: {track.Name}";
             Log.Information("Track added: {Name} ({Type}) at Order {Order}", track.Name, trackType, maxOrder);
+        }
+
+        /// <summary>Toggle IsLocked on a track. Called from track header lock button.</summary>
+        public void ToggleTrackLock(Track? track)
+        {
+            if (track == null) return;
+            track.IsLocked = !track.IsLocked;
+            StatusMessage = track.IsLocked ? $"Track '{track.Name}' locked" : $"Track '{track.Name}' unlocked";
+            _ = _projectViewModel.SaveProjectAsync();
+        }
+
+        /// <summary>Toggle IsVisible on a track. Called from track header eye button.</summary>
+        public void ToggleTrackVisibility(Track? track)
+        {
+            if (track == null) return;
+            track.IsVisible = !track.IsVisible;
+            StatusMessage = track.IsVisible ? $"Track '{track.Name}' visible" : $"Track '{track.Name}' hidden";
+            _ = _projectViewModel.SaveProjectAsync();
+        }
+
+        /// <summary>Persist the current project. Called by views after making in-place edits (e.g. transition picker).</summary>
+        public void RequestProjectSave() => _ = _projectViewModel.SaveProjectAsync();
+
+        // ── Multi-select state ──────────────────────────────────────────────────
+
+        private readonly List<Segment> _multiSelectedSegments = new();
+
+        /// <summary>
+        /// Return true when one or more segments are in the multi-selection.
+        /// </summary>
+        public bool HasMultiSelection => _multiSelectedSegments.Count > 0;
+
+        /// <summary>
+        /// Toggle <paramref name="segment"/> in/out of the multi-selection without
+        /// changing <see cref="SelectedSegment"/> (single-select is kept independent).
+        /// </summary>
+        public void ToggleMultiSelect(Segment segment)
+        {
+            if (_multiSelectedSegments.Contains(segment))
+            {
+                _multiSelectedSegments.Remove(segment);
+                segment.IsMultiSelected = false;
+            }
+            else
+            {
+                _multiSelectedSegments.Add(segment);
+                segment.IsMultiSelected = true;
+            }
+            StatusMessage = _multiSelectedSegments.Count > 0
+                ? $"{_multiSelectedSegments.Count} segment(s) selected"
+                : "Multi-selection cleared";
+        }
+
+        /// <summary>Clear all multi-selected segments without deleting them.</summary>
+        public void ClearMultiSelection()
+        {
+            foreach (var seg in _multiSelectedSegments)
+                seg.IsMultiSelected = false;
+            _multiSelectedSegments.Clear();
+        }
+
+        // ── BGM commands ──────────────────────────────────────────────────────
+
+        /// <summary>Open a file picker and set the BGM file path.</summary>
+        [RelayCommand]
+        public void BrowseBgmFile()
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title  = "Select BGM audio file",
+                Filter = "Audio files|*.mp3;*.wav;*.flac;*.aac;*.ogg;*.m4a|All files|*.*"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                BgmFilePath = dlg.FileName;
+                SyncBgmToProject();
+                _ = _projectViewModel.SaveProjectAsync();
+                StatusMessage = $"BGM: {System.IO.Path.GetFileName(BgmFilePath)}";
+            }
+        }
+
+        /// <summary>Remove the BGM track from the current project.</summary>
+        [RelayCommand]
+        public void ClearBgm()
+        {
+            BgmFilePath = string.Empty;
+            SyncBgmToProject();
+            _ = _projectViewModel.SaveProjectAsync();
+            StatusMessage = "BGM cleared";
+        }
+
+        /// <summary>
+        /// Load BGM settings from the project's first BgmTrack (if any).
+        /// Called whenever the project changes.
+        /// </summary>
+        private void LoadBgmFromProject()
+        {
+            var bgm = _projectViewModel.CurrentProject?.BgmTracks?.FirstOrDefault();
+            if (bgm != null)
+            {
+                BgmFilePath   = bgm.AudioPath;
+                BgmVolume     = bgm.Volume;
+                BgmFadeIn     = bgm.FadeInSeconds;
+                BgmFadeOut    = bgm.FadeOutSeconds;
+                BgmIsLooping  = bgm.IsLooping;
+                BgmIsEnabled  = bgm.IsEnabled;
+            }
+            else
+            {
+                BgmFilePath   = string.Empty;
+                BgmVolume     = 0.3;
+                BgmFadeIn     = 2.0;
+                BgmFadeOut    = 2.0;
+                BgmIsLooping  = false;
+                BgmIsEnabled  = true;
+            }
+        }
+
+        /// <summary>
+        /// Write current BGM UI state back to the project model (first BgmTrack, or create one).
+        /// </summary>
+        private void SyncBgmToProject()
+        {
+            var project = _projectViewModel.CurrentProject;
+            if (project == null) return;
+
+            project.BgmTracks ??= [];
+            var bgm = project.BgmTracks.FirstOrDefault();
+            if (bgm == null)
+            {
+                bgm = new PodcastVideoEditor.Core.Models.BgmTrack { ProjectId = project.Id };
+                project.BgmTracks.Add(bgm);
+            }
+            bgm.AudioPath      = BgmFilePath;
+            bgm.Volume         = BgmVolume;
+            bgm.FadeInSeconds  = BgmFadeIn;
+            bgm.FadeOutSeconds = BgmFadeOut;
+            bgm.IsLooping      = BgmIsLooping;
+            bgm.IsEnabled      = BgmIsEnabled;
+        }
+
+        /// <summary>
+        /// Get the first active BGM track for render pipeline consumption.
+        /// Returns null if no BGM is configured or disabled.
+        /// </summary>
+        public PodcastVideoEditor.Core.Models.BgmTrack? GetActiveBgmTrack()
+        {
+            if (!BgmIsEnabled || string.IsNullOrWhiteSpace(BgmFilePath)) return null;
+            return new PodcastVideoEditor.Core.Models.BgmTrack
+            {
+                AudioPath      = BgmFilePath,
+                Volume         = BgmVolume,
+                FadeInSeconds  = BgmFadeIn,
+                FadeOutSeconds = BgmFadeOut,
+                IsLooping      = BgmIsLooping,
+                IsEnabled      = BgmIsEnabled
+            };
+        }
+
+        /// <summary>
+        /// Magnetic snap: if <paramref name="proposedTime"/> is within <paramref name="thresholdSeconds"/>
+        /// of any segment edge in the same track (excluding <paramref name="excludeSegmentId"/>),
+        /// return the snapped edge time; otherwise return <paramref name="proposedTime"/>.
+        /// </summary>
+        public double SnapToSegmentEdge(double proposedTime, string? trackId, string? excludeSegmentId, double thresholdSeconds)
+        {
+            if (trackId == null) return proposedTime;
+            var track = Tracks.FirstOrDefault(t => t.Id == trackId);
+            if (track == null) return proposedTime;
+            double best = proposedTime;
+            double bestDist = thresholdSeconds;
+            foreach (var seg in track.Segments)
+            {
+                if (seg.Id == excludeSegmentId) continue;
+                double dStart = Math.Abs(proposedTime - seg.StartTime);
+                double dEnd   = Math.Abs(proposedTime - seg.EndTime);
+                if (dStart < bestDist) { bestDist = dStart; best = seg.StartTime; }
+                if (dEnd   < bestDist) { bestDist = dEnd;   best = seg.EndTime; }
+            }
+            return best;
         }
 
         /// <summary>

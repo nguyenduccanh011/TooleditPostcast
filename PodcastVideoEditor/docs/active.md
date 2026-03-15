@@ -372,3 +372,126 @@ Last updated: 2026-02-12 (Next task: objective + acceptance criteria + implement
 **Sau TP-005:** Phase 5 (Render #10, #11). Phase 4 (AI) hoặc Phase 6 (ST-6/ST-7, #12) tùy ưu tiên.
 
 ---
+
+## TP-UX — Competitive UX/Feature Gap Pack (2026-03-14)
+
+> Phân tích từ rà soát cấu trúc toàn bộ codebase. Ưu tiên P0 trước khi demo.
+
+### P0 — Blocker (phải xong trước demo)
+
+#### TP-UX1: Timeline Zoom
+**Goal:** Ctrl+Scroll để zoom in/out timeline; giải quyết vấn đề không thể edit chi tiết đoạn ngắn.
+**Subtasks:**
+- [ ] ST-1: Thêm `ZoomLevel` (double, 0.1x–5x, default 1.0) property vào `TimelineViewModel`
+- [ ] ST-2: `PixelsPerSecond = BasePixelsPerSecond * ZoomLevel`; `BasePixelsPerSecond` tính theo width/duration như hiện tại
+- [ ] ST-3: Ctrl+Scroll handler trong `TimelineView.xaml.cs` → `ZoomLevel += delta * 0.1`
+- [ ] ST-4: Zoom reset button (double-click ruler hoặc "1x" button) trong toolbar
+**Files:** `ViewModels/TimelineViewModel.cs`, `Views/TimelineView.xaml.cs`
+
+---
+
+#### TP-UX2: Render Output Path Browse
+**Goal:** User chọn thư mục output thay vì bị hardcode vào AppData.
+**Subtasks:**
+- [ ] ST-1: Thêm `OutputFolder` (string, default = AppData renders path) + `BrowseOutputFolderCommand` vào `RenderViewModel`
+- [ ] ST-2: `BrowseOutputFolderCommand` → `FolderBrowserDialog` → cập nhật `OutputFolder`
+- [ ] ST-3: Truyền `OutputFolder` vào `FFmpegService.RenderVideoAsync` thay vì path cứng
+- [ ] ST-4: Bind `OutputFolder` TextBox + Browse Button vào `RenderView.xaml`
+**Files:** `ViewModels/RenderViewModel.cs`, `Views/RenderView.xaml`, `Core/Services/FFmpegService.cs`
+
+---
+
+### P1 — Quan trọng (sprint 1-2 tuần)
+
+#### TP-UX3: Playhead Timecode Display
+**Goal:** `PlayheadPosition` hiển thị đúng format `MM:SS.mmm` thay vì số thập phân thô.
+**Subtasks:**
+- [ ] ST-1: Thêm `SecondsToTimecodeConverter` vào `Converters/TimelineConverters.cs`
+  - Input: `double` seconds → Output: `"MM:SS.mmm"`
+- [ ] ST-2: Bind `PlayheadPosition` qua converter trong `TimelineView.xaml` (status bar + ruler tooltip)
+**Files:** `Converters/TimelineConverters.cs`, `Views/TimelineView.xaml`
+
+---
+
+#### TP-UX4: Track Lock / Mute Toggle UI
+**Goal:** Lock và Mute icon trong track header (model đã có `IsLocked`/`IsVisible`).
+**Subtasks:**
+- [ ] ST-1: Thêm `ToggleLockCommand(Track)` + `ToggleVisibilityCommand(Track)` vào `TimelineViewModel`
+- [ ] ST-2: Khi `IsLocked=true` → disable drag/resize cho tất cả segments của track đó (check in `TimelineView.xaml.cs` drag handlers)
+- [ ] ST-3: Khi `IsVisible=false` → `Visibility=Collapsed` cho segment rows của track; bỏ qua track trong FFmpeg render
+- [ ] ST-4: Bind Lock icon (🔒) + Eye icon (👁) vào track header template trong `TimelineView.xaml`
+**Files:** `ViewModels/TimelineViewModel.cs`, `Views/TimelineView.xaml`, `Core/Services/FFmpegService.cs`
+
+---
+
+#### TP-UX5: Window Min Height Fix
+**Goal:** Loại bỏ scroll cưỡng bức trong Editor tab; Editor content fit trong 720px.
+**Subtasks:**
+- [ ] ST-1: Đổi `MainWindow` `Height=720` → `Height=800` (hoặc `MinHeight=800`)
+- [ ] ST-2: Xóa/giảm `MinHeight="900"` trên Editor Grid trong `MainWindow.xaml`
+- [ ] ST-3: Kiểm tra layout vẫn đúng ở 768px, 900px, 1080px
+**Files:** `MainWindow.xaml`
+
+---
+
+### P2 — Tính năng cạnh tranh (chọn theo sprint)
+
+#### TP-FEAT1: Snap to Segment Edge (Magnetic Snap)
+**Goal:** Khi kéo segment, tự động "hút" vào edge của segment liền kề trong cùng track (ngưỡng 10px).
+**Subtasks:**
+- [ ] ST-1: Trong `TimelineView.xaml.cs` drag handler — sau 10ms grid snap, kiểm tra edge gần nhất cùng track
+- [ ] ST-2: Nếu khoảng cách < 15px (configurable) → snap về edge đó
+- [ ] ST-3: Visual indicator (highlight đỏ/vàng nhỏ tại điểm snap)
+**Files:** `Views/TimelineView.xaml.cs`
+
+---
+
+#### TP-FEAT2: Multi-Select Segments
+**Goal:** Shift+Click chọn nhiều segments, rồi delete/move đồng loạt.
+**Subtasks:**
+- [ ] ST-1: `TimelineViewModel` → `SelectedSegments` (`ObservableCollection<Segment>`)
+- [ ] ST-2: Shift+Click → toggle segment vào/ra `SelectedSegments`
+- [ ] ST-3: `DeleteSelectedCommand` → xóa tất cả trong `SelectedSegments`
+- [ ] ST-4: Highlight tất cả selected segments trong timeline
+**Files:** `ViewModels/TimelineViewModel.cs`, `Views/TimelineView.xaml`, `Views/TimelineView.xaml.cs`
+
+---
+
+#### TP-FEAT3: BGM Track UI
+**Goal:** UI để load nhạc nền (BGM), volume, fade — `BgmTrack` model đã có.
+**Subtasks:**
+- [ ] ST-1: Tạo `BgmViewModel` (load file, volume, fade in/out duration, IsEnabled)
+- [ ] ST-2: Thêm BGM row vào timeline (cuối cùng, dưới audio tracks)
+- [ ] ST-3: Tích hợp BGM vào `FFmpegService.RenderVideoAsync` (amix BGM + voice track)
+**Files:** Tạo `ViewModels/BgmViewModel.cs`, `Views/TimelineView.xaml`, `Core/Services/FFmpegService.cs`
+
+---
+
+#### TP-FEAT4: Transition Gallery UI
+**Goal:** Right-click segment → "Add Transition" → picker gallery (Fade, Wipe, Zoom, Dissolve).
+**Subtasks:**
+- [ ] ST-1: Tạo `TransitionPickerDialog.xaml` với grid 4 loại (Fade/Wipe/Zoom/Dissolve) + None
+- [ ] ST-2: Mỗi loại có thumbnail preview tĩnh + tên
+- [ ] ST-3: Khi chọn → set `Segment.TransitionType` + `TransitionDuration`
+- [ ] ST-4: FFmpegService đã có render `fade`; thêm xfade filter cho Wipe/Dissolve
+**Files:** Tạo `Views/TransitionPickerDialog.xaml`, `Core/Services/FFmpegService.cs`
+
+---
+
+## UX/Feature Gap Summary (2026-03-14)
+
+| Priority | ID | Vấn đề | Estimate |
+|----------|----|---------|----------|
+| P0 | TP-UX1 | Timeline Zoom | 3-4h |
+| P0 | TP-UX2 | Render Output Browse | 1-2h |
+| P1 | TP-UX3 | Playhead Timecode MM:SS.mmm | 30m |
+| P1 | TP-UX4 | Track Lock/Mute UI | 2-3h |
+| P1 | TP-UX5 | Window Height Fix | 30m |
+| P2 | TP-FEAT1 | Snap to Segment Edge | 2h |
+| P2 | TP-FEAT2 | Multi-Select Segments | 3-4h |
+| P2 | TP-FEAT3 | BGM Track UI | 4-6h |
+| P2 | TP-FEAT4 | Transition Gallery | 3-4h |
+
+**Tổng missing vs CapCut/Premiere (full list):** Timeline zoom, multi-select, ripple edit, magnetic snap, track lock/mute/solo, transitions gallery, animated text, audio ducking, volume envelope curve, auto-caption, export format options, template save/load, custom output path.
+
+---

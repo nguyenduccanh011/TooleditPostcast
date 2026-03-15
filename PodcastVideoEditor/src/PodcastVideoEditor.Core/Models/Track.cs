@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace PodcastVideoEditor.Core.Models;
 
 /// <summary>
@@ -13,7 +15,7 @@ namespace PodcastVideoEditor.Core.Models;
 /// - Z-order management for rendering
 /// - Lock and visibility controls per track
 /// </summary>
-public class Track
+public partial class Track : ObservableObject
 {
     /// <summary>
     /// Unique identifier for the track.
@@ -58,13 +60,15 @@ public class Track
     /// Indicates if this track is locked for editing.
     /// When locked, segments in this track cannot be dragged, resized, or modified through UI.
     /// </summary>
-    public bool IsLocked { get; set; }
+    [ObservableProperty]
+    private bool isLocked;
 
     /// <summary>
     /// Indicates if this track is visible in the timeline and render output.
     /// When false, the track row is hidden in UI and segments are not rendered.
     /// </summary>
-    public bool IsVisible { get; set; } = true;
+    [ObservableProperty]
+    private bool isVisible = true;
 
     // Navigation properties
 

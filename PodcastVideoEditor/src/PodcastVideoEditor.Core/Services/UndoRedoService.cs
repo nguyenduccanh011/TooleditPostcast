@@ -3,6 +3,7 @@ using PodcastVideoEditor.Core.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 
 namespace PodcastVideoEditor.Core.Services;
 
@@ -242,4 +243,32 @@ public sealed class ElementDeletedAction : IUndoableAction
     public string Description => $"Delete '{_el.Name}'";
     public void Undo() { if (!_elements.Contains(_el)) _elements.Add(_el); }
     public void Redo() => _elements.Remove(_el);
+}
+
+/// <summary>Groups multiple actions into a single undoable/redoable unit (e.g., bulk delete).</summary>
+public sealed class CompoundAction : IUndoableAction
+{
+    private readonly IUndoableAction[] _actions;
+
+    public CompoundAction(string description, IEnumerable<IUndoableAction> actions)
+    {
+        Description = description;
+        _actions = actions.ToArray();
+    }
+
+    public string Description { get; }
+
+    /// <summary>Undo in reverse order so the state is fully restored.</summary>
+    public void Undo()
+    {
+        for (int i = _actions.Length - 1; i >= 0; i--)
+            _actions[i].Undo();
+    }
+
+    /// <summary>Redo in forward order.</summary>
+    public void Redo()
+    {
+        foreach (var a in _actions)
+            a.Redo();
+    }
 }

@@ -118,8 +118,24 @@ public partial class MainWindow : Window
 
     private async void MainTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        // Show render toolbar only when Editor tab (index 1) is active
+        RenderToolbar.Visibility = MainTabControl.SelectedIndex == 1
+            ? System.Windows.Visibility.Visible
+            : System.Windows.Visibility.Collapsed;
+
         if (_initialLoadDone && MainTabControl.SelectedIndex == 0)
             await LoadProjectsSafeAsync();
+    }
+
+    /// <summary>Generic handler that opens a button's ContextMenu as a dropdown.</summary>
+    private void RenderTB_DropdownClick(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
+        {
+            btn.ContextMenu.PlacementTarget = btn;
+            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            btn.ContextMenu.IsOpen = true;
+        }
     }
 
     private async Task LoadProjectsSafeAsync()
@@ -336,13 +352,6 @@ public partial class MainWindow : Window
     private void MainWindow_Closing(object sender, CancelEventArgs e)
     {
         _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
-        try
-        {
-            AudioPlayerControl?.Cleanup();
-        }
-        catch
-        {
-        }
 
         _canvasViewModel?.Dispose();
         _visualizerViewModel?.Dispose();

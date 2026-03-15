@@ -9,6 +9,7 @@
              Focusable="True">
     <UserControl.InputBindings>
         <KeyBinding Key="Delete" Command="{Binding DeleteSelectedSegmentCommand}"/>
+        <KeyBinding Modifiers="Ctrl" Key="A" Command="{Binding SelectAllSegmentsCommand}"/>
         <!-- Space bar for playback control is now handled by CanvasView to avoid conflicts -->
     </UserControl.InputBindings>
 
@@ -26,6 +27,7 @@
         <conv:VideoFrameAtTimeConverter x:Key="VideoFrameAtTimeConverter"/>
         <conv:KindToVisibilityConverter x:Key="KindToVisibilityConverter"/>
         <conv:KindToVisibilityInverseConverter x:Key="KindToVisibilityInverseConverter"/>
+        <conv:SecondsToTimecodeConverter x:Key="SecondsToTimecodeConverter"/>
         <!-- Thumb template tối giản: bỏ template mặc định gây khối trắng -->
         <Style x:Key="TransparentThumbStyle" TargetType="Thumb">
             <Setter Property="Template">
@@ -43,6 +45,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Status Bar: MinHeight so buttons and text are not clipped -->
@@ -57,10 +60,10 @@
                     <TextBlock Text="Timeline:" Margin="0,0,10,0" VerticalAlignment="Center" FontWeight="Bold"/>
                     <TextBlock Text="{Binding StatusMessage}" Foreground="#a0a0a0" VerticalAlignment="Center" Margin="0,0,20,0"/>
                     <TextBlock Text="Playhead:" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding PlayheadPosition}" 
+                    <TextBlock Text="{Binding PlayheadPosition, Converter={StaticResource SecondsToTimecodeConverter}}" 
                                Foreground="#4fc3f7" VerticalAlignment="Center" FontFamily="Courier New" FontWeight="Bold"/>
                     <TextBlock Text=" / " VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding TotalDuration}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding TotalDuration, Converter={StaticResource SecondsToTimecodeConverter}}" VerticalAlignment="Center" FontFamily="Courier New"/>
                     <TextBlock Text=" (" Margin="5,0,0,0" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding PixelsPerSecond, Converter={StaticResource PixelsPerSecondConverter}}" 
                                Foreground="#81c784" VerticalAlignment="Center" FontFamily="Courier New"/>
@@ -68,13 +71,30 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!-- Zoom controls -->
+                    <Button Content="−" x:Name="ZoomOutButton" ToolTip="Zoom Out (Ctrl+ScrollDown)"
+                            Background="#37474f" Foreground="White" Padding="8,8" MinHeight="32" MinWidth="32" Margin="0,0,2,0"
+                            FontSize="14" FontWeight="Bold" VerticalContentAlignment="Center"
+                            Click="ZoomOutButton_Click"/>
+                    <Button Content="1x" x:Name="ZoomResetButton" ToolTip="Reset Zoom (fit all)"
+                            Background="#37474f" Foreground="#81c784" Padding="8,8" MinHeight="32" Margin="0,0,2,0"
+                            FontFamily="Courier New" FontWeight="Bold" VerticalContentAlignment="Center"
+                            Click="ZoomResetButton_Click"/>
+                    <Button Content="+" x:Name="ZoomInButton" ToolTip="Zoom In (Ctrl+ScrollUp)"
+                            Background="#37474f" Foreground="White" Padding="8,8" MinHeight="32" MinWidth="32" Margin="0,0,16,0"
+                            FontSize="14" FontWeight="Bold" VerticalContentAlignment="Center"
+                            Click="ZoomInButton_Click"/>
                     <!-- Segment controls only - Playback controls moved to CanvasView -->
                     <Button Content="Add" Command="{Binding AddSegmentAtPlayheadCommand}"
                             Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
                     <Button Content="Duplicate" Command="{Binding DuplicateSelectedSegmentCommand}"
                             Background="#1e88e5" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
                     <Button Content="Delete" Command="{Binding DeleteSelectedSegmentCommand}"
+                            ToolTip="Delete selected (or all Ctrl+A selected) segments"
                             Background="#e53935" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
+                    <Button Content="Sel All" Command="{Binding SelectAllSegmentsCommand}"
+                            ToolTip="Select all segments (Ctrl+A)"
+                            Background="#6d4c41" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
                     <Button Content="Clear All" Command="{Binding ClearAllSegmentsCommand}"
                             Background="#6d4c41" Foreground="White" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>
                 </StackPanel>
@@ -120,8 +140,52 @@
                             <DataTemplate>
                                 <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
                                     Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0">
-                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Margin="4,0"
-                                               Foreground="#81c784" FontWeight="SemiBold" FontSize="10"/>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Text="{Binding Name}" VerticalAlignment="Center" Margin="4,2,4,0"
+                                                   Foreground="#81c784" FontWeight="SemiBold" FontSize="10"/>
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="2,0,2,2">
+                                            <!-- Lock toggle -->
+                                            <Button x:Name="LockBtn" Width="18" Height="18" Margin="0,0,2,0"
+                                                    ToolTip="Lock/Unlock track (locked segments cannot be moved)"
+                                                    Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
+                                                    Click="TrackLockButton_Click" Tag="{Binding}">
+                                                <TextBlock FontFamily="Segoe UI Emoji" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="🔓"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                                                    <Setter Property="Text" Value="🔒"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                            <!-- Visibility toggle -->
+                                            <Button x:Name="VisBtn" Width="18" Height="18"
+                                                    ToolTip="Show/Hide track"
+                                                    Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
+                                                    Click="TrackVisibilityButton_Click" Tag="{Binding}">
+                                                <TextBlock FontFamily="Segoe UI Emoji" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="👁"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                    <Setter Property="Text" Value="🚫"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -212,6 +276,17 @@
                                                     <Grid x:Name="SegmentRoot" Height="40" Cursor="Hand">
                                                         <Border x:Name="SegmentFill" Background="#2d3a4a" BorderBrush="#43a047" BorderThickness="2,0,2,0"
                                                                 CornerRadius="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#FF9800"/>
+                                                                            <Setter Property="BorderThickness" Value="2,2,2,2"/>
+                                                                            <Setter Property="Background" Value="#3a3a2a"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
                                                             <Grid x:Name="SegmentContentLayer">
                                                                 <Thumb x:Name="MoveThumb" Style="{StaticResource TransparentThumbStyle}"
                                                                       Cursor="SizeAll"
@@ -406,6 +481,56 @@
                 </ScrollViewer>
             </Grid>
         </ScrollViewer>
+
+        <!-- BGM Row: background music configuration strip at the bottom of the timeline -->
+        <Border Grid.Row="2" Background="#1a1a2a" BorderBrush="#3a3a5a" BorderThickness="0,1,0,0" Padding="6,4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <!-- Label matching track header width -->
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="BGM" Foreground="#7986cb" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center"/>
+                    <CheckBox IsChecked="{Binding BgmIsEnabled}" HorizontalAlignment="Center" ToolTip="Enable BGM in render"/>
+                </StackPanel>
+                <!-- Controls -->
+                <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox x:Name="BgmPathBox"
+                             Text="{Binding BgmFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Width="200" MaxHeight="26" Margin="0,0,4,0"
+                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
+                             VerticalContentAlignment="Center" Padding="4,0"
+                             IsReadOnly="True" ToolTip="{Binding BgmFilePath}"
+                             FontSize="11"/>
+                    <Button Content="Browse" Command="{Binding BrowseBgmFileCommand}"
+                            Background="#3949ab" Foreground="White" Padding="8,4" Margin="0,0,8,0"
+                            MinHeight="26" VerticalContentAlignment="Center" FontSize="11"/>
+                    <TextBlock Text="Vol:" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11"/>
+                    <Slider Value="{Binding BgmVolume, Mode=TwoWay}" Minimum="0" Maximum="1"
+                            Width="80" VerticalAlignment="Center" Margin="0,0,4,0"
+                            ToolTip="{Binding BgmVolume, StringFormat='Volume: {0:P0}'}"/>
+                    <TextBlock Text="Fade↑" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,2,0" FontSize="11"/>
+                    <TextBox Text="{Binding BgmFadeIn, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="36" MaxHeight="26" Margin="0,0,6,0"
+                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
+                             VerticalContentAlignment="Center" Padding="2,0" FontSize="11"
+                             ToolTip="Fade-in seconds"/>
+                    <TextBlock Text="↓" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,2,0" FontSize="11"/>
+                    <TextBox Text="{Binding BgmFadeOut, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                             Width="36" MaxHeight="26" Margin="0,0,8,0"
+                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
+                             VerticalContentAlignment="Center" Padding="2,0" FontSize="11"
+                             ToolTip="Fade-out seconds"/>
+                    <CheckBox Content="Loop" IsChecked="{Binding BgmIsLooping, Mode=TwoWay}"
+                              Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
+                              ToolTip="Loop BGM to fill project duration"/>
+                    <Button Content="✕" Command="{Binding ClearBgmCommand}"
+                            Background="#c62828" Foreground="White" Width="26" Height="26"
+                            FontWeight="Bold" ToolTip="Remove BGM" Margin="0,0,0,0"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
     </Grid>
 
 </UserControl>

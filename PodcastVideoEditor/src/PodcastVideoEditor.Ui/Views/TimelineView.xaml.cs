@@ -194,6 +194,18 @@ namespace PodcastVideoEditor.Ui.Views
             _pendingZoomFactor = 1.0;
         }
 
+        private void ZoomInButton_Click(object sender, RoutedEventArgs e) => _viewModel?.ZoomBy(1.5);
+        private void ZoomOutButton_Click(object sender, RoutedEventArgs e) => _viewModel?.ZoomBy(1.0 / 1.5);
+        private void ZoomResetButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel == null) return;
+            // Reset to fit the entire timeline in the visible area
+            if (TimelineScroller.ActualWidth > 0)
+                _viewModel.TimelineWidth = TimelineScroller.ActualWidth - 56;
+            else
+                _viewModel.TimelineWidth = 800;
+        }
+
         private void InvalidateRuler()
         {
             RulerControl?.InvalidateVisual();
@@ -412,7 +424,18 @@ namespace PodcastVideoEditor.Ui.Views
                 grid.DataContext is Segment segment)
             {
                 Focus();
-                _viewModel?.SelectSegment(segment);
+                bool ctrlOrShift = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
+                if (ctrlOrShift)
+                {
+                    // Toggle this segment into/out of multi-selection
+                    _viewModel?.ToggleMultiSelect(segment);
+                }
+                else
+                {
+                    // Normal single click: clear multi-selection and select only this segment
+                    _viewModel?.ClearMultiSelection();
+                    _viewModel?.SelectSegment(segment);
+                }
                 e.Handled = true;
             }
         }
@@ -426,6 +449,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid && 
                 grid.DataContext is Segment segment)
             {
+                // Block drag on locked track
+                var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                if (track?.IsLocked == true) { e.Handled = true; return; }
+
                 _isResizingLeft = false;
                 _isResizingSegment = true;
                 _segmentOriginalEndTime = segment.EndTime;
@@ -445,6 +472,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid &&
                 grid.DataContext is Segment segment)
             {
+                // Block drag on locked track
+                var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                if (track?.IsLocked == true) { e.Handled = true; return; }
+
                 _isResizingSegment = false;
                 _isResizingLeft = true;
                 _resizeLeftOriginalStartTime = segment.StartTime;
@@ -478,6 +509,10 @@ namespace PodcastVideoEditor.Ui.Views
                     newEndTime = _viewModel.TotalDuration;
                 if (newEndTime <= segment.StartTime)
                     newEndTime = segment.StartTime + _viewModel.GridSize;
+
+                // Magnetic snap to nearest segment edge
+                double snapThresholdR = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
+                newEndTime = _viewModel.SnapToSegmentEdge(newEndTime, segment.TrackId, segment.Id, snapThresholdR);
 
                 // Update segment via ViewModel
                 bool updated = _viewModel.UpdateSegmentTiming(segment, segment.StartTime, newEndTime);
@@ -518,6 +553,10 @@ namespace PodcastVideoEditor.Ui.Views
                     newStartTime = 0;
                 if (newStartTime >= segment.EndTime)
                     newStartTime = segment.EndTime - _viewModel.GridSize;
+
+                // Magnetic snap to nearest segment edge
+                double snapThresholdL = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
+                newStartTime = _viewModel.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, snapThresholdL);
 
                 bool updated = _viewModel.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
 
@@ -583,6 +622,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid &&
                 grid.DataContext is Segment segment)
             {
+                // Block drag on locked track
+                var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                if (track?.IsLocked == true) { e.Handled = true; return; }
+
                 _isDraggingSegment = true;
                 _segmentOriginalStartTime = segment.StartTime;
                 _segmentOriginalEndTime = segment.EndTime;
@@ -634,6 +677,23 @@ namespace PodcastVideoEditor.Ui.Views
                         newEnd = _viewModel.TotalDuration;
                         newStart = _viewModel.TotalDuration - duration;
                     }
+                }
+
+                // Magnetic snap: check both edges, pick the closest snap while preserving duration
+                double snapThresholdM = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
+                double snappedByStart = _viewModel.SnapToSegmentEdge(newStart, segment.TrackId, segment.Id, snapThresholdM);
+                double snappedByEnd   = _viewModel.SnapToSegmentEdge(newEnd,   segment.TrackId, segment.Id, snapThresholdM);
+                double distS = Math.Abs(snappedByStart - newStart);
+                double distE = Math.Abs(snappedByEnd   - newEnd);
+                if (distS <= distE && distS < snapThresholdM)
+                {
+                    newStart = snappedByStart;
+                    newEnd   = newStart + duration;
+                }
+                else if (distE < snapThresholdM)
+                {
+                    newEnd   = snappedByEnd;
+                    newStart = newEnd - duration;
                 }
 
                 bool updated = _viewModel.UpdateSegmentTiming(segment, newStart, newEnd);
@@ -700,6 +760,25 @@ namespace PodcastVideoEditor.Ui.Views
                 var dupItem = new MenuItem { Header = "Duplicate" };
                 dupItem.Click += (_, _) => _viewModel.DuplicateSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(dupItem);
+
+                menu.Items.Add(new Separator());
+
+                var transitionItem = new MenuItem { Header = $"Transition… ({segment.TransitionType}, {segment.TransitionDuration:0.##}s)" };
+                transitionItem.Click += (_, _) =>
+                {
+                    var dlg = new TransitionPickerDialog(segment.TransitionType, segment.TransitionDuration)
+                    {
+                        Owner = Window.GetWindow(this)
+                    };
+                    if (dlg.ShowDialog() == true)
+                    {
+                        segment.TransitionType     = dlg.SelectedTransition;
+                        segment.TransitionDuration = dlg.SelectedDuration;
+                        _viewModel.StatusMessage   = $"Transition set: {dlg.SelectedTransition} ({dlg.SelectedDuration:0.##}s)";
+                        _viewModel.RequestProjectSave();
+                    }
+                };
+                menu.Items.Add(transitionItem);
 
                 menu.Items.Add(new Separator());
 
@@ -943,6 +1022,18 @@ namespace PodcastVideoEditor.Ui.Views
                 menu.PlacementTarget = btn;
                 menu.IsOpen = true;
             }
+        }
+
+        private void TrackLockButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.ToggleTrackLock(track);
+        }
+
+        private void TrackVisibilityButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.ToggleTrackVisibility(track);
         }
     }
 }
