@@ -96,4 +96,27 @@ public partial class Segment : ObservableObject
     /// Navigation property for EF Core relationship.
     /// </summary>
     public Track? Track { get; set; }
+
+    /// <summary>
+    /// Create a detached copy of this segment with all persisted properties.
+    /// Navigation properties (Project, Track) and UI-only fields (WaveformPeaks, IsMultiSelected)
+    /// are intentionally not copied. Use this for render snapshots and undo/redo state.
+    /// </summary>
+    public Segment ShallowClone() => new()
+    {
+        Id                 = Id,
+        ProjectId          = ProjectId,
+        TrackId            = TrackId,
+        Text               = Text,
+        Kind               = Kind,
+        StartTime          = StartTime,
+        EndTime            = EndTime,
+        Order              = Order,
+        BackgroundAssetId  = BackgroundAssetId,
+        Volume             = Volume,
+        FadeInDuration     = FadeInDuration,
+        FadeOutDuration    = FadeOutDuration,
+        TransitionType     = TransitionType,
+        TransitionDuration = TransitionDuration,
+    };
 }

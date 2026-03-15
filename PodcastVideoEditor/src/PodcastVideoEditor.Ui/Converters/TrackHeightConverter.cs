@@ -50,10 +50,10 @@ namespace PodcastVideoEditor.Ui.Converters
         {
             return trackType switch
             {
-                "text"   => 36.0,
+                "text"   => 22.0,
                 "audio"  => 48.0,
-                "visual" => 68.0,
-                _        => 36.0
+                "visual" => 48.0,
+                _        => 22.0
             };
         }
     }

@@ -171,10 +171,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     var bgmDuration = (_timelineViewModel?.TotalDuration ?? 0) > 0
                         ? _timelineViewModel!.TotalDuration
                         : 3600; // fallback 1h
-                    // TODO: bgm.IsLooping is not yet implemented in the render pipeline.
-                    // When looping is needed the audio file should be repeated/trimmed in
-                    // FFmpegRenderService to fill bgmDuration instead of relying on the
-                    // single-pass audio segment below.
                     timelineAudioSegments.Add(new PodcastVideoEditor.Core.Models.RenderAudioSegment
                     {
                         SourcePath      = bgm.AudioPath,
@@ -182,7 +178,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         EndTime         = bgmDuration,
                         Volume          = bgm.Volume,
                         FadeInDuration  = bgm.FadeInSeconds,
-                        FadeOutDuration = bgm.FadeOutSeconds
+                        FadeOutDuration = bgm.FadeOutSeconds,
+                        IsLooping       = bgm.IsLooping
                     });
                 }
                 var imagePath = string.Empty;
@@ -354,13 +351,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Build a transient project copy that merges live (unsaved) timeline track state
         /// so render always reflects what the user currently sees in the canvas/timeline.
+        /// Deep-clones tracks and segments to avoid concurrency issues during render.
         /// </summary>
         private Project BuildLiveProject(Project project)
         {
             if (_timelineViewModel == null)
                 return project;
 
-            // Shallow clone so we don't mutate the original project object
+            // Deep clone tracks + segments so render is isolated from concurrent edits
+            var clonedTracks = _timelineViewModel.Tracks.Select(t =>
+            {
+                var clone = t.ShallowClone();
+                clone.Segments = t.Segments?.Select(s => s.ShallowClone()).ToList()
+                                 ?? new System.Collections.Generic.List<Segment>();
+                return clone;
+            }).ToList();
+
             var live = new Project
             {
                 Id             = project.Id,
@@ -368,8 +374,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 AudioPath      = project.AudioPath,
                 Assets         = project.Assets,
                 RenderSettings = project.RenderSettings,
-                // Use live track list so unsaved segment changes are included
-                Tracks = _timelineViewModel.Tracks.ToList()
+                Tracks         = clonedTracks
             };
             return live;
         }

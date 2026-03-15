@@ -185,6 +185,9 @@ public class RenderAudioSegment
 
     /// <summary>Offset into the source file where playback begins (seconds).</summary>
     public double SourceOffsetSeconds { get; set; }
+
+    /// <summary>Whether the audio should loop to fill its [StartTime, EndTime] window.</summary>
+    public bool IsLooping { get; set; }
 }
 
 /// <summary>

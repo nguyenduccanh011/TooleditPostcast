@@ -82,4 +82,20 @@ public partial class Track : ObservableObject
     /// Each segment in this collection has TrackId = this track's Id.
     /// </summary>
     public ICollection<Segment> Segments { get; set; } = [];
+
+    /// <summary>
+    /// Create a detached copy of this track with all persisted properties.
+    /// Navigation properties (Project) and Segments are intentionally not copied.
+    /// Use this for render snapshots to avoid missing new Track properties.
+    /// </summary>
+    public Track ShallowClone() => new()
+    {
+        Id        = Id,
+        ProjectId = ProjectId,
+        Name      = Name,
+        TrackType = TrackType,
+        Order     = Order,
+        IsVisible = IsVisible,
+        IsLocked  = IsLocked,
+    };
 }

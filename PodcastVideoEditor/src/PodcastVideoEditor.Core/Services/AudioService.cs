@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using PodcastVideoEditor.Core.Models;
 using Serilog;
 using System;
@@ -18,6 +19,13 @@ namespace PodcastVideoEditor.Core.Services
     /// </summary>
     public class AudioService : IDisposable
     {
+        // ── Timing / threshold constants (named to avoid magic numbers) ──────────
+        private const double SeekResyncThresholdSeconds = 0.02;
+        private const double SegmentOffsetSkipThresholdSeconds = 0.05;
+        private const double SeekSafetyMarginSeconds = 0.01;
+        private const int DesiredLatencyMs = 50;
+        private const int BufferCount = 3;
+
         private IWavePlayer? _wavePlayer;
         private string? _sourceAudioPath;
         private string? _playbackAudioPath;
@@ -29,6 +37,14 @@ namespace PodcastVideoEditor.Core.Services
         private string? _decodedAudioPath;
         private bool _isDecodedCache;
 
+        /// <summary>
+        /// Guards all mixer add/remove/dispose operations.
+        /// NAudio's MixingSampleProvider uses an unsynchronized List&lt;ISampleProvider&gt; internally;
+        /// concurrent AddMixerInput/RemoveMixerInput from the UI-thread sync loop and background
+        /// seek/load operations would corrupt the list. This lock serializes access.
+        /// </summary>
+        private readonly object _mixerLock = new();
+
         public event EventHandler<PlaybackStoppedEventArgs>? PlaybackStopped;
         public event EventHandler<EventArgs>? PlaybackStarted;
         public event EventHandler<EventArgs>? PlaybackPaused;
@@ -39,11 +55,11 @@ namespace PodcastVideoEditor.Core.Services
             // Commercial apps typically use 50-100ms for good balance
             _wavePlayer = new WaveOutEvent 
             { 
-                DesiredLatency = 50,  // 50ms buffer for responsive feel while preventing dropouts
-                NumberOfBuffers = 3   // More buffers = more stable but slightly higher latency
+                DesiredLatency = DesiredLatencyMs,
+                NumberOfBuffers = BufferCount
             };
             _wavePlayer.PlaybackStopped += OnPlaybackStopped;
-            Log.Information("AudioService initialized with 50ms latency, 3 buffers");
+            Log.Information("AudioService initialized with {Latency}ms latency, {Buffers} buffers", DesiredLatencyMs, BufferCount);
         }
 
         /// <summary>
@@ -67,9 +83,12 @@ namespace PodcastVideoEditor.Core.Services
                     }
                     catch { /* ignore */ }
 
-                    // Cleanup previous audio
+                    // Cleanup previous audio (including any active segment/BGM mixer inputs)
+                    StopSegmentAudio();
+                    StopBgmAudio();
                     _audioFileReader?.Dispose();
                     _sampleAggregator = null;
+                    lock (_mixerLock) { _mixer = null; }
                     bool sameSource = string.Equals(_sourceAudioPath, filePath, StringComparison.OrdinalIgnoreCase);
                     if (!sameSource)
                         CleanupDecodedCache();
@@ -101,8 +120,14 @@ namespace PodcastVideoEditor.Core.Services
                     _actualDurationSeconds = (double)totalSamples / (_waveFormat.SampleRate * _waveFormat.Channels);
                     
                     // Now init the player chain AFTER counting (reader is at position 0)
+                    // Single-mixer architecture: all audio (primary + segment + BGM) goes through
+                    // one MixingSampleProvider → one WaveOutEvent, guaranteeing zero inter-stream offset.
                     _sampleAggregator = new SampleAggregator(_audioFileReader);
-                    _wavePlayer?.Init(_sampleAggregator);
+                    lock (_mixerLock)
+                    {
+                        _mixer = new MixingSampleProvider(new[] { (ISampleProvider)_sampleAggregator }) { ReadFully = true };
+                    }
+                    _wavePlayer?.Init(_mixer);
                     
                     // Use actual duration for accurate timeline sync
                     var duration = TimeSpan.FromSeconds(_actualDurationSeconds);
@@ -177,10 +202,13 @@ namespace PodcastVideoEditor.Core.Services
             return Path.Combine(cacheDir, fileName);
         }
 
-        private static string ComputeHash(string input)
+        private static string ComputeHash(string filePath)
         {
+            // Hash path + last-write-time + file-size so cache invalidates when file content changes
+            var info = new FileInfo(filePath);
+            string key = $"{filePath}|{info.LastWriteTimeUtc.Ticks}|{info.Length}";
             using var sha = SHA256.Create();
-            byte[] bytes = Encoding.UTF8.GetBytes(input);
+            byte[] bytes = Encoding.UTF8.GetBytes(key);
             byte[] hash = sha.ComputeHash(bytes);
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
@@ -216,10 +244,10 @@ namespace PodcastVideoEditor.Core.Services
 
             if (_wavePlayer.PlaybackState != PlaybackState.Playing)
             {
-                _wavePlayer.Play();
-                if (_segmentPlayer?.PlaybackState == PlaybackState.Paused)
-                    _segmentPlayer.Play();
+                // Fire event BEFORE starting playback so subscribers can add mixer inputs
+                // (segment + BGM). The first mixer Read() then includes all sources = zero offset.
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
+                _wavePlayer.Play();
                 Log.Information("Playback started");
             }
         }
@@ -232,7 +260,7 @@ namespace PodcastVideoEditor.Core.Services
             if (_wavePlayer?.PlaybackState == PlaybackState.Playing)
             {
                 _wavePlayer.Pause();
-                _segmentPlayer?.Pause();
+                // Mixer pauses all inputs (segment + BGM) automatically
                 PlaybackPaused?.Invoke(this, EventArgs.Empty);
                 Log.Information("Playback paused");
             }
@@ -253,6 +281,8 @@ namespace PodcastVideoEditor.Core.Services
 
                 Log.Information("Playback stopped");
             }
+            StopSegmentAudio();
+            StopBgmAudio();
         }
 
         /// <summary>
@@ -280,7 +310,7 @@ namespace PodcastVideoEditor.Core.Services
             if (_waveFormat != null)
             {
                 double deltaSeconds = clampedPosition - actualReaderTime;
-                if (Math.Abs(deltaSeconds) > 0.02)
+                if (Math.Abs(deltaSeconds) > SeekResyncThresholdSeconds)
                 {
                     if (deltaSeconds < 0)
                     {
@@ -317,6 +347,10 @@ namespace PodcastVideoEditor.Core.Services
                 long seekSampleCount = (long)(clampedPosition * _waveFormat.SampleRate * _waveFormat.Channels);
                 _sampleAggregator.SetPlayedSamples(seekSampleCount);
             }
+
+            // Note: segment and BGM readers are resynced by the caller
+            // (SeekTo → UpdateSegmentAudioPlayback with forceResync=true)
+            // after the mixer is resumed, so they hear the correct position.
 
             if (wasPlaying)
                 _wavePlayer?.Play();
@@ -441,12 +475,31 @@ namespace PodcastVideoEditor.Core.Services
             if (string.IsNullOrEmpty(_playbackAudioPath) || !File.Exists(_playbackAudioPath) || binCount <= 0)
                 return Array.Empty<float>();
 
+            return ComputePeaks(_playbackAudioPath, binCount, _totalSampleCount);
+        }
+
+        /// <summary>
+        /// Generate peak samples for any audio file (static, for waveform display in segments).
+        /// </summary>
+        public static float[] GetPeakSamplesFromFile(string filePath, int binCount)
+        {
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath) || binCount <= 0)
+                return Array.Empty<float>();
+
+            return ComputePeaks(filePath, binCount, totalSampleCountHint: 0);
+        }
+
+        /// <summary>
+        /// Shared peak computation: read the entire audio file and bucket max-abs into bins.
+        /// </summary>
+        private static float[] ComputePeaks(string filePath, int binCount, long totalSampleCountHint)
+        {
             try
             {
-                using var reader = new AudioFileReader(_playbackAudioPath);
+                using var reader = new AudioFileReader(filePath);
                 var peaks = new float[binCount];
                 var buffer = new float[4096];
-                long totalSamplesEstimate = _totalSampleCount;
+                long totalSamplesEstimate = totalSampleCountHint;
                 if (totalSamplesEstimate <= 0)
                 {
                     var totalTimeSeconds = Math.Max(0.001, reader.TotalTime.TotalSeconds);
@@ -468,53 +521,11 @@ namespace PodcastVideoEditor.Core.Services
                     }
                 }
 
-                // Do not normalize: keep raw scale so different files look different
-                // (quiet file = smaller bars, loud file = taller bars). View clamps to 1.0 when drawing.
                 return peaks;
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Could not compute peak samples for waveform");
-                return Array.Empty<float>();
-            }
-        }
-
-        /// <summary>
-        /// Generate peak samples for any audio file (static, for waveform display in segments).
-        /// </summary>
-        public static float[] GetPeakSamplesFromFile(string filePath, int binCount)
-        {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath) || binCount <= 0)
-                return Array.Empty<float>();
-
-            try
-            {
-                using var reader = new AudioFileReader(filePath);
-                var peaks = new float[binCount];
-                var buffer = new float[4096];
-                var totalTimeSeconds = Math.Max(0.001, reader.TotalTime.TotalSeconds);
-                long totalSamplesEstimate = (long)(totalTimeSeconds * reader.WaveFormat.SampleRate * reader.WaveFormat.Channels);
-                totalSamplesEstimate = Math.Max(totalSamplesEstimate, 1);
-                long globalSampleIndex = 0;
-
-                int read;
-                while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
-                {
-                    for (int i = 0; i < read; i++)
-                    {
-                        int binIndex = (int)Math.Min(binCount - 1, (globalSampleIndex * binCount) / totalSamplesEstimate);
-                        float abs = Math.Abs(buffer[i]);
-                        if (abs > peaks[binIndex])
-                            peaks[binIndex] = abs;
-                        globalSampleIndex++;
-                    }
-                }
-
-                return peaks;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Could not compute peak samples for file: {Path}", filePath);
+                Log.Warning(ex, "Could not compute peak samples for: {Path}", filePath);
                 return Array.Empty<float>();
             }
         }
@@ -531,68 +542,126 @@ namespace PodcastVideoEditor.Core.Services
         public bool IsPlaying => PlaybackState == PlaybackState.Playing;
         public string? CurrentAudioPath => _sourceAudioPath;
 
-        // ======== Secondary audio stream for segment audio playback ========
-        private WaveOutEvent? _segmentPlayer;
+        // ======== Single-mixer architecture: all audio through one WaveOutEvent ========
+        // MixingSampleProvider routes primary + segment + BGM through one output clock,
+        // guaranteeing zero inter-stream timing offset.
+        private MixingSampleProvider? _mixer;
+
+        // Segment audio (dynamically added/removed from mixer)
+        private ISampleProvider? _segmentMixerInput;
         private AudioFileReader? _segmentReader;
         private string? _currentSegmentAudioPath;
         private string? _currentSegmentId;
 
+        // Pre-loaded segment reader for near-zero latency (no WaveOutEvent needed with mixer)
+        private AudioFileReader? _preloadedReader;
+        private string? _preloadedSegmentId;
+        private string? _preloadedAudioPath;
+
         /// <summary>
-        /// Play audio for a specific segment. If already playing this segment, adjusts position.
-        /// If a different segment, stops old and starts new.
+        /// Pre-load audio for an upcoming segment so playback can start with minimal latency.
+        /// Call this when the playhead is approaching a segment boundary.
         /// </summary>
-        public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume)
+        public void PreloadSegmentAudio(string segmentId, string audioFilePath)
+        {
+            if (_preloadedSegmentId == segmentId) return;
+            if (_currentSegmentId == segmentId) return;
+            if (!File.Exists(audioFilePath)) return;
+
+            DisposePreloadedSegment();
+
+            try
+            {
+                _preloadedReader = new AudioFileReader(audioFilePath);
+                _preloadedSegmentId = segmentId;
+                _preloadedAudioPath = audioFilePath;
+                Log.Debug("Segment audio preloaded: {SegmentId}", segmentId);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to preload segment audio: {Path}", audioFilePath);
+                DisposePreloadedSegment();
+            }
+        }
+
+        private void DisposePreloadedSegment()
+        {
+            try { _preloadedReader?.Dispose(); } catch { }
+            _preloadedReader = null;
+            _preloadedSegmentId = null;
+            _preloadedAudioPath = null;
+        }
+
+        /// <summary>
+        /// Play audio for a specific segment. Adds to mixer for zero-offset sync.
+        /// If already playing this segment, adjusts volume only (mixer keeps position in sync).
+        /// If different, swaps mixer input.
+        /// Set forceResync=true after an explicit Seek() to resync the reader position.
+        /// </summary>
+        public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, bool forceResync = false)
         {
             if (!File.Exists(audioFilePath))
                 return;
+            lock (_mixerLock)
+            {
+                if (_mixer == null) return;
+            }
 
             double offsetInSegment = Math.Max(0, playheadPosition - segmentStartTime);
 
-            // Same segment already playing or paused — adjust volume and resync position if user seeked
-            if (_currentSegmentId == segmentId &&
-                (_segmentPlayer?.PlaybackState == PlaybackState.Playing ||
-                 _segmentPlayer?.PlaybackState == PlaybackState.Paused))
+            // Same segment already in mixer — adjust volume; only resync position on explicit seek
+            if (_currentSegmentId == segmentId && _segmentReader != null)
             {
-                if (_segmentReader != null)
+                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+                if (forceResync)
                 {
-                    _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
-                    // Resync if playhead jumped > 200ms (user seek / scrub)
                     double expectedOffset = Math.Max(0, playheadPosition - segmentStartTime);
-                    double currentOffset = _segmentReader.CurrentTime.TotalSeconds;
-                    if (Math.Abs(currentOffset - expectedOffset) > 0.2)
-                    {
-                        var seekTarget = TimeSpan.FromSeconds(
-                            Math.Min(expectedOffset, _segmentReader.TotalTime.TotalSeconds - 0.01));
-                        if (seekTarget >= TimeSpan.Zero)
-                            _segmentReader.CurrentTime = seekTarget;
-                    }
+                    var seekTarget = TimeSpan.FromSeconds(
+                        Math.Min(expectedOffset, _segmentReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
+                    if (seekTarget >= TimeSpan.Zero)
+                        _segmentReader.CurrentTime = seekTarget;
                 }
                 return;
             }
 
-            // Different segment or not playing — stop old and start new
+            // Different segment — remove old from mixer and add new
             StopSegmentAudio();
 
             try
             {
-                _segmentReader = new AudioFileReader(audioFilePath);
-                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
-
-                // Seek to correct offset within the segment
-                if (offsetInSegment > 0.05)
+                // Use preloaded reader if available
+                if (_preloadedSegmentId == segmentId && _preloadedReader != null)
                 {
-                    var targetTime = TimeSpan.FromSeconds(Math.Min(offsetInSegment, _segmentReader.TotalTime.TotalSeconds - 0.01));
+                    _segmentReader = _preloadedReader;
+                    _preloadedReader = null;
+                    _preloadedSegmentId = null;
+                    _preloadedAudioPath = null;
+                }
+                else
+                {
+                    DisposePreloadedSegment();
+                    _segmentReader = new AudioFileReader(audioFilePath);
+                }
+
+                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+                if (offsetInSegment > SegmentOffsetSkipThresholdSeconds)
+                {
+                    var targetTime = TimeSpan.FromSeconds(Math.Min(offsetInSegment, _segmentReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
                     if (targetTime > TimeSpan.Zero)
                         _segmentReader.CurrentTime = targetTime;
                 }
 
-                _segmentPlayer = new WaveOutEvent { DesiredLatency = 50, NumberOfBuffers = 3 };
-                _segmentPlayer.Init(_segmentReader);
-                _segmentPlayer.Play();
+                // Add to mixer (convert format if needed for sample rate / channel match)
+                lock (_mixerLock)
+                {
+                    if (_mixer == null) { _segmentReader?.Dispose(); _segmentReader = null; return; }
+                    _segmentMixerInput = ConvertToMixerFormat(_segmentReader, _mixer.WaveFormat);
+                    _mixer.AddMixerInput(_segmentMixerInput);
+                }
 
                 _currentSegmentId = segmentId;
                 _currentSegmentAudioPath = audioFilePath;
-                Log.Debug("Segment audio started: {SegmentId} at offset {Offset}s, vol={Vol}", segmentId, offsetInSegment, volume);
+                Log.Debug("Segment audio added to mixer: {SegmentId} at offset {Offset}s, vol={Vol}", segmentId, offsetInSegment, volume);
             }
             catch (Exception ex)
             {
@@ -615,20 +684,17 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public void StopSegmentAudio()
         {
-            try
-            {
-                _segmentPlayer?.Stop();
-                _segmentPlayer?.Dispose();
-                _segmentReader?.Dispose();
-            }
-            catch { /* best effort */ }
-            finally
-            {
-                _segmentPlayer = null;
-                _segmentReader = null;
-                _currentSegmentId = null;
-                _currentSegmentAudioPath = null;
-            }
+            var mixerInput = _segmentMixerInput;
+            var reader = _segmentReader;
+            _segmentMixerInput = null;
+            _segmentReader = null;
+            _currentSegmentId = null;
+            _currentSegmentAudioPath = null;
+
+            try { if (mixerInput != null) lock (_mixerLock) { _mixer?.RemoveMixerInput(mixerInput); } }
+            catch (Exception ex) { Log.Warning(ex, "Error removing segment from mixer"); }
+            try { reader?.Dispose(); }
+            catch (Exception ex) { Log.Warning(ex, "Error disposing segment reader"); }
         }
 
         /// <summary>
@@ -636,18 +702,150 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public string? CurrentSegmentId => _currentSegmentId;
 
+        // ======== BGM (Background Music) audio — added/removed from mixer ========
+        private ISampleProvider? _bgmMixerInput;
+        private AudioFileReader? _bgmReader;
+        private string? _currentBgmPath;
+        private bool _bgmIsPlaying;
+
+        /// <summary>
+        /// Start or update BGM playback for preview. Adds to mixer for zero-offset sync.
+        /// During normal playback only volume is updated (mixer keeps position in sync).
+        /// Set forceResync=true after an explicit Seek() to resync the reader position.
+        /// </summary>
+        public void PlayBgmAudio(string audioFilePath, double playheadPosition, float volume, double totalDuration,
+                                  double fadeInSeconds, double fadeOutSeconds, bool forceResync = false)
+        {
+            if (!File.Exists(audioFilePath))
+                return;
+            lock (_mixerLock)
+            {
+                if (_mixer == null) return;
+            }
+
+            // Already playing same file — just adjust volume; only resync on explicit seek
+            if (_currentBgmPath == audioFilePath && _bgmReader != null && _bgmMixerInput != null)
+            {
+                float effectiveVol = CalculateBgmFadeVolume(volume, playheadPosition, totalDuration, fadeInSeconds, fadeOutSeconds);
+                _bgmReader.Volume = Math.Clamp(effectiveVol, 0f, 1f);
+
+                if (forceResync)
+                {
+                    var seekTarget = TimeSpan.FromSeconds(
+                        Math.Min(playheadPosition, _bgmReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
+                    if (seekTarget >= TimeSpan.Zero)
+                        _bgmReader.CurrentTime = seekTarget;
+                }
+                return;
+            }
+
+            // Different file or not yet started
+            StopBgmAudio();
+
+            try
+            {
+                _bgmReader = new AudioFileReader(audioFilePath);
+                float effectiveVol = CalculateBgmFadeVolume(volume, playheadPosition, totalDuration, fadeInSeconds, fadeOutSeconds);
+                _bgmReader.Volume = Math.Clamp(effectiveVol, 0f, 1f);
+
+                if (playheadPosition > SegmentOffsetSkipThresholdSeconds)
+                {
+                    var seekTarget = TimeSpan.FromSeconds(
+                        Math.Min(playheadPosition, _bgmReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
+                    if (seekTarget > TimeSpan.Zero)
+                        _bgmReader.CurrentTime = seekTarget;
+                }
+
+                lock (_mixerLock)
+                {
+                    if (_mixer == null) { _bgmReader?.Dispose(); _bgmReader = null; return; }
+                    _bgmMixerInput = ConvertToMixerFormat(_bgmReader, _mixer.WaveFormat);
+                    _mixer.AddMixerInput(_bgmMixerInput);
+                }
+                _currentBgmPath = audioFilePath;
+                _bgmIsPlaying = true;
+                Log.Debug("BGM added to mixer: {Path} at {Pos}s", audioFilePath, playheadPosition);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to play BGM audio: {Path}", audioFilePath);
+                StopBgmAudio();
+            }
+        }
+
+        /// <summary>Stop and remove BGM from mixer.</summary>
+        public void StopBgmAudio()
+        {
+            var mixerInput = _bgmMixerInput;
+            var reader = _bgmReader;
+            _bgmMixerInput = null;
+            _bgmReader = null;
+            _currentBgmPath = null;
+            _bgmIsPlaying = false;
+
+            try { if (mixerInput != null) lock (_mixerLock) { _mixer?.RemoveMixerInput(mixerInput); } }
+            catch (Exception ex) { Log.Warning(ex, "Error removing BGM from mixer"); }
+            try { reader?.Dispose(); }
+            catch (Exception ex) { Log.Warning(ex, "Error disposing BGM reader"); }
+        }
+
+        /// <summary>Whether BGM is currently in the mixer.</summary>
+        public bool IsBgmPlaying => _bgmIsPlaying && _bgmMixerInput != null;
+
+        private static float CalculateBgmFadeVolume(float baseVolume, double playheadPosition, double totalDuration,
+                                                     double fadeInSeconds, double fadeOutSeconds)
+        {
+            float vol = baseVolume;
+            if (fadeInSeconds > 0 && playheadPosition < fadeInSeconds)
+                vol *= (float)(playheadPosition / fadeInSeconds);
+            double remaining = totalDuration - playheadPosition;
+            if (fadeOutSeconds > 0 && remaining < fadeOutSeconds)
+                vol *= (float)(remaining / fadeOutSeconds);
+            return Math.Clamp(vol, 0f, 1f);
+        }
+
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
             Log.Information("Playback stopped (event)");
             PlaybackStopped?.Invoke(this, new PlaybackStoppedEventArgs());
         }
 
+        /// <summary>
+        /// Convert an ISampleProvider to match the mixer's WaveFormat (sample rate + channels).
+        /// This ensures segment/BGM audio from files with different formats can be mixed.
+        /// Must be called while holding _mixerLock or with a captured WaveFormat.
+        /// </summary>
+        private ISampleProvider ConvertToMixerFormat(ISampleProvider source, WaveFormat target)
+        {
+            // Channel conversion (mono ↔ stereo)
+            if (source.WaveFormat.Channels == 1 && target.Channels == 2)
+                source = new MonoToStereoSampleProvider(source);
+            else if (source.WaveFormat.Channels == 2 && target.Channels == 1)
+                source = new StereoToMonoSampleProvider(source);
+
+            // Sample rate conversion
+            if (source.WaveFormat.SampleRate != target.SampleRate)
+                source = new WdlResamplingSampleProvider(source, target.SampleRate);
+
+            return source;
+        }
+
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing) return;
             StopSegmentAudio();
+            DisposePreloadedSegment();
+            StopBgmAudio();
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
             _sampleAggregator = null;
+            lock (_mixerLock) { _mixer = null; }
             CleanupDecodedCache();
             Log.Information("AudioService disposed");
         }

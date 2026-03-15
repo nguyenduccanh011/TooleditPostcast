@@ -1,5 +1,6 @@
 #nullable enable
 using Microsoft.EntityFrameworkCore;
+using NAudio.Wave;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Models;
 using Serilog;
@@ -48,6 +49,24 @@ namespace PodcastVideoEditor.Core.Services
             var destinationPath = Path.Combine(appData, destinationFileName);
             File.Copy(fileInfo.FullName, destinationPath, overwrite: false);
 
+            // Probe audio/video duration for media assets
+            double? duration = null;
+            var audioExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { ".mp3", ".wav", ".m4a", ".flac", ".aac", ".wma", ".ogg" };
+            if (audioExtensions.Contains(extension))
+            {
+                try
+                {
+                    using var reader = new AudioFileReader(destinationPath);
+                    duration = reader.TotalTime.TotalSeconds;
+                    Log.Debug("Probed audio duration for {Name}: {Duration}s", fileInfo.Name, duration);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to probe audio duration for {Path}", destinationPath);
+                }
+            }
+
             var asset = new Asset
             {
                 ProjectId = projectId,
@@ -59,7 +78,7 @@ namespace PodcastVideoEditor.Core.Services
                 FileSize = fileInfo.Length,
                 Width = null,
                 Height = null,
-                Duration = null,
+                Duration = duration,
                 CreatedAt = DateTime.UtcNow
             };
 

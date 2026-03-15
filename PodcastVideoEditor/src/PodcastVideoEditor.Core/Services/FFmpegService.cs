@@ -771,7 +771,18 @@ public static class FFmpegService
                 var clipLabel   = $"aclip{i}";
 
                 // Trim clip to its window, apply volume and optional fades, then delay to output position
-                filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                // For looping audio (e.g. BGM), use aloop to repeat until it fills the duration window
+                if (aseg.IsLooping)
+                {
+                    // aloop loops=N:size=whole-file. We set loops high enough to cover duration,
+                    // then atrim the result to exact duration.
+                    filter.Append($"[{inputIdx}:a]aloop=loop=-1:size=2147483647,");
+                    filter.Append($"atrim=start=0:duration={duration.ToString("F3", invariant)},");
+                }
+                else
+                {
+                    filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                }
                 filter.Append($"asetpts=PTS-STARTPTS,");
                 filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
                 if (aseg.FadeInDuration > 0)
