@@ -177,15 +177,62 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             if (string.IsNullOrEmpty(segmentId))
             {
-                // Deselect
                 SelectElement(null);
                 return;
             }
 
             // Highlight linked canvas element regardless of playhead position.
-            // Matches commercial editor behavior: selecting a timeline segment always highlights its element.
             var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
-            SelectElement(linked); // SelectElement(null) when no element is linked — deselects canvas
+
+            // If no linked element exists, auto-create one for image assets so resize handles appear.
+            if (linked == null)
+                linked = TryCreateImageElementForSegment(segmentId);
+
+            SelectElement(linked);
+        }
+
+        /// <summary>
+        /// When the user selects a visual-track image segment that has no linked CanvasElement,
+        /// create an ImageElement for it (full-canvas size) so the user can reposition/resize it.
+        /// </summary>
+        private ImageElement? TryCreateImageElementForSegment(string segmentId)
+        {
+            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
+                return null;
+
+            // Find the segment across all tracks
+            var segment = _timelineViewModel.Tracks
+                .SelectMany(t => t.Segments)
+                .FirstOrDefault(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal));
+
+            if (segment == null || string.IsNullOrEmpty(segment.BackgroundAssetId))
+                return null;
+
+            // Only for image assets (not audio/video)
+            var asset = FindAssetById(segment.BackgroundAssetId);
+            if (asset == null || IsVideoAsset(asset) || string.IsNullOrWhiteSpace(asset.FilePath))
+                return null;
+            if (string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            // Create an ImageElement at full canvas size to match the current background rendering.
+            // The user can then drag/resize it freely.
+            var element = new ImageElement
+            {
+                Name = asset.Name ?? Path.GetFileNameWithoutExtension(asset.FilePath) ?? "Image",
+                FilePath = asset.FilePath,
+                X = 0,
+                Y = 0,
+                Width = CanvasWidth,
+                Height = CanvasHeight,
+                ZIndex = Elements.Count,
+                SegmentId = segmentId
+            };
+
+            Elements.Add(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
+            Log.Information("Auto-created ImageElement for visual segment {SegmentId}", segmentId);
+            return element;
         }
 
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
@@ -844,6 +891,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
                     continue;
 
+                // If an interactive ImageElement exists for this segment, skip background rendering.
+                // The element renders the image on the interactive canvas layer instead.
+                if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
+                    continue;
+
                 var layerAsset = FindAssetById(segment.BackgroundAssetId);
                 if (layerAsset == null)
                     continue;
@@ -854,12 +906,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             // Legacy single-image property: set to frontmost non-video visual (or null)
+            // Skip if the primary segment has a linked canvas element (it renders via interactive layer).
             if (!videoHandled && visualPairs.Count > 0)
             {
-                var frontAsset = FindAssetById(primaryVisualPair.segment?.BackgroundAssetId);
-                ActiveVisualImage = frontAsset != null
-                    ? LoadFrameForAsset(frontAsset, primaryVisualPair.segment!, playheadSeconds)
-                    : null;
+                var primarySeg = primaryVisualPair.segment;
+                bool primaryHasElement = primarySeg != null &&
+                    Elements.Any(e => string.Equals(e.SegmentId, primarySeg.Id, StringComparison.Ordinal));
+
+                if (primaryHasElement)
+                {
+                    ActiveVisualImage = null;
+                }
+                else
+                {
+                    var frontAsset = FindAssetById(primarySeg?.BackgroundAssetId);
+                    ActiveVisualImage = frontAsset != null
+                        ? LoadFrameForAsset(frontAsset, primarySeg!, playheadSeconds)
+                        : null;
+                }
             }
             else if (!videoHandled)
             {
