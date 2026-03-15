@@ -166,7 +166,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
-                var timelineVisualSegments = BuildTimelineVisualSegments(liveProject);
+                var timelineVisualSegments = BuildTimelineVisualSegments(liveProject, width, height);
                 var timelineTextSegments   = BuildTimelineTextSegments(liveProject, width, height);
                 var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
 
@@ -199,6 +199,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     StatusMessage = "No visual segment/image available for render";
                     return;
+                }
+
+                // Warn when visual tracks have segments but all were skipped (missing asset files).
+                if (timelineVisualSegments.Count == 0)
+                {
+                    bool hasVisualSegments = liveProject.Tracks?
+                        .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                        .Any(t => t.Segments?.Any(s => !string.IsNullOrWhiteSpace(s.BackgroundAssetId)) == true) == true;
+                    if (hasVisualSegments)
+                        Log.Warning("Render: visual segments detected but all skipped — asset files may be missing or inaccessible");
                 }
 
                 var config = new RenderConfig
@@ -387,9 +397,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Collect visual (image/video) segments from ALL visible visual tracks, ordered back→front.
-        /// Fixes BUG-3: previously only the first visual track was collected.
+        /// When a linked canvas element exists for a segment, its position and size are mapped to
+        /// render coordinates so the output matches the canvas preview exactly.
         /// </summary>
-        private List<RenderVisualSegment> BuildTimelineVisualSegments(Project project)
+        private List<RenderVisualSegment> BuildTimelineVisualSegments(Project project, int renderWidth, int renderHeight)
         {
             var visualTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -398,6 +409,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (visualTracks == null || visualTracks.Count == 0)
                 return [];
+
+            var canvasWidth  = _canvasViewModel?.CanvasWidth  ?? 0;
+            var canvasHeight = _canvasViewModel?.CanvasHeight ?? 0;
+            var elements     = _canvasViewModel?.Elements;
 
             var segments = new List<RenderVisualSegment>();
             foreach (var track in visualTracks)
@@ -410,16 +425,50 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                     var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
                     if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
-                        continue;
-
-                    segments.Add(new RenderVisualSegment
                     {
-                        SourcePath = asset.FilePath,
-                        StartTime = segment.StartTime,
-                        EndTime = segment.EndTime,
-                        IsVideo = IsVideoAsset(asset),
+                        Log.Warning("Render: skipping segment {SegId} — asset not found or file missing (AssetId={AssetId}, Path={Path})",
+                            segment.Id, segment.BackgroundAssetId, asset?.FilePath ?? "(null)");
+                        continue;
+                    }
+
+                    var renderSeg = new RenderVisualSegment
+                    {
+                        SourcePath          = asset.FilePath,
+                        StartTime           = segment.StartTime,
+                        EndTime             = segment.EndTime,
+                        IsVideo             = IsVideoAsset(asset),
                         SourceOffsetSeconds = 0
-                    });
+                    };
+
+                    // Sync position and size from the linked canvas element when available.
+                    // Without this, all images render at (0,0) full-canvas regardless of
+                    // how the user has repositioned/resized them in the canvas preview.
+                    var linkedElement = elements?.FirstOrDefault(e =>
+                        string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal));
+
+                    if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0 && renderWidth > 0 && renderHeight > 0)
+                    {
+                        var scaleX = renderWidth  / canvasWidth;
+                        var scaleY = renderHeight / canvasHeight;
+
+                        var overlayX = (int)Math.Round(linkedElement.X * scaleX);
+                        var overlayY = (int)Math.Round(linkedElement.Y * scaleY);
+                        var scaleW   = (int)Math.Round(linkedElement.Width  * scaleX);
+                        var scaleH   = (int)Math.Round(linkedElement.Height * scaleY);
+
+                        // Clamp to valid render bounds
+                        overlayX = Math.Max(0, Math.Min(overlayX, renderWidth  - 1));
+                        overlayY = Math.Max(0, Math.Min(overlayY, renderHeight - 1));
+                        scaleW   = Math.Max(1, Math.Min(scaleW,   renderWidth));
+                        scaleH   = Math.Max(1, Math.Min(scaleH,   renderHeight));
+
+                        renderSeg.OverlayX     = overlayX.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        renderSeg.OverlayY     = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        renderSeg.ScaleWidth   = scaleW;
+                        renderSeg.ScaleHeight  = scaleH;
+                    }
+
+                    segments.Add(renderSeg);
                 }
             }
 
