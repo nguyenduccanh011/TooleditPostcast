@@ -5,14 +5,28 @@ using System.Windows.Data;
 namespace PodcastVideoEditor.Ui.Converters
 {
     /// <summary>
+    /// Converter: TrackType (string) → icon emoji for the track header button.
+    /// text → "T", visual → "🖼", audio → "♪", default → "☰"
+    /// </summary>
+    public class TrackTypeToIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is string t ? t switch
+            {
+                "text"   => "T",
+                "visual" => "🖼",
+                "audio"  => "♪",
+                _        => "☰"
+            } : "☰";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>
     /// Converter: TrackType (string) → Height (double) for multi-track timeline layout.
-    /// Used in TimelineView.xaml ItemsControl template to set row heights.
-    /// 
-    /// Heights:
-    /// - "text" → 48 pixels (text segments)
-    /// - "audio" → 48 pixels (audio waveform/segments)
-    /// - "visual" → 100 pixels (larger canvas for visual elements)
-    /// - default → 48 pixels
     /// </summary>
     public class TrackHeightConverter : IValueConverter
     {
