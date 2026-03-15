@@ -5,6 +5,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 
 namespace PodcastVideoEditor.Ui.Views
@@ -21,6 +22,9 @@ namespace PodcastVideoEditor.Ui.Views
         private bool _isDragging;
         private double _originalX;
         private double _originalY;
+        // Resize state
+        private double _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH;
+        private double _resizeAspectRatio;
         // Throttle video position sync to ~30fps to avoid excessive frame decoding
         private DateTime _lastVideoSyncTime = DateTime.MinValue;
         private const int VideoSyncThrottleMs = 33; // ~30fps
@@ -192,27 +196,29 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Handle mouse down on canvas element (for selection and drag).
+        /// Routes to the Grid wrapper that contains both the content and resize handles.
         /// </summary>
         private void OnCanvasElementMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_mainCanvas == null) return;
 
-            if (sender is Border border && border.DataContext is CanvasElement element)
-            {
-                _viewModel?.SelectElement(element);
-                
-                _dragStartPoint = e.GetPosition(_mainCanvas);
-                _originalX = element.X;
-                _originalY = element.Y;
-                _isDragging = true;
+            // The sender is now the Grid wrapper; get the CanvasElement from DataContext
+            FrameworkElement? fe = sender as FrameworkElement;
+            if (fe?.DataContext is not CanvasElement element) return;
 
-                e.Handled = true;
+            _viewModel?.SelectElement(element);
 
-                // Start drag
-                border.MouseMove += OnCanvasElementMouseMove;
-                border.MouseUp += OnCanvasElementMouseUp;
-                border.CaptureMouse();
-            }
+            _dragStartPoint = e.GetPosition(_mainCanvas);
+            _originalX = element.X;
+            _originalY = element.Y;
+            _isDragging = true;
+
+            e.Handled = true;
+
+            // Start drag on the Grid
+            fe.MouseMove += OnCanvasElementMouseMove;
+            fe.MouseUp += OnCanvasElementMouseUp;
+            fe.CaptureMouse();
         }
 
         /// <summary>
@@ -223,16 +229,13 @@ namespace PodcastVideoEditor.Ui.Views
             if (!_isDragging || _viewModel?.SelectedElement == null || _mainCanvas == null)
                 return;
 
-            if (sender is Border border)
-            {
-                var currentPoint = e.GetPosition(_mainCanvas);
-                var offsetX = currentPoint.X - _dragStartPoint.X;
-                var offsetY = currentPoint.Y - _dragStartPoint.Y;
+            var currentPoint = e.GetPosition(_mainCanvas);
+            var offsetX = currentPoint.X - _dragStartPoint.X;
+            var offsetY = currentPoint.Y - _dragStartPoint.Y;
 
-                var el = _viewModel.SelectedElement;
-                el.X = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
-                el.Y = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
-            }
+            var el = _viewModel.SelectedElement;
+            el.X = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
+            el.Y = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
         }
 
         /// <summary>
@@ -249,12 +252,141 @@ namespace PodcastVideoEditor.Ui.Views
 
             _isDragging = false;
 
-            if (sender is Border border)
+            if (sender is FrameworkElement fe)
             {
-                border.MouseMove -= OnCanvasElementMouseMove;
-                border.MouseUp -= OnCanvasElementMouseUp;
-                border.ReleaseMouseCapture();
+                fe.MouseMove -= OnCanvasElementMouseMove;
+                fe.MouseUp -= OnCanvasElementMouseUp;
+                fe.ReleaseMouseCapture();
             }
+        }
+
+        // ─── Resize handles ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Called when the user starts dragging a resize Thumb. Captures original bounds.
+        /// </summary>
+        private void BeginResizeIfNeeded(CanvasElement el)
+        {
+            _resizeOrigX = el.X;
+            _resizeOrigY = el.Y;
+            _resizeOrigW = el.Width;
+            _resizeOrigH = el.Height;
+            _resizeAspectRatio = el.Width / Math.Max(el.Height, 1);
+        }
+
+        /// <summary>
+        /// Handle DragDelta on corner/edge resize handles.
+        /// Corner handles resize proportionally; MiddleLeft/MiddleRight adjust width only.
+        /// </summary>
+        private void OnResizeHandleDrag(object sender, DragDeltaEventArgs e)
+        {
+            if (sender is not Thumb thumb) return;
+            var el = thumb.DataContext as CanvasElement;
+            if (el == null || _viewModel == null) return;
+
+            // Lazy-init on first delta
+            if (_resizeOrigW == 0 && _resizeOrigH == 0)
+                BeginResizeIfNeeded(el);
+
+            var tag = thumb.Tag as string ?? "";
+            const double minSize = 20;
+
+            switch (tag)
+            {
+                case "MiddleLeft":
+                {
+                    // Horizontal-only: shrink/expand from left edge
+                    var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
+                    var dx = el.Width - newW;
+                    el.X = Math.Max(0, el.X + dx);
+                    el.Width = newW;
+                    break;
+                }
+                case "MiddleRight":
+                {
+                    // Horizontal-only: expand/shrink from right edge
+                    var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
+                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                    el.Width = newW;
+                    break;
+                }
+                case "TopLeft":
+                {
+                    // Proportional resize from top-left corner
+                    var delta = (e.HorizontalChange + e.VerticalChange) / 2;
+                    var newW = Math.Max(minSize, el.Width - delta);
+                    var newH = newW / _resizeAspectRatio;
+                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                    var dx = el.Width - newW;
+                    var dy = el.Height - newH;
+                    el.X = Math.Max(0, el.X + dx);
+                    el.Y = Math.Max(0, el.Y + dy);
+                    el.Width = newW;
+                    el.Height = newH;
+                    break;
+                }
+                case "TopRight":
+                {
+                    var delta = (e.HorizontalChange - e.VerticalChange) / 2;
+                    var newW = Math.Max(minSize, el.Width + delta);
+                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                    var newH = newW / _resizeAspectRatio;
+                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                    var dy = el.Height - newH;
+                    el.Y = Math.Max(0, el.Y + dy);
+                    el.Width = newW;
+                    el.Height = newH;
+                    break;
+                }
+                case "BottomLeft":
+                {
+                    var delta = (-e.HorizontalChange + e.VerticalChange) / 2;
+                    var newW = Math.Max(minSize, el.Width - delta);
+                    var newH = newW / _resizeAspectRatio;
+                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                    var dx = el.Width - newW;
+                    el.X = Math.Max(0, el.X + dx);
+                    el.Width = newW;
+                    el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    break;
+                }
+                case "BottomRight":
+                {
+                    var delta = (e.HorizontalChange + e.VerticalChange) / 2;
+                    var newW = Math.Max(minSize, el.Width + delta);
+                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                    var newH = newW / _resizeAspectRatio;
+                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                    el.Width = newW;
+                    el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    break;
+                }
+            }
+
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Record undo action when resize is completed.
+        /// </summary>
+        private void OnResizeHandleCompleted(object sender, DragCompletedEventArgs e)
+        {
+            if (sender is not Thumb thumb) return;
+            var el = thumb.DataContext as CanvasElement;
+            if (el == null || _viewModel == null) return;
+
+            // Only record if something actually changed
+            if (Math.Abs(el.X - _resizeOrigX) > 0.5 || Math.Abs(el.Y - _resizeOrigY) > 0.5 ||
+                Math.Abs(el.Width - _resizeOrigW) > 0.5 || Math.Abs(el.Height - _resizeOrigH) > 0.5)
+            {
+                _viewModel.UndoRedoService?.Record(new ElementResizedAction(
+                    el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH,
+                    el.X, el.Y, el.Width, el.Height));
+            }
+
+            // Reset for next resize
+            _resizeOrigX = _resizeOrigY = _resizeOrigW = _resizeOrigH = 0;
+            e.Handled = true;
         }
 
         /// <summary>

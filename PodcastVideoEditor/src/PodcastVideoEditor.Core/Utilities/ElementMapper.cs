@@ -32,6 +32,7 @@ public static class ElementMapper
             Opacity = canvas is LogoElement logo ? logo.Opacity
                     : canvas is ImageElement img ? img.Opacity
                     : 1.0,
+            Rotation = canvas.Rotation,
             IsVisible = canvas.IsVisible,
             SegmentId = canvas.SegmentId,
             PropertiesJson = props,
@@ -55,6 +56,7 @@ public static class ElementMapper
         canvas.Width = element.Width;
         canvas.Height = element.Height;
         canvas.ZIndex = element.ZIndex;
+        canvas.Rotation = element.Rotation;
         canvas.IsVisible = element.IsVisible;
         canvas.SegmentId = element.SegmentId;
         canvas.CreatedAt = element.CreatedAt;

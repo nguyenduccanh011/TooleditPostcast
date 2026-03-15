@@ -121,6 +121,26 @@ public class RenderVisualSegment
     /// Optional source offset for video clipping (seconds).
     /// </summary>
     public double SourceOffsetSeconds { get; set; }
+
+    /// <summary>
+    /// Overlay X position expression for FFmpeg (default null = full-frame, no offset).
+    /// </summary>
+    public string? OverlayX { get; set; }
+
+    /// <summary>
+    /// Overlay Y position expression for FFmpeg (default null = full-frame, no offset).
+    /// </summary>
+    public string? OverlayY { get; set; }
+
+    /// <summary>
+    /// Explicit scale width (pixels). Null = use full render resolution.
+    /// </summary>
+    public int? ScaleWidth { get; set; }
+
+    /// <summary>
+    /// Explicit scale height (pixels). Null = use full render resolution.
+    /// </summary>
+    public int? ScaleHeight { get; set; }
 }
 
 /// <summary>

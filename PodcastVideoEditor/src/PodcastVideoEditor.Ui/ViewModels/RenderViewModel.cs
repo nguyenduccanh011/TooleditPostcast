@@ -66,6 +66,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private CancellationTokenSource? _renderCancellationTokenSource;
         private TimelineViewModel? _timelineViewModel;
+        private CanvasViewModel? _canvasViewModel;
 
         public ObservableCollection<string> ResolutionOptions { get; } = new()
         {
@@ -94,6 +95,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void AttachTimeline(TimelineViewModel timelineViewModel)
         {
             _timelineViewModel = timelineViewModel;
+        }
+
+        public void AttachCanvas(CanvasViewModel canvasViewModel)
+        {
+            _canvasViewModel = canvasViewModel;
         }
 
         /// <summary>
@@ -161,7 +167,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
                 var timelineVisualSegments = BuildTimelineVisualSegments(liveProject);
-                var timelineTextSegments   = BuildTimelineTextSegments(liveProject);
+                var timelineTextSegments   = BuildTimelineTextSegments(liveProject, width, height);
                 var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
 
                 // Append BGM from timeline if configured and enabled
@@ -422,9 +428,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Collect text overlay segments from all visible text tracks.
-        /// Fixes BUG-1: text segments were completely omitted from render.
+        /// Maps canvas element positions to render coordinates when linked elements exist.
         /// </summary>
-        private static List<RenderTextSegment> BuildTimelineTextSegments(Project project)
+        private List<RenderTextSegment> BuildTimelineTextSegments(Project project, int renderWidth, int renderHeight)
         {
             var textTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -433,6 +439,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (textTracks == null || textTracks.Count == 0)
                 return [];
+
+            var canvasWidth = _canvasViewModel?.CanvasWidth ?? 0;
+            var canvasHeight = _canvasViewModel?.CanvasHeight ?? 0;
+            var elements = _canvasViewModel?.Elements;
 
             var segments = new List<RenderTextSegment>();
             foreach (var track in textTracks)
@@ -443,13 +453,38 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
                         continue;
 
-                    segments.Add(new RenderTextSegment
+                    var renderSeg = new RenderTextSegment
                     {
                         Text      = segment.Text,
                         StartTime = segment.StartTime,
                         EndTime   = segment.EndTime
-                        // FontSize, FontColor, XExpr, YExpr, DrawBox use class defaults
-                    });
+                    };
+
+                    // Look up linked canvas element to get position/style data
+                    var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
+                    if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0)
+                    {
+                        var (xExpr, yExpr) = CoordinateMapper.ToTextExpressions(
+                            linkedElement.X, linkedElement.Y,
+                            canvasWidth, canvasHeight,
+                            renderWidth, renderHeight);
+                        renderSeg.XExpr = xExpr;
+                        renderSeg.YExpr = yExpr;
+
+                        // Map font properties from element type
+                        if (linkedElement is TitleElement title)
+                        {
+                            renderSeg.FontSize = CoordinateMapper.ScaleFontSize(title.FontSize, canvasHeight, renderHeight);
+                            renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(title.ColorHex);
+                        }
+                        else if (linkedElement is TextElement text)
+                        {
+                            renderSeg.FontSize = CoordinateMapper.ScaleFontSize(text.FontSize, canvasHeight, renderHeight);
+                            renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(text.ColorHex);
+                        }
+                    }
+
+                    segments.Add(renderSeg);
                 }
             }
 

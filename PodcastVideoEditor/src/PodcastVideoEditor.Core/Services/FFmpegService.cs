@@ -663,15 +663,20 @@ public static class FFmpegService
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", invariant);
             var scaledLabel = $"scaled{i}";
 
+            // Use segment-specific scale if provided, otherwise full-frame
+            var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                : BuildScalingFilter(config);
+
             if (seg.IsVideo)
             {
                 // Trim source to its window, reset PTS to 0
                 filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format=yuv420p,{BuildScalingFilter(config)},setsar=1[{scaledLabel}];");
+                filter.Append($"format=yuv420p,{scaleFilter},setsar=1[{scaledLabel}];");
             }
             else
             {
-                filter.Append($"[{inputIdx}:v]format=yuv420p,{BuildScalingFilter(config)},setsar=1[{scaledLabel}];");
+                filter.Append($"[{inputIdx}:v]format=yuv420p,{scaleFilter},setsar=1[{scaledLabel}];");
             }
         }
 
@@ -684,19 +689,24 @@ public static class FFmpegService
             var end     = seg.EndTime.ToString("F3", invariant);
             var outLabel = $"v{i}";
 
+            // Build overlay position: use segment X/Y if provided, otherwise default (0,0)
+            var overlayX = seg.OverlayX ?? "0";
+            var overlayY = seg.OverlayY ?? "0";
+            var overlayPos = $"x={overlayX}:y={overlayY}:";
+
             // For images: shift PTS so the frame appears at the right time in the output
             if (!seg.IsVideo)
             {
                 var scaledPtsLabel = $"scaledpts{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{scaledPtsLabel}];");
-                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay=shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             else
             {
                 // Video: already trimmed+PTS-reset; shift into output timeline
                 var shiftedLabel = $"shifted{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
-                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay=shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             currentVideo = outLabel;
         }

@@ -1,9 +1,11 @@
 using PodcastVideoEditor.Core.Models;
 using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PodcastVideoEditor.Ui.Converters
 {
@@ -315,6 +317,41 @@ namespace PodcastVideoEditor.Ui.Converters
                 return visibility != Visibility.Visible;
             }
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Convert file path string to BitmapImage for displaying images on canvas.
+    /// Returns null if path is empty or file doesn't exist.
+    /// </summary>
+    public class FilePathToImageConverter : IValueConverter
+    {
+        public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string filePath && !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
+            {
+                try
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 512; // limit memory usage
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    return bitmap;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }

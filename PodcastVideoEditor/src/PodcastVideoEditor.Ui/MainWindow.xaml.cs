@@ -62,6 +62,7 @@ public partial class MainWindow : Window
 
             _canvasViewModel.AttachProjectAndTimeline(_projectViewModel, _timelineViewModel);
             _renderViewModel.AttachTimeline(_timelineViewModel);
+            _renderViewModel.AttachCanvas(_canvasViewModel);
 
             _mainViewModel = new MainViewModel(
                 _projectViewModel,

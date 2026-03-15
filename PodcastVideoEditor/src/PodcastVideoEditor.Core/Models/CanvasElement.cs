@@ -15,6 +15,7 @@ namespace PodcastVideoEditor.Core.Models
         private double _height;
         private int _zIndex;
         private bool _isSelected;
+        private double _rotation;
         private bool _isVisible = true;
         private string _name;
 
@@ -84,6 +85,15 @@ namespace PodcastVideoEditor.Core.Models
         }
 
         /// <summary>
+        /// Rotation angle in degrees.
+        /// </summary>
+        public double Rotation
+        {
+            get => _rotation;
+            set => SetProperty(ref _rotation, value);
+        }
+
+        /// <summary>
         /// Whether this element is currently selected.
         /// </summary>
         public bool IsSelected
@@ -138,6 +148,7 @@ namespace PodcastVideoEditor.Core.Models
             Width = 200;
             Height = 100;
             ZIndex = 0;
+            Rotation = 0;
             IsVisible = true;
             IsSelected = false;
         }

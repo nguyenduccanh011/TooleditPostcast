@@ -217,6 +217,22 @@ public sealed class ElementMovedAction : IUndoableAction
     public void Redo() { _el.X = _nx; _el.Y = _ny; }
 }
 
+/// <summary>A canvas element was resized on the canvas.</summary>
+public sealed class ElementResizedAction : IUndoableAction
+{
+    private readonly CanvasElement _el;
+    private readonly double _ox, _oy, _ow, _oh, _nx, _ny, _nw, _nh;
+
+    public ElementResizedAction(CanvasElement el,
+        double oldX, double oldY, double oldW, double oldH,
+        double newX, double newY, double newW, double newH)
+    { _el = el; _ox = oldX; _oy = oldY; _ow = oldW; _oh = oldH; _nx = newX; _ny = newY; _nw = newW; _nh = newH; }
+
+    public string Description => $"Resize '{_el.Name}'";
+    public void Undo() { _el.X = _ox; _el.Y = _oy; _el.Width = _ow; _el.Height = _oh; }
+    public void Redo() { _el.X = _nx; _el.Y = _ny; _el.Width = _nw; _el.Height = _nh; }
+}
+
 /// <summary>A canvas element was added.</summary>
 public sealed class ElementAddedAction : IUndoableAction
 {

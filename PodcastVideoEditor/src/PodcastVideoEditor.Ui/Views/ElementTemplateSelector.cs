@@ -14,6 +14,8 @@ public class ElementTemplateSelector : DataTemplateSelector
     public DataTemplate? VisualizerTemplate { get; set; }
     public DataTemplate? TitleTemplate { get; set; }
     public DataTemplate? TextTemplate { get; set; }
+    public DataTemplate? ImageTemplate { get; set; }
+    public DataTemplate? LogoTemplate { get; set; }
 
     public override DataTemplate? SelectTemplate(object item, DependencyObject container)
     {
@@ -22,6 +24,8 @@ public class ElementTemplateSelector : DataTemplateSelector
             VisualizerElement => VisualizerTemplate ?? DefaultTemplate,
             TitleElement => TitleTemplate ?? DefaultTemplate,
             TextElement => TextTemplate ?? DefaultTemplate,
+            ImageElement => ImageTemplate ?? DefaultTemplate,
+            LogoElement => LogoTemplate ?? DefaultTemplate,
             _ => DefaultTemplate
         };
     }

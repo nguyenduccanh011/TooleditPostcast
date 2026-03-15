@@ -13,77 +13,254 @@
              FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}">
 
     <UserControl.Resources>
-        <!-- Template for generic elements (Logo, Image, etc.) - shows Name -->
+        <conv:FilePathToImageConverter x:Key="FilePathToImageConverter"/>
+        <conv:ScaleModeConverter x:Key="ScaleModeConverter"/>
+
+        <!-- Shared style for resize handle thumbs (4 corners) -->
+        <Style x:Key="ResizeHandleStyle" TargetType="Thumb"
+               xmlns:sys="clr-namespace:System;assembly=mscorlib">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="White" BorderBrush="#333333" BorderThickness="1" CornerRadius="1"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Horizontal-only resize handle (middle left/right for text) -->
+        <Style x:Key="HorizontalResizeHandleStyle" TargetType="Thumb">
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="White" BorderBrush="#333333" BorderThickness="1" CornerRadius="1"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Template for generic elements — shows Name -->
         <DataTemplate x:Key="DefaultElementTemplate">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
-                    Background="#333333"
-                    BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                    BorderThickness="2"
-                    MouseDown="OnCanvasElementMouseDown">
-                <TextBlock Text="{Binding Name}"
-                           Foreground="White"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           FontSize="12"/>
-            </Border>
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#333333"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <TextBlock Text="{Binding Name}" Foreground="White"
+                               VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12"/>
+                </Border>
+                <!-- Corner resize handles (visible when selected) -->
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
         </DataTemplate>
-        <!-- TitleElement: displays Text with FontSize, FontFamily, ColorHex, etc. -->
+
+        <!-- ImageElement: displays actual image file -->
+        <DataTemplate x:Key="ImageElementTemplate">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#222222"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <Grid>
+                        <Image Source="{Binding FilePath, Converter={StaticResource FilePathToImageConverter}}"
+                               Stretch="{Binding ScaleMode, Converter={StaticResource ScaleModeConverter}}"
+                               Opacity="{Binding Opacity}"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <!-- Fallback label when no image loaded -->
+                        <TextBlock Text="{Binding Name}" Foreground="#888888" FontSize="11"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Visibility="{Binding FilePath, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    </Grid>
+                </Border>
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- LogoElement: displays logo image file -->
+        <DataTemplate x:Key="LogoElementTemplate">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#222222"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <Grid>
+                        <Image Source="{Binding ImagePath, Converter={StaticResource FilePathToImageConverter}}"
+                               Stretch="{Binding ScaleMode, Converter={StaticResource ScaleModeConverter}}"
+                               Opacity="{Binding Opacity}"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="{Binding Name}" Foreground="#888888" FontSize="11"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Visibility="{Binding ImagePath, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    </Grid>
+                </Border>
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- TitleElement: displays Text with FontSize, FontFamily, ColorHex, etc. + 4 corner handles -->
         <DataTemplate x:Key="TitleElementTemplate">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
-                    Background="#333333"
-                    BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                    BorderThickness="2"
-                    MouseDown="OnCanvasElementMouseDown">
-                <TextBlock Text="{Binding Text}"
-                           Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
-                           FontFamily="{Binding FontFamily}"
-                           FontSize="{Binding FontSize}"
-                           FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
-                           FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
-                           TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
-                           TextWrapping="Wrap"
-                           Padding="8,4"/>
-            </Border>
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#333333"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <TextBlock Text="{Binding Text}"
+                               Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
+                               FontFamily="{Binding FontFamily}"
+                               FontSize="{Binding FontSize}"
+                               FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
+                               FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
+                               TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
+                               TextWrapping="Wrap"
+                               Padding="8,4"/>
+                </Border>
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
         </DataTemplate>
-        <!-- TextElement: displays Content -->
+
+        <!-- TextElement: displays Content + 4 corners + 2 horizontal handles for width adjustment -->
         <DataTemplate x:Key="TextElementTemplate">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
-                    Background="#333333"
-                    BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                    BorderThickness="2"
-                    MouseDown="OnCanvasElementMouseDown">
-                <TextBlock Text="{Binding Content}"
-                           Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
-                           FontSize="{Binding FontSize}"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           TextWrapping="Wrap"
-                           Padding="8,4"/>
-            </Border>
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#333333"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <TextBlock Text="{Binding Content}"
+                               Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
+                               FontSize="{Binding FontSize}"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Padding="8,4"/>
+                </Border>
+                <!-- Corner resize handles (proportional) -->
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <!-- Horizontal-only resize handles (text width adjustment) -->
+                <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-4,0,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleRight" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-4,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
         </DataTemplate>
-        <!-- Template for VisualizerElement: live spectrum bitmap -->
+
+        <!-- Template for VisualizerElement: live spectrum bitmap + 4 corner handles -->
         <DataTemplate x:Key="VisualizerElementTemplate">
-            <Border Width="{Binding Width}"
-                    Height="{Binding Height}"
-                    Background="#000000"
-                    BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                    BorderThickness="2"
-                    MouseDown="OnCanvasElementMouseDown">
-                <Image Source="{Binding DataContext.VisualizerBitmapSource, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                       Stretch="Fill"
-                       RenderOptions.BitmapScalingMode="LowQuality"/>
-            </Border>
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+                <Border Background="#000000"
+                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2">
+                    <Image Source="{Binding DataContext.VisualizerBitmapSource, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                           Stretch="Fill"
+                           RenderOptions.BitmapScalingMode="LowQuality"/>
+                </Border>
+                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+            </Grid>
         </DataTemplate>
+
         <views:ElementTemplateSelector x:Key="ElementTemplateSelector"
                                        DefaultTemplate="{StaticResource DefaultElementTemplate}"
                                        VisualizerTemplate="{StaticResource VisualizerElementTemplate}"
                                        TitleTemplate="{StaticResource TitleElementTemplate}"
-                                       TextTemplate="{StaticResource TextElementTemplate}"/>
+                                       TextTemplate="{StaticResource TextElementTemplate}"
+                                       ImageTemplate="{StaticResource ImageElementTemplate}"
+                                       LogoTemplate="{StaticResource LogoElementTemplate}"/>
         <!-- Compact outline ratio button for status bar -->
         <Style x:Key="RatioButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
