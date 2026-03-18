@@ -249,6 +249,9 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.Property<double>("FadeOutDuration")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("Keywords")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId")
@@ -297,6 +300,10 @@ namespace PodcastVideoEditor.Core.Migrations
             modelBuilder.Entity("PodcastVideoEditor.Core.Models.Track", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageLayoutPreset")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsLocked")

@@ -17,7 +17,7 @@ namespace PodcastVideoEditor.Core.Models
         private bool _isSelected;
         private double _rotation;
         private bool _isVisible = true;
-        private string _name;
+        private string _name = string.Empty;
 
         /// <summary>
         /// Unique identifier for the element.

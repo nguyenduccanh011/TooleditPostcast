@@ -141,6 +141,12 @@ public class RenderVisualSegment
     /// Explicit scale height (pixels). Null = use full render resolution.
     /// </summary>
     public int? ScaleHeight { get; set; }
+
+    /// <summary>
+    /// Scaling behavior inside explicit overlay bounds.
+    /// Fill = cover and crop, Fit = contain with padding, Stretch = distort to bounds.
+    /// </summary>
+    public string ScaleMode { get; set; } = "Fill";
 }
 
 /// <summary>
@@ -219,6 +225,11 @@ public class RenderProgress
     /// Overall progress percentage (0-100).
     /// </summary>
     public int ProgressPercentage { get; set; }
+
+    /// <summary>
+    /// True when render is still active but FFmpeg is not emitting steady progress updates.
+    /// </summary>
+    public bool IsIndeterminate { get; set; }
 
     /// <summary>
     /// Current frame being rendered.

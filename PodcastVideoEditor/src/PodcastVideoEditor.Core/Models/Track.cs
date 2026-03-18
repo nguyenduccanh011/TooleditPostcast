@@ -70,6 +70,17 @@ public partial class Track : ObservableObject
     [ObservableProperty]
     private bool isVisible = true;
 
+    /// <summary>
+    /// Controls how background images are laid out within the video frame for all segments in this track.
+    /// Valid values defined in <see cref="ImageLayoutPresets"/>:
+    ///   "FullFrame"         — image fills the entire frame (default)
+    ///   "Square_Center"     — 1:1 centered, leaving top/bottom space for titles/subs
+    ///   "Widescreen_Center" — 16:9 letterboxed and centered in a portrait frame
+    /// Changing this value automatically affects render output for all segments in this track.
+    /// </summary>
+    [ObservableProperty]
+    private string imageLayoutPreset = ImageLayoutPresets.FullFrame;
+
     // Navigation properties
 
     /// <summary>
@@ -90,12 +101,13 @@ public partial class Track : ObservableObject
     /// </summary>
     public Track ShallowClone() => new()
     {
-        Id        = Id,
-        ProjectId = ProjectId,
-        Name      = Name,
-        TrackType = TrackType,
-        Order     = Order,
-        IsVisible = IsVisible,
-        IsLocked  = IsLocked,
+        Id                 = Id,
+        ProjectId          = ProjectId,
+        Name               = Name,
+        TrackType          = TrackType,
+        Order              = Order,
+        IsVisible          = IsVisible,
+        IsLocked           = IsLocked,
+        ImageLayoutPreset  = ImageLayoutPreset,
     };
 }

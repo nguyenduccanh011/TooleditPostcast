@@ -73,6 +73,14 @@ public partial class Segment : ObservableObject
     private double fadeOutDuration;
 
     /// <summary>
+    /// AI-generated keywords for this segment stored as a JSON array string.
+    /// Example: "[\"stock market\",\"trading\",\"finance\",\"charts\",\"business\"]"
+    /// Populated by the AI analysis pipeline; used to fetch and select background images.
+    /// </summary>
+    [ObservableProperty]
+    private string? keywords;
+
+    /// <summary>
     /// UI-only: waveform peak data for audio segments (not persisted to DB).
     /// Loaded asynchronously by TimelineViewModel after segment is added/loaded.
     /// </summary>
@@ -118,5 +126,6 @@ public partial class Segment : ObservableObject
         FadeOutDuration    = FadeOutDuration,
         TransitionType     = TransitionType,
         TransitionDuration = TransitionDuration,
+        Keywords           = Keywords,
     };
 }
