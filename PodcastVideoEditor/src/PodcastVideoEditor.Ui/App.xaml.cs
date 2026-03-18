@@ -16,6 +16,24 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Catch ALL unhandled exceptions — log and keep app alive
+        DispatcherUnhandledException += (s, ex) =>
+        {
+            Log.Error(ex.Exception, "[DispatcherUnhandledException] {Type}: {Msg}",
+                ex.Exception.GetType().Name, ex.Exception.Message);
+            ex.Handled = true; // prevent process termination
+        };
+        AppDomain.CurrentDomain.UnhandledException += (s, ex) =>
+        {
+            if (ex.ExceptionObject is Exception e2)
+                Log.Fatal(e2, "[AppDomain.UnhandledException] IsTerminating={T}", ex.IsTerminating);
+        };
+        TaskScheduler.UnobservedTaskException += (s, ex) =>
+        {
+            Log.Warning(ex.Exception, "[UnobservedTaskException]");
+            ex.SetObserved();
+        };
+
         try
         {
             // Enable GPU hardware acceleration for better performance

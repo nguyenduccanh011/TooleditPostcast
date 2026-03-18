@@ -1,0 +1,103 @@
+<UserControl x:Class="PodcastVideoEditor.Ui.Views.TrackEditorPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#1e1e1e"
+             Foreground="#e0e0e0">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
+            <TextBlock Text="Track Properties"
+                       FontSize="14" FontWeight="Bold" Foreground="#81c784" VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- No selection -->
+        <TextBlock x:Name="NoSelectionText"
+                   Grid.Row="1"
+                   Text="Click vào phần đầu track trên timeline để chỉnh thuộc tính"
+                   Foreground="#7a8a96"
+                   FontStyle="Italic"
+                   TextWrapping="Wrap"
+                   Margin="15,15,15,0"
+                   Visibility="Visible"/>
+
+        <!-- Properties (shown when a track is selected) -->
+        <ScrollViewer x:Name="PropertiesPanel"
+                      Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      Visibility="Collapsed">
+            <StackPanel Margin="15,12,15,12">
+
+                <!-- Track name (read-only display) -->
+                <TextBlock Text="Tên track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock x:Name="TrackNameText"
+                           Foreground="#81c784"
+                           FontFamily="Courier New"
+                           Margin="0,0,0,15"/>
+
+                <!-- Track type (read-only) -->
+                <TextBlock Text="Loại track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock x:Name="TrackTypeText"
+                           Foreground="#64b5f6"
+                           FontFamily="Courier New"
+                           Margin="0,0,0,15"/>
+
+                <!-- Separator — only show image layout for visual tracks -->
+                <StackPanel x:Name="ImageLayoutSection" Visibility="Collapsed">
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="📐  Layout ảnh:" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <!-- Radio buttons for common presets -->
+                    <RadioButton x:Name="RadioFullFrame"
+                                 Content="Full Frame  (ảnh phủ toàn khung)"
+                                 Foreground="#e0e0e0" Margin="0,0,0,6"
+                                 GroupName="LayoutPreset"
+                                 Checked="RadioPreset_Checked" Tag="FullFrame"/>
+
+                    <RadioButton x:Name="RadioSquareCenter"
+                                 Content="1:1 Giữa khung  (để trống trên/dưới cho title + sub)"
+                                 Foreground="#e0e0e0" Margin="0,0,0,6"
+                                 GroupName="LayoutPreset"
+                                 Checked="RadioPreset_Checked" Tag="Square_Center"/>
+
+                    <RadioButton x:Name="RadioWidescreenCenter"
+                                 Content="16:9 Giữa khung  (letterbox trong frame dọc)"
+                                 Foreground="#e0e0e0" Margin="0,0,0,14"
+                                 GroupName="LayoutPreset"
+                                 Checked="RadioPreset_Checked" Tag="Widescreen_Center"/>
+
+                    <!-- Visual preview hint -->
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                        <TextBlock x:Name="PresetHintText"
+                                   Foreground="#7a8a96"
+                                   FontStyle="Italic"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Lock / Visibility -->
+                <Separator Background="#37474f" Margin="0,0,0,12"/>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Button x:Name="LockBtn" Width="100" Padding="8,5" Margin="0,0,8,0"
+                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Cursor="Hand" Click="LockBtn_Click">
+                        <TextBlock x:Name="LockBtnText" Text="🔓 Mở khóa" FontFamily="Segoe UI Emoji"/>
+                    </Button>
+                    <Button x:Name="VisibilityBtn" Width="100" Padding="8,5"
+                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Cursor="Hand" Click="VisibilityBtn_Click">
+                        <TextBlock x:Name="VisBtnText" Text="👁 Hiện" FontFamily="Segoe UI Emoji"/>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

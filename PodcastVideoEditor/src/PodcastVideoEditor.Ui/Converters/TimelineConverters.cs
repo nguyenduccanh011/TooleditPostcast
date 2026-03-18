@@ -216,7 +216,7 @@ namespace PodcastVideoEditor.Ui.Converters
     /// </summary>
     public class SegmentThumbnailSourceConverter : IMultiValueConverter
     {
-        private static readonly LRUCache<string, BitmapImage> s_cache = new(1000); // Increased from 500
+        private static readonly LRUCache<string, BitmapImage> s_cache = new(400, global::PodcastVideoEditor.Ui.Helpers.BitmapCacheMetrics.EstimateBitmapBytes, 24L * 1024 * 1024);
         private const int ThumbnailDecodePixelWidth = 60; // Reduced from 120 for faster loading
         // Track pending async generation
         private static readonly HashSet<string> s_pendingKeys = new();
@@ -236,6 +236,15 @@ namespace PodcastVideoEditor.Ui.Converters
             catch
             {
                 return null;
+            }
+        }
+
+        public static void ClearCache()
+        {
+            s_cache.Clear();
+            lock (s_pendingLock)
+            {
+                s_pendingKeys.Clear();
             }
         }
 
@@ -272,7 +281,7 @@ namespace PodcastVideoEditor.Ui.Converters
                 cacheKey = asset.FilePath + "_v0";
                 
                 // Check LRU cache first (fast path)
-                if (s_cache.TryGet(cacheKey, out var videoCache))
+                if (s_cache.TryGet(cacheKey, out var videoCache) && videoCache != null)
                     return videoCache;
                 
                 // Check if thumbnail file already exists (disk cache)
@@ -330,7 +339,7 @@ namespace PodcastVideoEditor.Ui.Converters
                 return null!;
             
             // Check LRU cache before loading
-            if (s_cache.TryGet(cacheKey, out var cached))
+            if (s_cache.TryGet(cacheKey, out var cached) && cached != null)
                 return cached;
             
             try
@@ -434,6 +443,14 @@ namespace PodcastVideoEditor.Ui.Converters
             s_defaultBrush.Freeze();
         }
 
+        public static void ClearCache()
+        {
+            lock (s_brushCache)
+            {
+                s_brushCache.Clear();
+            }
+        }
+
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values == null || values.Length < 2)
@@ -508,6 +525,14 @@ namespace PodcastVideoEditor.Ui.Converters
         private static readonly double[] s_empty = Array.Empty<double>();
         private static readonly Dictionary<string, double[]> s_lastTimesBySegmentId = new();
 
+        public static void ClearCache()
+        {
+            lock (s_lastTimesBySegmentId)
+            {
+                s_lastTimesBySegmentId.Clear();
+            }
+        }
+
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
             if (values == null || values.Length < 2 || values[0] is not Segment seg || values[1] is not IEnumerable assetsEnum)
@@ -566,13 +591,23 @@ namespace PodcastVideoEditor.Ui.Converters
     /// </summary>
     public class VideoFrameAtTimeConverter : IMultiValueConverter
     {
-        private static readonly LRUCache<string, BitmapImage> s_frameCache = new(1000); // Increased cache
+        private static readonly LRUCache<string, BitmapImage> s_frameCache = new(400, global::PodcastVideoEditor.Ui.Helpers.BitmapCacheMetrics.EstimateBitmapBytes, 24L * 1024 * 1024);
         private const int DecodeWidth = 40; // Smaller = faster decode
         private static DateTime _lastGenerateTime = DateTime.MinValue;
         private const int ThrottleMs = 16; // ~60fps max generation rate
         // Track pending async generation to avoid duplicate work
         private static readonly HashSet<string> s_pendingKeys = new();
         private static readonly object s_pendingLock = new();
+
+        public static void ClearCache()
+        {
+            s_frameCache.Clear();
+            lock (s_pendingLock)
+            {
+                s_pendingKeys.Clear();
+            }
+            _lastGenerateTime = DateTime.MinValue;
+        }
 
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
@@ -601,7 +636,7 @@ namespace PodcastVideoEditor.Ui.Converters
             var cacheKey = $"{asset.FilePath}|{timeInVideo:F2}";
             
             // Check LRU cache first
-            if (s_frameCache.TryGet(cacheKey, out var cachedFrame))
+            if (s_frameCache.TryGet(cacheKey, out var cachedFrame) && cachedFrame != null)
                 return cachedFrame;
             
             // Throttle generation during rapid scrolling
@@ -737,5 +772,18 @@ namespace PodcastVideoEditor.Ui.Converters
         {
             throw new NotImplementedException();
         }
+    }
+
+    /// <summary>
+    /// Returns Collapsed when the string value is null or empty; Visible otherwise.
+    /// Used by the AI analysis status TextBlock.
+    /// </summary>
+    public class NullOrEmptyToCollapsedConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => string.IsNullOrEmpty(value as string) ? Visibility.Collapsed : Visibility.Visible;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
     }
 }

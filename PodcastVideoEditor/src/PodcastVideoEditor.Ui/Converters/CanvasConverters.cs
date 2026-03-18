@@ -257,6 +257,22 @@ namespace PodcastVideoEditor.Ui.Converters
     }
 
     /// <summary>
+    /// IMultiValueConverter: returns true when values[0] and values[1] are reference-equal.
+    /// Used in DataTrigger to highlight the selected image tile.
+    /// </summary>
+    public class IsEqualConverter : System.Windows.Data.IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values == null || values.Length < 2) return false;
+            return Equals(values[0], values[1]);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>
     /// Convert object to Visibility: null = Visible, non-null = Collapsed.
     /// </summary>
     public class NullToVisibilityConverter : IValueConverter

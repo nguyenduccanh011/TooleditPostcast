@@ -26,5 +26,10 @@
         <views:SegmentEditorPanel x:Name="SegmentPanel"
                                  DataContext="{Binding TimelineViewModel}"
                                  Visibility="Collapsed"/>
+
+        <!-- Track properties (TrackEditorPanel) — shown when a track header is clicked -->
+        <views:TrackEditorPanel x:Name="TrackPanel"
+                                DataContext="{Binding TimelineViewModel}"
+                                Visibility="Collapsed"/>
     </Grid>
 </UserControl>

@@ -100,6 +100,7 @@
                     Height="30"
                     Maximum="100"
                     Value="{Binding RenderProgress}"
+                    IsIndeterminate="{Binding RenderProgressIsIndeterminate}"
                     Background="#252526"
                     Foreground="#28A745" />
             </StackPanel>

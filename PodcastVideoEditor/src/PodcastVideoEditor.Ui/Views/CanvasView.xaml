@@ -355,43 +355,69 @@
                     <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
                         <Border Background="#2d2d2d" />
 
-                        <!-- Background image layers: additional visual tracks rendered back to front -->
-                        <ItemsControl ItemsSource="{Binding BackgroundLayers}" IsHitTestVisible="False">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <Grid/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Image Source="{Binding}"
-                                           Stretch="UniformToFill"
-                                           RenderOptions.BitmapScalingMode="HighQuality"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <Canvas Width="{Binding CanvasWidth}"
+                                Height="{Binding CanvasHeight}"
+                                IsHitTestVisible="False">
+                            <!-- Background image layers: additional visual tracks rendered back to front -->
+                            <ItemsControl ItemsSource="{Binding BackgroundLayers}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="{Binding Width}"
+                                                Height="{Binding Height}"
+                                                ClipToBounds="True">
+                                            <Image Source="{Binding Image}"
+                                                   Stretch="UniformToFill"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
 
-                        <!-- GPU-accelerated video preview (MediaElement) -->
-                        <!-- Note: Source is set from code-behind, not binding -->
-                        <MediaElement x:Name="VideoPreview"
-                                      LoadedBehavior="Manual"
-                                      ScrubbingEnabled="True"
-                                      IsMuted="True"
-                                      Stretch="UniformToFill"
-                                      Width="{Binding CanvasWidth}"
-                                      Height="{Binding CanvasHeight}"
-                                      IsHitTestVisible="False"
-                                      RenderOptions.BitmapScalingMode="HighQuality"
-                                      Visibility="{Binding IsVideoMode, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <!-- GPU-accelerated video preview (MediaElement) -->
+                            <!-- Note: Source is set from code-behind, not binding -->
+                            <Border Canvas.Left="{Binding ActiveVisualX}"
+                                    Canvas.Top="{Binding ActiveVisualY}"
+                                    Width="{Binding ActiveVisualWidth}"
+                                    Height="{Binding ActiveVisualHeight}"
+                                    ClipToBounds="True"
+                                    Visibility="{Binding IsVideoMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <MediaElement x:Name="VideoPreview"
+                                              LoadedBehavior="Manual"
+                                              ScrubbingEnabled="True"
+                                              IsMuted="True"
+                                              Stretch="UniformToFill"
+                                              Width="{Binding ActiveVisualWidth}"
+                                              Height="{Binding ActiveVisualHeight}"
+                                              IsHitTestVisible="False"
+                                              RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
 
-                        <!-- Static image preview (fallback for frontmost non-video visual) -->
-                        <Image Source="{Binding ActiveVisualImage}"
-                               Stretch="UniformToFill"
-                               Width="{Binding CanvasWidth}"
-                               Height="{Binding CanvasHeight}"
-                               IsHitTestVisible="False"
-                               RenderOptions.BitmapScalingMode="HighQuality"
-                               Visibility="{Binding IsVideoMode, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                            <!-- Static image preview (fallback for frontmost non-video visual) -->
+                            <Border Canvas.Left="{Binding ActiveVisualX}"
+                                    Canvas.Top="{Binding ActiveVisualY}"
+                                    Width="{Binding ActiveVisualWidth}"
+                                    Height="{Binding ActiveVisualHeight}"
+                                    ClipToBounds="True"
+                                    Visibility="{Binding IsVideoMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                <Image Source="{Binding ActiveVisualImage}"
+                                       Stretch="UniformToFill"
+                                       Width="{Binding ActiveVisualWidth}"
+                                       Height="{Binding ActiveVisualHeight}"
+                                       IsHitTestVisible="False"
+                                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
+                        </Canvas>
 
                         <TextBlock Text="No active visual segment"
                                    Foreground="#cccccc"

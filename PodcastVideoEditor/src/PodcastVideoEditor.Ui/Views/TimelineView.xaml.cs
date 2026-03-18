@@ -1035,5 +1035,12 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
                 _viewModel?.ToggleTrackVisibility(track);
         }
+
+        private void TrackHeader_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.SelectTrack(track);
+            // Do NOT set e.Handled — let Lock/Visibility buttons still receive their events.
+        }
     }
 }

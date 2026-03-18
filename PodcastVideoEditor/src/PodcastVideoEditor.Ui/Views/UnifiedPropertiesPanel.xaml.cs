@@ -30,7 +30,8 @@ public partial class UnifiedPropertiesPanel : UserControl
 
         _timelineHandler = (_, args) =>
         {
-            if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
+            if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment) ||
+                args.PropertyName == nameof(TimelineViewModel.SelectedTrack))
                 UpdateVisibility();
         };
         _canvasHandler = (_, args) =>
@@ -64,26 +65,37 @@ public partial class UnifiedPropertiesPanel : UserControl
             return;
 
         var hasSegment = _mainViewModel.TimelineViewModel.SelectedSegment != null;
+        var hasTrack   = _mainViewModel.TimelineViewModel.SelectedTrack != null && !hasSegment;
         var hasElement = _mainViewModel.CanvasViewModel.SelectedElement != null;
 
-        // Priority: segment > element > none
+        // Priority: segment > track > element > none
         if (hasSegment)
         {
             NoSelectionText.Visibility = Visibility.Collapsed;
-            ElementPanel.Visibility = Visibility.Collapsed;
-            SegmentPanel.Visibility = Visibility.Visible;
+            TrackPanel.Visibility      = Visibility.Collapsed;
+            ElementPanel.Visibility    = Visibility.Collapsed;
+            SegmentPanel.Visibility    = Visibility.Visible;
+        }
+        else if (hasTrack)
+        {
+            NoSelectionText.Visibility = Visibility.Collapsed;
+            SegmentPanel.Visibility    = Visibility.Collapsed;
+            ElementPanel.Visibility    = Visibility.Collapsed;
+            TrackPanel.Visibility      = Visibility.Visible;
         }
         else if (hasElement)
         {
             NoSelectionText.Visibility = Visibility.Collapsed;
-            ElementPanel.Visibility = Visibility.Visible;
-            SegmentPanel.Visibility = Visibility.Collapsed;
+            TrackPanel.Visibility      = Visibility.Collapsed;
+            ElementPanel.Visibility    = Visibility.Visible;
+            SegmentPanel.Visibility    = Visibility.Collapsed;
         }
         else
         {
             NoSelectionText.Visibility = Visibility.Visible;
-            ElementPanel.Visibility = Visibility.Collapsed;
-            SegmentPanel.Visibility = Visibility.Collapsed;
+            TrackPanel.Visibility      = Visibility.Collapsed;
+            ElementPanel.Visibility    = Visibility.Collapsed;
+            SegmentPanel.Visibility    = Visibility.Collapsed;
         }
     }
 }

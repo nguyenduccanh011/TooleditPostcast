@@ -54,13 +54,13 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel?.SelectedSegment == null)
             {
                 NoSelectionText.Visibility = Visibility.Visible;
-                PropertiesPanel.Visibility = Visibility.Collapsed;
+                PropertiesTabControl.Visibility = Visibility.Collapsed;
                 RefreshBackgroundInfo();
             }
             else
             {
                 NoSelectionText.Visibility = Visibility.Collapsed;
-                PropertiesPanel.Visibility = Visibility.Visible;
+                PropertiesTabControl.Visibility = Visibility.Visible;
                 RefreshBackgroundInfo();
             }
         }

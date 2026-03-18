@@ -1,0 +1,63 @@
+<Window
+    x:Class="PodcastVideoEditor.Ui.Views.AIAnalysisProgressWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Phân tích AI"
+    Width="480"
+    Height="320"
+    WindowStartupLocation="CenterOwner"
+    Background="#1e1e1e"
+    Foreground="#e0e0e0"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False"
+    WindowStyle="SingleBorderWindow">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="✦ Đang phân tích AI…"
+                   FontSize="16" FontWeight="SemiBold"
+                   Foreground="#ce93d8" Margin="0,0,0,16"/>
+
+        <!-- Step label -->
+        <TextBlock Grid.Row="1"
+                   Text="{Binding StepMessage}"
+                   FontSize="13" Foreground="#e0e0e0"
+                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+        <!-- Progress bar -->
+        <ProgressBar Grid.Row="2"
+                     Value="{Binding ProgressPercent}"
+                     Minimum="0" Maximum="100"
+                     Height="12" VerticalAlignment="Top"
+                     Foreground="#ab47bc" Background="#37474f"
+                     BorderThickness="0" Margin="0,0,0,12"/>
+
+        <!-- Error detail (shows only on error) -->
+        <ScrollViewer Grid.Row="3"
+                      MaxHeight="80"
+                      VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}"
+                      Margin="0,0,0,12">
+            <TextBlock Text="{Binding ErrorDetail}"
+                       Foreground="#ef5350" FontSize="11"
+                       TextWrapping="Wrap"/>
+        </ScrollViewer>
+
+        <!-- Cancel button -->
+        <Button Grid.Row="4"
+                Content="Huỷ"
+                Command="{Binding CancelCommand}"
+                HorizontalAlignment="Right"
+                Background="#37474f" Foreground="#e0e0e0"
+                Padding="20,8" MinHeight="32"/>
+    </Grid>
+</Window>
