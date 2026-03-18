@@ -3,10 +3,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Ui.Converters;
 using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -21,6 +23,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly CanvasViewModel _canvasViewModel;
         private readonly RenderViewModel _renderViewModel;
         private readonly ThumbnailPreGenerationService _thumbnailService;
+        private readonly ImageAssetIngestService _imageAssetIngestService;
+        private readonly PropertyChangedEventHandler _canvasPropertyChangedHandler;
 
         [ObservableProperty]
         private Project? currentProject;
@@ -42,19 +46,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private bool _disposed;
 
-        public ProjectViewModel(ProjectService projectService, CanvasViewModel canvasViewModel, RenderViewModel renderViewModel)
+        public ProjectViewModel(
+            ProjectService projectService,
+            CanvasViewModel canvasViewModel,
+            RenderViewModel renderViewModel,
+            ImageAssetIngestService imageAssetIngestService)
         {
             _projectService = projectService;
             _canvasViewModel = canvasViewModel;
             _renderViewModel = renderViewModel;
             _thumbnailService = new ThumbnailPreGenerationService(maxConcurrent: 2);
+            _imageAssetIngestService = imageAssetIngestService;
 
             // Sync preview aspect ratio to render whenever user changes it in canvas
-            _canvasViewModel.PropertyChanged += (_, e) =>
+            _canvasPropertyChangedHandler = (_, e) =>
             {
                 if (e.PropertyName == nameof(CanvasViewModel.SelectedAspectRatio))
                     _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
             };
+            _canvasViewModel.PropertyChanged += _canvasPropertyChangedHandler;
             _renderViewModel.SelectedAspectRatio = _canvasViewModel.SelectedAspectRatio;
             _renderViewModel.ApplyProjectRenderSettings(new RenderSettings
             {
@@ -67,6 +77,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         partial void OnCurrentProjectChanged(Project? value)
         {
+            SegmentThumbnailSourceConverter.ClearCache();
+            SegmentThumbnailBrushConverter.ClearCache();
+            SegmentStripTimesConverter.ClearCache();
+            VideoFrameAtTimeConverter.ClearCache();
+
             // Log only when project is selected (not NULL)
             if (value != null)
                 Log.Information("Project selected: {ProjectName}", value.Name);
@@ -256,6 +271,57 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Replace all segments on any track (by track ID) and reload the project from DB.
+        /// Used by AnalyzeWithAICommand to persist both text and visual tracks.
+        /// </summary>
+        public async Task ReplaceSegmentsForTrackAsync(string trackId, IEnumerable<Segment> newSegments)
+        {
+            if (CurrentProject == null)
+                throw new InvalidOperationException("No project loaded");
+
+            await _projectService.ReplaceSegmentsOfTrackAsync(CurrentProject, trackId, newSegments);
+
+            var refreshed = await _projectService.GetProjectAsync(CurrentProject.Id);
+            if (refreshed != null)
+                CurrentProject = refreshed;
+        }
+
+        /// <summary>
+        /// Download an image from <paramref name="url"/>, register it as an asset,
+        /// and return its asset ID. Returns null on failure.
+        /// Used by the segment image picker to apply a user-selected candidate.
+        /// </summary>
+        public async Task<string?> AddImageFromUrlAsync(string url, string candidateId)
+        {
+            if (CurrentProject == null) return null;
+            PreparedImageAsset? prepared = null;
+            try
+            {
+                prepared = await _imageAssetIngestService.DownloadAndPrepareAsync(url, candidateId);
+                var asset = await _projectService.AddAssetAsync(
+                    CurrentProject.Id,
+                    prepared.FilePath,
+                    "Image",
+                    prepared.Width,
+                    prepared.Height,
+                    prepared.FileSize);
+                return asset.Id;
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "AddImageFromUrlAsync failed for {CandidateId}", candidateId);
+                return null;
+            }
+            finally
+            {
+                if (prepared != null)
+                {
+                    try { System.IO.File.Delete(prepared.FilePath); } catch { /* best-effort */ }
+                }
+            }
+        }
+
+        /// <summary>
         /// Save current project.
         /// </summary>
         [RelayCommand]
@@ -383,6 +449,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_disposed)
                 return;
             _disposed = true;
+            _canvasViewModel.PropertyChanged -= _canvasPropertyChangedHandler;
             _thumbnailService.Stop();
         }
     }

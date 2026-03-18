@@ -86,7 +86,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
             // Wire up property changes to refresh visualizer config
-            PropertyChanged += (s, e) => OnPropertyChanged(e.PropertyName);
+            PropertyChanged += (s, e) => HandleViewModelPropertyChanged(e.PropertyName);
 
             Log.Information("VisualizerViewModel initialized");
         }
@@ -175,7 +175,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Handle property changes to refresh visualizer.
         /// </summary>
-        private void OnPropertyChanged(string? propertyName)
+        private void HandleViewModelPropertyChanged(string? propertyName)
         {
             if (!_isInitialized)
                 return;

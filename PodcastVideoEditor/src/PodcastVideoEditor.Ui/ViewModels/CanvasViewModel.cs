@@ -7,6 +7,7 @@ using PodcastVideoEditor.Ui.Converters;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -25,11 +26,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
-        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(300); // Keep memory budget tighter for responsive GC
+        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(120, global::PodcastVideoEditor.Ui.Helpers.BitmapCacheMetrics.EstimateBitmapBytes, 96L * 1024 * 1024);
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private SelectionSyncService? _selectionSyncService;
         private UndoRedoService? _undoRedo;
+        private ObservableCollection<Track>? _trackedTracks;
+        private HashSet<Segment>? _trackedSegments;
+        private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
+        private PropertyChangedEventHandler? _trackPropertyChangedHandler;
+        private PropertyChangedEventHandler? _segmentPropertyChangedHandler;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
         private PropertyChangedEventHandler? _projectPropertyChangedHandler;
         private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
@@ -45,7 +51,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         // Performance: dictionary cache for O(1) asset lookup instead of LINQ FirstOrDefault
         private Dictionary<string, Asset>? _assetDictionary;
-        private int _assetDictionaryVersion;
+        private long _assetDictionarySignature;
 
         public ObservableCollection<string> AspectRatioOptions { get; } = new()
         {
@@ -110,7 +116,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Each entry is a BitmapSource for a non-video visual segment.
         /// The frontmost video (if any) is rendered via MediaElement, not included here.
         /// </summary>
-        public ObservableCollection<BitmapSource> BackgroundLayers { get; } = new();
+        public ObservableCollection<PreviewVisualLayer> BackgroundLayers { get; } = new();
+
+        [ObservableProperty]
+        private double activeVisualX;
+
+        [ObservableProperty]
+        private double activeVisualY;
+
+        [ObservableProperty]
+        private double activeVisualWidth = 1920;
+
+        [ObservableProperty]
+        private double activeVisualHeight = 1080;
 
         /// <summary>
         /// All active text overlays from active text tracks, ordered by Track.Order (front first).
@@ -137,24 +155,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isPlaying = false;
 
         private AudioPlayerViewModel? _audioPlayerViewModel;
-
-        /// <summary>
-        /// Attach project and timeline references so preview can react to playhead changes.
-        /// </summary>
-        public void AttachProjectAndTimeline(ProjectViewModel projectViewModel, TimelineViewModel timelineViewModel)
-        {
-            _projectViewModel = projectViewModel ?? throw new ArgumentNullException(nameof(projectViewModel));
-            _timelineViewModel = timelineViewModel ?? throw new ArgumentNullException(nameof(timelineViewModel));
-
-            _timelinePropertyChangedHandler ??= OnTimelinePropertyChanged;
-            _projectPropertyChangedHandler ??= OnProjectPropertyChanged;
-
-            _timelineViewModel.PropertyChanged += _timelinePropertyChangedHandler;
-            _timelineViewModel.ScriptApplied += OnScriptApplied;
-            _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
-
-            UpdateActivePreview(_timelineViewModel.PlayheadPosition);
-        }
 
         /// <summary>
         /// Set selection sync service for bidirectional canvas↔timeline selection.
@@ -458,6 +458,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             LogMessage($"Canvas: created {e.NewSegments.Count} text element(s) from script");
             Log.Information("Canvas elements synced after script apply: {Count} new, {Removed} removed",
                 e.NewSegments.Count, orphaned.Count);
+
+            RebuildSegmentSubscriptions();
+            UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
         }
 
         /// <summary>
@@ -752,396 +755,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             CanvasWidth = previewWidth;
             CanvasHeight = previewHeight;
             StatusMessage = $"Aspect ratio: {aspectRatio} ({(int)previewWidth}x{(int)previewHeight})";
-        }
 
-        private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (_timelineViewModel == null || _projectViewModel == null)
-                return;
-
-            if (e.PropertyName == nameof(TimelineViewModel.PlayheadPosition))
-            {
-                var playhead = _timelineViewModel.PlayheadPosition;
-
-                // Fast path: if in video mode, just update position (GPU-accelerated, very cheap)
-                if (IsVideoMode && ActiveVisualSegment != null)
-                {
-                    // Check if playhead is still within the same segment
-                    if (playhead >= ActiveVisualSegment.StartTime && playhead < ActiveVisualSegment.EndTime)
-                    {
-                        var segmentOffset = playhead - ActiveVisualSegment.StartTime;
-                        VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
-                        return; // Skip full UpdateActivePreview — no segment change
-                    }
-                }
-
-                // Throttle full canvas updates to ~60fps
-                var now = DateTime.UtcNow;
-                if ((now - _lastCanvasUpdateTime).TotalMilliseconds < CanvasUpdateThrottleMs)
-                    return;
-                _lastCanvasUpdateTime = now;
-
-                UpdateActivePreview(playhead);
-            }
-        }
-
-        private void OnProjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(ProjectViewModel.CurrentProject))
-            {
-                _assetFrameCache.Clear();
-                _assetDictionary = null; // Invalidate asset dictionary
-                _lastVisualFrameKey = null;
-                _lastVisualSegmentId = null;
-                UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
-            }
-        }
-
-        private void UpdateActivePreview(double playheadSeconds)
-        {
-            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
-            {
-                ClearActivePreview();
-                return;
-            }
-
-            var active = _timelineViewModel.GetActiveSegmentsAtTime(playheadSeconds);
-
-            // --- Collect ALL visual and text segments (multi-track composite) ---
-            // GetActiveSegmentsAtTime already filters by Track.IsVisible and sorts by Track.Order (0=front)
-            var visualPairs = new List<(Track track, Segment segment)>();
-            var textPairs = new List<(Track track, Segment segment)>();
-
-            foreach (var pair in active)
-            {
-                if (string.Equals(pair.track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
-                    visualPairs.Add(pair);
-                else if (string.Equals(pair.track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
-                    textPairs.Add(pair);
-                // Audio type segments are not visual — skip for preview rendering
-            }
-
-            // --- Multi-text composite: collect text from ALL active text tracks ---
-            ActiveTextOverlays.Clear();
-            foreach (var tp in textPairs)
-            {
-                if (!string.IsNullOrWhiteSpace(tp.segment.Text))
-                    ActiveTextOverlays.Add(tp.segment.Text);
-            }
-
-            // Legacy single-text properties (kept for backward compatibility)
-            var primaryTextPair = textPairs.Count > 0 ? textPairs[0] : default;
-            ActiveTextSegment = primaryTextPair.segment;
-            ActiveTextContent = string.Join("\n", ActiveTextOverlays);
-            IsTextOverlayVisible = ActiveTextOverlays.Count > 0;
-
-            // --- Multi-visual composite: iterate visual tracks by z-order ---
-            // Strategy: frontmost video → MediaElement; other images → BackgroundLayers
-            var primaryVisualPair = visualPairs.Count > 0 ? visualPairs[0] : default;
-            ActiveVisualSegment = primaryVisualPair.segment;
-
-            bool videoHandled = false;
-            BackgroundLayers.Clear();
-
-            // Try to find a video asset in the frontmost visual segment
-            if (primaryVisualPair.segment != null && !string.IsNullOrWhiteSpace(primaryVisualPair.segment.BackgroundAssetId))
-            {
-                var asset = FindAssetById(primaryVisualPair.segment.BackgroundAssetId);
-                if (asset != null && IsVideoAsset(asset))
-                {
-                    if (!string.IsNullOrWhiteSpace(asset.FilePath) && File.Exists(asset.FilePath))
-                    {
-                        try
-                        {
-                            var newUri = new Uri(asset.FilePath, UriKind.Absolute);
-                            if (VideoSource?.LocalPath != newUri.LocalPath)
-                            {
-                                VideoSource = newUri;
-                                Serilog.Log.Information("Video source CHANGED: {Path}", asset.FilePath);
-                            }
-                            var segmentOffset = playheadSeconds - primaryVisualPair.segment.StartTime;
-                            VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
-                            IsVideoMode = true;
-                            videoHandled = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            Serilog.Log.Warning(ex, "Failed to set video source: {Path}", asset.FilePath);
-                        }
-                    }
-                }
-            }
-
-            if (!videoHandled)
-            {
-                IsVideoMode = false;
-                VideoSource = null;
-            }
-
-            // Load image layers for all visual segments (skip the one handled as video)
-            // Add from back to front: highest Order (background) first in collection
-            for (int i = visualPairs.Count - 1; i >= 0; i--)
-            {
-                var (track, segment) = visualPairs[i];
-
-                // If this is the primary video segment already handled by MediaElement, skip
-                if (videoHandled && i == 0)
-                    continue;
-
-                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
-                    continue;
-
-                // If an interactive ImageElement exists for this segment, skip background rendering.
-                // The element renders the image on the interactive canvas layer instead.
-                if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
-                    continue;
-
-                var layerAsset = FindAssetById(segment.BackgroundAssetId);
-                if (layerAsset == null)
-                    continue;
-
-                var layerFrame = LoadFrameForAsset(layerAsset, segment, playheadSeconds);
-                if (layerFrame != null)
-                    BackgroundLayers.Add(layerFrame);
-            }
-
-            // Legacy single-image property: set to frontmost non-video visual (or null)
-            // Skip if the primary segment has a linked canvas element (it renders via interactive layer).
-            if (!videoHandled && visualPairs.Count > 0)
-            {
-                var primarySeg = primaryVisualPair.segment;
-                bool primaryHasElement = primarySeg != null &&
-                    Elements.Any(e => string.Equals(e.SegmentId, primarySeg.Id, StringComparison.Ordinal));
-
-                if (primaryHasElement)
-                {
-                    ActiveVisualImage = null;
-                }
-                else
-                {
-                    var frontAsset = FindAssetById(primarySeg?.BackgroundAssetId);
-                    ActiveVisualImage = frontAsset != null
-                        ? LoadFrameForAsset(frontAsset, primarySeg!, playheadSeconds)
-                        : null;
-                }
-            }
-            else if (!videoHandled)
-            {
-                ActiveVisualImage = null;
-            }
-
-            IsVisualPlaceholderVisible = ActiveVisualSegment == null && BackgroundLayers.Count == 0 && !IsVideoMode;
-            UpdateElementVisibility(active);
-        }
-
-        /// <summary>
-        /// Check if an asset is a video file (by Type or file extension).
-        /// </summary>
-        private static bool IsVideoAsset(Asset asset)
-        {
-            if (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
-                return true;
-            if (string.IsNullOrWhiteSpace(asset.FilePath))
-                return false;
-            return asset.FilePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                   asset.FilePath.EndsWith(".avi", StringComparison.OrdinalIgnoreCase) ||
-                   asset.FilePath.EndsWith(".mov", StringComparison.OrdinalIgnoreCase) ||
-                   asset.FilePath.EndsWith(".mkv", StringComparison.OrdinalIgnoreCase) ||
-                   asset.FilePath.EndsWith(".wmv", StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <summary>
-        /// Update visibility of canvas elements based on their SegmentId.
-        /// Elements with SegmentId=null are always visible (global overlays).
-        /// Elements with a SegmentId are only visible when that segment is active at the current playhead.
-        /// </summary>
-        private void UpdateElementVisibility(List<(Track track, Segment segment)> activeSegments)
-        {
-            if (Elements.Count == 0)
-                return;
-
-            // Build a set of active segment IDs for O(1) lookup
-            HashSet<string>? activeSegmentIds = null;
-            foreach (var (_, seg) in activeSegments)
-            {
-                if (seg != null)
-                {
-                    activeSegmentIds ??= new HashSet<string>(StringComparer.Ordinal);
-                    activeSegmentIds.Add(seg.Id);
-                }
-            }
-
-            foreach (var element in Elements)
-            {
-                if (string.IsNullOrEmpty(element.SegmentId))
-                {
-                    // Global overlay — always visible
-                    element.IsVisible = true;
-                }
-                else
-                {
-                    // Segment-bound — visible only when segment is active
-                    element.IsVisible = activeSegmentIds != null && activeSegmentIds.Contains(element.SegmentId);
-                }
-            }
-        }
-
-        private Asset? FindAssetById(string? assetId)
-        {
-            if (string.IsNullOrWhiteSpace(assetId))
-                return null;
-
-            var assets = _projectViewModel?.CurrentProject?.Assets;
-            if (assets == null)
-                return null;
-
-            // Use dictionary cache for O(1) lookup instead of LINQ FirstOrDefault O(n)
-            if (_assetDictionary == null || _assetDictionaryVersion != assets.Count)
-            {
-                _assetDictionary = new Dictionary<string, Asset>(assets.Count, StringComparer.Ordinal);
-                foreach (var a in assets)
-                {
-                    if (!string.IsNullOrWhiteSpace(a.Id))
-                        _assetDictionary[a.Id] = a;
-                }
-                _assetDictionaryVersion = assets.Count;
-            }
-
-            return _assetDictionary.TryGetValue(assetId, out var found) ? found : null;
-        }
-
-        private BitmapSource? LoadFrameForAsset(Asset asset, Segment segment, double playheadSeconds)
-        {
-            if (string.IsNullOrWhiteSpace(asset.FilePath) || !File.Exists(asset.FilePath))
-                return null;
-
-            if (string.Equals(asset.Type, "Image", StringComparison.OrdinalIgnoreCase))
-            {
-                var key = asset.Id ?? asset.FilePath;
-                if (_lastVisualSegmentId == segment.Id && _lastVisualFrameKey == key && ActiveVisualImage != null)
-                    return ActiveVisualImage;
-
-                var bmp = LoadBitmapFromPath(asset.FilePath, key);
-                _lastVisualSegmentId = segment.Id;
-                _lastVisualFrameKey = key;
-                return bmp;
-            }
-
-            if (!string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
-                return null;
-
-            var timeIntoVideo = Math.Max(0, playheadSeconds - segment.StartTime);
-            var quantized = Math.Round(timeIntoVideo, 1); // ~10fps to avoid excessive FFmpeg calls
-            var frameKey = $"{asset.Id}|{quantized:F2}";
-
-            if (_lastVisualSegmentId == segment.Id && _lastVisualFrameKey == frameKey && ActiveVisualImage != null)
-                return ActiveVisualImage;
-
-            if (_timelineViewModel?.IsDeferringThumbnailUpdate == true)
-                return ActiveVisualImage;
-
-            var thumbPath = FFmpegService.GetThumbnailCachePathFor(asset.FilePath, quantized);
-            if (!File.Exists(thumbPath))
-            {
-                QueueVideoFrameGeneration(asset.FilePath, quantized, frameKey, segment.Id);
-                return ActiveVisualImage;
-            }
-
-            var bmpFrame = LoadBitmapFromPath(thumbPath, frameKey);
-            if (bmpFrame != null)
-            {
-                _lastVisualSegmentId = segment.Id;
-                _lastVisualFrameKey = frameKey;
-            }
-            return bmpFrame;
-        }
-
-        private void QueueVideoFrameGeneration(string videoPath, double timeInVideo, string frameKey, string? segmentId)
-        {
-            lock (_pendingVideoFrameLock)
-            {
-                if (!_pendingVideoFrameRequests.Add(frameKey))
-                    return;
-            }
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var generated = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(videoPath, timeInVideo).ConfigureAwait(false);
-                    if (string.IsNullOrWhiteSpace(generated) || !File.Exists(generated))
-                        return;
-
-                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
-                    {
-                        var bmp = LoadBitmapFromPath(generated, frameKey);
-                        if (bmp == null || ActiveVisualSegment == null)
-                            return;
-
-                        if (!string.Equals(ActiveVisualSegment.Id, segmentId, StringComparison.Ordinal))
-                            return;
-
-                        ActiveVisualImage = bmp;
-                        _lastVisualSegmentId = segmentId;
-                        _lastVisualFrameKey = frameKey;
-                        IsVisualPlaceholderVisible = false;
-                    });
-                }
-                catch
-                {
-                    // Ignore background thumbnail failures to keep scrubbing smooth.
-                }
-                finally
-                {
-                    lock (_pendingVideoFrameLock)
-                        _pendingVideoFrameRequests.Remove(frameKey);
-                }
-            });
-        }
-
-        private BitmapSource? LoadBitmapFromPath(string path, string cacheKey)
-        {
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-                return null;
-
-            // Check LRU cache first
-            if (_assetFrameCache.TryGet(cacheKey, out var cached))
-                return cached;
-
-            try
-            {
-                var uri = new Uri(Path.GetFullPath(path), UriKind.Absolute);
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = uri;
-                bmp.DecodePixelWidth = 960;
-                bmp.EndInit();
-                bmp.Freeze();
-
-                // Add to LRU cache (auto-evicts if full)
-                _assetFrameCache.Add(cacheKey, bmp);
-
-                return bmp;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private void ClearActivePreview()
-        {
-            ActiveVisualImage = null;
-            VideoSource = null;
-            IsVideoMode = false;
-            ActiveTextContent = string.Empty;
-            ActiveVisualSegment = null;
-            ActiveTextSegment = null;
-            IsTextOverlayVisible = false;
-            IsVisualPlaceholderVisible = true;
-            BackgroundLayers.Clear();
-            ActiveTextOverlays.Clear();
+            if (_timelineViewModel != null)
+                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+            else
+                SetActiveVisualLayout(ImageLayoutPresets.FullFrame);
         }
 
         public void Dispose()
@@ -1159,6 +777,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     _timelineViewModel.ScriptApplied -= OnScriptApplied;
                 if (_projectViewModel != null && _projectPropertyChangedHandler != null)
                     _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
+                DetachTrackSubscriptions();
 
                 // Unsubscribe from audio player
                 if (_audioPlayerViewModel != null && _audioPlayerPropertyChangedHandler != null)

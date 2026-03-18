@@ -3,9 +3,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Core.Utilities;
+using PodcastVideoEditor.Ui.Views;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -54,6 +57,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private string statusMessage = "Timeline ready";
+
+        /// <summary>
+        /// Status text shown below the "Phân tích AI" button. Empty = hidden.
+        /// Updated during AI analysis to reflect current step or error.
+        /// </summary>
+        [ObservableProperty]
+        private string aIAnalysisStatus = string.Empty;
 
         /// <summary>
         /// Raw script text for paste (ST-3). Format: [start → end] text per line.
@@ -133,6 +143,43 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Wire up undo/redo. Called from MainViewModel after construction.
         /// </summary>
         public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
+
+        // AI orchestrator — set by MainWindow after startup.
+        private IAIAnalysisOrchestrator? _aiOrchestrator;
+        private IAIImageSelectionService? _imageSelection;
+        private bool _isAnalyzing;
+
+        /// <summary>
+        /// Sets the AI analysis orchestrator. Called from MainWindow once AI services are wired.
+        /// Required by <see cref="AnalyzeWithAICommand"/>.
+        /// </summary>
+        public void SetOrchestrator(IAIAnalysisOrchestrator orchestrator, IAIImageSelectionService imageSelection)
+        {
+            _aiOrchestrator = orchestrator;
+            _imageSelection = imageSelection;
+        }
+
+        /// <summary>
+        /// Picker ViewModel for the "Ảnh" tab in SegmentEditorPanel.
+        /// Non-null when a Visual segment is selected and image search is available.
+        /// </summary>
+        [ObservableProperty]
+        private SegmentImagePickerViewModel? imagePicker;
+
+        partial void OnSelectedSegmentChanged(Segment? value)
+        {
+            if (value != null
+                && string.Equals(value.Kind, "visual", StringComparison.OrdinalIgnoreCase)
+                && _imageSelection != null)
+            {
+                ImagePicker = new SegmentImagePickerViewModel(value, _imageSelection, _projectViewModel);
+            }
+            else
+            {
+                ImagePicker = null;
+            }
+            AnalyzeWithAICommand.NotifyCanExecuteChanged();
+        }
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
@@ -782,7 +829,94 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public event EventHandler<ScriptAppliedEventArgs>? ScriptApplied;
 
-        partial void OnScriptPasteTextChanged(string value) => ApplyScriptCommand.NotifyCanExecuteChanged();
+        partial void OnScriptPasteTextChanged(string value)
+        {
+            ApplyScriptCommand.NotifyCanExecuteChanged();
+            AnalyzeWithAICommand.NotifyCanExecuteChanged();
+        }
+
+        // ── Analyze With AI ─────────────────────────────────────────────────
+
+        [RelayCommand(CanExecute = nameof(CanAnalyzeWithAI))]
+        private async Task AnalyzeWithAIAsync()
+        {
+            var project = _projectViewModel.CurrentProject;
+            if (project == null || _aiOrchestrator == null) return;
+
+            _isAnalyzing = true;
+            AnalyzeWithAICommand.NotifyCanExecuteChanged();
+            AIAnalysisStatus = "Đang khởi động…";
+
+            var cts = new System.Threading.CancellationTokenSource();
+            var progressVm = new AIAnalysisProgressViewModel(cts);
+            var progressWindow = new Views.AIAnalysisProgressWindow(progressVm);
+            progressWindow.Owner = System.Windows.Application.Current.MainWindow;
+
+            // Progress<T> already marshals to the UI thread via SynchronizationContext.
+            // No need for an extra Dispatcher.Invoke wrapper.
+            var progress = new Progress<AIAnalysisProgressReport>(report =>
+            {
+                progressVm.Report(report);
+                AIAnalysisStatus = report.Message;
+            });
+
+            // Capture existing text-track segment IDs before replacing (for ScriptApplied event)
+            var textTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
+            var oldSegmentIds = textTrack?.Segments
+                .Select(s => s.Id)
+                .ToHashSet() ?? new HashSet<string>();
+
+            var mainWindow = System.Windows.Application.Current.MainWindow;
+            if (mainWindow != null) mainWindow.IsEnabled = false;
+            progressWindow.Show();
+
+            try
+            {
+                var result = await Task.Run(
+                    () => _aiOrchestrator.RunAsync(
+                        project, ScriptPasteText, TotalDuration, progress, cts.Token),
+                    cts.Token);
+
+                // Persist text track
+                if (textTrack != null)
+                    await _projectViewModel.ReplaceSegmentsForTrackAsync(textTrack.Id, result.TextSegments);
+
+                // Persist visual track
+                var visualTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Visual);
+                if (visualTrack != null)
+                    await _projectViewModel.ReplaceSegmentsForTrackAsync(visualTrack.Id, result.VisualSegments);
+
+                LoadTracksFromProject();
+                ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(
+                    oldSegmentIds, result.TextSegments));
+
+                AIAnalysisStatus = $"✓ Xong: {result.TextSegments.Length} segment, {result.RegisteredAssetIds.Length} ảnh";
+                StatusMessage    = AIAnalysisStatus;
+            }
+            catch (OperationCanceledException)
+            {
+                AIAnalysisStatus = "Đã huỷ";
+            }
+            catch (Exception ex)
+            {
+                AIAnalysisStatus = $"Lỗi: {ex.Message}";
+                Log.Error(ex, "AnalyzeWithAI failed");
+            }
+            finally
+            {
+                progressVm.NotifyComplete();
+                cts.Dispose();
+                _isAnalyzing = false;
+                AnalyzeWithAICommand.NotifyCanExecuteChanged();
+                if (mainWindow != null) mainWindow.IsEnabled = true;
+            }
+        }
+
+        private bool CanAnalyzeWithAI()
+            => !_isAnalyzing
+            && _projectViewModel.CurrentProject != null
+            && !string.IsNullOrWhiteSpace(ScriptPasteText)
+            && _aiOrchestrator != null;
 
         /// <summary>
         /// Clear all segments in the selected track.
@@ -1125,6 +1259,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
             track.IsVisible = !track.IsVisible;
             StatusMessage = track.IsVisible ? $"Track '{track.Name}' visible" : $"Track '{track.Name}' hidden";
             _ = _projectViewModel.SaveProjectAsync();
+        }
+
+        /// <summary>
+        /// Select a track (e.g. when clicking the track header).
+        /// Clears SelectedSegment so Properties Panel shows Track properties.
+        /// </summary>
+        public void SelectTrack(Track? track)
+        {
+            SelectedSegment = null;
+            SelectedTrack = track;
         }
 
         /// <summary>Persist the current project. Called by views after making in-place edits (e.g. transition picker).</summary>

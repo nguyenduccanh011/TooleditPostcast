@@ -1,6 +1,7 @@
 #nullable enable
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PodcastVideoEditor.Core;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
@@ -44,6 +45,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private int renderProgress;
+
+        [ObservableProperty]
+        private bool renderProgressIsIndeterminate;
 
         [ObservableProperty]
         private string statusMessage = "Ready to render";
@@ -151,6 +155,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             CanCancel = true;
             HasError = false;
             RenderProgress = 0;
+            RenderProgressIsIndeterminate = false;
             StatusMessage = "Initializing render...";
 
             _renderCancellationTokenSource = new CancellationTokenSource();
@@ -234,12 +239,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var progress = new Progress<RenderProgress>(report =>
                 {
                     RenderProgress = report.ProgressPercentage;
+                    RenderProgressIsIndeterminate = report.IsIndeterminate;
                     StatusMessage = report.Message;
 
                     if (report.IsComplete)
                     {
                         IsRendering = false;
                         CanCancel = false;
+                        RenderProgressIsIndeterminate = false;
                         StatusMessage = $"Render completed: {System.IO.Path.GetFileName(config.OutputPath)}";
                         Log.Information("Render completed: {OutputPath}", config.OutputPath);
                     }
@@ -268,18 +275,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 StatusMessage = "Render cancelled by user";
                 HasError = true;
+                RenderProgressIsIndeterminate = false;
                 Log.Information("Render cancelled");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Render error: {ex.Message}";
                 HasError = true;
+                RenderProgressIsIndeterminate = false;
                 Log.Error(ex, "Render error");
             }
             finally
             {
                 IsRendering = false;
                 CanCancel = false;
+                RenderProgressIsIndeterminate = false;
                 _renderCancellationTokenSource?.Dispose();
             }
         }
@@ -466,6 +476,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         renderSeg.OverlayY     = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture);
                         renderSeg.ScaleWidth   = scaleW;
                         renderSeg.ScaleHeight  = scaleH;
+                        renderSeg.ScaleMode    = linkedElement is ImageElement imageElement
+                            ? imageElement.ScaleMode.ToString()
+                            : "Fill";
+                    }
+                    else if (!string.Equals(track.ImageLayoutPreset, ImageLayoutPresets.FullFrame, StringComparison.Ordinal))
+                    {
+                        var (x, y, width, height) = RenderHelper.ComputeImageRect(track.ImageLayoutPreset, renderWidth, renderHeight);
+                        renderSeg.OverlayX    = ((int)Math.Round(x)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        renderSeg.OverlayY    = ((int)Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        renderSeg.ScaleWidth  = Math.Max(1, (int)Math.Round(width));
+                        renderSeg.ScaleHeight = Math.Max(1, (int)Math.Round(height));
+                        renderSeg.ScaleMode   = "Fill";
                     }
 
                     segments.Add(renderSeg);
