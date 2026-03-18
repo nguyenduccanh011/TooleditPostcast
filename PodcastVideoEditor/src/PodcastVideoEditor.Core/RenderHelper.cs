@@ -7,10 +7,30 @@ using System.IO;
 namespace PodcastVideoEditor.Core;
 
 /// <summary>
-/// Minimal helpers for render pipeline (e.g. placeholder image).
+/// Minimal helpers for render pipeline (e.g. placeholder image, image layout).
 /// </summary>
 public static class RenderHelper
 {
+    /// <summary>
+    /// Compute the destination rectangle for an image given a layout preset and frame dimensions.
+    /// Returns (X, Y, Width, Height) in pixels, letter-boxed/centered as needed.
+    /// </summary>
+    public static (double X, double Y, double Width, double Height) ComputeImageRect(
+        string preset, double frameW, double frameH) => preset switch
+    {
+        // 1:1 square, centered vertically
+        Models.ImageLayoutPresets.Square_Center =>
+            (0, (frameH - frameW) / 2, frameW, frameW),
+
+        // 16:9 widescreen, centered vertically
+        Models.ImageLayoutPresets.Widescreen_Center =>
+            (0, (frameH - frameW * 9.0 / 16.0) / 2, frameW, frameW * 9.0 / 16.0),
+
+        // FullFrame or unknown — fill entire frame
+        _ => (0, 0, frameW, frameH),
+    };
+
+
     /// <summary>
     /// Create a simple placeholder image file (PNG) for render when project has no image.
     /// </summary>

@@ -11,16 +11,28 @@ namespace PodcastVideoEditor.Core.Utilities;
 public class LRUCache<TKey, TValue> where TKey : notnull
 {
     private readonly int _capacity;
+    private readonly Func<TValue, long>? _weightSelector;
+    private readonly long? _maxWeight;
     private readonly Dictionary<TKey, LinkedListNode<CacheItem>> _dict;
     private readonly LinkedList<CacheItem> _lruList;
     private readonly object _lock = new();
+    private long _currentWeight;
 
     public LRUCache(int capacity)
+        : this(capacity, null, null)
+    {
+    }
+
+    public LRUCache(int capacity, Func<TValue, long>? weightSelector, long? maxWeight)
     {
         if (capacity <= 0)
             throw new ArgumentException("Capacity must be greater than 0", nameof(capacity));
+        if (maxWeight.HasValue && maxWeight.Value <= 0)
+            throw new ArgumentException("Max weight must be greater than 0", nameof(maxWeight));
         
         _capacity = capacity;
+        _weightSelector = weightSelector;
+        _maxWeight = maxWeight;
         _dict = new Dictionary<TKey, LinkedListNode<CacheItem>>(capacity);
         _lruList = new LinkedList<CacheItem>();
     }
@@ -54,30 +66,27 @@ public class LRUCache<TKey, TValue> where TKey : notnull
     {
         lock (_lock)
         {
+            var newWeight = GetWeight(value);
+
             // Update existing item
             if (_dict.TryGetValue(key, out var existingNode))
             {
                 _lruList.Remove(existingNode);
+                _currentWeight -= existingNode.Value.Weight;
                 existingNode.Value.Value = value;
+                existingNode.Value.Weight = newWeight;
                 _lruList.AddFirst(existingNode);
+                _currentWeight += newWeight;
+                TrimToBudget();
                 return;
             }
 
-            // Evict least recently used if at capacity
-            if (_dict.Count >= _capacity)
-            {
-                var last = _lruList.Last;
-                if (last != null)
-                {
-                    _lruList.RemoveLast();
-                    _dict.Remove(last.Value.Key);
-                }
-            }
-
             // Add new item at front (most recently used)
-            var item = new CacheItem(key, value);
+            var item = new CacheItem(key, value, newWeight);
             var node = _lruList.AddFirst(item);
             _dict[key] = node;
+            _currentWeight += newWeight;
+            TrimToBudget();
         }
     }
 
@@ -92,6 +101,7 @@ public class LRUCache<TKey, TValue> where TKey : notnull
             {
                 _lruList.Remove(node);
                 _dict.Remove(key);
+                _currentWeight -= node.Value.Weight;
                 return true;
             }
             return false;
@@ -107,6 +117,7 @@ public class LRUCache<TKey, TValue> where TKey : notnull
         {
             _dict.Clear();
             _lruList.Clear();
+            _currentWeight = 0;
         }
     }
 
@@ -135,15 +146,50 @@ public class LRUCache<TKey, TValue> where TKey : notnull
         }
     }
 
+    public long CurrentWeight
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _currentWeight;
+            }
+        }
+    }
+
+    private long GetWeight(TValue value)
+    {
+        if (_weightSelector == null)
+            return 1;
+
+        return Math.Max(1, _weightSelector(value));
+    }
+
+    private void TrimToBudget()
+    {
+        while (_dict.Count > _capacity || (_maxWeight.HasValue && _currentWeight > _maxWeight.Value))
+        {
+            var last = _lruList.Last;
+            if (last == null)
+                break;
+
+            _lruList.RemoveLast();
+            _dict.Remove(last.Value.Key);
+            _currentWeight -= last.Value.Weight;
+        }
+    }
+
     private class CacheItem
     {
         public TKey Key { get; }
         public TValue Value { get; set; }
+        public long Weight { get; set; }
 
-        public CacheItem(TKey key, TValue value)
+        public CacheItem(TKey key, TValue value, long weight)
         {
             Key = key;
             Value = value;
+            Weight = weight;
         }
     }
 }
