@@ -2,6 +2,7 @@
 using Serilog;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Utilities;
+using NAudio.Wave;
 using System;
 using System.Diagnostics;
 using System.Globalization;
@@ -18,6 +19,8 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class FFmpegService
 {
+    private const string RenderCanceledMessage = "Render canceled";
+
     private static string? _ffmpegPath;
     private static string? _ffprobePath;
     private static Version? _ffmpegVersion;
@@ -458,6 +461,7 @@ public static class FFmpegService
 
                 // Build FFmpeg command
                 var ffmpegArgs = BuildFFmpegCommand(normalizedConfig);
+                var expectedDurationSeconds = GetAudioDurationSeconds(normalizedConfig.AudioPath);
 
                 Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
                 Log.Information("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
@@ -465,12 +469,21 @@ public static class FFmpegService
                     normalizedConfig.VisualSegments?.Count ?? 0,
                     normalizedConfig.TextSegments?.Count ?? 0,
                     normalizedConfig.AudioSegments?.Count ?? 0);
+                if (expectedDurationSeconds > 0)
+                    Log.Information("Render expected duration from primary audio: {DurationSeconds:F2}s", expectedDurationSeconds);
 
                 // Execute FFmpeg
-                var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken);
+                var (success, output) = await ExecuteFFmpegAsync(
+                    _ffmpegPath!, ffmpegArgs, progress, expectedDurationSeconds, cancellationToken);
 
                 if (!success)
                 {
+                    if (cancellationToken.IsCancellationRequested &&
+                        string.Equals(output, RenderCanceledMessage, StringComparison.Ordinal))
+                    {
+                        throw new OperationCanceledException(RenderCanceledMessage, cancellationToken);
+                    }
+
                     Log.Error("FFmpeg render failed: {Output}", output);
                     throw new InvalidOperationException($"Render failed: {output}");
                 }
@@ -665,7 +678,7 @@ public static class FFmpegService
 
             // Use segment-specific scale if provided, otherwise full-frame
             var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                ? BuildScalingFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                 : BuildScalingFilter(config);
 
             if (seg.IsVideo)
@@ -1029,12 +1042,15 @@ public static class FFmpegService
     }
 
     private static string BuildScalingFilter(RenderConfig config)
+        => BuildScalingFilter(config.ResolutionWidth, config.ResolutionHeight, config.ScaleMode);
+
+    private static string BuildScalingFilter(int targetWidth, int targetHeight, string? scaleMode)
     {
-        return config.ScaleMode switch
+        return scaleMode switch
         {
-            "Fit" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=decrease,pad={config.ResolutionWidth}:{config.ResolutionHeight}:(ow-iw)/2:(oh-ih)/2",
-            "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}",
-            _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
+            "Fit" => $"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease:flags=lanczos,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2",
+            "Stretch" => $"scale={targetWidth}:{targetHeight}:flags=lanczos",
+            _ => $"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=increase:flags=lanczos,crop={targetWidth}:{targetHeight}"
         };
     }
 
@@ -1091,6 +1107,7 @@ public static class FFmpegService
         string ffmpegPath,
         string args,
         IProgress<RenderProgress>? progress,
+        double expectedDurationSeconds,
         CancellationToken cancellationToken)
     {
         try
@@ -1112,19 +1129,73 @@ public static class FFmpegService
             // Read stdout fully in background (usually empty for FFmpeg)
             var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);
 
+            var renderStopwatch = Stopwatch.StartNew();
+            var lastProgressAt = DateTimeOffset.UtcNow;
+            var lastHeartbeatAt = DateTimeOffset.MinValue;
+            var totalDurationSeconds = Math.Max(0, expectedDurationSeconds);
+            var encodedSeconds = 0d;
+            var lastPercent = 0;
+
+            using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var heartbeatTask = Task.Run(async () =>
+            {
+                while (!heartbeatCts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5), heartbeatCts.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
+                    if (_currentRenderProcess == null || _currentRenderProcess.HasExited)
+                        break;
+
+                    var idleSeconds = (DateTimeOffset.UtcNow - lastProgressAt).TotalSeconds;
+                    if (idleSeconds < 10)
+                        continue;
+
+                    var isFinalizing = totalDurationSeconds > 0 && encodedSeconds >= Math.Max(1, totalDurationSeconds - 1);
+                    var message = isFinalizing
+                        ? $"Finalizing output... {lastPercent}% (FFmpeg is still running)"
+                        : $"Still rendering... {lastPercent}% (FFmpeg is still running)";
+
+                    progress?.Report(new RenderProgress
+                    {
+                        ProgressPercentage = Math.Max(lastPercent, 1),
+                        EstimatedTimeRemaining = EstimateRemainingSeconds(totalDurationSeconds, encodedSeconds, renderStopwatch.Elapsed.TotalSeconds),
+                        Message = message,
+                        IsComplete = false,
+                        IsIndeterminate = true
+                    });
+
+                    if ((DateTimeOffset.UtcNow - lastHeartbeatAt).TotalSeconds >= 15)
+                    {
+                        Log.Information(
+                            "Render heartbeat: Progress={Progress}% Encoded={EncodedSeconds:F2}s Total={TotalSeconds:F2}s Idle={IdleSeconds:F1}s Finalizing={IsFinalizing}",
+                            lastPercent,
+                            encodedSeconds,
+                            totalDurationSeconds,
+                            idleSeconds,
+                            isFinalizing);
+                        lastHeartbeatAt = DateTimeOffset.UtcNow;
+                    }
+                }
+            }, CancellationToken.None);
+
             // Parse stderr line-by-line for progress
             var stderrLines = new System.Collections.Generic.List<string>();
-            double totalDurationSeconds = 0;
 
-            // First pass: try to detect total duration from the audio input headers
-            // (FFmpeg prints "Duration: HH:MM:SS.mm" for each input early in stderr)
+            // Parse stderr while preferring the known primary-audio duration for progress.
             var stderrReader = _currentRenderProcess.StandardError;
             string? line;
             while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
             {
                 stderrLines.Add(line);
 
-                // Detect total duration from the FIRST "Duration:" line (usually the audio input)
+                // Fallback duration detection when the primary audio duration could not be read.
                 if (totalDurationSeconds <= 0 && line.Contains("Duration:"))
                 {
                     var durationMatch = System.Text.RegularExpressions.Regex.Match(
@@ -1137,6 +1208,7 @@ public static class FFmpegService
                             CultureInfo.InvariantCulture, out var ds))
                     {
                         totalDurationSeconds = dh * 3600 + dm * 60 + ds;
+                        Log.Information("Render progress fallback duration detected from FFmpeg output: {DurationSeconds:F2}s", totalDurationSeconds);
                     }
                 }
 
@@ -1152,22 +1224,37 @@ public static class FFmpegService
                             System.Globalization.NumberStyles.Float,
                             CultureInfo.InvariantCulture, out var ts))
                     {
-                        var encodedSeconds = th * 3600 + tm * 60 + ts;
-                        int pct = totalDurationSeconds > 0
+                        encodedSeconds = th * 3600 + tm * 60 + ts;
+                        var pct = totalDurationSeconds > 0
                             ? (int)Math.Min(99, encodedSeconds / totalDurationSeconds * 100)
                             : 50;
+
+                        lastPercent = Math.Max(lastPercent, pct);
+                        lastProgressAt = DateTimeOffset.UtcNow;
 
                         progress?.Report(new RenderProgress
                         {
                             ProgressPercentage = pct,
+                            EstimatedTimeRemaining = EstimateRemainingSeconds(totalDurationSeconds, encodedSeconds, renderStopwatch.Elapsed.TotalSeconds),
                             Message = $"Rendering... {pct}%",
-                            IsComplete = false
+                            IsComplete = false,
+                            IsIndeterminate = false
                         });
                     }
                 }
             }
 
             await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            heartbeatCts.Cancel();
+            try
+            {
+                await heartbeatTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Best-effort shutdown.
+            }
+
             var stdout = await outputTask.ConfigureAwait(false);
 
             bool success = _currentRenderProcess.ExitCode == 0;
@@ -1176,7 +1263,7 @@ public static class FFmpegService
         }
         catch (OperationCanceledException)
         {
-            return (false, "Render canceled");
+            return (false, RenderCanceledMessage);
         }
         catch (Exception ex)
         {
@@ -1187,6 +1274,33 @@ public static class FFmpegService
         {
             _currentRenderProcess?.Dispose();
             _currentRenderProcess = null;
+        }
+    }
+
+    private static int EstimateRemainingSeconds(double totalDurationSeconds, double encodedSeconds, double elapsedSeconds)
+    {
+        if (totalDurationSeconds <= 0 || encodedSeconds <= 0 || elapsedSeconds <= 0)
+            return 0;
+
+        var processingRate = encodedSeconds / elapsedSeconds;
+        if (processingRate <= 0)
+            return 0;
+
+        var remainingMediaSeconds = Math.Max(0, totalDurationSeconds - encodedSeconds);
+        return (int)Math.Max(0, Math.Round(remainingMediaSeconds / processingRate));
+    }
+
+    private static double GetAudioDurationSeconds(string audioPath)
+    {
+        try
+        {
+            using var reader = new AudioFileReader(audioPath);
+            return Math.Max(0, reader.TotalTime.TotalSeconds);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to read primary audio duration for render progress: {AudioPath}", audioPath);
+            return 0;
         }
     }
 }

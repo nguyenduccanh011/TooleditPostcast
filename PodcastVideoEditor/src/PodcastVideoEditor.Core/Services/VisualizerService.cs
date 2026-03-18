@@ -17,10 +17,10 @@ namespace PodcastVideoEditor.Core.Services
         private VisualizerConfig _config;
         
         // FFT and smoothing data
-        private float[] _currentSpectrum;
-        private float[] _previousSpectrum;
-        private float[] _peakBars;
-        private long[] _peakHoldTimes;
+        private float[] _currentSpectrum = Array.Empty<float>();
+        private float[] _previousSpectrum = Array.Empty<float>();
+        private float[] _peakBars = Array.Empty<float>();
+        private long[] _peakHoldTimes = Array.Empty<long>();
         
         // Rendering state
         private double _colorTick;

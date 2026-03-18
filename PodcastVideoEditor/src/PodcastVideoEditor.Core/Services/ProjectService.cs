@@ -28,7 +28,13 @@ namespace PodcastVideoEditor.Core.Services
         /// Add a media asset to a project. The source file is copied into AppData/PodcastVideoEditor/assets/{projectId}.
         /// Returns the persisted Asset entity.
         /// </summary>
-        public async Task<Asset> AddAssetAsync(string projectId, string sourceFilePath, string type = "Image")
+        public async Task<Asset> AddAssetAsync(
+            string projectId,
+            string sourceFilePath,
+            string type = "Image",
+            int? width = null,
+            int? height = null,
+            long? fileSize = null)
         {
             if (string.IsNullOrWhiteSpace(projectId))
                 throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
@@ -48,6 +54,12 @@ namespace PodcastVideoEditor.Core.Services
             var destinationFileName = $"{safeName}_{Guid.NewGuid():N}{extension}";
             var destinationPath = Path.Combine(appData, destinationFileName);
             File.Copy(fileInfo.FullName, destinationPath, overwrite: false);
+            var storedFileInfo = new FileInfo(destinationPath);
+
+            if (string.Equals(type, "Image", StringComparison.OrdinalIgnoreCase) && (!width.HasValue || !height.HasValue))
+            {
+                TryProbeImageDimensions(destinationPath, out width, out height);
+            }
 
             // Probe audio/video duration for media assets
             double? duration = null;
@@ -75,9 +87,9 @@ namespace PodcastVideoEditor.Core.Services
                 FilePath = destinationPath,
                 FileName = fileInfo.Name,
                 Extension = extension,
-                FileSize = fileInfo.Length,
-                Width = null,
-                Height = null,
+                FileSize = fileSize ?? storedFileInfo.Length,
+                Width = width,
+                Height = height,
                 Duration = duration,
                 CreatedAt = DateTime.UtcNow
             };
@@ -87,6 +99,26 @@ namespace PodcastVideoEditor.Core.Services
 
             Log.Information("Asset added to project {ProjectId}: {AssetId} ({Name})", projectId, asset.Id, asset.Name);
             return asset;
+        }
+
+        private static void TryProbeImageDimensions(string filePath, out int? width, out int? height)
+        {
+            width = null;
+            height = null;
+
+            try
+            {
+                using var codec = SkiaSharp.SKCodec.Create(filePath);
+                if (codec == null)
+                    return;
+
+                width = codec.Info.Width;
+                height = codec.Info.Height;
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "Could not probe image dimensions for {Path}", filePath);
+            }
         }
 
         /// <summary>

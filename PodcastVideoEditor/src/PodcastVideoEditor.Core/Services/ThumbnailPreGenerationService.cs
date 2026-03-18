@@ -121,6 +121,7 @@ public class ThumbnailPreGenerationService
             return;
 
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         
         _workerTask = Task.Run(() => ProcessQueueAsync(_cts.Token), _cts.Token);
@@ -212,6 +213,8 @@ public class ThumbnailPreGenerationService
     public void Stop()
     {
         _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
         while (_queue.TryDequeue(out _)) { }
         Log.Information("ThumbnailPreGen: Stopped");
     }
