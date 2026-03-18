@@ -43,4 +43,13 @@ public class RenderSizingTests
 
         Assert.Equal("720p", label);
     }
+
+    [Fact]
+    public void ResolvePreviewSize_ForPortraitAspect_UsesPreviewShortEdgeAsWidth()
+    {
+        var (width, height) = RenderSizing.ResolvePreviewSize("9:16", previewShortEdge: 1080);
+
+        Assert.Equal(1080, width);
+        Assert.Equal(1920, height);
+    }
 }
