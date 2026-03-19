@@ -399,7 +399,8 @@
                                 Height="{Binding CanvasHeight}"
                                 IsHitTestVisible="False">
                             <!-- Background image layers: additional visual tracks rendered back to front -->
-                            <ItemsControl ItemsSource="{Binding BackgroundLayers}">
+                            <ItemsControl ItemsSource="{Binding BackgroundLayers}"
+                                          CacheMode="BitmapCache">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <Canvas/>
@@ -415,7 +416,8 @@
                                     <DataTemplate>
                                         <Border Width="{Binding Width}"
                                                 Height="{Binding Height}"
-                                                ClipToBounds="True">
+                                                ClipToBounds="True"
+                                                CacheMode="BitmapCache">
                                             <Image Source="{Binding Image}"
                                                    Stretch="UniformToFill"
                                                    RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -449,6 +451,7 @@
                                     Width="{Binding ActiveVisualWidth}"
                                     Height="{Binding ActiveVisualHeight}"
                                     ClipToBounds="True"
+                                    CacheMode="BitmapCache"
                                     Visibility="{Binding IsVideoMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                                 <Image Source="{Binding ActiveVisualImage}"
                                        Stretch="UniformToFill"

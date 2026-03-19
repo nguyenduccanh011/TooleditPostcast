@@ -897,10 +897,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (_timelineViewModel != null && _timelinePropertyChangedHandler != null)
                     _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
                 if (_timelineViewModel != null)
+                {
                     _timelineViewModel.ScriptApplied -= OnScriptApplied;
+                    _timelineViewModel.ScrubCompleted -= OnScrubCompleted;
+                }
                 if (_projectViewModel != null && _projectPropertyChangedHandler != null)
                     _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
                 DetachTrackSubscriptions();
+
+                // Stop debounce timer
+                _previewDebounceTimer?.Stop();
 
                 // Unsubscribe from audio player
                 if (_audioPlayerViewModel != null && _audioPlayerPropertyChangedHandler != null)

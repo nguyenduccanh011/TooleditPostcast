@@ -7,11 +7,34 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace PodcastVideoEditor.Ui.ViewModels
 {
     public partial class CanvasViewModel
     {
+        // Debounce timer for batch property changes (undo, script apply, etc.)
+        private DispatcherTimer? _previewDebounceTimer;
+        private const int PreviewDebounceMs = 30; // coalesce changes within 30ms window
+
+        private void ScheduleDebouncedPreviewUpdate()
+        {
+            if (_previewDebounceTimer == null)
+            {
+                _previewDebounceTimer = new DispatcherTimer(DispatcherPriority.Normal)
+                {
+                    Interval = TimeSpan.FromMilliseconds(PreviewDebounceMs)
+                };
+                _previewDebounceTimer.Tick += (_, _) =>
+                {
+                    _previewDebounceTimer.Stop();
+                    UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
+                };
+            }
+            _previewDebounceTimer.Stop();
+            _previewDebounceTimer.Start();
+        }
+
         /// <summary>
         /// Attach project and timeline references so preview can react to playhead changes.
         /// </summary>
@@ -156,7 +179,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (e.PropertyName == nameof(Segment.BackgroundAssetId))
             {
                 ClearActiveVisualCache();
-                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+                ScheduleDebouncedPreviewUpdate();
                 return;
             }
 
@@ -179,7 +202,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         ti.Text = editedSeg.Text ?? string.Empty;
                     }
                 }
-                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+                ScheduleDebouncedPreviewUpdate();
                 return;
             }
 
@@ -189,7 +212,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 || e.PropertyName == nameof(Segment.TrackId))
             {
                 _timelineViewModel.InvalidateActiveSegmentsCachePublic();
-                UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+                ScheduleDebouncedPreviewUpdate();
             }
         }
 

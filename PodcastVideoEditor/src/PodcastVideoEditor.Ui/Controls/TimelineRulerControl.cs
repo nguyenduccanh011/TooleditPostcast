@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -54,6 +55,10 @@ namespace PodcastVideoEditor.Ui.Controls
         private static readonly Brush LabelBrush;
         private static readonly Typeface LabelTypeface;
 
+        // Cache FormattedText objects to avoid GC pressure during rapid OnRender calls
+        private readonly Dictionary<string, FormattedText> _formattedTextCache = new();
+        private double _cachedDpi;
+
         static TimelineRulerControl()
         {
             var mediumBrush = new SolidColorBrush(Color.FromRgb(0xb0, 0xbb, 0xc5));
@@ -87,6 +92,14 @@ namespace PodcastVideoEditor.Ui.Controls
             SelectTickSteps(PixelsPerSecond, out double minorStep, out double majorStep);
 
             var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+
+            // Invalidate FormattedText cache if DPI changed
+            if (Math.Abs(dpi - _cachedDpi) > 0.001)
+            {
+                _formattedTextCache.Clear();
+                _cachedDpi = dpi;
+            }
+
             for (double timeSeconds = 0; timeSeconds <= displayDuration; timeSeconds += minorStep)
             {
                 double pixelX = timeSeconds * PixelsPerSecond;
@@ -102,8 +115,12 @@ namespace PodcastVideoEditor.Ui.Controls
                 if (isMajor)
                 {
                     string label = FormatTimeRuler(timeSeconds);
-                    var ft = new FormattedText(label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                        LabelTypeface, 10, LabelBrush, dpi);
+                    if (!_formattedTextCache.TryGetValue(label, out var ft))
+                    {
+                        ft = new FormattedText(label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                            LabelTypeface, 10, LabelBrush, dpi);
+                        _formattedTextCache[label] = ft;
+                    }
                     dc.DrawText(ft, new Point(pixelX - 12, 2));
                 }
             }

@@ -309,8 +309,14 @@ public static class FFmpegService
             }
         };
         process.Start();
+
+        // Read stdout and stderr concurrently to prevent deadlock.
+        // If both buffers fill, sequential ReadToEnd() on one stream
+        // blocks while the process waits for the other to be drained.
+        var stderrTask = process.StandardError.ReadToEndAsync();
         process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        var stderr = stderrTask.GetAwaiter().GetResult();
+
         process.WaitForExit(TimeSpan.FromSeconds(15));
         
         // Log hardware acceleration errors
@@ -1071,7 +1077,10 @@ public static class FFmpegService
                 if (process == null)
                     return;
 
+                // Read stdout/stderr concurrently to prevent deadlock
+                var stderrTask = process.StandardError.ReadToEndAsync();
                 var output = process.StandardOutput.ReadToEnd();
+                stderrTask.GetAwaiter().GetResult();
                 process.WaitForExit(TimeSpan.FromSeconds(5));
 
                 if (output.Contains("h264_nvenc", StringComparison.OrdinalIgnoreCase))
