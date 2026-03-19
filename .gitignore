@@ -1,0 +1,35 @@
+# Build outputs and artifacts
+artifacts/
+bin/
+obj/
+publish/
+.vs/
+
+# Runtime and dependency files
+*.deps.json
+*.runtimeconfig.json
+*.runtimeconfig.dev.json
+
+# Native libraries
+*.so
+*.dylib
+*.dll
+*.a
+libe_*.so*
+libe_*.dylib*
+libSkiaSharp.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# User-specific
+*.user
+*.suo
