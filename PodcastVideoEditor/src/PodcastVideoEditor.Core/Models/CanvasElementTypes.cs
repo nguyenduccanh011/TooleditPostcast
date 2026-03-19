@@ -313,8 +313,12 @@ namespace PodcastVideoEditor.Core.Models
     public class TextElement : CanvasElement
     {
         private string _content = "Text";
+        private string _fontFamily = "Arial";
         private double _fontSize = 24;
         private string _colorHex = "#FFFFFF"; // White
+        private bool _isBold;
+        private bool _isItalic;
+        private TextAlignment _alignment = TextAlignment.Center;
 
         public override ElementType Type => ElementType.Text;
 
@@ -328,12 +332,21 @@ namespace PodcastVideoEditor.Core.Models
         }
 
         /// <summary>
+        /// Font family name (Arial, Verdana, etc.).
+        /// </summary>
+        public string FontFamily
+        {
+            get => _fontFamily;
+            set => SetProperty(ref _fontFamily, value ?? "Arial");
+        }
+
+        /// <summary>
         /// Font size in points.
         /// </summary>
         public double FontSize
         {
             get => _fontSize;
-            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 100));
+            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 200));
         }
 
         /// <summary>
@@ -345,12 +358,43 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _colorHex, value ?? "#FFFFFF");
         }
 
+        /// <summary>
+        /// Whether text is bold.
+        /// </summary>
+        public bool IsBold
+        {
+            get => _isBold;
+            set => SetProperty(ref _isBold, value);
+        }
+
+        /// <summary>
+        /// Whether text is italic.
+        /// </summary>
+        public bool IsItalic
+        {
+            get => _isItalic;
+            set => SetProperty(ref _isItalic, value);
+        }
+
+        /// <summary>
+        /// Text alignment (Left, Center, Right).
+        /// </summary>
+        public TextAlignment Alignment
+        {
+            get => _alignment;
+            set => SetProperty(ref _alignment, value);
+        }
+
         public override void ResetToDefault()
         {
             base.ResetToDefault();
             Content = "Text";
+            FontFamily = "Arial";
             FontSize = 24;
             ColorHex = "#FFFFFF";
+            IsBold = false;
+            IsItalic = false;
+            Alignment = TextAlignment.Center;
         }
 
         public override CanvasElement Clone() =>
@@ -365,8 +409,12 @@ namespace PodcastVideoEditor.Core.Models
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
                 Content = Content,
+                FontFamily = FontFamily,
                 FontSize = FontSize,
-                ColorHex = ColorHex
+                ColorHex = ColorHex,
+                IsBold = IsBold,
+                IsItalic = IsItalic,
+                Alignment = Alignment
             };
     }
 

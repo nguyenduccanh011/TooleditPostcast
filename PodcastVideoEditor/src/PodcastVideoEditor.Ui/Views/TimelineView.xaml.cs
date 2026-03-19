@@ -803,6 +803,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
+            if (sender is UIElement element)
+                element.CaptureMouse();
             var canvas = sender as IInputElement;
             HandlePlayheadPreview(canvas != null ? e.GetPosition(canvas).X : 0, force: true);
             e.Handled = true;
@@ -827,6 +829,8 @@ namespace PodcastVideoEditor.Ui.Views
             if (_isDraggingPlayhead && _viewModel != null)
                 _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
+            if (sender is UIElement element && element.IsMouseCaptured)
+                element.ReleaseMouseCapture();
         }
 
         /// <summary>
@@ -860,6 +864,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
+            if (sender is UIElement element)
+                element.CaptureMouse();
 
             var position = e.GetPosition(RulerControl);
             double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
@@ -886,6 +892,8 @@ namespace PodcastVideoEditor.Ui.Views
             if (_isDraggingPlayhead && _viewModel != null)
                 _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
+            if (sender is UIElement element && element.IsMouseCaptured)
+                element.ReleaseMouseCapture();
         }
 
         /// <summary>

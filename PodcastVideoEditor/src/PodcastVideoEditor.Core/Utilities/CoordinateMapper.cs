@@ -44,6 +44,34 @@ public static class CoordinateMapper
 
     /// <summary>
     /// Convert canvas position to FFmpeg expression strings for drawtext x/y parameters.
+    /// Uses anchor-point correction: the preview centers text inside the element box,
+    /// so we offset by half the element dimensions to match the visual center position.
+    /// </summary>
+    public static (string XExpr, string YExpr) ToTextExpressions(
+        double canvasX, double canvasY,
+        double elementWidth, double elementHeight,
+        double canvasWidth, double canvasHeight,
+        int renderWidth, int renderHeight)
+    {
+        if (canvasWidth <= 0 || canvasHeight <= 0)
+            return ("(w-text_w)/2", "h*0.85-text_h/2");
+
+        double scaleX = (double)renderWidth / canvasWidth;
+        double scaleY = (double)renderHeight / canvasHeight;
+
+        // Map element center to render space, then offset by half text size
+        // so FFmpeg drawtext (which positions from top-left) matches the centered preview
+        var centerX = (int)Math.Round((canvasX + elementWidth / 2) * scaleX);
+        var centerY = (int)Math.Round((canvasY + elementHeight / 2) * scaleY);
+
+        return (
+            XExpr: $"{centerX}-text_w/2",
+            YExpr: $"{centerY}-text_h/2"
+        );
+    }
+
+    /// <summary>
+    /// Overload for backward compatibility (no element dimensions — uses top-left mapping).
     /// </summary>
     public static (string XExpr, string YExpr) ToTextExpressions(
         double canvasX, double canvasY,

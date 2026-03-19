@@ -26,6 +26,13 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         private long _playedSampleCount;
 
+        /// <summary>
+        /// True when the underlying source returned 0 from Read(), indicating EOF.
+        /// Used by AudioService.IsAtEnd() for definitive EOF detection.
+        /// Cleared when SetPlayedSamples is called (i.e., after a Seek repositions the source).
+        /// </summary>
+        private volatile bool _sourceExhausted;
+
         public SampleAggregator(ISampleProvider source, int ringBufferSize = 8192)
         {
             _source = source ?? throw new ArgumentNullException(nameof(source));
@@ -44,16 +51,24 @@ namespace PodcastVideoEditor.Core.Services
         public long PlayedSampleCount => Interlocked.Read(ref _playedSampleCount);
 
         /// <summary>
+        /// True when the underlying source stream has been fully consumed (Read returned 0).
+        /// </summary>
+        public bool IsSourceExhausted => _sourceExhausted;
+
+        /// <summary>
         /// Set the played sample counter (used after Seek to sync position).
+        /// Also clears the source-exhausted flag because the source stream has been
+        /// repositioned and may have data available at the new position.
         /// </summary>
         public void SetPlayedSamples(long value)
         {
             Interlocked.Exchange(ref _playedSampleCount, value);
+            _sourceExhausted = false;
         }
 
         public int Read(float[] buffer, int offset, int count)
         {
-            var read = _source.Read(buffer, offset, count);
+            var read = _sourceExhausted ? 0 : _source.Read(buffer, offset, count);
             if (read > 0)
             {
                 // Track exact samples fed to playback (authoritative position counter)
@@ -68,6 +83,26 @@ namespace PodcastVideoEditor.Core.Services
                         _writeIndex = (_writeIndex + 1) % _ringBuffer.Length;
                     }
                 }
+            }
+            else
+            {
+                // Source returned 0 — mark as exhausted so IsAtEnd() can detect it
+                // and so we stop asking the source for data (which would be futile).
+                _sourceExhausted = true;
+            }
+
+            // Always return the requested sample count, padding with silence when the
+            // underlying source is exhausted (EOF). This prevents MixingSampleProvider
+            // from removing us from its input list — NAudio removes any source that
+            // returns 0 from Read(), even when ReadFully=true. Without this, after EOF
+            // the primary audio source is permanently lost from the mixer, and subsequent
+            // Seek+Play produces no audio because the mixer never calls Read() on us again.
+            // Position tracking is unaffected: _playedSampleCount only increments for
+            // real samples, so GetCurrentPosition() stays at EOF until the next Seek().
+            if (read < count)
+            {
+                Array.Clear(buffer, offset + read, count - read);
+                return count;
             }
 
             return read;

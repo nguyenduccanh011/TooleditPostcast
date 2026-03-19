@@ -489,9 +489,9 @@ public partial class MainWindow : Window
         _visualizerViewModel.VisualizerHeight = 300;
         _visualizerViewModel.Initialize();
 
-        var durationSeconds = Math.Max(1, _audioPlayerViewModel.TotalDuration);
-        _timelineViewModel.TotalDuration = durationSeconds;
-        _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
+        // Recalculate total duration from audio + segments (whichever is longer)
+        _timelineViewModel.RecalculateTotalDuration();
+        _timelineViewModel.TimelineWidth = Math.Max(800, _timelineViewModel.TotalDuration * 10);
         _timelineViewModel.AudioPeaks = Array.Empty<float>();
         _ = _timelineViewModel.RefreshAudioPeaksAsync();
     }

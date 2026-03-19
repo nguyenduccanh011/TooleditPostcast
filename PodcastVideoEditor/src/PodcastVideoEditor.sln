@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PodcastVideoEditor.Ui", "Po
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PodcastVideoEditor.Core.Tests", "PodcastVideoEditor.Core.Tests\PodcastVideoEditor.Core.Tests.csproj", "{2A949769-7BFD-48D9-8DE2-9C71B0A40F61}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PodcastVideoEditor.Ui.Tests", "PodcastVideoEditor.Ui.Tests\PodcastVideoEditor.Ui.Tests.csproj", "{7C5E5A49-7E1D-4A3D-8A1E-19D728D58411}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,5 +29,9 @@ Global
 		{2A949769-7BFD-48D9-8DE2-9C71B0A40F61}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2A949769-7BFD-48D9-8DE2-9C71B0A40F61}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2A949769-7BFD-48D9-8DE2-9C71B0A40F61}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C5E5A49-7E1D-4A3D-8A1E-19D728D58411}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C5E5A49-7E1D-4A3D-8A1E-19D728D58411}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C5E5A49-7E1D-4A3D-8A1E-19D728D58411}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C5E5A49-7E1D-4A3D-8A1E-19D728D58411}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

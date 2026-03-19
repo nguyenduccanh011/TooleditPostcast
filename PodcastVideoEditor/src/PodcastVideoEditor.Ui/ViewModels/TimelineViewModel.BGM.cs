@@ -16,10 +16,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private CancellationTokenSource? _bgmSyncDebounce;
         private bool _isLoadingBgm;
 
-        // Cached File.Exists result — avoids a syscall on every 33ms sync tick
-        private bool? _cachedBgmFileExists;
-        private string? _cachedBgmFileExistsPath;
-
         // ── BGM property-change handlers ────────────────────────────────────
         partial void OnBgmVolumeChanged(double value)     { if (!_isLoadingBgm) DebouncedSyncBgm(); }
         partial void OnBgmFadeInChanged(double value)     { if (!_isLoadingBgm) DebouncedSyncBgm(); }
@@ -29,9 +25,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         partial void OnBgmFilePathChanged(string value)
         {
-            // Invalidate cache when path changes; also trigger sync (not suppressed by _isLoadingBgm)
-            _cachedBgmFileExists = null;
-            _cachedBgmFileExistsPath = null;
             if (!_isLoadingBgm) DebouncedSyncBgm();
         }
 
@@ -64,7 +57,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 var pos = _audioService.GetCurrentPosition();
                 LastSyncedPlayhead = pos;
-                UpdateSegmentAudioPlayback(pos, forceResync: true);
+                _audioPreviewService.SyncPreviewAudio(pos, forceResync: true);
             }
         }
 
@@ -109,7 +102,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     BgmIsLooping  = false;
                     BgmIsEnabled  = true;
                 }
-                _cachedBgmFileExists = null; // invalidate cache on load
             }
             finally
             {
@@ -178,35 +170,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 IsLooping      = BgmIsLooping,
                 IsEnabled      = BgmIsEnabled
             };
-        }
-
-        private bool BgmFileExistsCached()
-        {
-            if (_cachedBgmFileExistsPath != BgmFilePath)
-            {
-                _cachedBgmFileExists = !string.IsNullOrWhiteSpace(BgmFilePath) && System.IO.File.Exists(BgmFilePath);
-                _cachedBgmFileExistsPath = BgmFilePath;
-            }
-            return _cachedBgmFileExists == true;
-        }
-
-        private void UpdateBgmPreviewPlayback(double playheadSeconds, bool forceResync = false)
-        {
-            if (!BgmIsEnabled || !BgmFileExistsCached())
-            {
-                if (_audioService.IsBgmPlaying)
-                    _audioService.StopBgmAudio();
-                return;
-            }
-
-            _audioService.PlayBgmAudio(
-                BgmFilePath,
-                playheadSeconds,
-                (float)BgmVolume,
-                TotalDuration,
-                BgmFadeIn,
-                BgmFadeOut,
-                forceResync);
         }
     }
 }

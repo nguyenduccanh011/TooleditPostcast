@@ -150,12 +150,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(SelectedAudioPath))
-            {
-                StatusMessage = "Audio file is required";
-                return;
-            }
-
             IsLoading = true;
             StatusMessage = "Creating project...";
 

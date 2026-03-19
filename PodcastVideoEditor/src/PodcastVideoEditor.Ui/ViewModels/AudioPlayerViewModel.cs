@@ -17,7 +17,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class AudioPlayerViewModel : ObservableObject
     {
-        private readonly AudioService _audioService;
+        private readonly IAudioPlaybackService _audioService;
         private System.Timers.Timer? _positionUpdateTimer;
         private AudioMetadata? _currentAudioMetadata;
 
@@ -54,7 +54,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public event EventHandler? AudioLoaded;
 
-        public AudioPlayerViewModel(AudioService? audioService = null)
+        public AudioPlayerViewModel(IAudioPlaybackService? audioService = null)
         {
             _audioService = audioService ?? new AudioService();
             _audioService.PlaybackStarted += OnPlaybackStarted;
@@ -222,7 +222,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                if (IsPlaying)
+                bool serviceIsPlaying = _audioService.IsPlaying;
+                if (IsPlaying != serviceIsPlaying)
+                    IsPlaying = serviceIsPlaying;
+
+                if (serviceIsPlaying)
                 {
                     Pause();
                 }

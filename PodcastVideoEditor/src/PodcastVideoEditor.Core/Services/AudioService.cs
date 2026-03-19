@@ -17,7 +17,7 @@ namespace PodcastVideoEditor.Core.Services
     /// <summary>
     /// Service for audio operations: load, play, pause, seek, and FFT data extraction.
     /// </summary>
-    public class AudioService : IDisposable
+    public class AudioService : IAudioTimelinePreviewService, IDisposable
     {
         // ── Timing / threshold constants (named to avoid magic numbers) ──────────
         private const double SeekResyncThresholdSeconds = 0.02;
@@ -36,6 +36,19 @@ namespace PodcastVideoEditor.Core.Services
         private WaveFormat? _waveFormat; // Cached wave format for calculations
         private string? _decodedAudioPath;
         private bool _isDecodedCache;
+
+        /// <summary>
+        /// When true, the next WaveOutEvent PlaybackStopped event is suppressed
+        /// (not forwarded to subscribers). Used during Seek-from-Paused to flush
+        /// stale device buffers via Stop+Init without triggering coordinator position reset.
+        /// </summary>
+        private volatile bool _suppressNextStopEvent;
+
+        /// <summary>
+        /// Set by Seek() when the device was Paused. Cleared by Play() after flushing.
+        /// Deferring the flush to Play() avoids expensive Stop+Init on every scrub drag.
+        /// </summary>
+        private volatile bool _needsBufferFlush;
 
         /// <summary>
         /// Guards all mixer add/remove/dispose operations.
@@ -242,13 +255,51 @@ namespace PodcastVideoEditor.Core.Services
             if (_wavePlayer == null)
                 throw new InvalidOperationException("No audio loaded. Call LoadAudioAsync first.");
 
+            if (_audioFileReader == null)
+                throw new InvalidOperationException("No audio loaded. Call LoadAudioAsync first.");
+
             if (_wavePlayer.PlaybackState != PlaybackState.Playing)
             {
+                if (IsAtEnd())
+                {
+                    Log.Information("Play() detected IsAtEnd — resetting to beginning (pos={Pos}s, dur={Dur}s, exhausted={Exhausted})",
+                        GetCurrentPosition(), _actualDurationSeconds, _sampleAggregator?.IsSourceExhausted);
+                    _audioFileReader.CurrentTime = TimeSpan.Zero;
+                    _sampleAggregator?.Reset();
+                    _sampleAggregator?.SetPlayedSamples(0);
+                }
+                else
+                {
+                    Log.Information("Play() NOT at end — resuming (pos={Pos}s, dur={Dur}s, exhausted={Exhausted}, state={State}, samples={Samples}/{Total}, needsFlush={Flush})",
+                        GetCurrentPosition(), _actualDurationSeconds, _sampleAggregator?.IsSourceExhausted,
+                        _wavePlayer.PlaybackState, _sampleAggregator?.PlayedSampleCount, _totalSampleCount, _needsBufferFlush);
+                }
+
+                // ── Flush stale WaveOutEvent device buffers (deferred from Seek) ──
+                // When WaveOutEvent is Paused it holds pre-queued audio buffers. After a Seek
+                // repositions the source, those stale buffers would play first, causing
+                // _playedSampleCount to advance ahead of what the device actually outputs.
+                // We flush once here (Stop+Init) instead of in every Seek() call to avoid
+                // jitter during timeline scrubbing.
+                if (_needsBufferFlush && _wavePlayer.PlaybackState == PlaybackState.Paused)
+                {
+                    Log.Information("Play() flushing stale buffers before resume (Paused→Stop→Init→Play)");
+                    _suppressNextStopEvent = true;
+                    _needsBufferFlush = false;
+                    _wavePlayer.Stop();
+                    lock (_mixerLock)
+                    {
+                        if (_mixer != null)
+                            _wavePlayer.Init(_mixer);
+                    }
+                }
+
                 // Fire event BEFORE starting playback so subscribers can add mixer inputs
                 // (segment + BGM). The first mixer Read() then includes all sources = zero offset.
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 _wavePlayer.Play();
-                Log.Information("Playback started");
+                Log.Information("Playback started from {Pos}s (state was {State})",
+                    GetCurrentPosition(), _wavePlayer.PlaybackState);
             }
         }
 
@@ -301,8 +352,13 @@ namespace PodcastVideoEditor.Core.Services
             double clampedPosition = Math.Clamp(positionSeconds, 0, maxDuration);
 
             bool wasPlaying = _wavePlayer?.PlaybackState == PlaybackState.Playing;
+            bool wasPaused = _wavePlayer?.PlaybackState == PlaybackState.Paused;
             if (wasPlaying)
                 _wavePlayer?.Pause();
+
+            Log.Debug("Seek({Pos}s): wasPlaying={WasPlaying}, wasPaused={WasPaused}, exhausted={Exhausted}, playedSamples={Samples}",
+                positionSeconds, wasPlaying, wasPaused,
+                _sampleAggregator?.IsSourceExhausted, _sampleAggregator?.PlayedSampleCount);
 
             // Seek to coarse position first (decoder may snap to keyframes)
             _audioFileReader.CurrentTime = TimeSpan.FromSeconds(clampedPosition);
@@ -348,18 +404,31 @@ namespace PodcastVideoEditor.Core.Services
             _sampleAggregator?.Reset();
             if (_waveFormat != null && _sampleAggregator != null)
             {
-                long seekSampleCount = (long)(clampedPosition * _waveFormat.SampleRate * _waveFormat.Channels);
+                // Use Math.Round instead of truncation to prevent being 1 sample short
+                // at EOF. Clamp to _totalSampleCount to never overshoot.
+                long seekSampleCount = Math.Min(
+                    (long)Math.Round(clampedPosition * _waveFormat.SampleRate * _waveFormat.Channels),
+                    _totalSampleCount);
                 _sampleAggregator.SetPlayedSamples(seekSampleCount);
+                Log.Debug("Seek: samples={Samples}/{Total}, exhausted cleared, pos={Pos}s",
+                    seekSampleCount, _totalSampleCount, clampedPosition);
             }
 
             // Note: segment and BGM readers are resynced by the caller
             // (SeekTo → UpdateSegmentAudioPlayback with forceResync=true)
             // after the mixer is resumed, so they hear the correct position.
 
+            // Mark that a seek happened while paused — Play() will flush stale device
+            // buffers once, right before resuming. Flushing here (every Seek) would
+            // cause jitter during timeline scrubbing because Stop+Init is expensive.
+            if (wasPaused)
+                _needsBufferFlush = true;
+
             if (wasPlaying)
                 _wavePlayer?.Play();
 
-            Log.Debug("Seek to {Position}s (accurate seek on-demand)", clampedPosition);
+            Log.Debug("Seek to {Position}s completed (wasPaused={WasPaused}, wasPlaying={WasPlaying}, needsFlush={Flush})",
+                clampedPosition, wasPaused, wasPlaying, _needsBufferFlush);
         }
 
         /// <summary>
@@ -379,6 +448,11 @@ namespace PodcastVideoEditor.Core.Services
             // giving a position that perfectly aligns with what the audio hardware is playing.
             if (_sampleAggregator != null)
             {
+                // When source is exhausted, we are definitively at EOF — return exact duration
+                // to avoid floating-point truncation causing IsAtEnd() to return false.
+                if (_sampleAggregator.IsSourceExhausted && _actualDurationSeconds > 0)
+                    return _actualDurationSeconds;
+
                 long playedSamples = _sampleAggregator.PlayedSampleCount;
                 double position = (double)playedSamples / (_waveFormat.SampleRate * _waveFormat.Channels);
                 
@@ -411,12 +485,16 @@ namespace PodcastVideoEditor.Core.Services
         
         /// <summary>
         /// Check if playback has reached or exceeded total duration.
-        /// Useful for timer callbacks to detect end-of-track.
+        /// Uses both sample-count position AND the source-exhausted flag from SampleAggregator.
+        /// The flag provides definitive EOF detection even when floating-point truncation
+        /// causes the sample count to be 1 frame short of _actualDurationSeconds.
         /// </summary>
         public bool IsAtEnd()
         {
             if (_audioFileReader == null || _actualDurationSeconds <= 0)
                 return false;
+            if (_sampleAggregator?.IsSourceExhausted == true)
+                return true;
             return GetCurrentPosition() >= _actualDurationSeconds;
         }
 
@@ -824,6 +902,12 @@ namespace PodcastVideoEditor.Core.Services
 
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
+            if (_suppressNextStopEvent)
+            {
+                Log.Debug("PlaybackStopped event suppressed (seek buffer flush)");
+                _suppressNextStopEvent = false;
+                return;
+            }
             Log.Information("Playback stopped (event)");
             PlaybackStopped?.Invoke(this, new PlaybackStoppedEventArgs());
         }

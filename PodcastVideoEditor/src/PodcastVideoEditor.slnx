@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="PodcastVideoEditor.Core/PodcastVideoEditor.Core.csproj" />
   <Project Path="PodcastVideoEditor.Ui/PodcastVideoEditor.Ui.csproj" />
+  <Project Path="PodcastVideoEditor.Ui.Tests/PodcastVideoEditor.Ui.Tests.csproj" />
 </Solution>

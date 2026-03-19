@@ -172,6 +172,15 @@ public class RenderTextSegment
     /// <summary>Optional font file path. When null, FFmpeg uses a system default.</summary>
     public string? FontFilePath { get; set; }
 
+    /// <summary>Font family name for resolving font file (e.g. "Arial", "Verdana").</summary>
+    public string FontFamily { get; set; } = "Arial";
+
+    /// <summary>Whether text should be rendered bold.</summary>
+    public bool IsBold { get; set; }
+
+    /// <summary>Whether text should be rendered italic.</summary>
+    public bool IsItalic { get; set; }
+
     /// <summary>Horizontal position expression passed to drawtext (default: centered).</summary>
     public string XExpr { get; set; } = "(w-text_w)/2";
 

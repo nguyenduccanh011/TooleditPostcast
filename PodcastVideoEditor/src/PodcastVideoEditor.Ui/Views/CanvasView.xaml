@@ -190,9 +190,13 @@
                         BorderThickness="2">
                     <TextBlock Text="{Binding Content}"
                                Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
+                               FontFamily="{Binding FontFamily}"
                                FontSize="{Binding FontSize}"
+                               FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
+                               FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
+                               TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
                                VerticalAlignment="Center"
-                               HorizontalAlignment="Center"
+                               HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
                                TextWrapping="Wrap"
                                Padding="8,4"/>
                 </Border>

@@ -144,7 +144,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (prop.Name == "FontSize")
                 {
                     field.MinValue = 8;
-                    field.MaxValue = prop.Name == "FontSize" && element is TitleElement ? 200 : 100;
+                    field.MaxValue = element is TitleElement or TextElement ? 200 : 100;
                     field.FieldType = PropertyFieldType.Slider;
                 }
                 else if (prop.Name == "Opacity")

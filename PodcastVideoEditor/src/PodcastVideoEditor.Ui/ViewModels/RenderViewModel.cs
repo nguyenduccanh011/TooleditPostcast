@@ -145,12 +145,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(project.AudioPath))
-            {
-                StatusMessage = "Project has no audio file";
-                return;
-            }
-
             IsRendering = true;
             CanCancel = true;
             HasError = false;
@@ -535,23 +529,31 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
                     if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0)
                     {
+                        // Use anchor-point overload for accurate center-aligned positioning
                         var (xExpr, yExpr) = CoordinateMapper.ToTextExpressions(
                             linkedElement.X, linkedElement.Y,
+                            linkedElement.Width, linkedElement.Height,
                             canvasWidth, canvasHeight,
                             renderWidth, renderHeight);
                         renderSeg.XExpr = xExpr;
                         renderSeg.YExpr = yExpr;
 
-                        // Map font properties from element type
+                        // Map all font properties from element type
                         if (linkedElement is TitleElement title)
                         {
                             renderSeg.FontSize = CoordinateMapper.ScaleFontSize(title.FontSize, canvasHeight, renderHeight);
                             renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(title.ColorHex);
+                            renderSeg.FontFamily = title.FontFamily;
+                            renderSeg.IsBold = title.IsBold;
+                            renderSeg.IsItalic = title.IsItalic;
                         }
                         else if (linkedElement is TextElement text)
                         {
                             renderSeg.FontSize = CoordinateMapper.ScaleFontSize(text.FontSize, canvasHeight, renderHeight);
                             renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(text.ColorHex);
+                            renderSeg.FontFamily = text.FontFamily;
+                            renderSeg.IsBold = text.IsBold;
+                            renderSeg.IsItalic = text.IsItalic;
                         }
                     }
 

@@ -45,12 +45,7 @@ namespace PodcastVideoEditor.Ui.Views
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(AudioFilePath))
-            {
-                MessageBox.Show("Please select an audio file.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
+            // Audio is optional — user can add audio segments later
             DialogResult = true;
             Close();
         }

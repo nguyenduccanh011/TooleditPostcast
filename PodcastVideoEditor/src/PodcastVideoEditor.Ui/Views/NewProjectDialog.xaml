@@ -34,8 +34,8 @@
                 Margin="0,0,0,15"
                 ToolTip="Enter a name for your project" />
 
-            <!-- Audio File Selection -->
-            <TextBlock Text="Audio File:" Margin="0,0,0,5" />
+            <!-- Audio File Selection (Optional) -->
+            <TextBlock Text="Audio File (optional):" Margin="0,0,0,5" />
             <Grid Margin="0,0,0,15">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

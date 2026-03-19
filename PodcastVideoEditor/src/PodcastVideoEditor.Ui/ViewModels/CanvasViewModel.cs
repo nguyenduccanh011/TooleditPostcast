@@ -191,9 +191,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // Highlight linked canvas element regardless of playhead position.
             var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
 
-            // If no linked element exists, auto-create one for image assets so resize handles appear.
+            // If no linked element exists, auto-create one for image or text segments
             if (linked == null)
-                linked = TryCreateImageElementForSegment(segmentId);
+                linked = (CanvasElement?)TryCreateImageElementForSegment(segmentId)
+                      ?? TryCreateTextElementForSegment(segmentId);
 
             SelectElement(linked);
         }
@@ -239,6 +240,85 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Elements.Add(element);
             _undoRedo?.Record(new ElementAddedAction(Elements, element));
             Log.Information("Auto-created ImageElement for visual segment {SegmentId}", segmentId);
+            return element;
+        }
+
+        /// <summary>
+        /// Called from UpdateActivePreview: proactively creates an interactive TextElement
+        /// for a segment that has no linked canvas element yet, so text always renders
+        /// as a draggable element instead of the read-only overlay.
+        /// </summary>
+        private void EnsureTextElementForSegment(Segment segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment.Id) || string.IsNullOrWhiteSpace(segment.Text))
+                return;
+
+            // Double-check no element exists (race guard)
+            if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
+                return;
+
+            var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
+            var element = new TextElement
+            {
+                Name = label,
+                Content = segment.Text,
+                X = Math.Max(0, (CanvasWidth - 600) / 2),
+                Y = Math.Max(0, CanvasHeight - 160),
+                Width = 600,
+                Height = 80,
+                ZIndex = Elements.Count,
+                SegmentId = segment.Id
+            };
+
+            Elements.Add(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
+            Log.Information("Auto-created TextElement for text segment {SegmentId} during preview", segment.Id);
+        }
+
+        /// <summary>
+        /// When the user selects a text-track segment that has no linked CanvasElement,
+        /// create a TextElement so the user can drag/resize it on the preview canvas.
+        /// </summary>
+        private TextElement? TryCreateTextElementForSegment(string segmentId)
+        {
+            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
+                return null;
+
+            // Find the segment and verify it's on a text track
+            Track? ownerTrack = null;
+            Segment? segment = null;
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                if (!string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var seg = track.Segments.FirstOrDefault(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal));
+                if (seg != null)
+                {
+                    ownerTrack = track;
+                    segment = seg;
+                    break;
+                }
+            }
+
+            if (segment == null || string.IsNullOrWhiteSpace(segment.Text))
+                return null;
+
+            var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
+            var element = new TextElement
+            {
+                Name = label,
+                Content = segment.Text,
+                X = Math.Max(0, (CanvasWidth - 600) / 2),
+                Y = Math.Max(0, CanvasHeight - 160),
+                Width = 600,
+                Height = 80,
+                ZIndex = Elements.Count,
+                SegmentId = segmentId
+            };
+
+            Elements.Add(element);
+            _undoRedo?.Record(new ElementAddedAction(Elements, element));
+            Log.Information("Auto-created TextElement for text segment {SegmentId}", segmentId);
             return element;
         }
 
@@ -681,6 +761,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
+                SyncPlaybackToVisibleTimelinePosition();
                 _audioPlayerViewModel?.TogglePlayPauseCommand.Execute(null);
             }
             catch (Exception ex)
@@ -708,8 +789,32 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [RelayCommand]
         public void Play()
         {
+            SyncPlaybackToVisibleTimelinePosition();
             _audioPlayerViewModel?.PlayCommand.Execute(null);
             StatusMessage = "▶ Playing...";
+        }
+
+        /// <summary>
+        /// Ensure the audio engine is aligned to the playhead the user currently sees before starting playback.
+        /// This makes play resilient if a drag preview updated the visible playhead but the underlying audio
+        /// position did not get committed yet due to input edge cases.
+        /// </summary>
+        private void SyncPlaybackToVisibleTimelinePosition()
+        {
+            if (_audioPlayerViewModel == null || _timelineViewModel == null)
+                return;
+
+            if (_audioPlayerViewModel.IsPlaying)
+                return;
+
+            double visiblePlayhead = _timelineViewModel.PlayheadPosition;
+            if (double.IsNaN(visiblePlayhead) || double.IsInfinity(visiblePlayhead))
+                return;
+
+            if (Math.Abs(_audioPlayerViewModel.CurrentPosition - visiblePlayhead) < 0.01)
+                return;
+
+            _timelineViewModel.SeekTo(visiblePlayhead);
         }
 
         /// <summary>

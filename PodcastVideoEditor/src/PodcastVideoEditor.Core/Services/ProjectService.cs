@@ -140,22 +140,21 @@ namespace PodcastVideoEditor.Core.Services
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Project name cannot be empty", nameof(name));
 
-            if (string.IsNullOrWhiteSpace(audioPath))
-                throw new ArgumentException("Audio path cannot be empty", nameof(audioPath));
+            // audioPath is optional — users can add audio segments later
 
             try
             {
                 var project = new Project
                 {
                     Name = name,
-                    AudioPath = audioPath,
+                    AudioPath = audioPath ?? string.Empty,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     RenderSettings = new RenderSettings() // Default render settings
                 };
 
-                // Create default tracks for the project
-                project.Tracks = new List<Track>
+                // Create default tracks for the project (audio track only if audio file provided)
+                var tracks = new List<Track>
                 {
                     new Track 
                     { 
@@ -174,17 +173,9 @@ namespace PodcastVideoEditor.Core.Services
                         Name = "Visual 1", 
                         IsLocked = false, 
                         IsVisible = true 
-                    },
-                    new Track 
-                    { 
-                        ProjectId = project.Id, 
-                        Order = 2, 
-                        TrackType = TrackTypes.Audio, 
-                        Name = "Audio", 
-                        IsLocked = false, 
-                        IsVisible = true 
                     }
                 };
+                project.Tracks = tracks;
 
                 _context.Projects.Add(project);
                 await _context.SaveChangesAsync();

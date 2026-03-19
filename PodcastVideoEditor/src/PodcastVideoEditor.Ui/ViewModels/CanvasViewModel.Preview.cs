@@ -162,6 +162,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (e.PropertyName == nameof(Segment.Text))
             {
+                // Sync linked canvas TextElement content when segment text is edited on timeline
+                if (sender is Segment editedSeg)
+                {
+                    var linkedEl = Elements.FirstOrDefault(el =>
+                        string.Equals(el.SegmentId, editedSeg.Id, StringComparison.Ordinal));
+                    if (linkedEl is TextElement te)
+                    {
+                        te.Content = editedSeg.Text ?? string.Empty;
+                        te.Name = editedSeg.Text?.Length > 20
+                            ? editedSeg.Text[..20] + "…"
+                            : editedSeg.Text ?? "Text";
+                    }
+                    else if (linkedEl is TitleElement ti)
+                    {
+                        ti.Text = editedSeg.Text ?? string.Empty;
+                    }
+                }
                 UpdateActivePreview(_timelineViewModel.PlayheadPosition);
                 return;
             }
@@ -249,19 +266,31 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Audio type segments are not visual — skip for preview rendering
             }
 
-            // --- Multi-text composite: collect text from ALL active text tracks ---
-            ActiveTextOverlays.Clear();
+            // --- Multi-text composite ---
+            // Auto-create interactive TextElement for any text segment that doesn't have one yet.
+            // This ensures text always renders as a draggable/resizable canvas element,
+            // never as the legacy read-only overlay at the bottom.
             foreach (var tp in textPairs)
             {
-                if (!string.IsNullOrWhiteSpace(tp.segment.Text))
-                    ActiveTextOverlays.Add(tp.segment.Text);
+                if (string.IsNullOrWhiteSpace(tp.segment.Text))
+                    continue;
+
+                bool hasLinkedElement = Elements.Any(e =>
+                    string.Equals(e.SegmentId, tp.segment.Id, StringComparison.Ordinal));
+                if (!hasLinkedElement)
+                    EnsureTextElementForSegment(tp.segment);
             }
+
+            // Read-only overlay is no longer used — all text renders via interactive elements.
+            ActiveTextOverlays.Clear();
+            IsTextOverlayVisible = false;
 
             // Legacy single-text properties (kept for backward compatibility)
             var primaryTextPair = textPairs.Count > 0 ? textPairs[0] : default;
             ActiveTextSegment = primaryTextPair.segment;
-            ActiveTextContent = string.Join("\n", ActiveTextOverlays);
-            IsTextOverlayVisible = ActiveTextOverlays.Count > 0;
+            ActiveTextContent = textPairs.Count > 0
+                ? string.Join("\n", textPairs.Where(tp => !string.IsNullOrWhiteSpace(tp.segment.Text)).Select(tp => tp.segment.Text))
+                : string.Empty;
 
             // --- Multi-visual composite: iterate visual tracks by z-order ---
             // Strategy: frontmost video → MediaElement; other images → BackgroundLayers

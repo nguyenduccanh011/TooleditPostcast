@@ -426,13 +426,16 @@ public static class FFmpegService
         if (config == null)
             throw new ArgumentNullException(nameof(config));
 
-        if (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath))
-            throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
-
+        var hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
         var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
         var hasTimelineText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
         var hasTimelineAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
         var hasAnyTimeline    = hasTimelineVisuals || hasTimelineText || hasTimelineAudio;
+
+        // Either primary audio or timeline content is required
+        if (!hasPrimaryAudio && !hasAnyTimeline)
+            throw new InvalidOperationException("No audio or timeline content to render");
+
         if (!hasAnyTimeline && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
             throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
 
@@ -461,7 +464,9 @@ public static class FFmpegService
 
                 // Build FFmpeg command
                 var ffmpegArgs = BuildFFmpegCommand(normalizedConfig);
-                var expectedDurationSeconds = GetAudioDurationSeconds(normalizedConfig.AudioPath);
+                var expectedDurationSeconds = hasPrimaryAudio
+                    ? GetAudioDurationSeconds(normalizedConfig.AudioPath)
+                    : GetMaxSegmentEndTime(normalizedConfig);
 
                 Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
                 Log.Information("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
@@ -570,9 +575,14 @@ public static class FFmpegService
         var hasVisual = config.VisualSegments != null && config.VisualSegments.Count > 0;
         var hasText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
         var hasAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
+        var hasPrimAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
 
         if (hasVisual || hasText || hasAudio)
             return BuildTimelineFFmpegCommand(config);
+
+        // Legacy single-image mode requires primary audio
+        if (!hasPrimAudio)
+            throw new InvalidOperationException("Legacy render mode requires a primary audio file.");
 
         var crf = config.GetCrfValue();
         var videoCodec = MapVideoCodec(config.VideoCodec);
@@ -649,11 +659,16 @@ public static class FFmpegService
         }
 
         // ── Input N+1: primary audio (project audio file) ─────────────────
-        var primaryAudioIndex = visualSegments.Count + 1;
-        args.Append($"-i \"{config.AudioPath}\" ");
+        var hasPrimAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
+        int primaryAudioIndex = -1;
+        if (hasPrimAudio)
+        {
+            primaryAudioIndex = visualSegments.Count + 1;
+            args.Append($"-i \"{config.AudioPath}\" ");
+        }
 
         // ── Extra audio clip inputs ────────────────────────────────────────
-        var extraAudioStartIndex = primaryAudioIndex + 1;
+        var extraAudioStartIndex = (hasPrimAudio ? primaryAudioIndex + 1 : visualSegments.Count + 1);
         foreach (var aseg in audioSegments)
             args.Append($"-i \"{aseg.SourcePath}\" ");
 
@@ -745,7 +760,10 @@ public static class FFmpegService
             var textFilePath = Path.Combine(textTempDir, $"seg_{i}.txt");
             File.WriteAllText(textFilePath, ts.Text, new System.Text.UTF8Encoding(false));
 
+            // Resolve font: prefer explicit FontFilePath, then resolve FontFamily, then default
             var fontPath = ts.FontFilePath;
+            if (string.IsNullOrWhiteSpace(fontPath))
+                fontPath = ResolveFontFamilyPath(ts.FontFamily, ts.IsBold, ts.IsItalic);
             if (string.IsNullOrWhiteSpace(fontPath))
                 fontPath = resolvedDefaultFont;
 
@@ -773,14 +791,59 @@ public static class FFmpegService
         // Step 5: Audio mixing — BUG-2 fix
         // Build audio filter: start with primary audio, then mix in extra clips via adelay+amix
         string audioOut;
-        if (audioSegments.Count == 0)
+        if (!hasPrimAudio && audioSegments.Count == 0)
+        {
+            // No audio at all — generate silent audio track
+            filter.Append($"anullsrc=channel_layout=stereo:sample_rate=44100[asilent];");
+            audioOut = "asilent";
+        }
+        else if (audioSegments.Count == 0)
         {
             // No extra audio clips — use primary audio directly
             audioOut = $"{primaryAudioIndex}:a";
         }
+        else if (!hasPrimAudio)
+        {
+            // No primary audio but has extra audio clips — mix only extra clips
+            filter.Append($"anullsrc=channel_layout=stereo:sample_rate=44100[amain];");
+
+            var mixLabels = new System.Collections.Generic.List<string> { "amain" };
+            for (int i = 0; i < audioSegments.Count; i++)
+            {
+                var aseg        = audioSegments[i];
+                var inputIdx    = extraAudioStartIndex + i;
+                var delayMs     = (long)Math.Round(aseg.StartTime * 1000);
+                var duration    = aseg.EndTime - aseg.StartTime;
+                var srcOffset   = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
+                var clipLabel   = $"aclip{i}";
+
+                if (aseg.IsLooping)
+                {
+                    filter.Append($"[{inputIdx}:a]aloop=loop=-1:size=2147483647,");
+                    filter.Append($"atrim=start=0:duration={duration.ToString("F3", invariant)},");
+                }
+                else
+                {
+                    filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                }
+                filter.Append($"asetpts=PTS-STARTPTS,");
+                filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
+                if (aseg.FadeInDuration > 0)
+                    filter.Append($"afade=t=in:st=0:d={aseg.FadeInDuration.ToString("F3", invariant)},");
+                if (aseg.FadeOutDuration > 0)
+                    filter.Append($"afade=t=out:st={(duration - aseg.FadeOutDuration).ToString("F3", invariant)}:d={aseg.FadeOutDuration.ToString("F3", invariant)},");
+                filter.Append($"adelay={delayMs}|{delayMs},");
+                filter.Append($"aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[{clipLabel}];");
+                mixLabels.Add(clipLabel);
+            }
+
+            var allMixInputs = string.Concat(mixLabels.Select(l => $"[{l}]"));
+            audioOut = "amixed";
+            filter.Append($"{allMixInputs}amix=inputs={mixLabels.Count}:duration=longest:dropout_transition=0[{audioOut}]");
+        }
         else
         {
-            // Delay each extra audio clip to its timeline position and amix all together
+            // Has primary audio + extra audio clips — mix all together
             filter.Append($"[{primaryAudioIndex}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[amain];");
 
             var mixLabels = new System.Collections.Generic.List<string> { "amain" };
@@ -838,14 +901,19 @@ public static class FFmpegService
         args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
 
         // Map outputs
-        if (audioSegments.Count == 0)
+        // When audioOut is a stream ref like "1:a", use -map without brackets;
+        // when it's a filter label like "amixed" or "asilent", wrap in brackets.
+        var audioOutIsFilterLabel = !audioOut.Contains(':');
+        var audioMapArg = audioOutIsFilterLabel ? $"\"[{audioOut}]\"" : audioOut;
+
+        if (audioSegments.Count == 0 && hasPrimAudio)
         {
-            // Simpler map when no extra audio
-            args.Append($"-map \"[{currentVideo}]\" -map {audioOut} ");
+            // Simpler map when no extra audio and has primary audio
+            args.Append($"-map \"[{currentVideo}]\" -map {audioMapArg} ");
         }
         else
         {
-            args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
+            args.Append($"-map \"[{currentVideo}]\" -map {audioMapArg} ");
         }
 
         args.Append($"-c:v {videoCodec} ");
@@ -1065,6 +1133,64 @@ public static class FFmpegService
             .Replace("\\", "/")       // normalise to forward slashes
             .Replace("'",  "\\'")     // escape single quotes
             .Replace(":",  "\\:");    // escape colon (critical for Windows drive letters like C:)
+    }
+
+    /// <summary>
+    /// Resolve a font family name (e.g. "Arial", "Verdana") to a .ttf file path,
+    /// accounting for bold/italic variants. Falls back to null if not found.
+    /// </summary>
+    private static string? ResolveFontFamilyPath(string? fontFamily, bool isBold, bool isItalic)
+    {
+        if (string.IsNullOrWhiteSpace(fontFamily))
+            return null;
+
+        var winFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
+        if (!Directory.Exists(winFonts))
+            return null;
+
+        // Map common font family names to their file name patterns
+        // Windows font files use suffixes: bd (bold), i (italic), bi (bold italic), z (bold italic alt)
+        var familyLower = fontFamily.Trim().ToLowerInvariant();
+        var baseName = familyLower switch
+        {
+            "arial" => "arial",
+            "verdana" => "verdana",
+            "tahoma" => "tahoma",
+            "calibri" => "calibri",
+            "segoe ui" => "segoeui",
+            "times new roman" => "times",
+            "courier new" => "cour",
+            "georgia" => "georgia",
+            "trebuchet ms" => "trebuc",
+            "comic sans ms" => "comic",
+            "impact" => "impact",
+            "consolas" => "consola",
+            "lucida console" => "lucon",
+            _ => familyLower.Replace(" ", "")
+        };
+
+        // Build candidate file names with style suffixes
+        var suffix = (isBold, isItalic) switch
+        {
+            (true, true)   => new[] { "bi", "z" },
+            (true, false)  => new[] { "bd", "b" },
+            (false, true)  => new[] { "i" },
+            (false, false) => new[] { "" }
+        };
+
+        foreach (var s in suffix)
+        {
+            var path = Path.Combine(winFonts, $"{baseName}{s}.ttf");
+            if (File.Exists(path))
+                return path;
+        }
+
+        // Fallback: try base name without suffix
+        var fallback = Path.Combine(winFonts, $"{baseName}.ttf");
+        if (File.Exists(fallback))
+            return fallback;
+
+        return null;
     }
 
     /// <summary>
@@ -1302,6 +1428,21 @@ public static class FFmpegService
             Log.Warning(ex, "Failed to read primary audio duration for render progress: {AudioPath}", audioPath);
             return 0;
         }
+    }
+
+    private static double GetMaxSegmentEndTime(RenderConfig config)
+    {
+        double max = 0;
+        if (config.VisualSegments != null)
+            foreach (var s in config.VisualSegments)
+                if (s.EndTime > max) max = s.EndTime;
+        if (config.TextSegments != null)
+            foreach (var s in config.TextSegments)
+                if (s.EndTime > max) max = s.EndTime;
+        if (config.AudioSegments != null)
+            foreach (var s in config.AudioSegments)
+                if (s.EndTime > max) max = s.EndTime;
+        return max;
     }
 }
 

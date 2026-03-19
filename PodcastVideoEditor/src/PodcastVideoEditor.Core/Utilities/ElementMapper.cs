@@ -138,8 +138,12 @@ public static class ElementMapper
                 break;
             case TextElement te:
                 dict["Content"] = te.Content;
+                dict["FontFamily"] = te.FontFamily;
                 dict["FontSize"] = te.FontSize;
                 dict["ColorHex"] = te.ColorHex;
+                dict["IsBold"] = te.IsBold;
+                dict["IsItalic"] = te.IsItalic;
+                dict["Alignment"] = te.Alignment.ToString();
                 break;
         }
 
@@ -200,8 +204,13 @@ public static class ElementMapper
                 break;
             case TextElement te:
                 if (dict.TryGetValue("Content", out var tc)) te.Content = tc.GetString() ?? "Text";
+                if (dict.TryGetValue("FontFamily", out var tff)) te.FontFamily = tff.GetString() ?? "Arial";
                 if (dict.TryGetValue("FontSize", out var tfs)) te.FontSize = tfs.GetDouble();
                 if (dict.TryGetValue("ColorHex", out var tch)) te.ColorHex = tch.GetString() ?? "#FFFFFF";
+                if (dict.TryGetValue("IsBold", out var tib)) te.IsBold = tib.GetBoolean();
+                if (dict.TryGetValue("IsItalic", out var tii)) te.IsItalic = tii.GetBoolean();
+                if (dict.TryGetValue("Alignment", out var tal))
+                    te.Alignment = Enum.TryParse<TextAlignment>(tal.GetString(), out var talVal) ? talVal : TextAlignment.Center;
                 break;
         }
     }
