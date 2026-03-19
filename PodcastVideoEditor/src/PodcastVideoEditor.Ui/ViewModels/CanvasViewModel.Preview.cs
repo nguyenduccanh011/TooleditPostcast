@@ -21,6 +21,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
                 _timelineViewModel.ScriptApplied -= OnScriptApplied;
+                _timelineViewModel.ScrubCompleted -= OnScrubCompleted;
             }
 
             if (_projectViewModel != null && _projectPropertyChangedHandler != null)
@@ -36,6 +37,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             _timelineViewModel.PropertyChanged += _timelinePropertyChangedHandler;
             _timelineViewModel.ScriptApplied += OnScriptApplied;
+            _timelineViewModel.ScrubCompleted += OnScrubCompleted;
             _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
 
             _tracksCollectionChangedHandler ??= OnTracksCollectionChanged;
@@ -52,6 +54,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
             InvalidateAssetLookup();
 
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+        }
+
+        /// <summary>
+        /// Called when SeekTo() commits a scrub. Resets the throttle clock so the very next
+        /// PlayheadPosition change is guaranteed to refresh the canvas, even if it occurs
+        /// within the normal 16 ms throttle window.
+        /// </summary>
+        private void OnScrubCompleted(object? sender, EventArgs e)
+        {
+            _lastCanvasUpdateTime = DateTime.MinValue;
         }
 
         private void OnTimelinePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -76,6 +88,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Throttle full canvas updates to ~60fps
+                // ScrubCompleted resets _lastCanvasUpdateTime so the scrub-commit always
+                // renders the correct frame regardless of throttle timing.
                 var now = DateTime.UtcNow;
                 if ((now - _lastCanvasUpdateTime).TotalMilliseconds < CanvasUpdateThrottleMs)
                     return;

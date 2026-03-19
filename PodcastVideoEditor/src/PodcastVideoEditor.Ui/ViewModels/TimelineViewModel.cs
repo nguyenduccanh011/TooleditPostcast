@@ -29,7 +29,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private CancellationTokenSource? _playheadSyncCts;
         private bool _isPlayheadSyncing;
         private volatile bool _isScrubbing;
-        private double _lastSyncedPlayhead = -1;
+        // Thread-safe double field: written from both the background sync Task and UI thread.
+        // Interlocked on long bits avoids torn reads on x86 where 8-byte stores are non-atomic.
+        private long _lastSyncedPlayheadBits = BitConverter.DoubleToInt64Bits(-1.0);
+        private double LastSyncedPlayhead
+        {
+            get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _lastSyncedPlayheadBits));
+            set => Interlocked.Exchange(ref _lastSyncedPlayheadBits, BitConverter.DoubleToInt64Bits(value));
+        }
 
         [ObservableProperty]
         private ObservableCollection<Track> tracks = new();
@@ -86,6 +93,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isPlaying = false;
 
+        /// <summary>
+        /// When true, playback loops from the end back to the start automatically.
+        /// Toggled by the Loop button in the canvas playback bar.
+        /// </summary>
+        [ObservableProperty]
+        private bool isLoopPlayback = false;
+
         // ── BGM (Background Music) ────────────────────────────────────────────
         /// <summary>Path to the BGM audio file. Empty = no BGM.</summary>
         [ObservableProperty]
@@ -113,13 +127,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         // Sync lightweight in-memory model whenever any BGM property changes via UI binding.
         // Debounced: rapid slider changes coalesce into a single sync after 300ms idle.
-        private CancellationTokenSource? _bgmSyncDebounce;
-        private bool _isLoadingBgm;
-        partial void OnBgmVolumeChanged(double value)     { if (!_isLoadingBgm) DebouncedSyncBgm(); }
-        partial void OnBgmFadeInChanged(double value)     { if (!_isLoadingBgm) DebouncedSyncBgm(); }
-        partial void OnBgmFadeOutChanged(double value)    { if (!_isLoadingBgm) DebouncedSyncBgm(); }
-        partial void OnBgmIsLoopingChanged(bool value)    { if (!_isLoadingBgm) DebouncedSyncBgm(); }
-        partial void OnBgmIsEnabledChanged(bool value)    { if (!_isLoadingBgm) DebouncedSyncBgm(); }
+        // Implementations moved to TimelineViewModel.BGM.cs
 
         private const int WaveformBinCount = 2400;
         private const int ActiveSyncIntervalMs = 33;
@@ -210,6 +218,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // so there's no 33ms sync-loop delay on the first frame.
             _audioService.PlaybackStarted += OnPlaybackStarted;
 
+            // Reset playhead to zero when an explicit Stop() is issued
+            // (distinct from our EOF-Pause which keeps the reader at the end).
+            _audioService.PlaybackStopped += OnAudioServicePlaybackStopped;
+
             // Start playhead sync loop
             StartPlayheadSync();
         }
@@ -222,6 +234,27 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ApplyScriptCommand.NotifyCanExecuteChanged();
                 AddSegmentWithAssetCommand.NotifyCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Fired by AudioService when Stop() is called (WaveOut raises PlaybackStopped with
+        /// PlaybackState.Stopped, not Paused). Resets PlayheadPosition to 0 so the next
+        /// Play press begins from the start rather than wherever the needle was sitting.
+        /// </summary>
+        private void OnAudioServicePlaybackStopped(object? sender, Core.Services.PlaybackStoppedEventArgs e)
+        {
+            // Distinguish explicit Stop (state == Stopped) from our EOF-Pause (state == Paused).
+            if (_audioService.PlaybackState != NAudio.Wave.PlaybackState.Stopped)
+                return;
+
+            var app = Application.Current;
+            if (app == null) return;
+            app.Dispatcher.InvokeAsync(() =>
+            {
+                PlayheadPosition = 0;
+                IsPlaying = false;
+            }, System.Windows.Threading.DispatcherPriority.Background);
+            LastSyncedPlayhead = 0;
         }
 
         /// <summary>
@@ -747,176 +780,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             return newSegment;
         }
 
-        /// <summary>
-        /// Apply pasted script: parse [start → end] text, replace text track segments, persist (ST-3, multi-track).
-        /// </summary>
-        [RelayCommand(CanExecute = nameof(CanApplyScript))]
-        public async Task ApplyScriptAsync()
-        {
-            try
-            {
-                if (_projectViewModel.CurrentProject == null)
-                {
-                    StatusMessage = "No project loaded";
-                    return;
-                }
-
-                // Find text track (first track with TrackType = "text")
-                var textTrack = _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
-                if (textTrack == null)
-                {
-                    StatusMessage = "No text track found in project";
-                    return;
-                }
-
-                var parsed = ScriptParser.Parse(ScriptPasteText);
-                if (parsed.Count == 0)
-                {
-                    StatusMessage = "No valid segments (format: [start → end] text)";
-                    return;
-                }
-
-                var projectId = _projectViewModel.CurrentProject.Id;
-
-                // Capture old text-track segment IDs so CanvasViewModel can remove orphaned elements
-                var oldSegmentIds = (textTrack.Segments ?? Enumerable.Empty<Segment>())
-                    .Select(s => s.Id)
-                    .ToHashSet();
-
-                var newSegments = new List<Segment>();
-                for (int i = 0; i < parsed.Count; i++)
-                {
-                    var p = parsed[i];
-                    newSegments.Add(new Segment
-                    {
-                        ProjectId = projectId,
-                        TrackId = textTrack.Id,
-                        StartTime = Math.Round(p.Start, 2),
-                        EndTime = Math.Round(p.End, 2),
-                        Text = p.Text,
-                        Kind = SegmentKinds.Text,
-                        TransitionType = "fade",
-                        TransitionDuration = 0.5,
-                        Order = i
-                    });
-                }
-
-                await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
-
-                // Reload tracks from project
-                LoadTracksFromProject();
-
-                // Notify CanvasViewModel to create/refresh canvas TextElements
-                ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(oldSegmentIds, newSegments.AsReadOnly()));
-
-                StatusMessage = $"Script applied: {newSegments.Count} segment(s) in text track";
-                Log.Information("Script applied: {Count} segments in text track {TrackId}", newSegments.Count, textTrack.Id);
-            }
-            catch (Exception ex)
-            {
-                var message = ex.InnerException?.Message ?? ex.Message;
-                StatusMessage = $"Error applying script: {message}";
-                Log.Error(ex, "Error applying script: {Message}", ex.Message);
-            }
-        }
-
-        private bool CanApplyScript() => _projectViewModel.CurrentProject != null && !string.IsNullOrWhiteSpace(ScriptPasteText);
-
-        /// <summary>
-        /// Fired after ApplyScriptAsync successfully replaces the text track.
-        /// Carries the IDs of the segments that were removed and the new segments that were created,
-        /// so CanvasViewModel can synchronise canvas elements.
-        /// </summary>
-        public event EventHandler<ScriptAppliedEventArgs>? ScriptApplied;
-
-        partial void OnScriptPasteTextChanged(string value)
-        {
-            ApplyScriptCommand.NotifyCanExecuteChanged();
-            AnalyzeWithAICommand.NotifyCanExecuteChanged();
-        }
-
-        // ── Analyze With AI ─────────────────────────────────────────────────
-
-        [RelayCommand(CanExecute = nameof(CanAnalyzeWithAI))]
-        private async Task AnalyzeWithAIAsync()
-        {
-            var project = _projectViewModel.CurrentProject;
-            if (project == null || _aiOrchestrator == null) return;
-
-            _isAnalyzing = true;
-            AnalyzeWithAICommand.NotifyCanExecuteChanged();
-            AIAnalysisStatus = "Đang khởi động…";
-
-            var cts = new System.Threading.CancellationTokenSource();
-            var progressVm = new AIAnalysisProgressViewModel(cts);
-            var progressWindow = new Views.AIAnalysisProgressWindow(progressVm);
-            progressWindow.Owner = System.Windows.Application.Current.MainWindow;
-
-            // Progress<T> already marshals to the UI thread via SynchronizationContext.
-            // No need for an extra Dispatcher.Invoke wrapper.
-            var progress = new Progress<AIAnalysisProgressReport>(report =>
-            {
-                progressVm.Report(report);
-                AIAnalysisStatus = report.Message;
-            });
-
-            // Capture existing text-track segment IDs before replacing (for ScriptApplied event)
-            var textTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
-            var oldSegmentIds = textTrack?.Segments
-                .Select(s => s.Id)
-                .ToHashSet() ?? new HashSet<string>();
-
-            var mainWindow = System.Windows.Application.Current.MainWindow;
-            if (mainWindow != null) mainWindow.IsEnabled = false;
-            progressWindow.Show();
-
-            try
-            {
-                var result = await Task.Run(
-                    () => _aiOrchestrator.RunAsync(
-                        project, ScriptPasteText, TotalDuration, progress, cts.Token),
-                    cts.Token);
-
-                // Persist text track
-                if (textTrack != null)
-                    await _projectViewModel.ReplaceSegmentsForTrackAsync(textTrack.Id, result.TextSegments);
-
-                // Persist visual track
-                var visualTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Visual);
-                if (visualTrack != null)
-                    await _projectViewModel.ReplaceSegmentsForTrackAsync(visualTrack.Id, result.VisualSegments);
-
-                LoadTracksFromProject();
-                ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(
-                    oldSegmentIds, result.TextSegments));
-
-                AIAnalysisStatus = $"✓ Xong: {result.TextSegments.Length} segment, {result.RegisteredAssetIds.Length} ảnh";
-                StatusMessage    = AIAnalysisStatus;
-            }
-            catch (OperationCanceledException)
-            {
-                AIAnalysisStatus = "Đã huỷ";
-            }
-            catch (Exception ex)
-            {
-                AIAnalysisStatus = $"Lỗi: {ex.Message}";
-                Log.Error(ex, "AnalyzeWithAI failed");
-            }
-            finally
-            {
-                progressVm.NotifyComplete();
-                cts.Dispose();
-                _isAnalyzing = false;
-                AnalyzeWithAICommand.NotifyCanExecuteChanged();
-                if (mainWindow != null) mainWindow.IsEnabled = true;
-            }
-        }
-
-        private bool CanAnalyzeWithAI()
-            => !_isAnalyzing
-            && _projectViewModel.CurrentProject != null
-            && !string.IsNullOrWhiteSpace(ScriptPasteText)
-            && _aiOrchestrator != null;
+        // ── Script & AI ── moved to TimelineViewModel.Script.cs ──────────────
 
         /// <summary>
         /// Clear all segments in the selected track.
@@ -1312,148 +1176,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _multiSelectedSegments.Clear();
         }
 
-        // ── BGM commands ──────────────────────────────────────────────────────
-
-        /// <summary>Open a file picker and set the BGM file path.</summary>
-        [RelayCommand]
-        public void BrowseBgmFile()
-        {
-            // If playing, the modal dialog blocks the UI thread while the mixer keeps running.
-            // All readers advance in lockstep via the mixer, so no desync from the dialog itself.
-            // But stale sync-loop dispatches may queue up. Force resync after dialog closes.
-            bool wasPlaying = _audioService.IsPlaying;
-
-            var dlg = new Microsoft.Win32.OpenFileDialog
-            {
-                Title  = "Select BGM audio file",
-                Filter = "Audio files|*.mp3;*.wav;*.flac;*.aac;*.ogg;*.m4a|All files|*.*"
-            };
-            if (dlg.ShowDialog() == true)
-            {
-                BgmFilePath = dlg.FileName;
-                SyncBgmToProject();
-                _ = _projectViewModel.SaveProjectAsync();
-                StatusMessage = $"BGM: {System.IO.Path.GetFileName(BgmFilePath)}";
-            }
-
-            // Force resync to undo any stale position updates that queued during the dialog
-            if (wasPlaying)
-            {
-                var pos = _audioService.GetCurrentPosition();
-                _lastSyncedPlayhead = pos;
-                UpdateSegmentAudioPlayback(pos, forceResync: true);
-            }
-        }
-
-        /// <summary>Remove the BGM track from the current project.</summary>
-        [RelayCommand]
-        public void ClearBgm()
-        {
-            BgmFilePath = string.Empty;
-            SyncBgmToProject();
-            _audioService.StopBgmAudio();
-            _ = _projectViewModel.SaveProjectAsync();
-            StatusMessage = "BGM cleared";
-        }
-
-        /// <summary>
-        /// Load BGM settings from the project's first BgmTrack (if any).
-        /// Called whenever the project changes.
-        /// </summary>
-        private void LoadBgmFromProject()
-        {
-            _isLoadingBgm = true;
-            try
-            {
-                var bgm = _projectViewModel.CurrentProject?.BgmTracks?.FirstOrDefault();
-                if (bgm != null)
-                {
-                    BgmFilePath   = bgm.AudioPath;
-                    BgmVolume     = bgm.Volume;
-                    BgmFadeIn     = bgm.FadeInSeconds;
-                    BgmFadeOut    = bgm.FadeOutSeconds;
-                    BgmIsLooping  = bgm.IsLooping;
-                    BgmIsEnabled  = bgm.IsEnabled;
-                }
-                else
-                {
-                    BgmFilePath   = string.Empty;
-                    BgmVolume     = 0.3;
-                    BgmFadeIn     = 2.0;
-                    BgmFadeOut    = 2.0;
-                    BgmIsLooping  = false;
-                    BgmIsEnabled  = true;
-                }
-                _cachedBgmFileExists = null; // invalidate cache on load
-            }
-            finally
-            {
-                _isLoadingBgm = false;
-            }
-        }
-
-        /// <summary>
-        /// Write current BGM UI state back to the project model (first BgmTrack, or create one).
-        /// </summary>
-        private void SyncBgmToProject()
-        {
-            var project = _projectViewModel.CurrentProject;
-            if (project == null) return;
-
-            project.BgmTracks ??= [];
-            var bgm = project.BgmTracks.FirstOrDefault();
-            if (bgm == null)
-            {
-                bgm = new PodcastVideoEditor.Core.Models.BgmTrack { ProjectId = project.Id };
-                project.BgmTracks.Add(bgm);
-            }
-            bgm.AudioPath      = BgmFilePath;
-            bgm.Volume         = BgmVolume;
-            bgm.FadeInSeconds  = BgmFadeIn;
-            bgm.FadeOutSeconds = BgmFadeOut;
-            bgm.IsLooping      = BgmIsLooping;
-            bgm.IsEnabled      = BgmIsEnabled;
-        }
-
-        /// <summary>Debounce: coalesce rapid BGM property changes into a single sync after idle period.</summary>
-        private void DebouncedSyncBgm()
-        {
-            _bgmSyncDebounce?.Cancel();
-            _bgmSyncDebounce?.Dispose();
-            _bgmSyncDebounce = new CancellationTokenSource();
-            var token = _bgmSyncDebounce.Token;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(BgmSyncDebounceMs, token);
-                    if (!token.IsCancellationRequested)
-                    {
-                        var app = Application.Current;
-                        app?.Dispatcher.Invoke(() => SyncBgmToProject());
-                    }
-                }
-                catch (OperationCanceledException) { }
-            }, token);
-        }
-
-        /// <summary>
-        /// Get the first active BGM track for render pipeline consumption.
-        /// Returns null if no BGM is configured or disabled.
-        /// </summary>
-        public PodcastVideoEditor.Core.Models.BgmTrack? GetActiveBgmTrack()
-        {
-            if (!BgmIsEnabled || string.IsNullOrWhiteSpace(BgmFilePath)) return null;
-            return new PodcastVideoEditor.Core.Models.BgmTrack
-            {
-                AudioPath      = BgmFilePath,
-                Volume         = BgmVolume,
-                FadeInSeconds  = BgmFadeIn,
-                FadeOutSeconds = BgmFadeOut,
-                IsLooping      = BgmIsLooping,
-                IsEnabled      = BgmIsEnabled
-            };
-        }
+        // ── BGM commands ── moved to TimelineViewModel.BGM.cs ────────────────
 
         /// <summary>
         /// Magnetic snap: if <paramref name="proposedTime"/> is within <paramref name="thresholdSeconds"/>
@@ -1781,9 +1504,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 positionSeconds = Math.Clamp(positionSeconds, 0, TotalDuration);
                 _audioService.Seek(positionSeconds);
                 PlayheadPosition = positionSeconds;
-                _lastSyncedPlayhead = positionSeconds;
+                LastSyncedPlayhead = positionSeconds;
                 // Immediately resync segment + BGM to the new position (forceResync=true)
                 UpdateSegmentAudioPlayback(positionSeconds, forceResync: true);
+                // Signal canvas to bypass its 60fps throttle — always show the correct frame
+                ScrubCompleted?.Invoke(this, EventArgs.Empty);
                 StatusMessage = $"Playhead: {positionSeconds:F1}s";
             }
             catch (Exception ex)
@@ -1839,12 +1564,49 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         if (TotalDuration > 0 && currentPosition > TotalDuration)
                             currentPosition = TotalDuration;
 
-                        if (Math.Abs(currentPosition - _lastSyncedPlayhead) < PositionDeltaThreshold)
+                        // ── EOF auto-stop ──────────────────────────────────────────────────────
+                        // MixingSampleProvider.ReadFully=true keeps WaveOutEvent running with
+                        // silence once AudioFileReader is exhausted. Without this check, IsPlaying
+                        // stays true forever: users see a frozen playhead but TogglePlayPause
+                        // executes Pause instead of Play, requiring two presses to restart.
+                        // Fix: detect EOF and cleanly pause so the next Play press works correctly.
+                        if (TotalDuration > 0 && currentPosition >= TotalDuration && _audioService.IsPlaying)
+                        {
+                            var appEof = Application.Current;
+                            if (appEof != null)
+                            {
+                                if (IsLoopPlayback)
+                                {
+                                    // Loop: jump back to start and continue playing
+                                    await appEof.Dispatcher.InvokeAsync(() =>
+                                    {
+                                        _audioService.Seek(0);
+                                        PlayheadPosition = 0;
+                                        UpdateSegmentAudioPlayback(0, forceResync: true);
+                                    }, System.Windows.Threading.DispatcherPriority.Normal);
+                                    LastSyncedPlayhead = 0;
+                                }
+                                else
+                                {
+                                    await appEof.Dispatcher.InvokeAsync(() =>
+                                    {
+                                        _audioService.Pause();   // fires PlaybackPaused → AudioPlayerViewModel.IsPlaying = false
+                                        IsPlaying = false;
+                                        PlayheadPosition = TotalDuration;
+                                    }, System.Windows.Threading.DispatcherPriority.Normal);
+                                    LastSyncedPlayhead = TotalDuration;
+                                }
+                            }
+                            await Task.Delay(IdleSyncIntervalMs, _playheadSyncCts.Token);
+                            continue;
+                        }
+
+                        if (Math.Abs(currentPosition - LastSyncedPlayhead) < PositionDeltaThreshold)
                         {
                             await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
                             continue;
                         }
-                        _lastSyncedPlayhead = currentPosition;
+                        LastSyncedPlayhead = currentPosition;
 
                         var app = Application.Current;
                         if (app == null) break;
@@ -1997,49 +1759,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
-        /// <summary>
-        /// Play/update/stop BGM audio during preview playback.
-        /// </summary>
-        // Cached File.Exists result for BGM to avoid syscall on every 33ms sync tick
-        private bool? _cachedBgmFileExists;
-        private string? _cachedBgmFileExistsPath;
-
-        partial void OnBgmFilePathChanged(string value)
-        {
-            // Invalidate cache when path changes; also trigger sync (not suppressed by _isLoadingBgm)
-            _cachedBgmFileExists = null;
-            _cachedBgmFileExistsPath = null;
-            if (!_isLoadingBgm) DebouncedSyncBgm();
-        }
-
-        private bool BgmFileExistsCached()
-        {
-            if (_cachedBgmFileExistsPath != BgmFilePath)
-            {
-                _cachedBgmFileExists = !string.IsNullOrWhiteSpace(BgmFilePath) && System.IO.File.Exists(BgmFilePath);
-                _cachedBgmFileExistsPath = BgmFilePath;
-            }
-            return _cachedBgmFileExists == true;
-        }
-
-        private void UpdateBgmPreviewPlayback(double playheadSeconds, bool forceResync = false)
-        {
-            if (!BgmIsEnabled || !BgmFileExistsCached())
-            {
-                if (_audioService.IsBgmPlaying)
-                    _audioService.StopBgmAudio();
-                return;
-            }
-
-            _audioService.PlayBgmAudio(
-                BgmFilePath,
-                playheadSeconds,
-                (float)BgmVolume,
-                TotalDuration,
-                BgmFadeIn,
-                BgmFadeOut,
-                forceResync);
-        }
+        // ── BGM playback helpers ── moved to TimelineViewModel.BGM.cs ────────
 
         /// <summary>
         /// Calculate effective volume for a segment at a given time, applying fade in/out curves.
@@ -2114,19 +1834,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void Dispose()
         {
             _audioService.PlaybackStarted -= OnPlaybackStarted;
+            _audioService.PlaybackStopped -= OnAudioServicePlaybackStopped;
             _projectViewModel.PropertyChanged -= OnProjectViewModelPropertyChanged;
             _bgmSyncDebounce?.Cancel();
             _bgmSyncDebounce?.Dispose();
             StopPlayheadSync();
         }
     }
-
-    /// <summary>
-    /// Event args for the <see cref="TimelineViewModel.ScriptApplied"/> event.
-    /// </summary>
-    /// <param name="ReplacedSegmentIds">IDs of text-track segments that were removed by the apply.</param>
-    /// <param name="NewSegments">The freshly-created segments that replaced them.</param>
-    public record ScriptAppliedEventArgs(
-        IReadOnlySet<string> ReplacedSegmentIds,
-        IReadOnlyList<Segment> NewSegments);
+    // ScriptAppliedEventArgs record moved to TimelineViewModel.Script.cs
 }

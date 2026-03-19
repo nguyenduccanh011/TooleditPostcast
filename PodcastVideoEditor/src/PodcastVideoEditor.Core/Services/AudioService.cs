@@ -287,7 +287,9 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Seek to a specific position (in seconds).
-        /// Note: For VBR MP3, seek position may have small inaccuracy due to NAudio byte-based seeking.
+        /// For PCM/WAV files (including our decoded cache), byte-seek is sample-accurate
+        /// so we skip the expensive sample-scan path entirely.
+        /// For VBR MP3/AAC (rare — only non-cached files), we decode-and-skip to reach exact position.
         /// </summary>
         public void Seek(double positionSeconds)
         {
@@ -306,8 +308,10 @@ namespace PodcastVideoEditor.Core.Services
             _audioFileReader.CurrentTime = TimeSpan.FromSeconds(clampedPosition);
             double actualReaderTime = _audioFileReader.CurrentTime.TotalSeconds;
 
-            // Accurate seek on-demand: decode and discard samples to reach exact target time
-            if (_waveFormat != null)
+            // PCM/WAV files have exact byte-aligned seek — no sample-skip needed.
+            // Only do the expensive sample-scan for compressed non-cached formats.
+            bool isLikelyCbr = IsPlaybackFilePcmOrWav();
+            if (!isLikelyCbr && _waveFormat != null)
             {
                 double deltaSeconds = clampedPosition - actualReaderTime;
                 if (Math.Abs(deltaSeconds) > SeekResyncThresholdSeconds)
@@ -541,6 +545,20 @@ namespace PodcastVideoEditor.Core.Services
         public PlaybackState PlaybackState => _wavePlayer?.PlaybackState ?? PlaybackState.Stopped;
         public bool IsPlaying => PlaybackState == PlaybackState.Playing;
         public string? CurrentAudioPath => _sourceAudioPath;
+
+        /// <summary>
+        /// Returns true if the playback file is PCM / WAV — for which byte-seek is sample-accurate
+        /// and the expensive decode-and-skip path in Seek() can be skipped.
+        /// This is true whenever _isDecodedCache is set (M4A/AAC decoded to temp WAV)
+        /// or when the source file itself is a WAV.
+        /// </summary>
+        private bool IsPlaybackFilePcmOrWav()
+        {
+            if (_isDecodedCache)
+                return true;
+            var ext = Path.GetExtension(_playbackAudioPath);
+            return string.Equals(ext, ".wav", StringComparison.OrdinalIgnoreCase);
+        }
 
         // ======== Single-mixer architecture: all audio through one WaveOutEvent ========
         // MixingSampleProvider routes primary + segment + BGM through one output clock,

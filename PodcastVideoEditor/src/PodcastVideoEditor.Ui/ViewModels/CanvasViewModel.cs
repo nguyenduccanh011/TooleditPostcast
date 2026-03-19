@@ -154,6 +154,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isPlaying = false;
 
+        /// <summary>
+        /// Mirrors TimelineViewModel.IsLoopPlayback. Persisted to the timeline VM via ToggleLoopPlayback.
+        /// Exposed here so the Loop button in CanvasView can bind directly to CanvasViewModel.
+        /// </summary>
+        [ObservableProperty]
+        private bool isLoopPlayback = false;
+
         private AudioPlayerViewModel? _audioPlayerViewModel;
 
         /// <summary>
@@ -681,6 +688,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error toggling play/pause");
                 StatusMessage = $"Error: {ex.Message}";
             }
+        }
+
+        /// <summary>
+        /// Toggle loop playback on/off. Synced to TimelineViewModel.IsLoopPlayback.
+        /// </summary>
+        [RelayCommand]
+        public void ToggleLoopPlayback()
+        {
+            IsLoopPlayback = !IsLoopPlayback;
+            if (_timelineViewModel != null)
+                _timelineViewModel.IsLoopPlayback = IsLoopPlayback;
         }
 
         /// <summary>

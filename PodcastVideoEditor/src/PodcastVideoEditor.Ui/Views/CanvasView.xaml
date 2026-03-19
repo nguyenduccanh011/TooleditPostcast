@@ -320,6 +320,42 @@
         <!-- Converters for play/pause toggle -->
         <conv:PlayStateToIconConverter x:Key="PlayStateToIconConverter"/>
         <conv:PlayStateToTooltipConverter x:Key="PlayStateToTooltipConverter"/>
+
+        <!-- Loop Button Style: highlights when loop is active -->
+        <Style x:Key="LoopButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="ToolTip" Value="Loop playback"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="2">
+                            <TextBlock Text="⟲"
+                                      FontSize="13"
+                                      x:Name="icon"
+                                      Foreground="#888888"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#404040"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <!-- Highlight icon in accent color when loop is active -->
+                <DataTrigger Binding="{Binding IsLoopPlayback}" Value="True">
+                    <Setter Property="Background" Value="#1a3a55"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -480,6 +516,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -493,7 +530,6 @@
                        Style="{StaticResource PlayPauseButtonStyle}"
                        ToolTip="{Binding IsPlaying, Converter={StaticResource PlayStateToTooltipConverter}}"/>
 
-
                 <!-- Col 2: Time display (compact) -->
                 <TextBlock Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center"
                           Foreground="#FFFFFF" FontSize="9" FontFamily="Courier New">
@@ -502,10 +538,15 @@
                     <Run Text="{Binding AudioDuration, Mode=OneWay, FallbackValue='00:00'}"/>
                 </TextBlock>
 
-                <!-- Col 3: Spacer (right) -->
+                <!-- Col 3: Loop toggle button -->
+                <Button Grid.Column="3" Margin="6,0,0,0"
+                        Command="{Binding ToggleLoopPlaybackCommand}"
+                        Style="{StaticResource LoopButtonStyle}"/>
 
-                <!-- Col 4: Ratio button (right align) -->
-                <Button x:Name="RatioButton" Grid.Column="4" Content="{Binding SelectedAspectRatio}" 
+                <!-- Col 4: Spacer (right) -->
+
+                <!-- Col 5: Ratio button (right align) -->
+                <Button x:Name="RatioButton" Grid.Column="5" Content="{Binding SelectedAspectRatio}" 
                        Style="{StaticResource RatioButtonStyle}"
                        Foreground="#999999" VerticalAlignment="Center" Click="RatioButton_Click">
                     <Button.ContextMenu>
