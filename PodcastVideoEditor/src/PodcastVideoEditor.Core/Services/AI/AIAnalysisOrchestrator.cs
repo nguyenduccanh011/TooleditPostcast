@@ -70,29 +70,40 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
                             ?? throw new InvalidOperationException("No visual track in project");
 
         var registeredAssetIds = new List<string>();
-        // segmentIndex → assetId
         var segmentAssetMap = new Dictionary<int, string>();
-
-        // Download images in parallel (max 4 concurrent) instead of sequentially
-        // to reduce total download time from O(n×latency) to O(ceil(n/4)×latency).
-        var downloadResults = new ConcurrentDictionary<int, string>();
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, aiSegments.Length),
-            new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-            async (i, innerCt) =>
-            {
-                if (!selectionMap.TryGetValue(i, out var sel)) return;
-                if (!candidateUrlMap.TryGetValue(sel.ChosenId, out var downloadUrl) || string.IsNullOrWhiteSpace(downloadUrl)) return;
-
-                var assetId = await DownloadAndRegisterAsync(project.Id, sel.ChosenId, downloadUrl, innerCt);
-                if (assetId != null)
-                    downloadResults[i] = assetId;
-            });
-
-        foreach (var entry in downloadResults)
+        var preparedAssets = new ConcurrentDictionary<int, PreparedDownload>();
+        try
         {
-            segmentAssetMap[entry.Key] = entry.Value;
-            registeredAssetIds.Add(entry.Value);
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, aiSegments.Length),
+                new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+                async (i, innerCt) =>
+                {
+                    if (!selectionMap.TryGetValue(i, out var sel)) return;
+                    if (!candidateUrlMap.TryGetValue(sel.ChosenId, out var downloadUrl) || string.IsNullOrWhiteSpace(downloadUrl)) return;
+
+                    var prepared = await DownloadAndPrepareAsync(sel.ChosenId, downloadUrl, innerCt);
+                    if (prepared != null)
+                        preparedAssets[i] = prepared;
+                });
+
+            // Register assets sequentially because ProjectService shares a single AppDbContext.
+            // Concurrent SaveChanges on the same DbContext corrupts EF state tracking and throws
+            // errors such as: "Unexpected entry.EntityState: Unchanged".
+            foreach (var entry in preparedAssets.OrderBy(pair => pair.Key))
+            {
+                var assetId = await RegisterPreparedAssetAsync(project.Id, entry.Value, ct);
+                if (assetId == null)
+                    continue;
+
+                segmentAssetMap[entry.Key] = assetId;
+                registeredAssetIds.Add(assetId);
+            }
+        }
+        finally
+        {
+            foreach (var prepared in preparedAssets.Values)
+                TryDeleteFile(prepared.FilePath);
         }
 
         Report(progress, 5, 95, $"Đã tải {registeredAssetIds.Count} ảnh");
@@ -148,13 +159,30 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private async Task<string?> DownloadAndRegisterAsync(
-        string projectId, string candidateId, string url, CancellationToken ct)
+    private async Task<PreparedDownload?> DownloadAndPrepareAsync(
+        string candidateId, string url, CancellationToken ct)
     {
-        PreparedImageAsset? prepared = null;
         try
         {
-            prepared = await _imageIngestService.DownloadAndPrepareAsync(url, candidateId, ct);
+            var prepared = await _imageIngestService.DownloadAndPrepareAsync(url, candidateId, ct);
+            return new PreparedDownload(candidateId, prepared.FilePath, prepared.Width, prepared.Height, prepared.FileSize);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to download/prepare image {CandidateId}", candidateId);
+            return null;
+        }
+    }
+
+    private async Task<string?> RegisterPreparedAssetAsync(
+        string projectId,
+        PreparedDownload prepared,
+        CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+
             var asset = await _projectService.AddAssetAsync(
                 projectId,
                 prepared.FilePath,
@@ -166,18 +194,27 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to download/register image {CandidateId}", candidateId);
+            Log.Warning(ex, "Failed to register image {CandidateId}", prepared.CandidateId);
             return null;
         }
         finally
         {
-            if (prepared != null)
-            {
-                try { File.Delete(prepared.FilePath); } catch { /* best-effort */ }
-            }
+            TryDeleteFile(prepared.FilePath);
         }
     }
 
     private static void Report(IProgress<AIAnalysisProgressReport>? progress, int step, int percent, string msg)
         => progress?.Report(new AIAnalysisProgressReport(step, percent, msg));
+
+    private static void TryDeleteFile(string path)
+    {
+        try { File.Delete(path); } catch { /* best-effort */ }
+    }
+
+    private sealed record PreparedDownload(
+        string CandidateId,
+        string FilePath,
+        int Width,
+        int Height,
+        long FileSize);
 }
