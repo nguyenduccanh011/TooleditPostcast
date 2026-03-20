@@ -269,7 +269,6 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() == true)
         {
             _projectViewModel.NewProjectName = dialog.ProjectName;
-            _projectViewModel.SelectedAudioPath = dialog.AudioFilePath;
             await _projectViewModel.CreateProjectAsync();
             await LoadProjectAudioAsync();
             MainTabControl.SelectedIndex = 1;

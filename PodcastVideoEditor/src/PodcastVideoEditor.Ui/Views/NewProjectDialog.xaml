@@ -34,39 +34,7 @@
                 Margin="0,0,0,15"
                 ToolTip="Enter a name for your project" />
 
-            <!-- Audio File Selection (optional — can add audio later via drag-drop) -->
-            <TextBlock Text="Audio File (optional):" Margin="0,0,0,5" />
-            <Grid Margin="0,0,0,15">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <TextBox
-                    x:Name="AudioFileTextBox"
-                    Grid.Column="0"
-                    Height="35"
-                    Padding="10"
-                    Background="#252526"
-                    Foreground="#FFFFFF"
-                    BorderBrush="#3E3E42"
-                    BorderThickness="1"
-                    IsReadOnly="True"
-                    ToolTip="Optional: select audio file or add later via drag-drop" />
-
-                <Button
-                    x:Name="BrowseButton"
-                    Grid.Column="1"
-                    Width="80"
-                    Height="35"
-                    Margin="10,0,0,0"
-                    Content="Browse..."
-                    Background="#007ACC"
-                    Foreground="#FFFFFF"
-                    BorderThickness="0"
-                    Click="BrowseButton_Click"
-                    Cursor="Hand" />
-            </Grid>
+            <!-- ...existing code... -->
 
             <!-- Buttons -->
             <Grid Height="40" VerticalAlignment="Bottom">

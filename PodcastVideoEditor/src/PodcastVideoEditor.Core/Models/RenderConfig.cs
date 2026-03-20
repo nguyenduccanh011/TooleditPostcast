@@ -5,10 +5,6 @@ namespace PodcastVideoEditor.Core.Models;
 /// </summary>
 public class RenderConfig
 {
-    /// <summary>
-    /// Path to input audio file.
-    /// </summary>
-    public string AudioPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Path to background image (static).
@@ -75,6 +71,7 @@ public class RenderConfig
     /// Additional audio clip segments mixed into the output (BGM, sound effects, etc).
     /// </summary>
     public List<RenderAudioSegment> AudioSegments { get; set; } = [];
+
 
     /// <summary>
     /// Get CRF value based on quality setting.

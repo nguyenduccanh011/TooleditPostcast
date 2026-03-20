@@ -42,6 +42,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string audioCodec = "aac";
 
+        /// <summary>Linear volume multiplier for the primary audio (original recording). Default 1.0 = unchanged.</summary>
+        [ObservableProperty]
+        private double primaryAudioVolume = 1.0;
+
         [ObservableProperty]
         private int renderProgress;
 
@@ -191,7 +195,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 var config = new RenderConfig
                 {
-                    AudioPath = project.AudioPath,
                     ImagePath = imagePath,
                     VisualSegments = timelineVisualSegments,
                     TextSegments   = [],  // Text is rasterized to PNG overlays (WYSIWYG)

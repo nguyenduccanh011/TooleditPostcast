@@ -468,17 +468,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- Row 2: Waveform -->
-                        <Border Grid.Row="2" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,0,0" Height="48" ClipToBounds="True">
-                            <controls:WaveformControl x:Name="WaveformControl"
-                                                      ClipToBounds="True"
-                                                      Height="48"
-                                                      Width="{Binding AudioContentWidth}"
-                                                      HorizontalAlignment="Left"
-                                                      Peaks="{Binding AudioPeaks}"
-                                                      PixelsPerSecond="{Binding PixelsPerSecond}"
-                                                      TotalDuration="{Binding TotalDuration}"/>
-                        </Border>
+                        <!-- ...existing code... -->
 
                         <!-- Playhead: spans across ruler + tracks + waveform -->
                         <Canvas Grid.Row="0" Grid.RowSpan="3"

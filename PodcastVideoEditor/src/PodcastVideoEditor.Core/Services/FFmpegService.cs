@@ -771,13 +771,16 @@ public static class FFmpegService
         string audioOut;
         if (audioSegments.Count == 0)
         {
-            // No extra audio clips — use primary audio directly
-            audioOut = $"{primaryAudioIndex}:a";
+            // No extra audio clips — route primary through volume filter so PrimaryAudioVolume is honoured.
+            var primVolOnly = config.PrimaryAudioVolume.ToString("F3", invariant);
+            filter.Append($"[{primaryAudioIndex}:a]volume={primVolOnly}[amain];");
+            audioOut = "amain";
         }
         else
         {
             // Delay each extra audio clip to its timeline position and amix all together
-            filter.Append($"[{primaryAudioIndex}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[amain];");
+            var primVol = config.PrimaryAudioVolume.ToString("F3", invariant);
+            filter.Append($"[{primaryAudioIndex}:a]volume={primVol},aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[amain];");
 
             var mixLabels = new System.Collections.Generic.List<string> { "amain" };
             for (int i = 0; i < audioSegments.Count; i++)
@@ -815,7 +818,9 @@ public static class FFmpegService
 
             var allMixInputs = string.Concat(mixLabels.Select(l => $"[{l}]"));
             audioOut = "amixed";
-            filter.Append($"{allMixInputs}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0[{audioOut}]");
+            // normalize=0: disable FFmpeg's default 1/N gain reduction so each track's
+            // explicit volume= filter value is respected at face value.
+            filter.Append($"{allMixInputs}amix=inputs={mixLabels.Count}:duration=first:dropout_transition=0:normalize=0[{audioOut}]");
         }
 
         // BUG-5 fix: strip trailing semicolon
@@ -833,16 +838,8 @@ public static class FFmpegService
 
         args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
 
-        // Map outputs
-        if (audioSegments.Count == 0)
-        {
-            // Simpler map when no extra audio
-            args.Append($"-map \"[{currentVideo}]\" -map {audioOut} ");
-        }
-        else
-        {
-            args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
-        }
+        // Map outputs — audioOut is always a filter label now, always needs brackets
+        args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
         args.Append($"-crf {crf} ");
@@ -914,6 +911,7 @@ public static class FFmpegService
             VideoCodec = string.IsNullOrWhiteSpace(config.VideoCodec) ? "h264_auto" : config.VideoCodec,
             AudioCodec = string.IsNullOrWhiteSpace(config.AudioCodec) ? "aac" : config.AudioCodec,
             ScaleMode = NormalizeScaleMode(config.ScaleMode),
+            PrimaryAudioVolume = config.PrimaryAudioVolume,
             VisualSegments = config.VisualSegments?.ToList() ?? [],
             TextSegments   = config.TextSegments?.ToList()  ?? [],
             AudioSegments  = config.AudioSegments?.ToList() ?? []

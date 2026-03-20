@@ -99,10 +99,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             IsLoading = true;
             StatusMessage = "Loading projects...";
 
-            // IMPORTANT: Preserve current selection during reload
-            var currentProjectId = CurrentProject?.Id;
-
-            try
+                // public void SetAudioPath(string audioPath)
+                // {
+                //     SelectedAudioPath = audioPath;
+                // }
             {
                 // Use recent-first list to mirror commercial UX of "Recent Projects" and keep the list lean.
                 var projectList = await _projectService.GetRecentProjectsAsync(10);
@@ -135,7 +135,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
             finally
             {
                 IsLoading = false;
-            }
         }
 
         /// <summary>

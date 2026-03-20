@@ -62,11 +62,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string scriptPasteText = string.Empty;
 
-        /// <summary>
-        /// Peak samples for waveform display (audio track in timeline). ST-1 / Issue #13.
-        /// </summary>
-        [ObservableProperty]
-        private float[] audioPeaks = Array.Empty<float>();
 
         /// <summary>
         /// When true, defer thumbnail strip updates (during resize/drag) to avoid FFmpeg blocking UI.
@@ -91,7 +86,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private const int IdleSyncIntervalMs = 150;
         private const double PositionDeltaThreshold = 0.002;
         private const double DefaultSegmentDurationSeconds = 5.0;
-        private int _audioPeaksLoadVersion;
         // Cache for GetActiveSegmentsAtTime: avoid duplicate allocations within the same dispatch frame.
         // CanvasViewModel and the audio playback loop both call this per frame.
         private double _cachedActiveSegmentsTime = double.MinValue;
@@ -119,8 +113,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
-        /// <summary>Width of audio waveform content (duration only, no extra buffer).</summary>
-        public double AudioContentWidth => TimeToPixels(TotalDuration);
 
         /// <summary>
         /// Called when PlayheadPosition changes.
@@ -203,7 +195,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (_projectViewModel.CurrentProject?.Tracks == null || _projectViewModel.CurrentProject.Tracks.Count == 0)
                 {
                     StatusMessage = "No project loaded or no tracks";
-                    AudioPeaks = Array.Empty<float>();
                     return;
                 }
 
@@ -235,9 +226,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 StatusMessage = $"Loaded {Tracks.Count} track(s)";
                 Log.Information("Tracks loaded: {Count}", Tracks.Count);
 
-                // Load waveform peaks only when audio is already loaded
-                if (_audioService.GetDuration() > 0)
-                    _ = LoadAudioPeaksAsync();
 
                 // Enqueue async waveform peak loads for all audio segments
                 foreach (var track in Tracks)
@@ -251,41 +239,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
-        /// <summary>
-        /// Load peak samples for timeline audio track waveform. ST-1 / Issue #13.
-        /// </summary>
-        private async Task LoadAudioPeaksAsync()
-        {
-            try
-            {
-                int loadVersion = Interlocked.Increment(ref _audioPeaksLoadVersion);
-                var expectedPath = _audioService.CurrentAudioPath;
-                var peaks = await Task.Run(() => _audioService.GetPeakSamples(WaveformBinCount)).ConfigureAwait(false);
-                await Application.Current.Dispatcher.InvokeAsync(() =>
-                {
-                    if (loadVersion != _audioPeaksLoadVersion)
-                        return;
-                    if (!string.Equals(expectedPath, _audioService.CurrentAudioPath, StringComparison.OrdinalIgnoreCase))
-                        return;
-                    AudioPeaks = peaks ?? Array.Empty<float>();
-                });
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Could not load audio peaks for timeline");
-                await Application.Current.Dispatcher.InvokeAsync(() => { AudioPeaks = Array.Empty<float>(); });
-            }
-        }
 
-        /// <summary>
-        /// Call after audio is loaded (e.g. from MainWindow) so waveform appears. ST-1.
-        /// </summary>
-        public Task RefreshAudioPeaksAsync()
-        {
-            if (_audioService.GetDuration() <= 0)
-                return Task.CompletedTask;
-            return LoadAudioPeaksAsync();
-        }
 
         /// <summary>
         /// Enqueue an async background load of waveform peak data for an audio segment.

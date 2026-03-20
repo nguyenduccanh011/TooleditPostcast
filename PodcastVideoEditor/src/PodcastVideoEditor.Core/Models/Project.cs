@@ -15,10 +15,6 @@ public class Project
     /// </summary>
     public string Name { get; set; } = "Untitled Project";
 
-    /// <summary>
-    /// Path to the audio file associated with this project
-    /// </summary>
-    public string AudioPath { get; set; } = string.Empty;
 
     /// <summary>
     /// Description or notes about the project
@@ -49,10 +45,8 @@ public class Project
     /// </summary>
     public ICollection<Track> Tracks { get; set; } = [];
 
-    public ICollection<Segment> Segments { get; set; } = [];
     public ICollection<Element> Elements { get; set; } = [];
     public ICollection<Asset> Assets { get; set; } = [];
-    public ICollection<BgmTrack> BgmTracks { get; set; } = [];
 }
 
 /// <summary>
