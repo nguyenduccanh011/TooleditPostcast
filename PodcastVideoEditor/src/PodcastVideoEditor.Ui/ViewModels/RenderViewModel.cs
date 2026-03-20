@@ -1,7 +1,6 @@
 #nullable enable
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PodcastVideoEditor.Core;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
@@ -45,9 +44,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private int renderProgress;
-
-        [ObservableProperty]
-        private bool renderProgressIsIndeterminate;
 
         [ObservableProperty]
         private string statusMessage = "Ready to render";
@@ -145,11 +141,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(project.AudioPath))
+            {
+                StatusMessage = "Project has no audio file";
+                return;
+            }
+
             IsRendering = true;
             CanCancel = true;
             HasError = false;
             RenderProgress = 0;
-            RenderProgressIsIndeterminate = false;
             StatusMessage = "Initializing render...";
 
             _renderCancellationTokenSource = new CancellationTokenSource();
@@ -166,8 +167,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
                 var timelineVisualSegments = BuildTimelineVisualSegments(liveProject, width, height);
-                var timelineTextSegments   = BuildTimelineTextSegments(liveProject, width, height);
+                var rasterizedTextVisuals  = BuildRasterizedTextSegments(liveProject, width, height);
                 var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
+
+                // Merge rasterized text images into visual segments (rendered on top)
+                timelineVisualSegments.AddRange(rasterizedTextVisuals);
 
                 // Append BGM from timeline if configured and enabled
                 var bgm = _timelineViewModel?.GetActiveBgmTrack();
@@ -190,10 +194,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var imagePath = string.Empty;
 
                 // Fallback path for legacy single-image rendering when no timeline segments exist at all.
-                if (timelineVisualSegments.Count == 0 && timelineTextSegments.Count == 0 && timelineAudioSegments.Count == 0)
+                if (timelineVisualSegments.Count == 0 && timelineAudioSegments.Count == 0)
                     imagePath = await ResolveRenderImagePathAsync(liveProject, _renderCancellationTokenSource.Token) ?? string.Empty;
 
-                if (timelineVisualSegments.Count == 0 && timelineTextSegments.Count == 0
+                if (timelineVisualSegments.Count == 0
                     && timelineAudioSegments.Count == 0 && string.IsNullOrWhiteSpace(imagePath))
                 {
                     StatusMessage = "No visual segment/image available for render";
@@ -215,7 +219,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     AudioPath = project.AudioPath,
                     ImagePath = imagePath,
                     VisualSegments = timelineVisualSegments,
-                    TextSegments   = timelineTextSegments,
+                    TextSegments   = [],  // Text is rasterized to PNG overlays (WYSIWYG)
                     AudioSegments  = timelineAudioSegments,
                     OutputPath = System.IO.Path.Combine(
                         OutputFolder,
@@ -233,14 +237,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var progress = new Progress<RenderProgress>(report =>
                 {
                     RenderProgress = report.ProgressPercentage;
-                    RenderProgressIsIndeterminate = report.IsIndeterminate;
                     StatusMessage = report.Message;
 
                     if (report.IsComplete)
                     {
                         IsRendering = false;
                         CanCancel = false;
-                        RenderProgressIsIndeterminate = false;
                         StatusMessage = $"Render completed: {System.IO.Path.GetFileName(config.OutputPath)}";
                         Log.Information("Render completed: {OutputPath}", config.OutputPath);
                     }
@@ -269,21 +271,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 StatusMessage = "Render cancelled by user";
                 HasError = true;
-                RenderProgressIsIndeterminate = false;
                 Log.Information("Render cancelled");
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Render error: {ex.Message}";
                 HasError = true;
-                RenderProgressIsIndeterminate = false;
                 Log.Error(ex, "Render error");
             }
             finally
             {
                 IsRendering = false;
                 CanCancel = false;
-                RenderProgressIsIndeterminate = false;
                 _renderCancellationTokenSource?.Dispose();
             }
         }
@@ -470,18 +469,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         renderSeg.OverlayY     = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture);
                         renderSeg.ScaleWidth   = scaleW;
                         renderSeg.ScaleHeight  = scaleH;
-                        renderSeg.ScaleMode    = linkedElement is ImageElement imageElement
-                            ? imageElement.ScaleMode.ToString()
-                            : "Fill";
-                    }
-                    else if (!string.Equals(track.ImageLayoutPreset, ImageLayoutPresets.FullFrame, StringComparison.Ordinal))
-                    {
-                        var (x, y, width, height) = RenderHelper.ComputeImageRect(track.ImageLayoutPreset, renderWidth, renderHeight);
-                        renderSeg.OverlayX    = ((int)Math.Round(x)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        renderSeg.OverlayY    = ((int)Math.Round(y)).ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        renderSeg.ScaleWidth  = Math.Max(1, (int)Math.Round(width));
-                        renderSeg.ScaleHeight = Math.Max(1, (int)Math.Round(height));
-                        renderSeg.ScaleMode   = "Fill";
                     }
 
                     segments.Add(renderSeg);
@@ -492,10 +479,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Collect text overlay segments from all visible text tracks.
-        /// Maps canvas element positions to render coordinates when linked elements exist.
+        /// Rasterize text elements to PNG images (WYSIWYG) and return them as visual overlay segments.
+        /// This ensures text wrapping, alignment, and styling in the export match the canvas preview exactly.
         /// </summary>
-        private List<RenderTextSegment> BuildTimelineTextSegments(Project project, int renderWidth, int renderHeight)
+        private List<RenderVisualSegment> BuildRasterizedTextSegments(Project project, int renderWidth, int renderHeight)
         {
             var textTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -509,7 +496,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var canvasHeight = _canvasViewModel?.CanvasHeight ?? 0;
             var elements = _canvasViewModel?.Elements;
 
-            var segments = new List<RenderTextSegment>();
+            // Create temp directory for rasterized text images
+            var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
+            System.IO.Directory.CreateDirectory(textImageDir);
+
+            var segments = new List<RenderVisualSegment>();
+            var index = 0;
             foreach (var track in textTracks)
             {
                 if (track.Segments == null) continue;
@@ -518,46 +510,94 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
                         continue;
 
-                    var renderSeg = new RenderTextSegment
+                    // Look up linked canvas element to get position/style/size data
+                    var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
+
+                    // Build rasterization options from element properties
+                    var options = new TextRasterizeOptions
                     {
-                        Text      = segment.Text,
-                        StartTime = segment.StartTime,
-                        EndTime   = segment.EndTime
+                        Text = segment.Text,
+                        CanvasWidth = canvasWidth,
+                        CanvasHeight = canvasHeight
                     };
 
-                    // Look up linked canvas element to get position/style data
-                    var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
+                    int overlayX = 0, overlayY = 0;
+                    int imgWidth = renderWidth, imgHeight = 80;
+
                     if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0)
                     {
-                        // Use anchor-point overload for accurate center-aligned positioning
-                        var (xExpr, yExpr) = CoordinateMapper.ToTextExpressions(
-                            linkedElement.X, linkedElement.Y,
-                            linkedElement.Width, linkedElement.Height,
-                            canvasWidth, canvasHeight,
-                            renderWidth, renderHeight);
-                        renderSeg.XExpr = xExpr;
-                        renderSeg.YExpr = yExpr;
+                        var scaleX = (double)renderWidth / canvasWidth;
+                        var scaleY = (double)renderHeight / canvasHeight;
 
-                        // Map all font properties from element type
+                        overlayX = (int)Math.Round(linkedElement.X * scaleX);
+                        overlayY = (int)Math.Round(linkedElement.Y * scaleY);
+                        imgWidth = Math.Max(1, (int)Math.Round(linkedElement.Width * scaleX));
+                        imgHeight = Math.Max(1, (int)Math.Round(linkedElement.Height * scaleY));
+
+                        // Clamp position
+                        overlayX = Math.Max(0, Math.Min(overlayX, renderWidth - 1));
+                        overlayY = Math.Max(0, Math.Min(overlayY, renderHeight - 1));
+
                         if (linkedElement is TitleElement title)
                         {
-                            renderSeg.FontSize = CoordinateMapper.ScaleFontSize(title.FontSize, canvasHeight, renderHeight);
-                            renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(title.ColorHex);
-                            renderSeg.FontFamily = title.FontFamily;
-                            renderSeg.IsBold = title.IsBold;
-                            renderSeg.IsItalic = title.IsItalic;
+                            options.FontSize = (float)CoordinateMapper.ScaleFontSize(title.FontSize, canvasHeight, renderHeight);
+                            options.ColorHex = title.ColorHex;
+                            options.FontFamily = title.FontFamily;
+                            options.IsBold = title.IsBold;
+                            options.IsItalic = title.IsItalic;
+                            options.Alignment = title.Alignment switch
+                            {
+                                Core.Models.TextAlignment.Left => TextRasterizeAlignment.Left,
+                                Core.Models.TextAlignment.Right => TextRasterizeAlignment.Right,
+                                _ => TextRasterizeAlignment.Center
+                            };
                         }
                         else if (linkedElement is TextElement text)
                         {
-                            renderSeg.FontSize = CoordinateMapper.ScaleFontSize(text.FontSize, canvasHeight, renderHeight);
-                            renderSeg.FontColor = CoordinateMapper.HexToFfmpegColor(text.ColorHex);
-                            renderSeg.FontFamily = text.FontFamily;
-                            renderSeg.IsBold = text.IsBold;
-                            renderSeg.IsItalic = text.IsItalic;
+                            options.FontSize = (float)CoordinateMapper.ScaleFontSize(text.FontSize, canvasHeight, renderHeight);
+                            options.ColorHex = text.ColorHex;
+                            options.Alignment = TextRasterizeAlignment.Center;
                         }
                     }
+                    else
+                    {
+                        // No linked element — use defaults
+                        options.FontSize = CoordinateMapper.ScaleFontSize(24, canvasHeight > 0 ? canvasHeight : renderHeight, renderHeight);
+                        imgHeight = (int)(renderHeight * 0.1);
+                        overlayY = (int)(renderHeight * 0.8);
+                        overlayX = 0;
+                        imgWidth = renderWidth;
+                    }
 
-                    segments.Add(renderSeg);
+                    options.Width = imgWidth;
+                    options.Height = imgHeight;
+
+                    // Rasterize text to PNG
+                    var imagePath = System.IO.Path.Combine(textImageDir, $"text_{index}.png");
+                    try
+                    {
+                        TextRasterizer.RenderToFile(options, imagePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Failed to rasterize text segment {Index}, skipping", index);
+                        index++;
+                        continue;
+                    }
+
+                    segments.Add(new RenderVisualSegment
+                    {
+                        SourcePath  = imagePath,
+                        StartTime   = segment.StartTime,
+                        EndTime     = segment.EndTime,
+                        IsVideo     = false,
+                        OverlayX    = overlayX.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        OverlayY    = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        ScaleWidth  = imgWidth,
+                        ScaleHeight = imgHeight
+                    });
+
+                    index++;
                 }
             }
 

@@ -2,7 +2,6 @@
 using Serilog;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Utilities;
-using NAudio.Wave;
 using System;
 using System.Diagnostics;
 using System.Globalization;
@@ -19,8 +18,6 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class FFmpegService
 {
-    private const string RenderCanceledMessage = "Render canceled";
-
     private static string? _ffmpegPath;
     private static string? _ffprobePath;
     private static Version? _ffmpegVersion;
@@ -309,14 +306,8 @@ public static class FFmpegService
             }
         };
         process.Start();
-
-        // Read stdout and stderr concurrently to prevent deadlock.
-        // If both buffers fill, sequential ReadToEnd() on one stream
-        // blocks while the process waits for the other to be drained.
-        var stderrTask = process.StandardError.ReadToEndAsync();
         process.StandardOutput.ReadToEnd();
-        var stderr = stderrTask.GetAwaiter().GetResult();
-
+        var stderr = process.StandardError.ReadToEnd();
         process.WaitForExit(TimeSpan.FromSeconds(15));
         
         // Log hardware acceleration errors
@@ -432,16 +423,13 @@ public static class FFmpegService
         if (config == null)
             throw new ArgumentNullException(nameof(config));
 
-        var hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
+        if (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath))
+            throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
+
         var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
         var hasTimelineText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
         var hasTimelineAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
         var hasAnyTimeline    = hasTimelineVisuals || hasTimelineText || hasTimelineAudio;
-
-        // Either primary audio or timeline content is required
-        if (!hasPrimaryAudio && !hasAnyTimeline)
-            throw new InvalidOperationException("No audio or timeline content to render");
-
         if (!hasAnyTimeline && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
             throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
 
@@ -470,9 +458,6 @@ public static class FFmpegService
 
                 // Build FFmpeg command
                 var ffmpegArgs = BuildFFmpegCommand(normalizedConfig);
-                var expectedDurationSeconds = hasPrimaryAudio
-                    ? GetAudioDurationSeconds(normalizedConfig.AudioPath)
-                    : GetMaxSegmentEndTime(normalizedConfig);
 
                 Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
                 Log.Information("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
@@ -480,21 +465,12 @@ public static class FFmpegService
                     normalizedConfig.VisualSegments?.Count ?? 0,
                     normalizedConfig.TextSegments?.Count ?? 0,
                     normalizedConfig.AudioSegments?.Count ?? 0);
-                if (expectedDurationSeconds > 0)
-                    Log.Information("Render expected duration from primary audio: {DurationSeconds:F2}s", expectedDurationSeconds);
 
                 // Execute FFmpeg
-                var (success, output) = await ExecuteFFmpegAsync(
-                    _ffmpegPath!, ffmpegArgs, progress, expectedDurationSeconds, cancellationToken);
+                var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken);
 
                 if (!success)
                 {
-                    if (cancellationToken.IsCancellationRequested &&
-                        string.Equals(output, RenderCanceledMessage, StringComparison.Ordinal))
-                    {
-                        throw new OperationCanceledException(RenderCanceledMessage, cancellationToken);
-                    }
-
                     Log.Error("FFmpeg render failed: {Output}", output);
                     throw new InvalidOperationException($"Render failed: {output}");
                 }
@@ -581,14 +557,9 @@ public static class FFmpegService
         var hasVisual = config.VisualSegments != null && config.VisualSegments.Count > 0;
         var hasText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
         var hasAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
-        var hasPrimAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
 
         if (hasVisual || hasText || hasAudio)
             return BuildTimelineFFmpegCommand(config);
-
-        // Legacy single-image mode requires primary audio
-        if (!hasPrimAudio)
-            throw new InvalidOperationException("Legacy render mode requires a primary audio file.");
 
         var crf = config.GetCrfValue();
         var videoCodec = MapVideoCodec(config.VideoCodec);
@@ -665,16 +636,11 @@ public static class FFmpegService
         }
 
         // ── Input N+1: primary audio (project audio file) ─────────────────
-        var hasPrimAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
-        int primaryAudioIndex = -1;
-        if (hasPrimAudio)
-        {
-            primaryAudioIndex = visualSegments.Count + 1;
-            args.Append($"-i \"{config.AudioPath}\" ");
-        }
+        var primaryAudioIndex = visualSegments.Count + 1;
+        args.Append($"-i \"{config.AudioPath}\" ");
 
         // ── Extra audio clip inputs ────────────────────────────────────────
-        var extraAudioStartIndex = (hasPrimAudio ? primaryAudioIndex + 1 : visualSegments.Count + 1);
+        var extraAudioStartIndex = primaryAudioIndex + 1;
         foreach (var aseg in audioSegments)
             args.Append($"-i \"{aseg.SourcePath}\" ");
 
@@ -699,18 +665,22 @@ public static class FFmpegService
 
             // Use segment-specific scale if provided, otherwise full-frame
             var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                ? BuildScalingFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
+                ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                 : BuildScalingFilter(config);
+
+            // PNG overlays (e.g. rasterized text) need yuva420p to preserve alpha transparency
+            var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
+            var pixFmt = isPngOverlay ? "yuva420p" : "yuv420p";
 
             if (seg.IsVideo)
             {
                 // Trim source to its window, reset PTS to 0
                 filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format=yuv420p,{scaleFilter},setsar=1[{scaledLabel}];");
+                filter.Append($"format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
             }
             else
             {
-                filter.Append($"[{inputIdx}:v]format=yuv420p,{scaleFilter},setsar=1[{scaledLabel}];");
+                filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
             }
         }
 
@@ -766,10 +736,7 @@ public static class FFmpegService
             var textFilePath = Path.Combine(textTempDir, $"seg_{i}.txt");
             File.WriteAllText(textFilePath, ts.Text, new System.Text.UTF8Encoding(false));
 
-            // Resolve font: prefer explicit FontFilePath, then resolve FontFamily, then default
             var fontPath = ts.FontFilePath;
-            if (string.IsNullOrWhiteSpace(fontPath))
-                fontPath = ResolveFontFamilyPath(ts.FontFamily, ts.IsBold, ts.IsItalic);
             if (string.IsNullOrWhiteSpace(fontPath))
                 fontPath = resolvedDefaultFont;
 
@@ -797,59 +764,14 @@ public static class FFmpegService
         // Step 5: Audio mixing — BUG-2 fix
         // Build audio filter: start with primary audio, then mix in extra clips via adelay+amix
         string audioOut;
-        if (!hasPrimAudio && audioSegments.Count == 0)
-        {
-            // No audio at all — generate silent audio track
-            filter.Append($"anullsrc=channel_layout=stereo:sample_rate=44100[asilent];");
-            audioOut = "asilent";
-        }
-        else if (audioSegments.Count == 0)
+        if (audioSegments.Count == 0)
         {
             // No extra audio clips — use primary audio directly
             audioOut = $"{primaryAudioIndex}:a";
         }
-        else if (!hasPrimAudio)
-        {
-            // No primary audio but has extra audio clips — mix only extra clips
-            filter.Append($"anullsrc=channel_layout=stereo:sample_rate=44100[amain];");
-
-            var mixLabels = new System.Collections.Generic.List<string> { "amain" };
-            for (int i = 0; i < audioSegments.Count; i++)
-            {
-                var aseg        = audioSegments[i];
-                var inputIdx    = extraAudioStartIndex + i;
-                var delayMs     = (long)Math.Round(aseg.StartTime * 1000);
-                var duration    = aseg.EndTime - aseg.StartTime;
-                var srcOffset   = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
-                var clipLabel   = $"aclip{i}";
-
-                if (aseg.IsLooping)
-                {
-                    filter.Append($"[{inputIdx}:a]aloop=loop=-1:size=2147483647,");
-                    filter.Append($"atrim=start=0:duration={duration.ToString("F3", invariant)},");
-                }
-                else
-                {
-                    filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
-                }
-                filter.Append($"asetpts=PTS-STARTPTS,");
-                filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
-                if (aseg.FadeInDuration > 0)
-                    filter.Append($"afade=t=in:st=0:d={aseg.FadeInDuration.ToString("F3", invariant)},");
-                if (aseg.FadeOutDuration > 0)
-                    filter.Append($"afade=t=out:st={(duration - aseg.FadeOutDuration).ToString("F3", invariant)}:d={aseg.FadeOutDuration.ToString("F3", invariant)},");
-                filter.Append($"adelay={delayMs}|{delayMs},");
-                filter.Append($"aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[{clipLabel}];");
-                mixLabels.Add(clipLabel);
-            }
-
-            var allMixInputs = string.Concat(mixLabels.Select(l => $"[{l}]"));
-            audioOut = "amixed";
-            filter.Append($"{allMixInputs}amix=inputs={mixLabels.Count}:duration=longest:dropout_transition=0[{audioOut}]");
-        }
         else
         {
-            // Has primary audio + extra audio clips — mix all together
+            // Delay each extra audio clip to its timeline position and amix all together
             filter.Append($"[{primaryAudioIndex}:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[amain];");
 
             var mixLabels = new System.Collections.Generic.List<string> { "amain" };
@@ -907,19 +829,14 @@ public static class FFmpegService
         args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
 
         // Map outputs
-        // When audioOut is a stream ref like "1:a", use -map without brackets;
-        // when it's a filter label like "amixed" or "asilent", wrap in brackets.
-        var audioOutIsFilterLabel = !audioOut.Contains(':');
-        var audioMapArg = audioOutIsFilterLabel ? $"\"[{audioOut}]\"" : audioOut;
-
-        if (audioSegments.Count == 0 && hasPrimAudio)
+        if (audioSegments.Count == 0)
         {
-            // Simpler map when no extra audio and has primary audio
-            args.Append($"-map \"[{currentVideo}]\" -map {audioMapArg} ");
+            // Simpler map when no extra audio
+            args.Append($"-map \"[{currentVideo}]\" -map {audioOut} ");
         }
         else
         {
-            args.Append($"-map \"[{currentVideo}]\" -map {audioMapArg} ");
+            args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
         }
 
         args.Append($"-c:v {videoCodec} ");
@@ -1077,10 +994,7 @@ public static class FFmpegService
                 if (process == null)
                     return;
 
-                // Read stdout/stderr concurrently to prevent deadlock
-                var stderrTask = process.StandardError.ReadToEndAsync();
                 var output = process.StandardOutput.ReadToEnd();
-                stderrTask.GetAwaiter().GetResult();
                 process.WaitForExit(TimeSpan.FromSeconds(5));
 
                 if (output.Contains("h264_nvenc", StringComparison.OrdinalIgnoreCase))
@@ -1119,15 +1033,12 @@ public static class FFmpegService
     }
 
     private static string BuildScalingFilter(RenderConfig config)
-        => BuildScalingFilter(config.ResolutionWidth, config.ResolutionHeight, config.ScaleMode);
-
-    private static string BuildScalingFilter(int targetWidth, int targetHeight, string? scaleMode)
     {
-        return scaleMode switch
+        return config.ScaleMode switch
         {
-            "Fit" => $"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=decrease:flags=lanczos,pad={targetWidth}:{targetHeight}:(ow-iw)/2:(oh-ih)/2",
-            "Stretch" => $"scale={targetWidth}:{targetHeight}:flags=lanczos",
-            _ => $"scale={targetWidth}:{targetHeight}:force_original_aspect_ratio=increase:flags=lanczos,crop={targetWidth}:{targetHeight}"
+            "Fit" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=decrease,pad={config.ResolutionWidth}:{config.ResolutionHeight}:(ow-iw)/2:(oh-ih)/2",
+            "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}",
+            _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
         };
     }
 
@@ -1142,64 +1053,6 @@ public static class FFmpegService
             .Replace("\\", "/")       // normalise to forward slashes
             .Replace("'",  "\\'")     // escape single quotes
             .Replace(":",  "\\:");    // escape colon (critical for Windows drive letters like C:)
-    }
-
-    /// <summary>
-    /// Resolve a font family name (e.g. "Arial", "Verdana") to a .ttf file path,
-    /// accounting for bold/italic variants. Falls back to null if not found.
-    /// </summary>
-    private static string? ResolveFontFamilyPath(string? fontFamily, bool isBold, bool isItalic)
-    {
-        if (string.IsNullOrWhiteSpace(fontFamily))
-            return null;
-
-        var winFonts = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Fonts");
-        if (!Directory.Exists(winFonts))
-            return null;
-
-        // Map common font family names to their file name patterns
-        // Windows font files use suffixes: bd (bold), i (italic), bi (bold italic), z (bold italic alt)
-        var familyLower = fontFamily.Trim().ToLowerInvariant();
-        var baseName = familyLower switch
-        {
-            "arial" => "arial",
-            "verdana" => "verdana",
-            "tahoma" => "tahoma",
-            "calibri" => "calibri",
-            "segoe ui" => "segoeui",
-            "times new roman" => "times",
-            "courier new" => "cour",
-            "georgia" => "georgia",
-            "trebuchet ms" => "trebuc",
-            "comic sans ms" => "comic",
-            "impact" => "impact",
-            "consolas" => "consola",
-            "lucida console" => "lucon",
-            _ => familyLower.Replace(" ", "")
-        };
-
-        // Build candidate file names with style suffixes
-        var suffix = (isBold, isItalic) switch
-        {
-            (true, true)   => new[] { "bi", "z" },
-            (true, false)  => new[] { "bd", "b" },
-            (false, true)  => new[] { "i" },
-            (false, false) => new[] { "" }
-        };
-
-        foreach (var s in suffix)
-        {
-            var path = Path.Combine(winFonts, $"{baseName}{s}.ttf");
-            if (File.Exists(path))
-                return path;
-        }
-
-        // Fallback: try base name without suffix
-        var fallback = Path.Combine(winFonts, $"{baseName}.ttf");
-        if (File.Exists(fallback))
-            return fallback;
-
-        return null;
     }
 
     /// <summary>
@@ -1242,7 +1095,6 @@ public static class FFmpegService
         string ffmpegPath,
         string args,
         IProgress<RenderProgress>? progress,
-        double expectedDurationSeconds,
         CancellationToken cancellationToken)
     {
         try
@@ -1264,73 +1116,19 @@ public static class FFmpegService
             // Read stdout fully in background (usually empty for FFmpeg)
             var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);
 
-            var renderStopwatch = Stopwatch.StartNew();
-            var lastProgressAt = DateTimeOffset.UtcNow;
-            var lastHeartbeatAt = DateTimeOffset.MinValue;
-            var totalDurationSeconds = Math.Max(0, expectedDurationSeconds);
-            var encodedSeconds = 0d;
-            var lastPercent = 0;
-
-            using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var heartbeatTask = Task.Run(async () =>
-            {
-                while (!heartbeatCts.IsCancellationRequested)
-                {
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(5), heartbeatCts.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-
-                    if (_currentRenderProcess == null || _currentRenderProcess.HasExited)
-                        break;
-
-                    var idleSeconds = (DateTimeOffset.UtcNow - lastProgressAt).TotalSeconds;
-                    if (idleSeconds < 10)
-                        continue;
-
-                    var isFinalizing = totalDurationSeconds > 0 && encodedSeconds >= Math.Max(1, totalDurationSeconds - 1);
-                    var message = isFinalizing
-                        ? $"Finalizing output... {lastPercent}% (FFmpeg is still running)"
-                        : $"Still rendering... {lastPercent}% (FFmpeg is still running)";
-
-                    progress?.Report(new RenderProgress
-                    {
-                        ProgressPercentage = Math.Max(lastPercent, 1),
-                        EstimatedTimeRemaining = EstimateRemainingSeconds(totalDurationSeconds, encodedSeconds, renderStopwatch.Elapsed.TotalSeconds),
-                        Message = message,
-                        IsComplete = false,
-                        IsIndeterminate = true
-                    });
-
-                    if ((DateTimeOffset.UtcNow - lastHeartbeatAt).TotalSeconds >= 15)
-                    {
-                        Log.Information(
-                            "Render heartbeat: Progress={Progress}% Encoded={EncodedSeconds:F2}s Total={TotalSeconds:F2}s Idle={IdleSeconds:F1}s Finalizing={IsFinalizing}",
-                            lastPercent,
-                            encodedSeconds,
-                            totalDurationSeconds,
-                            idleSeconds,
-                            isFinalizing);
-                        lastHeartbeatAt = DateTimeOffset.UtcNow;
-                    }
-                }
-            }, CancellationToken.None);
-
             // Parse stderr line-by-line for progress
             var stderrLines = new System.Collections.Generic.List<string>();
+            double totalDurationSeconds = 0;
 
-            // Parse stderr while preferring the known primary-audio duration for progress.
+            // First pass: try to detect total duration from the audio input headers
+            // (FFmpeg prints "Duration: HH:MM:SS.mm" for each input early in stderr)
             var stderrReader = _currentRenderProcess.StandardError;
             string? line;
             while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
             {
                 stderrLines.Add(line);
 
-                // Fallback duration detection when the primary audio duration could not be read.
+                // Detect total duration from the FIRST "Duration:" line (usually the audio input)
                 if (totalDurationSeconds <= 0 && line.Contains("Duration:"))
                 {
                     var durationMatch = System.Text.RegularExpressions.Regex.Match(
@@ -1343,7 +1141,6 @@ public static class FFmpegService
                             CultureInfo.InvariantCulture, out var ds))
                     {
                         totalDurationSeconds = dh * 3600 + dm * 60 + ds;
-                        Log.Information("Render progress fallback duration detected from FFmpeg output: {DurationSeconds:F2}s", totalDurationSeconds);
                     }
                 }
 
@@ -1359,37 +1156,22 @@ public static class FFmpegService
                             System.Globalization.NumberStyles.Float,
                             CultureInfo.InvariantCulture, out var ts))
                     {
-                        encodedSeconds = th * 3600 + tm * 60 + ts;
-                        var pct = totalDurationSeconds > 0
+                        var encodedSeconds = th * 3600 + tm * 60 + ts;
+                        int pct = totalDurationSeconds > 0
                             ? (int)Math.Min(99, encodedSeconds / totalDurationSeconds * 100)
                             : 50;
-
-                        lastPercent = Math.Max(lastPercent, pct);
-                        lastProgressAt = DateTimeOffset.UtcNow;
 
                         progress?.Report(new RenderProgress
                         {
                             ProgressPercentage = pct,
-                            EstimatedTimeRemaining = EstimateRemainingSeconds(totalDurationSeconds, encodedSeconds, renderStopwatch.Elapsed.TotalSeconds),
                             Message = $"Rendering... {pct}%",
-                            IsComplete = false,
-                            IsIndeterminate = false
+                            IsComplete = false
                         });
                     }
                 }
             }
 
             await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            heartbeatCts.Cancel();
-            try
-            {
-                await heartbeatTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                // Best-effort shutdown.
-            }
-
             var stdout = await outputTask.ConfigureAwait(false);
 
             bool success = _currentRenderProcess.ExitCode == 0;
@@ -1398,7 +1180,7 @@ public static class FFmpegService
         }
         catch (OperationCanceledException)
         {
-            return (false, RenderCanceledMessage);
+            return (false, "Render canceled");
         }
         catch (Exception ex)
         {
@@ -1410,48 +1192,6 @@ public static class FFmpegService
             _currentRenderProcess?.Dispose();
             _currentRenderProcess = null;
         }
-    }
-
-    private static int EstimateRemainingSeconds(double totalDurationSeconds, double encodedSeconds, double elapsedSeconds)
-    {
-        if (totalDurationSeconds <= 0 || encodedSeconds <= 0 || elapsedSeconds <= 0)
-            return 0;
-
-        var processingRate = encodedSeconds / elapsedSeconds;
-        if (processingRate <= 0)
-            return 0;
-
-        var remainingMediaSeconds = Math.Max(0, totalDurationSeconds - encodedSeconds);
-        return (int)Math.Max(0, Math.Round(remainingMediaSeconds / processingRate));
-    }
-
-    private static double GetAudioDurationSeconds(string audioPath)
-    {
-        try
-        {
-            using var reader = new AudioFileReader(audioPath);
-            return Math.Max(0, reader.TotalTime.TotalSeconds);
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Failed to read primary audio duration for render progress: {AudioPath}", audioPath);
-            return 0;
-        }
-    }
-
-    private static double GetMaxSegmentEndTime(RenderConfig config)
-    {
-        double max = 0;
-        if (config.VisualSegments != null)
-            foreach (var s in config.VisualSegments)
-                if (s.EndTime > max) max = s.EndTime;
-        if (config.TextSegments != null)
-            foreach (var s in config.TextSegments)
-                if (s.EndTime > max) max = s.EndTime;
-        if (config.AudioSegments != null)
-            foreach (var s in config.AudioSegments)
-                if (s.EndTime > max) max = s.EndTime;
-        return max;
     }
 }
 
