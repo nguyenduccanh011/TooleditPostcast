@@ -92,11 +92,12 @@ public sealed class UndoRedoService
 // Concrete action types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// <summary>Segment move or resize (start/end time change).</summary>
+/// <summary>Segment move or resize (start/end time change, optionally with SourceStartOffset).</summary>
 public sealed class SegmentTimingChangedAction : IUndoableAction
 {
     private readonly Segment _seg;
     private readonly double _oldStart, _oldEnd, _newStart, _newEnd;
+    private readonly double _oldSourceOffset, _newSourceOffset;
     private readonly Action _invalidateCache;
 
     public SegmentTimingChangedAction(
@@ -104,18 +105,29 @@ public sealed class SegmentTimingChangedAction : IUndoableAction
         double oldStart, double oldEnd,
         double newStart, double newEnd,
         Action invalidateCache)
+        : this(seg, oldStart, oldEnd, newStart, newEnd, seg.SourceStartOffset, seg.SourceStartOffset, invalidateCache)
+    {
+    }
+
+    public SegmentTimingChangedAction(
+        Segment seg,
+        double oldStart, double oldEnd,
+        double newStart, double newEnd,
+        double oldSourceOffset, double newSourceOffset,
+        Action invalidateCache)
     {
         _seg = seg;
         _oldStart = oldStart; _oldEnd = oldEnd;
         _newStart = newStart; _newEnd = newEnd;
+        _oldSourceOffset = oldSourceOffset; _newSourceOffset = newSourceOffset;
         _invalidateCache = invalidateCache;
     }
 
     public string Description =>
         _oldStart != _newStart && _oldEnd != _newEnd ? "Move segment" : "Resize segment";
 
-    public void Undo() { _seg.StartTime = _oldStart; _seg.EndTime = _oldEnd; _invalidateCache(); }
-    public void Redo() { _seg.StartTime = _newStart; _seg.EndTime = _newEnd; _invalidateCache(); }
+    public void Undo() { _seg.StartTime = _oldStart; _seg.EndTime = _oldEnd; _seg.SourceStartOffset = _oldSourceOffset; _invalidateCache(); }
+    public void Redo() { _seg.StartTime = _newStart; _seg.EndTime = _newEnd; _seg.SourceStartOffset = _newSourceOffset; _invalidateCache(); }
 }
 
 /// <summary>A segment was added to a track.</summary>

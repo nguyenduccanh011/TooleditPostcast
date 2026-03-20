@@ -423,7 +423,8 @@ public static class FFmpegService
         if (config == null)
             throw new ArgumentNullException(nameof(config));
 
-        if (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath))
+        var hasAudioSegs = config.AudioSegments != null && config.AudioSegments.Count > 0;
+        if (!hasAudioSegs && (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath)))
             throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
 
         var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
@@ -635,9 +636,13 @@ public static class FFmpegService
                 args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
         }
 
-        // ── Input N+1: primary audio (project audio file) ─────────────────
+        // ── Input N+1: primary audio (project audio file) or silent placeholder ──
+        var hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
         var primaryAudioIndex = visualSegments.Count + 1;
-        args.Append($"-i \"{config.AudioPath}\" ");
+        if (hasPrimaryAudio)
+            args.Append($"-i \"{config.AudioPath}\" ");
+        else
+            args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
 
         // ── Extra audio clip inputs ────────────────────────────────────────
         var extraAudioStartIndex = primaryAudioIndex + 1;
@@ -844,7 +849,17 @@ public static class FFmpegService
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
-        args.Append("-movflags +faststart -shortest -y ");
+        args.Append("-movflags +faststart ");
+        if (!hasPrimaryAudio)
+        {
+            // No finite audio file to bound output duration — compute from segments
+            var allEndTimes = visualSegments.Select(s => s.EndTime)
+                .Concat(textSegments.Select(s => s.EndTime))
+                .Concat(audioSegments.Select(s => s.EndTime));
+            var maxEnd = allEndTimes.Any() ? allEndTimes.Max() : 1.0;
+            args.Append($"-t {maxEnd.ToString("F3", invariant)} ");
+        }
+        args.Append("-shortest -y ");
         args.Append($"\"{config.OutputPath}\"");
 
         return args.ToString();

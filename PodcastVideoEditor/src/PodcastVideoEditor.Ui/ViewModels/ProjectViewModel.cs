@@ -205,6 +205,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var loadedProject = await _projectService.GetProjectAsync(project.Id);
                 if (loadedProject != null)
                 {
+                    // Auto-migrate legacy AudioPath/BgmTrack → audio segments
+                    bool needsReload = await _projectService.MigrateToAudioSegmentsAsync(loadedProject);
+                    if (needsReload)
+                    {
+                        loadedProject = await _projectService.GetProjectAsync(project.Id);
+                        if (loadedProject == null) { StatusMessage = "Project not found after migration"; return; }
+                    }
+
                     _thumbnailService.Stop();
                     CurrentProject = loadedProject;
 
@@ -295,10 +303,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var asset = await _projectService.AddAssetAsync(
                     CurrentProject.Id,
                     prepared.FilePath,
-                    "Image",
-                    prepared.Width,
-                    prepared.Height,
-                    prepared.FileSize);
+                    "Image");
                 return asset.Id;
             }
             catch (Exception ex)

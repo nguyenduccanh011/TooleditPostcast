@@ -58,6 +58,7 @@ namespace PodcastVideoEditor.Ui.Views
         // Pre-drag snapshots used for undo recording (never reset mid-drag unlike _segmentOriginal*).
         private double _dragUndoOriginalStart;
         private double _dragUndoOriginalEnd;
+        private double _dragUndoOriginalSourceOffset;
         private EventHandler? _undoRedoStateChangedHandler;
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
@@ -480,6 +481,7 @@ namespace PodcastVideoEditor.Ui.Views
                 _isResizingLeft = true;
                 _resizeLeftOriginalStartTime = segment.StartTime;
                 _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
+                _dragUndoOriginalSourceOffset = segment.SourceStartOffset; // Snapshot for undo
                 _resizeLeftDeltaX = 0;
                 grid.Cursor = Cursors.SizeWE;
                 _viewModel!.IsDeferringThumbnailUpdate = true;
@@ -488,6 +490,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Handle segment resize (right edge) drag.
+        /// For audio segments, clamps to remaining source duration (SourceDuration - SourceStartOffset).
         /// </summary>
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
@@ -509,6 +512,19 @@ namespace PodcastVideoEditor.Ui.Views
                     newEndTime = _viewModel.TotalDuration;
                 if (newEndTime <= segment.StartTime)
                     newEndTime = segment.StartTime + _viewModel.GridSize;
+
+                // For audio segments: clamp to source file duration
+                if (string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    double? sourceDuration = _viewModel.GetSourceDurationForSegment(segment);
+                    if (sourceDuration.HasValue && sourceDuration.Value > 0)
+                    {
+                        double maxSegDuration = sourceDuration.Value - segment.SourceStartOffset;
+                        double maxEndTime = segment.StartTime + maxSegDuration;
+                        if (newEndTime > maxEndTime)
+                            newEndTime = maxEndTime;
+                    }
+                }
 
                 // Magnetic snap to nearest segment edge
                 double snapThresholdR = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
@@ -535,6 +551,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Handle segment resize (left edge) drag — extend/shrink duration toward earlier time.
+        /// For audio segments, also adjusts SourceStartOffset so the content trim tracks the edge.
         /// </summary>
         private void ResizeLeftThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
@@ -554,11 +571,28 @@ namespace PodcastVideoEditor.Ui.Views
                 if (newStartTime >= segment.EndTime)
                     newStartTime = segment.EndTime - _viewModel.GridSize;
 
+                // For audio segments: clamp so SourceStartOffset cannot go negative
+                bool isAudio = string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase);
+                if (isAudio)
+                {
+                    double proposedOffsetDelta = newStartTime - _dragUndoOriginalStart;
+                    double proposedOffset = _dragUndoOriginalSourceOffset + proposedOffsetDelta;
+                    if (proposedOffset < 0)
+                        newStartTime = _dragUndoOriginalStart - _dragUndoOriginalSourceOffset;
+                }
+
                 // Magnetic snap to nearest segment edge
                 double snapThresholdL = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
                 newStartTime = _viewModel.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, snapThresholdL);
 
                 bool updated = _viewModel.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
+
+                // For audio segments: update SourceStartOffset to match the left-trim delta
+                if (updated && isAudio)
+                {
+                    double offsetDelta = segment.StartTime - _dragUndoOriginalStart;
+                    segment.SourceStartOffset = Math.Max(0, _dragUndoOriginalSourceOffset + offsetDelta);
+                }
 
                 const double tolerance = 0.01;
                 if (updated && Math.Abs(segment.StartTime - newStartTime) > tolerance)
@@ -607,6 +641,7 @@ namespace PodcastVideoEditor.Ui.Views
                 if (grid.DataContext is Segment seg && Math.Abs(seg.StartTime - _dragUndoOriginalStart) > 0.001)
                     _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
                         seg, _dragUndoOriginalStart, seg.EndTime, seg.StartTime, seg.EndTime,
+                        _dragUndoOriginalSourceOffset, seg.SourceStartOffset,
                         () => _viewModel.InvalidateActiveSegmentsCachePublic()));
             }
             _viewModel!.IsDeferringThumbnailUpdate = false;
@@ -803,8 +838,6 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
-            if (sender is UIElement element)
-                element.CaptureMouse();
             var canvas = sender as IInputElement;
             HandlePlayheadPreview(canvas != null ? e.GetPosition(canvas).X : 0, force: true);
             e.Handled = true;
@@ -829,8 +862,6 @@ namespace PodcastVideoEditor.Ui.Views
             if (_isDraggingPlayhead && _viewModel != null)
                 _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
-            if (sender is UIElement element && element.IsMouseCaptured)
-                element.ReleaseMouseCapture();
         }
 
         /// <summary>
@@ -864,8 +895,6 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
-            if (sender is UIElement element)
-                element.CaptureMouse();
 
             var position = e.GetPosition(RulerControl);
             double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
@@ -892,8 +921,6 @@ namespace PodcastVideoEditor.Ui.Views
             if (_isDraggingPlayhead && _viewModel != null)
                 _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
             _isDraggingPlayhead = false;
-            if (sender is UIElement element && element.IsMouseCaptured)
-                element.ReleaseMouseCapture();
         }
 
         /// <summary>
@@ -1042,13 +1069,6 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
                 _viewModel?.ToggleTrackVisibility(track);
-        }
-
-        private void TrackHeader_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
-                _viewModel?.SelectTrack(track);
-            // Do NOT set e.Handled — let Lock/Visibility buttons still receive their events.
         }
     }
 }

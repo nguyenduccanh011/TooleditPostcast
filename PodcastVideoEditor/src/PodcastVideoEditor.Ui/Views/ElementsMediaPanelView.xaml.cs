@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.ViewModels;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -174,6 +175,70 @@ public partial class ElementsMediaPanelView : UserControl
         catch (System.Exception ex)
         {
             Serilog.Log.Error(ex, "Error importing audio asset");
+        }
+    }
+
+    private async void AddBgmButton_Click(object sender, RoutedEventArgs e)
+    {
+        var mainVm = DataContext as MainViewModel;
+        var project = mainVm?.ProjectViewModel?.CurrentProject;
+        if (project == null)
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select BGM Audio File",
+            Filter = "Audio Files|*.mp3;*.wav;*.m4a;*.aac;*.ogg;*.flac;*.wma|All Files|*.*",
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var bgm = new BgmTrack
+            {
+                ProjectId = project.Id,
+                Name = System.IO.Path.GetFileNameWithoutExtension(dialog.FileName),
+                AudioPath = dialog.FileName,
+                Volume = 0.3,
+                FadeInSeconds = 2.0,
+                FadeOutSeconds = 2.0,
+                IsEnabled = true
+            };
+
+            project.BgmTracks.Add(bgm);
+            await mainVm!.ProjectViewModel.SaveProjectAsync();
+
+            // Refresh binding
+            BgmTracksList.ItemsSource = null;
+            BgmTracksList.ItemsSource = project.BgmTracks;
+        }
+        catch (System.Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error adding BGM track");
+        }
+    }
+
+    private async void RemoveBgmButton_Click(object sender, RoutedEventArgs e)
+    {
+        var mainVm = DataContext as MainViewModel;
+        var project = mainVm?.ProjectViewModel?.CurrentProject;
+        if (project == null)
+            return;
+
+        if (sender is not Button btn || btn.Tag is not string bgmId)
+            return;
+
+        var bgm = project.BgmTracks.FirstOrDefault(b => b.Id == bgmId);
+        if (bgm != null)
+        {
+            project.BgmTracks.Remove(bgm);
+            await mainVm!.ProjectViewModel.SaveProjectAsync();
+
+            BgmTracksList.ItemsSource = null;
+            BgmTracksList.ItemsSource = project.BgmTracks;
         }
     }
 }

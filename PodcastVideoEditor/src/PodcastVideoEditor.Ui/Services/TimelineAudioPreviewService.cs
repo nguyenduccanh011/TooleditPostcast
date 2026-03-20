@@ -16,25 +16,19 @@ internal sealed class TimelineAudioPreviewService
     private readonly Func<IEnumerable<Track>> _getTracks;
     private readonly Func<Project?> _getCurrentProject;
     private readonly Func<double> _getTotalDuration;
-    private readonly Func<BgmTrack?> _getActiveBgmTrack;
-
-    private bool? _cachedBgmFileExists;
-    private string? _cachedBgmFileExistsPath;
 
     public TimelineAudioPreviewService(
         IAudioTimelinePreviewService audioService,
         Func<double, List<(Track track, Segment segment)>> getActiveSegmentsAtTime,
         Func<IEnumerable<Track>> getTracks,
         Func<Project?> getCurrentProject,
-        Func<double> getTotalDuration,
-        Func<BgmTrack?> getActiveBgmTrack)
+        Func<double> getTotalDuration)
     {
         _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
         _getActiveSegmentsAtTime = getActiveSegmentsAtTime ?? throw new ArgumentNullException(nameof(getActiveSegmentsAtTime));
         _getTracks = getTracks ?? throw new ArgumentNullException(nameof(getTracks));
         _getCurrentProject = getCurrentProject ?? throw new ArgumentNullException(nameof(getCurrentProject));
         _getTotalDuration = getTotalDuration ?? throw new ArgumentNullException(nameof(getTotalDuration));
-        _getActiveBgmTrack = getActiveBgmTrack ?? throw new ArgumentNullException(nameof(getActiveBgmTrack));
     }
 
     public void SyncPreviewAudio(double playheadSeconds, bool forceResync = false)
@@ -86,11 +80,11 @@ internal sealed class TimelineAudioPreviewService
                         audioSegment.StartTime,
                         playheadSeconds,
                         CalculateSegmentVolume(audioSegment, playheadSeconds),
+                        audioSegment.SourceStartOffset,
                         forceResync);
                 }
             }
 
-            UpdateBgmPreviewPlayback(playheadSeconds, forceResync);
         }
         catch (Exception ex)
         {
@@ -134,38 +128,6 @@ internal sealed class TimelineAudioPreviewService
         {
             Log.Debug(ex, "Error preloading next audio segment");
         }
-    }
-
-    private void UpdateBgmPreviewPlayback(double playheadSeconds, bool forceResync)
-    {
-        var bgmTrack = _getActiveBgmTrack();
-        if (bgmTrack == null || !BgmFileExistsCached(bgmTrack.AudioPath))
-        {
-            if (_audioService.IsBgmPlaying)
-                _audioService.StopBgmAudio();
-
-            return;
-        }
-
-        _audioService.PlayBgmAudio(
-            bgmTrack.AudioPath,
-            playheadSeconds,
-            (float)bgmTrack.Volume,
-            _getTotalDuration(),
-            bgmTrack.FadeInSeconds,
-            bgmTrack.FadeOutSeconds,
-            forceResync);
-    }
-
-    private bool BgmFileExistsCached(string bgmFilePath)
-    {
-        if (!string.Equals(_cachedBgmFileExistsPath, bgmFilePath, StringComparison.Ordinal))
-        {
-            _cachedBgmFileExists = !string.IsNullOrWhiteSpace(bgmFilePath) && File.Exists(bgmFilePath);
-            _cachedBgmFileExistsPath = bgmFilePath;
-        }
-
-        return _cachedBgmFileExists == true;
     }
 
     private static float CalculateSegmentVolume(Segment segment, double playheadSeconds)

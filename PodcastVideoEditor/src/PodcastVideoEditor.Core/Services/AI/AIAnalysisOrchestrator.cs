@@ -116,7 +116,6 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         for (int i = 0; i < aiSegments.Length; i++)
         {
             var ai = aiSegments[i];
-            var keywordsJson = JsonSerializer.Serialize(ai.Keywords);
 
             textSegments.Add(new Segment
             {
@@ -126,7 +125,6 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
                 EndTime            = Math.Round(ai.EndTime,   2),
                 Text               = ai.Text,
                 Kind               = SegmentKind.Text,
-                Keywords           = keywordsJson,
                 TransitionType     = "fade",
                 TransitionDuration = 0.5,
                 Order              = i
@@ -141,7 +139,6 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
                 EndTime            = Math.Round(ai.EndTime,   2),
                 Text               = ai.Text,
                 Kind               = SegmentKind.Visual,
-                Keywords           = keywordsJson,
                 BackgroundAssetId  = assetId,
                 TransitionType     = "fade",
                 TransitionDuration = 0.5,
@@ -186,10 +183,7 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
             var asset = await _projectService.AddAssetAsync(
                 projectId,
                 prepared.FilePath,
-                "Image",
-                prepared.Width,
-                prepared.Height,
-                prepared.FileSize);
+                "Image");
             return asset.Id;
         }
         catch (Exception ex)

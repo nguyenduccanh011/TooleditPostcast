@@ -140,9 +140,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
-                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0"
-                                    Cursor="Hand"
-                                    MouseLeftButtonDown="TrackHeader_MouseDown" Tag="{Binding}">
+                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0">
                                     <!-- Single-row: [type icon] [lock] [eye] all on one line -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                                 VerticalAlignment="Center" Margin="2,0">
@@ -413,6 +411,8 @@
                                                                             Visibility="{Binding Kind, Converter={StaticResource KindToVisibilityConverter}, ConverterParameter=audio}">
                                                                         <controls:WaveformControl VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
                                                                                                   Peaks="{Binding WaveformPeaks}"
+                                                                                                  SourceStartOffset="{Binding SourceStartOffset}"
+                                                                                                  SourceDuration="{Binding SourceFileDuration}"
                                                                                                   PixelsPerSecond="{Binding DataContext.PixelsPerSecond, RelativeSource={RelativeSource AncestorType={x:Type local:TimelineView}}}"
                                                                                                   TotalDuration="{Binding DataContext.TotalDuration, RelativeSource={RelativeSource AncestorType={x:Type local:TimelineView}}}"/>
                                                                     </Border>
@@ -495,55 +495,8 @@
             </Grid>
         </ScrollViewer>
 
-        <!-- BGM Row: background music configuration strip at the bottom of the timeline -->
-        <Border Grid.Row="2" Background="#1a1a2a" BorderBrush="#3a3a5a" BorderThickness="0,1,0,0" Padding="6,4">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="56"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <!-- Label matching track header width -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="BGM" Foreground="#7986cb" FontWeight="Bold" FontSize="11" HorizontalAlignment="Center"/>
-                    <CheckBox IsChecked="{Binding BgmIsEnabled}" HorizontalAlignment="Center" ToolTip="Enable BGM in render"/>
-                </StackPanel>
-                <!-- Controls -->
-                <WrapPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBox x:Name="BgmPathBox"
-                             Text="{Binding BgmFilePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Width="200" MaxHeight="26" Margin="0,0,4,0"
-                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
-                             VerticalContentAlignment="Center" Padding="4,0"
-                             IsReadOnly="True" ToolTip="{Binding BgmFilePath}"
-                             FontSize="11"/>
-                    <Button Content="Browse" Command="{Binding BrowseBgmFileCommand}"
-                            Background="#3949ab" Foreground="White" Padding="8,4" Margin="0,0,8,0"
-                            MinHeight="26" VerticalContentAlignment="Center" FontSize="11"/>
-                    <TextBlock Text="Vol:" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11"/>
-                    <Slider Value="{Binding BgmVolume, Mode=TwoWay}" Minimum="0" Maximum="1"
-                            Width="80" VerticalAlignment="Center" Margin="0,0,4,0"
-                            ToolTip="{Binding BgmVolume, StringFormat='Volume: {0:P0}'}"/>
-                    <TextBlock Text="Fade↑" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,2,0" FontSize="11"/>
-                    <TextBox Text="{Binding BgmFadeIn, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             Width="36" MaxHeight="26" Margin="0,0,6,0"
-                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
-                             VerticalContentAlignment="Center" Padding="2,0" FontSize="11"
-                             ToolTip="Fade-in seconds"/>
-                    <TextBlock Text="↓" Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,2,0" FontSize="11"/>
-                    <TextBox Text="{Binding BgmFadeOut, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                             Width="36" MaxHeight="26" Margin="0,0,8,0"
-                             Background="#252535" Foreground="#e0e0e0" BorderBrush="#5c6bc0"
-                             VerticalContentAlignment="Center" Padding="2,0" FontSize="11"
-                             ToolTip="Fade-out seconds"/>
-                    <CheckBox Content="Loop" IsChecked="{Binding BgmIsLooping, Mode=TwoWay}"
-                              Foreground="#9fa8da" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
-                              ToolTip="Loop BGM to fill project duration"/>
-                    <Button Content="✕" Command="{Binding ClearBgmCommand}"
-                            Background="#c62828" Foreground="White" Width="26" Height="26"
-                            FontWeight="Bold" ToolTip="Remove BGM" Margin="0,0,0,0"/>
-                </WrapPanel>
-            </Grid>
-        </Border>
+        <!-- BGM Row removed — BGM is now managed as audio segments on the timeline.
+             Legacy BgmTrack data is auto-migrated to audio segments when the project is opened. -->
     </Grid>
 
 </UserControl>

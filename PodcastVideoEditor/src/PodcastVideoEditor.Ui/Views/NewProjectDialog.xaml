@@ -34,7 +34,7 @@
                 Margin="0,0,0,15"
                 ToolTip="Enter a name for your project" />
 
-            <!-- Audio File Selection (Optional) -->
+            <!-- Audio File Selection (optional — can add audio later via drag-drop) -->
             <TextBlock Text="Audio File (optional):" Margin="0,0,0,5" />
             <Grid Margin="0,0,0,15">
                 <Grid.ColumnDefinitions>
@@ -52,7 +52,7 @@
                     BorderBrush="#3E3E42"
                     BorderThickness="1"
                     IsReadOnly="True"
-                    ToolTip="Selected audio file path" />
+                    ToolTip="Optional: select audio file or add later via drag-drop" />
 
                 <Button
                     x:Name="BrowseButton"

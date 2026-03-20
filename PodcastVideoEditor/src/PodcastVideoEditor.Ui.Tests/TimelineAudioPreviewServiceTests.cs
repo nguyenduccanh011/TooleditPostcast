@@ -30,8 +30,7 @@ public sealed class TimelineAudioPreviewServiceTests
             audio,
             _ => [],
             [CreateAudioTrack(nextSegment)],
-            CreateProjectWithAssets(("next-asset", "c:\\media\\next.wav")),
-            null);
+            CreateProjectWithAssets(("next-asset", "c:\\media\\next.wav")));
 
         preview.SyncPreviewAudio(5);
 
@@ -62,8 +61,7 @@ public sealed class TimelineAudioPreviewServiceTests
                 new Track { Id = "audio-track", TrackType = TrackTypes.Audio, IsVisible = true },
                 activeSegment)],
             [],
-            project,
-            null);
+            project);
 
         preview.SyncPreviewAudio(12, forceResync: true);
 
@@ -76,46 +74,11 @@ public sealed class TimelineAudioPreviewServiceTests
         Assert.True(call.forceResync);
     }
 
-    [Fact]
-    public void SyncPreviewAudio_PlaysBgm_WhenConfiguredFileExists()
-    {
-        var audio = new FakeAudioTimelinePreviewService();
-        var bgmPath = Path.GetTempFileName();
-        try
-        {
-            var bgmTrack = new BgmTrack
-            {
-                AudioPath = bgmPath,
-                Volume = 0.35,
-                FadeInSeconds = 1.5,
-                FadeOutSeconds = 2.5,
-                IsEnabled = true
-            };
-            var preview = CreatePreviewService(audio, _ => [], [], new Project(), bgmTrack, totalDuration: 45);
-
-            preview.SyncPreviewAudio(8, forceResync: true);
-
-            var call = Assert.Single(audio.PlayBgmCalls);
-            Assert.Equal(bgmPath, call.audioFilePath);
-            Assert.Equal(8, call.playheadPosition, 3);
-            Assert.Equal(0.35f, call.volume, 3);
-            Assert.Equal(45, call.totalDuration, 3);
-            Assert.Equal(1.5, call.fadeInSeconds, 3);
-            Assert.Equal(2.5, call.fadeOutSeconds, 3);
-            Assert.True(call.forceResync);
-        }
-        finally
-        {
-            File.Delete(bgmPath);
-        }
-    }
-
     private static TimelineAudioPreviewService CreatePreviewService(
         FakeAudioTimelinePreviewService audio,
         Func<double, List<(Track track, Segment segment)>> getActiveSegments,
         IEnumerable<Track> tracks,
         Project project,
-        BgmTrack? bgmTrack,
         double totalDuration = 20)
     {
         return new TimelineAudioPreviewService(
@@ -123,8 +86,7 @@ public sealed class TimelineAudioPreviewServiceTests
             getActiveSegments,
             () => tracks,
             () => project,
-            () => totalDuration,
-            () => bgmTrack);
+            () => totalDuration);
     }
 
     private static Project CreateProjectWithAssets(params (string id, string filePath)[] assets)
@@ -162,15 +124,12 @@ public sealed class TimelineAudioPreviewServiceTests
         public event EventHandler<EventArgs>? PlaybackPaused;
 
         public string? CurrentSegmentIdValue { get; set; }
-        public bool IsBgmPlayingValue { get; set; }
         public int StopSegmentAudioCallCount { get; private set; }
         public List<(string segmentId, string audioFilePath)> PreloadCalls { get; } = new();
-        public List<(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, bool forceResync)> PlaySegmentCalls { get; } = new();
-        public List<(string audioFilePath, double playheadPosition, float volume, double totalDuration, double fadeInSeconds, double fadeOutSeconds, bool forceResync)> PlayBgmCalls { get; } = new();
+        public List<(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, double sourceStartOffset, bool forceResync)> PlaySegmentCalls { get; } = new();
 
         public string? CurrentAudioPath => null;
         public string? CurrentSegmentId => CurrentSegmentIdValue;
-        public bool IsBgmPlaying => IsBgmPlayingValue;
         public PlaybackState PlaybackState => PlaybackState.Stopped;
         public bool IsPlaying => false;
 
@@ -190,9 +149,9 @@ public sealed class TimelineAudioPreviewServiceTests
             PreloadCalls.Add((segmentId, audioFilePath));
         }
 
-        public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, bool forceResync = false)
+        public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, double sourceStartOffset = 0, bool forceResync = false)
         {
-            PlaySegmentCalls.Add((segmentId, audioFilePath, segmentStartTime, playheadPosition, volume, forceResync));
+            PlaySegmentCalls.Add((segmentId, audioFilePath, segmentStartTime, playheadPosition, volume, sourceStartOffset, forceResync));
             CurrentSegmentIdValue = segmentId;
         }
 
@@ -200,17 +159,6 @@ public sealed class TimelineAudioPreviewServiceTests
         {
             StopSegmentAudioCallCount++;
             CurrentSegmentIdValue = null;
-        }
-
-        public void PlayBgmAudio(string audioFilePath, double playheadPosition, float volume, double totalDuration, double fadeInSeconds, double fadeOutSeconds, bool forceResync = false)
-        {
-            PlayBgmCalls.Add((audioFilePath, playheadPosition, volume, totalDuration, fadeInSeconds, fadeOutSeconds, forceResync));
-            IsBgmPlayingValue = true;
-        }
-
-        public void StopBgmAudio()
-        {
-            IsBgmPlayingValue = false;
         }
 
         public void Dispose()

@@ -141,12 +141,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(project.AudioPath))
-            {
-                StatusMessage = "Project has no audio file";
-                return;
-            }
-
             IsRendering = true;
             CanCancel = true;
             HasError = false;
@@ -172,25 +166,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Merge rasterized text images into visual segments (rendered on top)
                 timelineVisualSegments.AddRange(rasterizedTextVisuals);
-
-                // Append BGM from timeline if configured and enabled
-                var bgm = _timelineViewModel?.GetActiveBgmTrack();
-                if (bgm != null && System.IO.File.Exists(bgm.AudioPath))
-                {
-                    var bgmDuration = (_timelineViewModel?.TotalDuration ?? 0) > 0
-                        ? _timelineViewModel!.TotalDuration
-                        : 3600; // fallback 1h
-                    timelineAudioSegments.Add(new PodcastVideoEditor.Core.Models.RenderAudioSegment
-                    {
-                        SourcePath      = bgm.AudioPath,
-                        StartTime       = 0,
-                        EndTime         = bgmDuration,
-                        Volume          = bgm.Volume,
-                        FadeInDuration  = bgm.FadeInSeconds,
-                        FadeOutDuration = bgm.FadeOutSeconds,
-                        IsLooping       = bgm.IsLooping
-                    });
-                }
                 var imagePath = string.Empty;
 
                 // Fallback path for legacy single-image rendering when no timeline segments exist at all.
@@ -639,7 +614,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         Volume              = segment.Volume,
                         FadeInDuration      = segment.FadeInDuration,
                         FadeOutDuration     = segment.FadeOutDuration,
-                        SourceOffsetSeconds = 0
+                        SourceOffsetSeconds = segment.SourceStartOffset
                     });
                 }
             }

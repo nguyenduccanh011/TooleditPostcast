@@ -6,6 +6,8 @@ namespace PodcastVideoEditor.Ui.Controls
 {
     /// <summary>
     /// Lightweight waveform renderer (drawn, cached) for timeline audio track.
+    /// Supports SourceStartOffset / SourceDuration to display a sliced portion of the peaks
+    /// (e.g. when an audio segment is trimmed to show only the visible window of the source file).
     /// </summary>
     public sealed class WaveformControl : FrameworkElement
     {
@@ -30,6 +32,28 @@ namespace PodcastVideoEditor.Ui.Controls
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(60.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
 
+        /// <summary>
+        /// Offset into the source audio file (seconds). Only the portion starting at this offset is rendered.
+        /// Default 0 = render from the beginning of the peaks array.
+        /// </summary>
+        public static readonly DependencyProperty SourceStartOffsetProperty =
+            DependencyProperty.Register(
+                nameof(SourceStartOffset),
+                typeof(double),
+                typeof(WaveformControl),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
+
+        /// <summary>
+        /// Duration of the source audio file (seconds). Used with SourceStartOffset to compute the visible slice.
+        /// Default 0 = use all peaks (no slicing).
+        /// </summary>
+        public static readonly DependencyProperty SourceDurationProperty =
+            DependencyProperty.Register(
+                nameof(SourceDuration),
+                typeof(double),
+                typeof(WaveformControl),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
+
         /// <remarks>Typed as <c>object</c> for WPF XAML DataTemplate compat (see MC4102). Only float[] values are meaningful.</remarks>
         public object Peaks
         {
@@ -49,12 +73,26 @@ namespace PodcastVideoEditor.Ui.Controls
             set => SetValue(TotalDurationProperty, value);
         }
 
+        public double SourceStartOffset
+        {
+            get => (double)GetValue(SourceStartOffsetProperty);
+            set => SetValue(SourceStartOffsetProperty, value);
+        }
+
+        public double SourceDuration
+        {
+            get => (double)GetValue(SourceDurationProperty);
+            set => SetValue(SourceDurationProperty, value);
+        }
+
         private static readonly Brush WaveBrush;
 
         private DrawingGroup? _cache;
         private float[]? _cachedPeaks;
         private double _cachedWidth;
         private double _cachedHeight;
+        private double _cachedSourceOffset;
+        private double _cachedSourceDuration;
 
         static WaveformControl()
         {
@@ -107,6 +145,8 @@ namespace PodcastVideoEditor.Ui.Controls
                 return true;
             if (Math.Abs(_cachedWidth - width) > 0.1 || Math.Abs(_cachedHeight - height) > 0.1)
                 return true;
+            if (Math.Abs(_cachedSourceOffset - SourceStartOffset) > 0.001 || Math.Abs(_cachedSourceDuration - SourceDuration) > 0.001)
+                return true;
             return false;
         }
 
@@ -128,7 +168,22 @@ namespace PodcastVideoEditor.Ui.Controls
             {
                 if (peaks.Length > 0)
                 {
-                    int count = peaks.Length;
+                    // Compute visible slice of peaks when SourceStartOffset/SourceDuration are set
+                    int startBin = 0;
+                    int endBin = peaks.Length;
+                    double srcDur = SourceDuration;
+                    double srcOffset = SourceStartOffset;
+                    if (srcDur > 0 && srcOffset >= 0)
+                    {
+                        double ratio = (double)peaks.Length / srcDur;
+                        startBin = Math.Max(0, (int)(srcOffset * ratio));
+                        // Segment display duration = width of control in time isn't directly available,
+                        // but we render whatever peaks remain after the offset
+                    }
+                    if (startBin >= endBin)
+                        startBin = 0; // fallback: show all
+
+                    int count = endBin - startBin;
                     double maxBarHeight = Math.Max(1, height - 4);
                     double slotWidth = width / count;
                     double barWidth = Math.Max(0.3, slotWidth - 0.2);
@@ -139,7 +194,7 @@ namespace PodcastVideoEditor.Ui.Controls
                     {
                         for (int i = 0; i < count; i++)
                         {
-                            float p = peaks[i];
+                            float p = peaks[startBin + i];
                             if (p <= 0)
                                 continue;
                             if (p > 1f)
@@ -162,6 +217,8 @@ namespace PodcastVideoEditor.Ui.Controls
             _cachedPeaks = peaks;
             _cachedWidth = width;
             _cachedHeight = height;
+            _cachedSourceOffset = SourceStartOffset;
+            _cachedSourceDuration = SourceDuration;
         }
     }
 }

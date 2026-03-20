@@ -45,7 +45,8 @@ namespace PodcastVideoEditor.Ui.Views
                 return;
             }
 
-            // Audio is optional — user can add audio segments later
+            // Audio is optional — user can add audio later via drag-drop onto the timeline
+
             DialogResult = true;
             Close();
         }

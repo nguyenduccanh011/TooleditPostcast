@@ -28,13 +28,7 @@ namespace PodcastVideoEditor.Core.Services
         /// Add a media asset to a project. The source file is copied into AppData/PodcastVideoEditor/assets/{projectId}.
         /// Returns the persisted Asset entity.
         /// </summary>
-        public async Task<Asset> AddAssetAsync(
-            string projectId,
-            string sourceFilePath,
-            string type = "Image",
-            int? width = null,
-            int? height = null,
-            long? fileSize = null)
+        public async Task<Asset> AddAssetAsync(string projectId, string sourceFilePath, string type = "Image")
         {
             if (string.IsNullOrWhiteSpace(projectId))
                 throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
@@ -54,12 +48,6 @@ namespace PodcastVideoEditor.Core.Services
             var destinationFileName = $"{safeName}_{Guid.NewGuid():N}{extension}";
             var destinationPath = Path.Combine(appData, destinationFileName);
             File.Copy(fileInfo.FullName, destinationPath, overwrite: false);
-            var storedFileInfo = new FileInfo(destinationPath);
-
-            if (string.Equals(type, "Image", StringComparison.OrdinalIgnoreCase) && (!width.HasValue || !height.HasValue))
-            {
-                TryProbeImageDimensions(destinationPath, out width, out height);
-            }
 
             // Probe audio/video duration for media assets
             double? duration = null;
@@ -87,9 +75,9 @@ namespace PodcastVideoEditor.Core.Services
                 FilePath = destinationPath,
                 FileName = fileInfo.Name,
                 Extension = extension,
-                FileSize = fileSize ?? storedFileInfo.Length,
-                Width = width,
-                Height = height,
+                FileSize = fileInfo.Length,
+                Width = null,
+                Height = null,
                 Duration = duration,
                 CreatedAt = DateTime.UtcNow
             };
@@ -99,26 +87,6 @@ namespace PodcastVideoEditor.Core.Services
 
             Log.Information("Asset added to project {ProjectId}: {AssetId} ({Name})", projectId, asset.Id, asset.Name);
             return asset;
-        }
-
-        private static void TryProbeImageDimensions(string filePath, out int? width, out int? height)
-        {
-            width = null;
-            height = null;
-
-            try
-            {
-                using var codec = SkiaSharp.SKCodec.Create(filePath);
-                if (codec == null)
-                    return;
-
-                width = codec.Info.Width;
-                height = codec.Info.Height;
-            }
-            catch (Exception ex)
-            {
-                Log.Debug(ex, "Could not probe image dimensions for {Path}", filePath);
-            }
         }
 
         /// <summary>
@@ -134,27 +102,37 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Create a new project with default tracks (Text 1, Visual 1, Audio).
+        /// Audio path is optional — when provided the audio file is imported as an
+        /// Asset and placed as the first segment on the default Audio track.
         /// </summary>
-        public async Task<Project> CreateProjectAsync(string name, string audioPath)
+        public async Task<Project> CreateProjectAsync(string name, string? audioPath = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Project name cannot be empty", nameof(name));
-
-            // audioPath is optional — users can add audio segments later
 
             try
             {
                 var project = new Project
                 {
                     Name = name,
-                    AudioPath = audioPath ?? string.Empty,
+                    AudioPath = audioPath ?? string.Empty, // keep for backward compat; will be deprecated
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    RenderSettings = new RenderSettings() // Default render settings
+                    RenderSettings = new RenderSettings()
                 };
 
-                // Create default tracks for the project (audio track only if audio file provided)
-                var tracks = new List<Track>
+                // Create default tracks for the project
+                var audioTrack = new Track
+                {
+                    ProjectId = project.Id,
+                    Order = 2,
+                    TrackType = TrackTypes.Audio,
+                    Name = "Audio",
+                    IsLocked = false,
+                    IsVisible = true
+                };
+
+                project.Tracks = new List<Track>
                 {
                     new Track 
                     { 
@@ -173,12 +151,47 @@ namespace PodcastVideoEditor.Core.Services
                         Name = "Visual 1", 
                         IsLocked = false, 
                         IsVisible = true 
-                    }
+                    },
+                    audioTrack
                 };
-                project.Tracks = tracks;
 
                 _context.Projects.Add(project);
                 await _context.SaveChangesAsync();
+
+                // If an audio file was provided, import it as an Asset and place
+                // a full-duration audio segment on the default Audio track.
+                if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
+                {
+                    try
+                    {
+                        var asset = await AddAssetAsync(project.Id, audioPath, "Audio");
+                        var duration = asset.Duration ?? 0;
+
+                        var segment = new Segment
+                        {
+                            ProjectId = project.Id,
+                            TrackId = audioTrack.Id,
+                            StartTime = 0,
+                            EndTime = duration > 0 ? duration : 600, // fallback 10 min
+                            Text = asset.Name ?? "Main Audio",
+                            BackgroundAssetId = asset.Id,
+                            Kind = SegmentKinds.Audio,
+                            Volume = 1.0,
+                            Order = 0
+                        };
+
+                        audioTrack.Segments ??= new List<Segment>();
+                        audioTrack.Segments.Add(segment);
+                        _context.Segments.Add(segment);
+                        await _context.SaveChangesAsync();
+
+                        Log.Information("Audio segment created from project audio: {AssetId}, duration {Duration}s", asset.Id, duration);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Failed to create audio segment from project audio; project still created");
+                    }
+                }
 
                 Log.Information("Project created: {ProjectId} - {ProjectName} with default tracks", project.Id, project.Name);
                 return project;
@@ -237,6 +250,190 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Error(ex, "Error retrieving project {ProjectId}", projectId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Migrate legacy Project.AudioPath → audio segment on the Audio track.
+        /// If the project has an AudioPath set but no audio segments on the default Audio track,
+        /// import the audio file as an Asset and create a full-duration audio segment.
+        /// Also migrates BgmTracks to audio segments on a dedicated BGM audio track.
+        /// Returns true if any migration was performed (caller should reload project).
+        /// </summary>
+        public async Task<bool> MigrateToAudioSegmentsAsync(Project project)
+        {
+            if (project == null) return false;
+
+            bool migrated = false;
+
+            // ── 1. Migrate Project.AudioPath → audio segment ────────────────
+            if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
+            {
+                // Check if audio track already has segments (already migrated)
+                var audioTrack = project.Tracks?.FirstOrDefault(t =>
+                    string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                bool hasAudioSegments = audioTrack?.Segments?.Any(s =>
+                    !string.IsNullOrWhiteSpace(s.BackgroundAssetId)) == true;
+
+                if (!hasAudioSegments)
+                {
+                    // Need to use a tracked context for writes
+                    var trackedProject = await _context.Projects
+                        .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                        .Include(p => p.Assets)
+                        .FirstOrDefaultAsync(p => p.Id == project.Id);
+
+                    if (trackedProject != null)
+                    {
+                        var trackedAudioTrack = trackedProject.Tracks?.FirstOrDefault(t =>
+                            string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                        if (trackedAudioTrack != null)
+                        {
+                            try
+                            {
+                                // Check if this audio file is already an asset in the project
+                                var existingAsset = trackedProject.Assets?.FirstOrDefault(a =>
+                                    string.Equals(a.Type, "Audio", StringComparison.OrdinalIgnoreCase)
+                                    && !string.IsNullOrWhiteSpace(a.FilePath)
+                                    && File.Exists(a.FilePath));
+
+                                Asset asset;
+                                if (existingAsset != null)
+                                {
+                                    asset = existingAsset;
+                                }
+                                else
+                                {
+                                    asset = await AddAssetAsync(trackedProject.Id, trackedProject.AudioPath, "Audio");
+                                }
+
+                                double duration = asset.Duration ?? 0;
+                                var segment = new Segment
+                                {
+                                    ProjectId = trackedProject.Id,
+                                    TrackId = trackedAudioTrack.Id,
+                                    StartTime = 0,
+                                    EndTime = duration > 0 ? duration : 600,
+                                    Text = asset.Name ?? "Main Audio",
+                                    BackgroundAssetId = asset.Id,
+                                    Kind = SegmentKinds.Audio,
+                                    Volume = 1.0,
+                                    Order = 0
+                                };
+
+                                trackedAudioTrack.Segments ??= new List<Segment>();
+                                trackedAudioTrack.Segments.Add(segment);
+                                _context.Segments.Add(segment);
+
+                                migrated = true;
+                                Log.Information("Migrated AudioPath → audio segment for project {ProjectId}", project.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning(ex, "Failed to migrate AudioPath to segment for project {ProjectId}", project.Id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── 2. Migrate BgmTracks → audio segments ───────────────────────
+            if (project.BgmTracks?.Count > 0)
+            {
+                var trackedProject = await _context.Projects
+                    .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                    .Include(p => p.Assets)
+                    .Include(p => p.BgmTracks)
+                    .FirstOrDefaultAsync(p => p.Id == project.Id);
+
+                if (trackedProject != null)
+                {
+                    foreach (var bgm in trackedProject.BgmTracks.ToList())
+                    {
+                        if (string.IsNullOrWhiteSpace(bgm.AudioPath) || !File.Exists(bgm.AudioPath))
+                            continue;
+
+                        // Find or create a dedicated BGM audio track
+                        var bgmTrack = trackedProject.Tracks?.FirstOrDefault(t =>
+                            string.Equals(t.Name, "BGM", StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                        if (bgmTrack == null)
+                        {
+                            int maxOrder = trackedProject.Tracks?.Max(t => t.Order) ?? 2;
+                            bgmTrack = new Track
+                            {
+                                ProjectId = trackedProject.Id,
+                                Order = maxOrder + 1,
+                                TrackType = TrackTypes.Audio,
+                                Name = "BGM",
+                                IsLocked = false,
+                                IsVisible = true
+                            };
+                            trackedProject.Tracks ??= new List<Track>();
+                            trackedProject.Tracks.Add(bgmTrack);
+                            _context.Tracks.Add(bgmTrack);
+                            await _context.SaveChangesAsync(); // need ID for segment FK
+                        }
+
+                        // Check not already migrated
+                        bool alreadyHasBgmSeg = bgmTrack.Segments?.Any(s =>
+                            !string.IsNullOrWhiteSpace(s.BackgroundAssetId)) == true;
+
+                        if (!alreadyHasBgmSeg)
+                        {
+                            try
+                            {
+                                var asset = await AddAssetAsync(trackedProject.Id, bgm.AudioPath, "Audio");
+                                double duration = asset.Duration ?? 600;
+
+                                // Use full project duration for BGM (mirrors old looping behavior)
+                                var projectDuration = trackedProject.Tracks?
+                                    .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                                    .Where(s => s.EndTime > 0)
+                                    .Select(s => s.EndTime)
+                                    .DefaultIfEmpty(duration)
+                                    .Max() ?? duration;
+
+                                var segment = new Segment
+                                {
+                                    ProjectId = trackedProject.Id,
+                                    TrackId = bgmTrack.Id,
+                                    StartTime = bgm.StartTime,
+                                    EndTime = bgm.IsLooping ? projectDuration : Math.Min(bgm.StartTime + duration, projectDuration),
+                                    Text = bgm.Name ?? "BGM",
+                                    BackgroundAssetId = asset.Id,
+                                    Kind = SegmentKinds.Audio,
+                                    Volume = bgm.Volume,
+                                    FadeInDuration = bgm.FadeInSeconds,
+                                    FadeOutDuration = bgm.FadeOutSeconds,
+                                    Order = 0
+                                };
+
+                                bgmTrack.Segments ??= new List<Segment>();
+                                bgmTrack.Segments.Add(segment);
+                                _context.Segments.Add(segment);
+
+                                // Remove old BgmTrack record
+                                _context.BgmTracks.Remove(bgm);
+
+                                migrated = true;
+                                Log.Information("Migrated BgmTrack → audio segment for project {ProjectId}", trackedProject.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                Log.Warning(ex, "Failed to migrate BgmTrack to segment for project {ProjectId}", trackedProject.Id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (migrated)
+                await _context.SaveChangesAsync();
+
+            return migrated;
         }
 
         /// <summary>
@@ -461,6 +658,23 @@ namespace PodcastVideoEditor.Core.Services
                               .ToListAsync())
                     : new HashSet<string>();
 
+                // Same for Tracks and Segments — newly added tracks/segments need Added state.
+                var existingTrackIds = project.Tracks?.Count > 0
+                    ? new HashSet<string>(
+                          await _context.Tracks
+                              .Where(t => t.ProjectId == project.Id)
+                              .Select(t => t.Id)
+                              .ToListAsync())
+                    : new HashSet<string>();
+
+                var existingSegmentIds = project.Tracks?.Any(t => t.Segments?.Count > 0) == true
+                    ? new HashSet<string>(
+                          await _context.Segments
+                              .Where(s => s.ProjectId == project.Id)
+                              .Select(s => s.Id)
+                              .ToListAsync())
+                    : new HashSet<string>();
+
                 _context.Projects.Update(project);
 
                 // Fix up any brand-new BgmTrack entities that were incorrectly
@@ -469,6 +683,21 @@ namespace PodcastVideoEditor.Core.Services
                     foreach (var bgm in project.BgmTracks)
                         if (!existingBgmIds.Contains(bgm.Id))
                             _context.Entry(bgm).State = EntityState.Added;
+
+                // Fix up new Track and Segment entities.
+                if (project.Tracks != null)
+                {
+                    foreach (var track in project.Tracks)
+                    {
+                        if (!existingTrackIds.Contains(track.Id))
+                            _context.Entry(track).State = EntityState.Added;
+
+                        if (track.Segments != null)
+                            foreach (var seg in track.Segments)
+                                if (!existingSegmentIds.Contains(seg.Id))
+                                    _context.Entry(seg).State = EntityState.Added;
+                    }
+                }
 
                 await _context.SaveChangesAsync();
 

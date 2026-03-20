@@ -44,6 +44,12 @@ public partial class Segment : ObservableObject
     private string kind = "visual";
 
     /// <summary>
+    /// AI-generated keywords for this segment, stored as a JSON array string.
+    /// </summary>
+    [ObservableProperty]
+    private string? keywords;
+
+    /// <summary>
     /// Foreign key to the track this segment belongs to.
     /// Multi-track support: each segment is contained in exactly one track.
     /// Nullable during migration; becomes NOT NULL after data migration (ST-2).
@@ -73,12 +79,12 @@ public partial class Segment : ObservableObject
     private double fadeOutDuration;
 
     /// <summary>
-    /// AI-generated keywords for this segment stored as a JSON array string.
-    /// Example: "[\"stock market\",\"trading\",\"finance\",\"charts\",\"business\"]"
-    /// Populated by the AI analysis pipeline; used to fetch and select background images.
+    /// Offset into the source audio file where playback begins (in seconds).
+    /// For example, if SourceStartOffset = 5.0, the segment plays from 5s into the audio file.
+    /// Default 0 = play from the beginning of the source file.
     /// </summary>
     [ObservableProperty]
-    private string? keywords;
+    private double sourceStartOffset;
 
     /// <summary>
     /// UI-only: waveform peak data for audio segments (not persisted to DB).
@@ -87,6 +93,15 @@ public partial class Segment : ObservableObject
     [ObservableProperty]
     [property: NotMapped]
     private float[]? waveformPeaks;
+
+    /// <summary>
+    /// UI-only: total duration of the source audio file in seconds (not persisted).
+    /// Used by WaveformControl to compute visible slice when SourceStartOffset > 0.
+    /// Set alongside WaveformPeaks by TimelineViewModel.
+    /// </summary>
+    [ObservableProperty]
+    [property: NotMapped]
+    private double sourceFileDuration;
 
     /// <summary>
     /// UI-only: whether this segment is part of a multi-segment selection (not persisted).
@@ -117,6 +132,7 @@ public partial class Segment : ObservableObject
         TrackId            = TrackId,
         Text               = Text,
         Kind               = Kind,
+        Keywords           = Keywords,
         StartTime          = StartTime,
         EndTime            = EndTime,
         Order              = Order,
@@ -124,8 +140,8 @@ public partial class Segment : ObservableObject
         Volume             = Volume,
         FadeInDuration     = FadeInDuration,
         FadeOutDuration    = FadeOutDuration,
+        SourceStartOffset  = SourceStartOffset,
         TransitionType     = TransitionType,
         TransitionDuration = TransitionDuration,
-        Keywords           = Keywords,
     };
 }

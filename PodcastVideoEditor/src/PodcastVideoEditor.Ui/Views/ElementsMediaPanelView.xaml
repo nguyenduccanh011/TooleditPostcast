@@ -92,7 +92,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- Tab 2: Audio (Audio assets) -->
+            <!-- Tab 2: Audio (Audio assets + BGM) -->
             <TabItem Header="Audio">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
@@ -106,6 +106,111 @@
                                 Click="ImportAudioButton_Click"
                                 Background="#007acc" Foreground="White" Padding="10,6" Margin="0,8,0,0"
                                 HorizontalAlignment="Left"/>
+
+                        <!-- BGM (Background Music) Section -->
+                        <Border Margin="0,16,0,0" BorderBrush="#37474f" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock Text="Background Music (BGM)" Foreground="#ff9800" FontSize="12" FontWeight="Bold" Margin="0,0,0,8"/>
+                                <ItemsControl x:Name="BgmTracksList"
+                                              ItemsSource="{Binding ProjectViewModel.CurrentProject.BgmTracks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#2d3a4a" CornerRadius="4" Padding="8,6" Margin="0,0,0,6"
+                                                    BorderBrush="#546e7a" BorderThickness="1">
+                                                <StackPanel>
+                                                    <!-- Header: Name + Enabled toggle -->
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Name}" Foreground="#e0e0e0" FontWeight="SemiBold" FontSize="11"
+                                                                   VerticalAlignment="Center"/>
+                                                        <CheckBox Grid.Column="1" IsChecked="{Binding IsEnabled}" Content="On"
+                                                                  Foreground="#81c784" VerticalAlignment="Center" FontSize="10"/>
+                                                    </Grid>
+                                                    <!-- File path -->
+                                                    <TextBlock Text="{Binding AudioPath}" Foreground="#7a8a96" FontSize="10"
+                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding AudioPath}" Margin="0,0,0,4"/>
+                                                    <!-- Volume -->
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="55"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Volume:" Foreground="#b0bec5" FontSize="10" VerticalAlignment="Center"/>
+                                                        <Slider Grid.Column="1" Value="{Binding Volume}" Minimum="0" Maximum="1"
+                                                                SmallChange="0.05" LargeChange="0.1" IsMoveToPointEnabled="True"
+                                                                Height="16" Background="#37474f" Foreground="#ff9800"/>
+                                                        <TextBlock Grid.Column="2" Foreground="#ff9800" FontSize="10" FontFamily="Courier New"
+                                                                   TextAlignment="Right" VerticalAlignment="Center">
+                                                            <TextBlock.Text>
+                                                                <MultiBinding StringFormat="{}{0:P0}">
+                                                                    <Binding Path="Volume"/>
+                                                                </MultiBinding>
+                                                            </TextBlock.Text>
+                                                        </TextBlock>
+                                                    </Grid>
+                                                    <!-- Fade In / Fade Out -->
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="55"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Fade In:" Foreground="#b0bec5" FontSize="10" VerticalAlignment="Center"/>
+                                                        <Slider Grid.Column="1" Value="{Binding FadeInSeconds}" Minimum="0" Maximum="10"
+                                                                SmallChange="0.5" LargeChange="1" IsMoveToPointEnabled="True"
+                                                                Height="16" Background="#37474f" Foreground="#64b5f6"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding FadeInSeconds, StringFormat={}{0:F1}s}"
+                                                                   Foreground="#64b5f6" FontSize="10" FontFamily="Courier New"
+                                                                   TextAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="55"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="40"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="Fade Out:" Foreground="#b0bec5" FontSize="10" VerticalAlignment="Center"/>
+                                                        <Slider Grid.Column="1" Value="{Binding FadeOutSeconds}" Minimum="0" Maximum="10"
+                                                                SmallChange="0.5" LargeChange="1" IsMoveToPointEnabled="True"
+                                                                Height="16" Background="#37474f" Foreground="#64b5f6"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding FadeOutSeconds, StringFormat={}{0:F1}s}"
+                                                                   Foreground="#64b5f6" FontSize="10" FontFamily="Courier New"
+                                                                   TextAlignment="Right" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <!-- Loop + Start Time row -->
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox IsChecked="{Binding IsLooping}" Content="Loop"
+                                                                  Foreground="#b0bec5" FontSize="10" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                            <TextBlock Text="Start:" Foreground="#b0bec5" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                            <TextBlock Text="{Binding StartTime, StringFormat={}{0:F1}s}" Foreground="#81c784"
+                                                                       FontSize="10" FontFamily="Courier New" VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <!-- Remove button -->
+                                                    <Button Content="Remove" Click="RemoveBgmButton_Click"
+                                                            Tag="{Binding Id}"
+                                                            Background="#6d4c41" Foreground="White" Padding="6,3"
+                                                            FontSize="10" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="+ Add BGM Track"
+                                        Click="AddBgmButton_Click"
+                                        Background="#ff9800" Foreground="White" Padding="10,6" Margin="0,4,0,8"
+                                        HorizontalAlignment="Left" FontWeight="Bold"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
