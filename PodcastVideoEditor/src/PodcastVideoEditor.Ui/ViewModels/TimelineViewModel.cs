@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Core.Utilities;
+using PodcastVideoEditor.Ui.Services;
 using Serilog;
 using System;
 using System.Collections.ObjectModel;
@@ -24,10 +25,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly IAudioTimelinePreviewService _audioService;
         private readonly ProjectViewModel _projectViewModel;
         private SelectionSyncService? _selectionSyncService;
-        private CancellationTokenSource? _playheadSyncCts;
-        private bool _isPlayheadSyncing;
         private volatile bool _isScrubbing;
         private double _lastSyncedPlayhead = -1;
+
+        // Dedicated services for multi-track segment audio and playback coordination.
+        // These replace the previous inline sync loop and single-segment UpdateSegmentAudioPlayback.
+        private readonly TimelineAudioPreviewService _audioPreviewService;
+        private readonly TimelinePlaybackCoordinator _playbackCoordinator;
 
         [ObservableProperty]
         private ObservableCollection<Track> tracks = new();
@@ -81,9 +85,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool _isAnalyzing;
 
         private const int WaveformBinCount = 2400;
-        private const int ActiveSyncIntervalMs = 33;
-        private const int IdleSyncIntervalMs = 150;
-        private const double PositionDeltaThreshold = 0.002;
         private const double DefaultSegmentDurationSeconds = 5.0;
         // Cache for GetActiveSegmentsAtTime: avoid duplicate allocations within the same dispatch frame.
         // CanvasViewModel and the audio playback loop both call this per frame.
@@ -138,12 +139,29 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // Subscribe to project changes (named method so we can unsubscribe in Dispose)
             _projectViewModel.PropertyChanged += OnProjectViewModelPropertyChanged;
 
-            // Immediately trigger segment/BGM audio when playback starts,
-            // so there's no 33ms sync-loop delay on the first frame.
-            _audioService.PlaybackStarted += OnPlaybackStarted;
+            // Multi-track audio preview: properly tracks active segment IDs so leaving
+            // segments are stopped individually (fixes segment-overlap bleed bug).
+            _audioPreviewService = new TimelineAudioPreviewService(
+                audioService,
+                GetActiveSegmentsAtTime,
+                () => Tracks,
+                () => _projectViewModel.CurrentProject,
+                () => TotalDuration);
 
-            // Start playhead sync loop
-            StartPlayheadSync();
+            // Playback coordinator: drives the sync loop, wall-clock fallback, loop/EOF,
+            // and dispatches to UI thread — replacing the old inline Task.Run loop.
+            _playbackCoordinator = new TimelinePlaybackCoordinator(
+                audioService,
+                new WpfPlaybackDispatcher(),
+                () => _isScrubbing,
+                () => IsLoopPlayback,
+                () => TotalDuration,
+                () => PlayheadPosition,
+                pos => PlayheadPosition = pos,
+                () => _lastSyncedPlayhead,
+                val => _lastSyncedPlayhead = val,
+                val => IsPlaying = val,
+                (pos, forceResync) => _audioPreviewService.SyncPreviewAudio(pos, forceResync));
         }
 
         private void OnProjectViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -156,27 +174,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
-        /// <summary>
-        /// When main audio playback starts, immediately start any segment/BGM audio
-        /// at the current playhead position without waiting for the sync loop.
-        /// </summary>
-        private void OnPlaybackStarted(object? sender, EventArgs e)
-        {
-            // Must run synchronously BEFORE _wavePlayer.Play() so mixer inputs
-            // (segment + BGM) are added before the first Read() → zero initial offset.
-            void DoUpdate()
-            {
-                var pos = _audioService.GetCurrentPosition();
-                UpdateSegmentAudioPlayback(pos);
-            }
-
-            var app = Application.Current;
-            if (app == null) return;
-            if (app.Dispatcher.CheckAccess())
-                DoUpdate(); // Already on UI thread — execute immediately
-            else
-                app.Dispatcher.Invoke(DoUpdate, System.Windows.Threading.DispatcherPriority.Send);
-        }
+        // OnPlaybackStarted is now handled by TimelinePlaybackCoordinator which fires
+        // _updateSegmentAudioPlayback on its PlaybackStarted handler via the WpfPlaybackDispatcher.
 
         /// <summary>
         /// Expose the owning ProjectViewModel for panels that need project-level operations (e.g., assets).
@@ -1474,8 +1473,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _audioService.Seek(positionSeconds);
                 PlayheadPosition = positionSeconds;
                 _lastSyncedPlayhead = positionSeconds;
-                // Immediately resync segment + BGM to the new position (forceResync=true)
-                UpdateSegmentAudioPlayback(positionSeconds, forceResync: true);
+                _playbackCoordinator.NotifyUserInteraction();
+                // Immediately resync all segment audio to the new position (forceResync=true)
+                _audioPreviewService.SyncPreviewAudio(positionSeconds, forceResync: true);
                 StatusMessage = $"Playhead: {positionSeconds:F1}s";
             }
             catch (Exception ex)
@@ -1503,220 +1503,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             SeekTo(positionSeconds);
             _isScrubbing = false;
+            _playbackCoordinator.NotifyUserInteraction();
             ScrubCompleted?.Invoke(this, EventArgs.Empty);
         }
 
-        /// <summary>
-        /// Start playhead position sync with audio playback.
-        /// </summary>
-        private void StartPlayheadSync()
-        {
-            _isPlayheadSyncing = true;
-            _playheadSyncCts = new CancellationTokenSource();
+        // StartPlayheadSync / StopPlayheadSync replaced by TimelinePlaybackCoordinator.
+        // The coordinator manages the sync loop, wall-clock fallback, loop, and EOF handling.
 
-            _ = Task.Run(async () =>
-            {
-                while (_isPlayheadSyncing && !_playheadSyncCts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        if (!_audioService.IsPlaying || _isScrubbing)
-                        {
-                            await Task.Delay(IdleSyncIntervalMs, _playheadSyncCts.Token);
-                            continue;
-                        }
-
-                        var currentPosition = _audioService.GetCurrentPosition();
-                        
-                        // Clamp to total duration to prevent playhead overshoot
-                        if (TotalDuration > 0 && currentPosition > TotalDuration)
-                            currentPosition = TotalDuration;
-
-                        if (Math.Abs(currentPosition - _lastSyncedPlayhead) < PositionDeltaThreshold)
-                        {
-                            await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
-                            continue;
-                        }
-                        _lastSyncedPlayhead = currentPosition;
-
-                        var app = Application.Current;
-                        if (app == null) break;
-                        await app.Dispatcher.InvokeAsync(() =>
-                        {
-                            PlayheadPosition = currentPosition;
-                            UpdateSegmentAudioPlayback(currentPosition);
-                        }, System.Windows.Threading.DispatcherPriority.Background);
-                        
-                        await Task.Delay(ActiveSyncIntervalMs, _playheadSyncCts.Token);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Error(ex, "Error in playhead sync loop");
-                    }
-                }
-            }, _playheadSyncCts.Token);
-
-            Log.Information("Playhead sync started");
-        }
-
-        /// <summary>
-        /// Stop playhead position sync.
-        /// </summary>
-        private void StopPlayheadSync()
-        {
-            _isPlayheadSyncing = false;
-            _playheadSyncCts?.Cancel();
-            _playheadSyncCts?.Dispose();
-            _audioService.StopSegmentAudio();
-            Log.Information("Playhead sync stopped");
-        }
-
-        /// <summary>
-        /// Check active audio segments at current playhead and play/stop segment audio accordingly.
-        /// Also handles BGM preview playback and preloading upcoming audio segments.
-        /// Called from playhead sync loop during playback.
-        /// Set forceResync=true after an explicit seek to resync reader positions.
-        /// </summary>
-        private void UpdateSegmentAudioPlayback(double playheadSeconds, bool forceResync = false)
-        {
-            try
-            {
-                var activeSegments = GetActiveSegmentsAtTime(playheadSeconds);
-
-                // Find first active audio segment
-                Segment? audioSegment = null;
-                Track? audioTrack = null;
-                foreach (var (track, segment) in activeSegments)
-                {
-                    if (string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
-                        && !string.IsNullOrEmpty(segment.BackgroundAssetId))
-                    {
-                        audioSegment = segment;
-                        audioTrack = track;
-                        break;
-                    }
-                }
-
-                if (audioSegment == null)
-                {
-                    // No active audio segment — stop any playing segment audio
-                    if (_audioService.CurrentSegmentId != null)
-                    {
-                        Log.Debug("No active audio segment at {Time}s, stopping segment audio", playheadSeconds);
-                        _audioService.StopSegmentAudio();
-                    }
-
-                    // Pre-load the next upcoming audio segment for near-zero latency start
-                    PreloadNextAudioSegment(playheadSeconds);
-                }
-                else
-                {
-                    // Find asset file path
-                    var asset = _projectViewModel?.CurrentProject?.Assets?
-                        .FirstOrDefault(a => a.Id == audioSegment.BackgroundAssetId);
-                    if (asset == null || string.IsNullOrEmpty(asset.FilePath))
-                    {
-                        Log.Debug("Audio segment {SegId} has no asset (AssetId={AssetId}, AssetsCount={Count})",
-                            audioSegment.Id, audioSegment.BackgroundAssetId,
-                            _projectViewModel?.CurrentProject?.Assets?.Count ?? -1);
-                        _audioService.StopSegmentAudio();
-                    }
-                    else
-                    {
-                        // Calculate volume with fade in/out
-                        float volume = CalculateSegmentVolume(audioSegment, playheadSeconds);
-
-                        // Play or update segment audio
-                        _audioService.PlaySegmentAudio(
-                            audioSegment.Id,
-                            asset.FilePath,
-                            audioSegment.StartTime,
-                            playheadSeconds,
-                            volume,
-                            audioSegment.SourceStartOffset,
-                            forceResync);
-
-                        // Also preload next segment while current one is playing
-                        // so transitions are seamless (no file I/O at transition point)
-                        PreloadNextAudioSegment(playheadSeconds);
-                    }
-                }
-
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Error in segment audio playback update");
-            }
-        }
-
-        /// <summary>
-        /// Pre-load the next upcoming audio segment so playback starts with minimal latency.
-        /// Scans audio tracks for the earliest segment that starts after the current playhead.
-        /// </summary>
-        private void PreloadNextAudioSegment(double playheadSeconds)
-        {
-            try
-            {
-                Segment? nextSeg = null;
-                foreach (var track in Tracks)
-                {
-                    if (!track.IsVisible || !string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    if (track.Segments == null) continue;
-                    foreach (var s in track.Segments)
-                    {
-                        if (s.StartTime > playheadSeconds && !string.IsNullOrEmpty(s.BackgroundAssetId))
-                        {
-                            if (nextSeg == null || s.StartTime < nextSeg.StartTime)
-                                nextSeg = s;
-                            // Don't break — ObservableCollection is not necessarily sorted by StartTime
-                        }
-                    }
-                }
-
-                if (nextSeg != null)
-                {
-                    var asset = _projectViewModel?.CurrentProject?.Assets?
-                        .FirstOrDefault(a => a.Id == nextSeg.BackgroundAssetId);
-                    if (asset != null && !string.IsNullOrEmpty(asset.FilePath))
-                        _audioService.PreloadSegmentAudio(nextSeg.Id, asset.FilePath);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Debug(ex, "Error preloading next audio segment");
-            }
-        }
-
-        /// <summary>
-        /// Calculate effective volume for a segment at a given time, applying fade in/out curves.
-        /// </summary>
-        private static float CalculateSegmentVolume(Segment segment, double playheadSeconds)
-        {
-            float baseVolume = (float)segment.Volume;
-            double elapsed = playheadSeconds - segment.StartTime;
-            double remaining = segment.EndTime - playheadSeconds;
-
-            // Fade in
-            if (segment.FadeInDuration > 0 && elapsed < segment.FadeInDuration)
-            {
-                float fadeRatio = (float)(elapsed / segment.FadeInDuration);
-                baseVolume *= fadeRatio;
-            }
-
-            // Fade out
-            if (segment.FadeOutDuration > 0 && remaining < segment.FadeOutDuration)
-            {
-                float fadeRatio = (float)(remaining / segment.FadeOutDuration);
-                baseVolume *= fadeRatio;
-            }
-
-            return Math.Clamp(baseVolume, 0f, 1f);
-        }
+        // UpdateSegmentAudioPlayback / PreloadNextAudioSegment / CalculateSegmentVolume
+        // are now handled by TimelineAudioPreviewService.
+        // The coordinator calls _audioPreviewService.SyncPreviewAudio() each frame.
 
         /// <summary>
         /// Min/max timeline width for zoom (Ctrl+wheel).
@@ -1759,9 +1555,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public void Dispose()
         {
-            _audioService.PlaybackStarted -= OnPlaybackStarted;
             _projectViewModel.PropertyChanged -= OnProjectViewModelPropertyChanged;
-            StopPlayheadSync();
+            _playbackCoordinator.Dispose();
+            _audioService.StopSegmentAudio();
         }
     }
 
