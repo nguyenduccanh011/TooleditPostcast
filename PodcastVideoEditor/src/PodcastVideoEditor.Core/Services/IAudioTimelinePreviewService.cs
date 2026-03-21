@@ -16,5 +16,6 @@ namespace PodcastVideoEditor.Core.Services
         void PreloadSegmentAudio(string segmentId, string audioFilePath);
         void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, double sourceStartOffset = 0, bool forceResync = false);
         void StopSegmentAudio();
+        void StopSegmentAudio(string segmentId);
     }
 }

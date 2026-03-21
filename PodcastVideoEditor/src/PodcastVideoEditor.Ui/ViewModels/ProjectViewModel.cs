@@ -44,6 +44,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string statusMessage = string.Empty;
 
+        /// <summary>Audio assets for the current project (Audio type only). Kept in sync by the ViewModel — bind directly, no code-behind filter needed.</summary>
+        public ObservableCollection<Asset> AudioAssets { get; } = new();
+
         private bool _disposed;
 
         public ProjectViewModel(
@@ -85,6 +88,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // Log only when project is selected (not NULL)
             if (value != null)
                 Log.Information("Project selected: {ProjectName}", value.Name);
+
+            RefreshAudioAssets();
+        }
+
+        private void RefreshAudioAssets()
+        {
+            AudioAssets.Clear();
+            if (CurrentProject == null) return;
+            foreach (var a in CurrentProject.Assets.Where(a => string.Equals(a.Type, "Audio", StringComparison.OrdinalIgnoreCase)))
+                AudioAssets.Add(a);
         }
 
         /// <summary>
@@ -429,6 +442,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 var asset = await _projectService.AddAssetAsync(CurrentProject.Id, filePath, type);
                 CurrentProject.Assets.Add(asset);
+                if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase))
+                    AudioAssets.Add(asset);
                 StatusMessage = $"Asset added: {asset.FileName}";
                 Log.Information("Asset added to current project {ProjectId}: {AssetId}", CurrentProject.Id, asset.Id);
                 return asset;

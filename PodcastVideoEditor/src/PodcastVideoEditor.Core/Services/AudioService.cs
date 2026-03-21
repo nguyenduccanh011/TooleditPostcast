@@ -645,11 +645,9 @@ namespace PodcastVideoEditor.Core.Services
         // guaranteeing zero inter-stream timing offset.
         private MixingSampleProvider? _mixer;
 
-        // Segment audio (dynamically added/removed from mixer)
-        private ISampleProvider? _segmentMixerInput;
-        private AudioFileReader? _segmentReader;
-        private string? _currentSegmentAudioPath;
-        private string? _currentSegmentId;
+        // Segment audio: dictionary supports multiple simultaneous segments (multi-track mixing)
+        // Key = segmentId, Value = (mixerInput wrapping the reader, raw reader for volume/seek)
+        private readonly Dictionary<string, (ISampleProvider MixerInput, AudioFileReader Reader)> _activeSegments = new();
 
         // Pre-loaded segment reader for near-zero latency (no WaveOutEvent needed with mixer)
         private AudioFileReader? _preloadedReader;
@@ -663,7 +661,7 @@ namespace PodcastVideoEditor.Core.Services
         public void PreloadSegmentAudio(string segmentId, string audioFilePath)
         {
             if (_preloadedSegmentId == segmentId) return;
-            if (_currentSegmentId == segmentId) return;
+            if (_activeSegments.ContainsKey(segmentId)) return;
             if (!File.Exists(audioFilePath)) return;
 
             DisposePreloadedSegment();
@@ -692,9 +690,9 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Play audio for a specific segment. Adds to mixer for zero-offset sync.
-        /// If already playing this segment, adjusts volume only (mixer keeps position in sync).
-        /// If different, swaps mixer input.
-        /// Set forceResync=true after an explicit Seek() to resync the reader position.
+        /// Multiple segments can play simultaneously (multi-track mixing).
+        /// If the segment is already in the mixer, only adjusts volume (and resyncs position if forceResync).
+        /// Set forceResync=true after an explicit Seek() to resync reader positions.
         /// </summary>
         public void PlaySegmentAudio(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, double sourceStartOffset = 0, bool forceResync = false)
         {
@@ -708,34 +706,28 @@ namespace PodcastVideoEditor.Core.Services
             double offsetInSegment = Math.Max(0, playheadPosition - segmentStartTime) + sourceStartOffset;
 
             // Same segment already in mixer — adjust volume; only resync position on explicit seek
-            if (_currentSegmentId == segmentId && _segmentReader != null)
+            if (_activeSegments.TryGetValue(segmentId, out var existing))
             {
-                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+                existing.Reader.Volume = Math.Clamp(volume, 0f, 1f);
                 if (forceResync)
                 {
                     double expectedOffset = Math.Max(0, playheadPosition - segmentStartTime) + sourceStartOffset;
                     var seekTarget = TimeSpan.FromSeconds(
-                        Math.Min(expectedOffset, _segmentReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
+                        Math.Min(expectedOffset, existing.Reader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
                     if (seekTarget >= TimeSpan.Zero)
-                        _segmentReader.CurrentTime = seekTarget;
+                        existing.Reader.CurrentTime = seekTarget;
                 }
                 return;
             }
 
-            // Different segment — swap mixer inputs (add new before removing old to avoid silence gap)
-            var oldMixerInput = _segmentMixerInput;
-            var oldReader = _segmentReader;
-            _segmentMixerInput = null;
-            _segmentReader = null;
-            _currentSegmentId = null;
-            _currentSegmentAudioPath = null;
-
+            // New segment — create reader and add to mixer alongside any already-active segments
+            AudioFileReader? newReader = null;
             try
             {
-                // Use preloaded reader if available
+                // Use preloaded reader if available for this segment
                 if (_preloadedSegmentId == segmentId && _preloadedReader != null)
                 {
-                    _segmentReader = _preloadedReader;
+                    newReader = _preloadedReader;
                     _preloadedReader = null;
                     _preloadedSegmentId = null;
                     _preloadedAudioPath = null;
@@ -743,79 +735,77 @@ namespace PodcastVideoEditor.Core.Services
                 else
                 {
                     DisposePreloadedSegment();
-                    _segmentReader = new AudioFileReader(audioFilePath);
+                    newReader = new AudioFileReader(audioFilePath);
                 }
 
-                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+                newReader.Volume = Math.Clamp(volume, 0f, 1f);
                 if (offsetInSegment > SegmentOffsetSkipThresholdSeconds)
                 {
-                    var targetTime = TimeSpan.FromSeconds(Math.Min(offsetInSegment, _segmentReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
+                    var targetTime = TimeSpan.FromSeconds(Math.Min(offsetInSegment, newReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
                     if (targetTime > TimeSpan.Zero)
-                        _segmentReader.CurrentTime = targetTime;
+                        newReader.CurrentTime = targetTime;
                 }
 
-                // Add new input to mixer, then remove old one (seamless swap)
+                ISampleProvider mixerInput;
                 lock (_mixerLock)
                 {
-                    if (_mixer == null) { _segmentReader?.Dispose(); _segmentReader = null; return; }
-                    _segmentMixerInput = ConvertToMixerFormat(_segmentReader, _mixer.WaveFormat);
-                    _mixer.AddMixerInput(_segmentMixerInput);
-                    // Now remove old input
-                    if (oldMixerInput != null)
-                        _mixer.RemoveMixerInput(oldMixerInput);
+                    if (_mixer == null) { newReader.Dispose(); return; }
+                    mixerInput = ConvertToMixerFormat(newReader, _mixer.WaveFormat);
+                    _mixer.AddMixerInput(mixerInput);
                 }
 
-                _currentSegmentId = segmentId;
-                _currentSegmentAudioPath = audioFilePath;
-                Log.Debug("Segment audio swapped in mixer: {SegmentId} at offset {Offset}s, vol={Vol}", segmentId, offsetInSegment, volume);
+                _activeSegments[segmentId] = (mixerInput, newReader);
+                Log.Debug("Segment audio added to mixer: {SegmentId} at offset {Offset}s, vol={Vol}", segmentId, offsetInSegment, volume);
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Failed to play segment audio: {Path}", audioFilePath);
-                StopSegmentAudio();
-                // Dispose old reader and clear locals on failure path
-                try { oldReader?.Dispose(); } catch { /* ignore */ }
-                oldMixerInput = null;
-                oldReader = null;
-                return;
+                newReader?.Dispose();
             }
-
-            // Dispose old reader outside lock (success path)
-            try { oldReader?.Dispose(); }
-            catch (Exception ex) { Log.Warning(ex, "Error disposing old segment reader"); }
         }
 
         /// <summary>
-        /// Update volume for currently playing segment audio (used for fade in/out).
+        /// Stop and remove a single segment from the mixer by segment ID.
+        /// </summary>
+        public void StopSegmentAudio(string segmentId)
+        {
+            if (!_activeSegments.TryGetValue(segmentId, out var entry))
+                return;
+
+            _activeSegments.Remove(segmentId);
+
+            try { lock (_mixerLock) { _mixer?.RemoveMixerInput(entry.MixerInput); } }
+            catch (Exception ex) { Log.Warning(ex, "Error removing segment {Id} from mixer", segmentId); }
+            try { entry.Reader.Dispose(); }
+            catch (Exception ex) { Log.Warning(ex, "Error disposing reader for segment {Id}", segmentId); }
+            Log.Debug("Segment audio removed from mixer: {SegmentId}", segmentId);
+        }
+
+        /// <summary>
+        /// Update volume for all currently playing segment audio (used for fade in/out).
         /// </summary>
         public void SetSegmentVolume(float volume)
         {
-            if (_segmentReader != null)
-                _segmentReader.Volume = Math.Clamp(volume, 0f, 1f);
+            foreach (var entry in _activeSegments.Values)
+                entry.Reader.Volume = Math.Clamp(volume, 0f, 1f);
         }
 
         /// <summary>
-        /// Stop the currently playing segment audio.
+        /// Stop and remove ALL currently playing segment audio from the mixer.
         /// </summary>
         public void StopSegmentAudio()
         {
-            var mixerInput = _segmentMixerInput;
-            var reader = _segmentReader;
-            _segmentMixerInput = null;
-            _segmentReader = null;
-            _currentSegmentId = null;
-            _currentSegmentAudioPath = null;
-
-            try { if (mixerInput != null) lock (_mixerLock) { _mixer?.RemoveMixerInput(mixerInput); } }
-            catch (Exception ex) { Log.Warning(ex, "Error removing segment from mixer"); }
-            try { reader?.Dispose(); }
-            catch (Exception ex) { Log.Warning(ex, "Error disposing segment reader"); }
+            // Snapshot keys to avoid modifying collection during iteration
+            var ids = _activeSegments.Keys.ToList();
+            foreach (var id in ids)
+                StopSegmentAudio(id);
         }
 
         /// <summary>
-        /// Get the ID of the currently playing segment audio, or null if none.
+        /// Returns a non-null segment ID if any segment audio is currently playing, null otherwise.
+        /// Kept for backward compatibility — use ActiveSegmentIds for full multi-track visibility.
         /// </summary>
-        public string? CurrentSegmentId => _currentSegmentId;
+        public string? CurrentSegmentId => _activeSegments.Keys.FirstOrDefault();
 
         // ======== BGM (Background Music) audio — added/removed from mixer ========
         private ISampleProvider? _bgmMixerInput;

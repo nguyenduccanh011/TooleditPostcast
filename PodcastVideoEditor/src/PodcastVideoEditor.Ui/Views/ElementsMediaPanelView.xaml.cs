@@ -63,7 +63,7 @@ public partial class ElementsMediaPanelView : UserControl
 
     private void ApplyAssetFilters()
     {
-        // Filter MediaAssetsList to Image/Video
+        // Filter MediaAssetsList to Image/Video only
         if (MediaAssetsList.ItemsSource != null)
         {
             var mediaView = CollectionViewSource.GetDefaultView(MediaAssetsList.ItemsSource);
@@ -79,20 +79,6 @@ public partial class ElementsMediaPanelView : UserControl
                     return false;
                 };
             }
-        }
-
-        // AudioAssetsList shares the same source but needs independent filter
-        // We rebind with a new CollectionViewSource
-        var mainVm = DataContext as MainViewModel;
-        if (mainVm?.ProjectViewModel?.CurrentProject?.Assets != null)
-        {
-            var audioViewSource = new CollectionViewSource { Source = mainVm.ProjectViewModel.CurrentProject.Assets };
-            audioViewSource.Filter += (s, args) =>
-            {
-                args.Accepted = args.Item is Asset a &&
-                    string.Equals(a.Type, "Audio", System.StringComparison.OrdinalIgnoreCase);
-            };
-            AudioAssetsList.ItemsSource = audioViewSource.View;
         }
 
         UpdateNoMediaTextVisibility();
@@ -166,15 +152,15 @@ public partial class ElementsMediaPanelView : UserControl
         try
         {
             var asset = await mainVm.ProjectViewModel.AddAssetToCurrentProjectAsync(dialog.FileName, "Audio");
-            if (asset != null)
+            if (asset == null)
             {
-                // Refresh audio filter
-                ApplyAssetFilters();
+                MessageBox.Show(mainVm.ProjectViewModel.StatusMessage, "Import Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
         catch (System.Exception ex)
         {
             Serilog.Log.Error(ex, "Error importing audio asset");
+            MessageBox.Show(ex.Message, "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

@@ -152,9 +152,8 @@
                     <StackPanel Margin="8,8,8,0">
                         <TextBlock Text="Audio clips" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
                         <ItemsControl x:Name="AudioAssetsList"
-                                      ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}"
+                                      ItemsSource="{Binding ProjectViewModel.AudioAssets}"
                                       ItemTemplate="{StaticResource AssetItemTemplate}">
-                            <!-- Filtered in code-behind to Audio only -->
                         </ItemsControl>
                         <Button Content="Import Audio"
                                 Click="ImportAudioButton_Click"

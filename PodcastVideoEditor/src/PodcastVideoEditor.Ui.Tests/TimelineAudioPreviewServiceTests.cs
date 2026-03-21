@@ -162,6 +162,13 @@ public sealed class TimelineAudioPreviewServiceTests
             CurrentSegmentIdValue = null;
         }
 
+        public void StopSegmentAudio(string segmentId)
+        {
+            StopSegmentAudioCallCount++;
+            if (CurrentSegmentIdValue == segmentId)
+                CurrentSegmentIdValue = null;
+        }
+
         public void Dispose()
         {
         }

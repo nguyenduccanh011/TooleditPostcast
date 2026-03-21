@@ -17,6 +17,10 @@ internal sealed class TimelineAudioPreviewService
     private readonly Func<Project?> _getCurrentProject;
     private readonly Func<double> _getTotalDuration;
 
+    // Tracks which segment IDs were active on the previous sync call so we can
+    // stop individual segments as soon as they leave the playhead window.
+    private HashSet<string> _lastActiveSegmentIds = new();
+
     public TimelineAudioPreviewService(
         IAudioTimelinePreviewService audioService,
         Func<double, List<(Track track, Segment segment)>> getActiveSegmentsAtTime,
@@ -37,54 +41,69 @@ internal sealed class TimelineAudioPreviewService
         {
             var activeSegments = _getActiveSegmentsAtTime(playheadSeconds);
 
-            Segment? audioSegment = null;
+            // Collect ALL active audio segments across every audio track
+            var audioSegments = new List<(Segment segment, string filePath)>();
             foreach (var (track, segment) in activeSegments)
             {
-                if (string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
-                    && !string.IsNullOrEmpty(segment.BackgroundAssetId))
-                {
-                    audioSegment = segment;
-                    break;
-                }
-            }
+                if (!string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrEmpty(segment.BackgroundAssetId))
+                    continue;
 
-            if (audioSegment == null)
-            {
-                if (_audioService.CurrentSegmentId != null)
-                {
-                    Log.Debug("No active audio segment at {Time}s, stopping segment audio", playheadSeconds);
-                    _audioService.StopSegmentAudio();
-                }
-
-                PreloadNextAudioSegment(playheadSeconds);
-            }
-            else
-            {
                 var asset = _getCurrentProject()?.Assets?
-                    .FirstOrDefault(candidate => candidate.Id == audioSegment.BackgroundAssetId);
+                    .FirstOrDefault(candidate => candidate.Id == segment.BackgroundAssetId);
 
                 if (asset == null || string.IsNullOrEmpty(asset.FilePath))
                 {
                     Log.Debug(
-                        "Audio segment {SegmentId} has no asset (AssetId={AssetId}, AssetsCount={Count})",
-                        audioSegment.Id,
-                        audioSegment.BackgroundAssetId,
-                        _getCurrentProject()?.Assets?.Count ?? -1);
-                    _audioService.StopSegmentAudio();
+                        "Audio segment {SegmentId} has no asset (AssetId={AssetId})",
+                        segment.Id, segment.BackgroundAssetId);
+                    continue;
                 }
-                else
-                {
-                    _audioService.PlaySegmentAudio(
-                        audioSegment.Id,
-                        asset.FilePath,
-                        audioSegment.StartTime,
-                        playheadSeconds,
-                        CalculateSegmentVolume(audioSegment, playheadSeconds),
-                        audioSegment.SourceStartOffset,
-                        forceResync);
-                }
+
+                audioSegments.Add((segment, asset.FilePath));
             }
 
+            if (audioSegments.Count == 0)
+            {
+                // Nothing should be playing — stop everything currently in the mixer
+                if (_audioService.CurrentSegmentId != null)
+                {
+                    Log.Debug("No active audio segment at {Time}s, stopping all segment audio", playheadSeconds);
+                    _audioService.StopSegmentAudio();
+                }
+                _lastActiveSegmentIds.Clear();
+                PreloadNextAudioSegment(playheadSeconds);
+                return;
+            }
+
+            // Build the current active ID set
+            var currentIds = new HashSet<string>(audioSegments.Count);
+            foreach (var (segment, _) in audioSegments)
+                currentIds.Add(segment.Id);
+
+            // Stop any segments that were playing but are no longer in the active window
+            foreach (var oldId in _lastActiveSegmentIds)
+            {
+                if (!currentIds.Contains(oldId))
+                {
+                    Log.Debug("Segment {Id} left active window at {Time}s, stopping", oldId, playheadSeconds);
+                    _audioService.StopSegmentAudio(oldId);
+                }
+            }
+            _lastActiveSegmentIds = currentIds;
+
+            // Start / update every currently active audio segment
+            foreach (var (segment, filePath) in audioSegments)
+            {
+                _audioService.PlaySegmentAudio(
+                    segment.Id,
+                    filePath,
+                    segment.StartTime,
+                    playheadSeconds,
+                    CalculateSegmentVolume(segment, playheadSeconds),
+                    segment.SourceStartOffset,
+                    forceResync);
+            }
         }
         catch (Exception ex)
         {
