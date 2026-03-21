@@ -796,8 +796,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Ensure the audio engine is aligned to the playhead the user currently sees before starting playback.
-        /// This makes play resilient if a drag preview updated the visible playhead but the underlying audio
-        /// position did not get committed yet due to input edge cases.
+        /// Only performs a seek if there is a SIGNIFICANT drift (>200ms), which can happen if a scrub preview
+        /// updated the visible playhead but the audio position was never committed.
+        /// Small drifts (&lt;200ms) are normal — they arise from dual-timer polling jitter between
+        /// AudioPlayerViewModel and TimelineViewModel. The coordinator's OnPlaybackStarted handler
+        /// already syncs position atomically on resume, so we must NOT re-seek for small deltas
+        /// (doing so would cause an audible pop and visible needle jump).
         /// </summary>
         private void SyncPlaybackToVisibleTimelinePosition()
         {
@@ -811,7 +815,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (double.IsNaN(visiblePlayhead) || double.IsInfinity(visiblePlayhead))
                 return;
 
-            if (Math.Abs(_audioPlayerViewModel.CurrentPosition - visiblePlayhead) < 0.01)
+            // Only seek for significant drift (uncommitted scrub).
+            // Small drift from dual-timer jitter is handled by the coordinator on PlaybackStarted.
+            if (Math.Abs(_audioPlayerViewModel.CurrentPosition - visiblePlayhead) < 0.2)
                 return;
 
             _timelineViewModel.SeekTo(visiblePlayhead);

@@ -73,6 +73,7 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
     private readonly Action<double, bool> _updateSegmentAudioPlayback;
     private readonly CancellationTokenSource _syncCts = new();
     private readonly Task _syncLoopTask;
+    private readonly SemaphoreSlim _wakeSignal = new(0, 1);
 
     private Stopwatch? _wallClockPlayback;
     private double _wallClockBasePosition;
@@ -122,13 +123,13 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
     private void OnPlaybackStarted(object? sender, EventArgs e)
     {
         NotifyUserInteraction();
-        _dispatcher.Invoke(() =>
-        {
-            var position = _audioService.GetCurrentPosition();
-            _setPlayheadPosition(position);
-            _setLastSyncedPlayhead(position);
-            _updateSegmentAudioPlayback(position, false);
-        });
+        // Wake the sync loop immediately so it switches from 150ms idle to 33ms active.
+        try { _wakeSignal.Release(); } catch (SemaphoreFullException) { }
+        // Do NOT push playhead position here. During pause the frozen position matches
+        // what the user sees; pushing a live SampleAggregator read would show the
+        // buffer-ahead value (~150-300ms forward on some hardware) for one frame,
+        // causing a visible needle jump. The sync loop handles position + segment
+        // audio updates within one frame (~33ms) of wake-up.
     }
 
     private void OnPlaybackStopped(object? sender, PlaybackStoppedEventArgs e)
@@ -159,7 +160,12 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
                 if (!_audioService.IsPlaying || _isScrubbing())
                 {
                     ResetWallClockTracking();
-                    await Task.Delay(IdleSyncIntervalMs, cancellationToken);
+                    // Wait for wake signal OR timeout — whichever comes first.
+                    // This replaces a flat 150ms delay: the signal fires immediately
+                    // when Play() is called, so the loop switches to active sync
+                    // within ~1ms instead of up to 150ms.
+                    try { await _wakeSignal.WaitAsync(IdleSyncIntervalMs, cancellationToken); }
+                    catch (OperationCanceledException) { break; }
                     continue;
                 }
 
@@ -254,6 +260,7 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
         _audioService.PlaybackStopped -= OnPlaybackStopped;
         _syncCts.Cancel();
         ResetWallClockTracking();
+        try { _wakeSignal.Release(); } catch (SemaphoreFullException) { } // unblock idle wait so loop can exit
 
         try
         {
@@ -265,6 +272,7 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
         finally
         {
             _syncCts.Dispose();
+            _wakeSignal.Dispose();
         }
     }
 }

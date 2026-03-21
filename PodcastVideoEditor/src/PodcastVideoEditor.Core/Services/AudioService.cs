@@ -53,6 +53,11 @@ namespace PodcastVideoEditor.Core.Services
         private double _silentModePosition;               // base position in seconds (updated on Seek/Pause)
         private readonly Stopwatch _virtualStopwatch = new(); // elapsed time while virtually playing
 
+        // ── Frozen pause position: captures exact position at the moment of Pause() ──────
+        // When paused, GetCurrentPosition() returns this value instead of reading SampleAggregator
+        // (which may drift due to buffered-but-not-yet-played samples). Cleared on Play()/Seek()/Stop().
+        private double _frozenPausePosition = -1;
+
         /// <summary>Provides infinite silence at a fixed WaveFormat for silent-mode mixing.</summary>
         private sealed class InfiniteSilenceProvider : ISampleProvider
         {
@@ -310,6 +315,7 @@ namespace PodcastVideoEditor.Core.Services
                     PlaybackStarted?.Invoke(this, EventArgs.Empty);
                     _virtualStopwatch.Restart();
                     _wavePlayer?.Play();
+                    _frozenPausePosition = -1;
                     Log.Information("Playback started (segment-only / silent mode)");
                 }
                 return;
@@ -322,8 +328,13 @@ namespace PodcastVideoEditor.Core.Services
             {
                 // Fire event BEFORE starting playback so subscribers can add mixer inputs
                 // (segment + BGM). The first mixer Read() then includes all sources = zero offset.
+                // IMPORTANT: Keep _frozenPausePosition active through this event so any
+                // position reads return the stable pause-point (not the buffer-ahead SampleAggregator).
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 _wavePlayer.Play();
+                // Clear frozen position AFTER playback has started. The sync loop will now
+                // read the live SampleAggregator counter which advances smoothly from here.
+                _frozenPausePosition = -1;
                 Log.Information("Playback started");
             }
         }
@@ -335,6 +346,12 @@ namespace PodcastVideoEditor.Core.Services
         {
             if (_wavePlayer?.PlaybackState == PlaybackState.Playing)
             {
+                // Snapshot position BEFORE pausing so GetCurrentPosition() returns a stable
+                // value while paused. SampleAggregator counts samples fed to buffers (ahead
+                // of what hardware has actually played), so reading it after WaveOutEvent.Pause()
+                // would return a position slightly in the future → visible needle jump.
+                _frozenPausePosition = GetCurrentPositionInternal();
+
                 if (_isSilentMixerMode && _audioFileReader == null)
                 {
                     // Capture elapsed time into base position before pausing
@@ -344,7 +361,7 @@ namespace PodcastVideoEditor.Core.Services
                 _wavePlayer.Pause();
                 // Mixer pauses all inputs (segment + BGM) automatically
                 PlaybackPaused?.Invoke(this, EventArgs.Empty);
-                Log.Information("Playback paused");
+                Log.Information("Playback paused at {Position}s", _frozenPausePosition);
             }
         }
 
@@ -355,6 +372,7 @@ namespace PodcastVideoEditor.Core.Services
         {
             if (_wavePlayer?.PlaybackState != PlaybackState.Stopped)
             {
+                _frozenPausePosition = -1;
                 _wavePlayer?.Stop();
                 if (_audioFileReader != null)
                     _audioFileReader.CurrentTime = TimeSpan.Zero;
@@ -379,6 +397,9 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public void Seek(double positionSeconds)
         {
+            // Clear frozen pause position — the new seek target becomes authoritative.
+            _frozenPausePosition = -1;
+
             if (_audioFileReader == null)
             {
                 // No main audio — update virtual position cursor for segment-only mode.
@@ -460,6 +481,20 @@ namespace PodcastVideoEditor.Core.Services
         /// Optimized for frequent calls (30-60fps UI updates).
         /// </summary>
         public double GetCurrentPosition()
+        {
+            // While paused, return the frozen position captured at the moment of Pause().
+            // This prevents needle jitter from SampleAggregator's buffer-ahead counting.
+            if (_frozenPausePosition >= 0)
+                return _frozenPausePosition;
+
+            return GetCurrentPositionInternal();
+        }
+
+        /// <summary>
+        /// Internal position calculation from live sources (SampleAggregator / virtual clock).
+        /// Used by both GetCurrentPosition() (when not frozen) and Pause() (to capture snapshot).
+        /// </summary>
+        private double GetCurrentPositionInternal()
         {
             // In segment-only mode there is no SampleAggregator — use stopwatch-based virtual clock.
             if (_isSilentMixerMode && _audioFileReader == null)

@@ -104,6 +104,87 @@ public sealed class TimelinePlaybackCoordinatorTests
         Assert.Equal(0, host.LastSyncedPlayhead, 3);
     }
 
+    [Fact]
+    public async Task PauseResume_PlayheadStaysAtPausePosition()
+    {
+        // Simulates: play at 10s → pause → resume. Playhead should NOT jump.
+        var audio = new FakeAudioPlaybackService
+        {
+            CurrentPosition = 10.0,
+            Duration = 60,
+            PlaybackState = PlaybackState.Playing
+        };
+        var host = new FakeTimelineHost
+        {
+            TotalDuration = 60,
+            PlayheadPosition = 10.0,
+            LastSyncedPlayhead = 10.0,
+            IsPlaying = true
+        };
+
+        using var sut = CreateCoordinator(audio, host, new ImmediatePlaybackDispatcher());
+
+        // Let coordinator sync once
+        await Task.Delay(50);
+
+        // Pause: position stays at 10.0
+        audio.Pause();
+        host.IsPlaying = false;
+
+        // Wait for coordinator to enter idle
+        await Task.Delay(50);
+
+        // Resume: position should still be ~10.0 (no jump)
+        // Advance position slightly (simulates NAudio reading a few more samples after resume)
+        audio.CurrentPosition = 10.05;
+        audio.Play();
+        host.IsPlaying = true;
+
+        // Wait for coordinator sync loop to push an update after resume.
+        // OnPlaybackStarted no longer pushes position (to prevent needle jump),
+        // so we wait for the sync loop's natural 33ms cycle instead.
+        await WaitUntilAsync(() => host.UpdateCalls.Any(c => Math.Abs(c.position - 10.05) < 0.5), timeoutMs: 2000);
+
+        // Playhead should be near 10.0 — NOT some future position (e.g. 10.3+)
+        Assert.InRange(host.PlayheadPosition, 9.5, 10.5);
+        Assert.Empty(audio.SeekCalls); // No seek should have been triggered
+    }
+
+    [Fact]
+    public async Task WakeSignal_CoordinatorActivatesImmediatelyOnResume()
+    {
+        var audio = new FakeAudioPlaybackService
+        {
+            CurrentPosition = 5.0,
+            Duration = 60,
+            PlaybackState = PlaybackState.Paused
+        };
+        var host = new FakeTimelineHost
+        {
+            TotalDuration = 60,
+            PlayheadPosition = 5.0,
+            LastSyncedPlayhead = 5.0,
+            IsPlaying = false
+        };
+
+        using var sut = CreateCoordinator(audio, host, new ImmediatePlaybackDispatcher());
+
+        // Coordinator is in idle mode. Start playback and measure activation time.
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        audio.CurrentPosition = 5.1; // Advance slightly so delta > threshold
+        audio.Play();
+        host.IsPlaying = true;
+
+        // Wait for the coordinator to push an update (should be near-instant with wake signal)
+        await WaitUntilAsync(() =>
+            host.UpdateCalls.Any(c => Math.Abs(c.position - 5.1) < 0.5), timeoutMs: 500);
+        sw.Stop();
+
+        // With wake signal, activation should be <100ms (was up to 150ms before)
+        Assert.True(sw.ElapsedMilliseconds < 100,
+            $"Coordinator took {sw.ElapsedMilliseconds}ms to activate after resume (expected <100ms)");
+    }
+
     private static TimelinePlaybackCoordinator CreateCoordinator(
         FakeAudioPlaybackService audio,
         FakeTimelineHost host,
