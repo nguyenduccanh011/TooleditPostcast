@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Win32;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Ui.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using PodcastVideoEditor.Ui.Views;
 using Serilog;
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
     private readonly VisualizerViewModel _visualizerViewModel;
     private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
+    private readonly AutosaveService _autosaveService;
     private readonly string _appDataPath;
     private bool _initialLoadDone;
 
@@ -77,6 +79,27 @@ public partial class MainWindow : Window
 
             _audioPlayerViewModel.AudioLoaded += OnAudioLoaded;
 
+            // Debounced autosave: any timeline/canvas edit triggers a save after 2s idle
+            _autosaveService = new AutosaveService(
+                () => _projectViewModel.SaveProjectAsync(),
+                delayMs: 2000);
+            _timelineViewModel.PropertyChanged += (_, e) =>
+            {
+                // Only trigger autosave for meaningful changes, not playhead position updates
+                if (_projectViewModel.CurrentProject != null
+                    && e.PropertyName is not (nameof(TimelineViewModel.PlayheadPosition)
+                        or nameof(TimelineViewModel.IsPlaying)
+                        or nameof(TimelineViewModel.StatusMessage)))
+                {
+                    _autosaveService.RequestSave();
+                }
+            };
+            _timelineViewModel.Tracks.CollectionChanged += (_, _) =>
+            {
+                if (_projectViewModel.CurrentProject != null)
+                    _autosaveService.RequestSave();
+            };
+
             Log.Information("MainWindow initialized");
         }
         catch (Exception ex)
@@ -96,7 +119,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Global Ctrl+Z / Ctrl+Y (Ctrl+Shift+Z) undo/redo from anywhere in the window.
+    /// Global keyboard shortcuts. Ctrl+Z/Y for undo/redo, Space for play/pause,
+    /// Delete for segment removal, Ctrl+S to save, J/K/L for shuttle control.
+    /// Shortcuts that produce text (Space, Delete) are suppressed when a TextBox has focus.
     /// </summary>
     protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
     {
@@ -106,15 +131,86 @@ public partial class MainWindow : Window
         bool ctrl = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) != 0;
         bool shift = (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) != 0;
 
+        // ── Ctrl combos (safe even when TextBox focused) ──
         if (ctrl && !shift && e.Key == System.Windows.Input.Key.Z)
         {
             _mainViewModel.UndoRedoService.Undo();
             e.Handled = true;
+            return;
         }
-        else if (ctrl && (e.Key == System.Windows.Input.Key.Y || (shift && e.Key == System.Windows.Input.Key.Z)))
+        if (ctrl && (e.Key == System.Windows.Input.Key.Y || (shift && e.Key == System.Windows.Input.Key.Z)))
         {
             _mainViewModel.UndoRedoService.Redo();
             e.Handled = true;
+            return;
+        }
+        if (ctrl && e.Key == System.Windows.Input.Key.S)
+        {
+            _ = _projectViewModel.SaveProjectAsync();
+            e.Handled = true;
+            return;
+        }
+
+        // ── Non-modifier keys: skip when user is typing in a TextBox/PasswordBox ──
+        var focused = System.Windows.Input.FocusManager.GetFocusedElement(this);
+        if (focused is System.Windows.Controls.TextBox or System.Windows.Controls.Primitives.TextBoxBase or System.Windows.Controls.PasswordBox)
+            return;
+
+        switch (e.Key)
+        {
+            case System.Windows.Input.Key.Space:
+                _audioPlayerViewModel.TogglePlayPauseCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            case System.Windows.Input.Key.Delete:
+                if (_timelineViewModel.DeleteSelectedSegmentCommand.CanExecute(null))
+                    _timelineViewModel.DeleteSelectedSegmentCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            // J/K/L shuttle control (Premiere Pro style)
+            case System.Windows.Input.Key.K:
+                // K = pause
+                if (_audioPlayerViewModel.IsPlaying)
+                    _audioPlayerViewModel.PauseCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            case System.Windows.Input.Key.L:
+                // L = play forward (if paused, start playing)
+                if (!_audioPlayerViewModel.IsPlaying)
+                    _audioPlayerViewModel.PlayCommand.Execute(null);
+                e.Handled = true;
+                break;
+
+            case System.Windows.Input.Key.J:
+                // J = rewind 5 seconds
+                _timelineViewModel.SeekTo(Math.Max(0, _timelineViewModel.PlayheadPosition - 5));
+                e.Handled = true;
+                break;
+
+            // Comma/Period = nudge playhead ±0.1s (frame-stepping)
+            case System.Windows.Input.Key.OemComma:
+                _timelineViewModel.SeekTo(Math.Max(0, _timelineViewModel.PlayheadPosition - 0.1));
+                e.Handled = true;
+                break;
+
+            case System.Windows.Input.Key.OemPeriod:
+                _timelineViewModel.SeekTo(Math.Min(_timelineViewModel.TotalDuration, _timelineViewModel.PlayheadPosition + 0.1));
+                e.Handled = true;
+                break;
+
+            // Home/End = jump to start/end
+            case System.Windows.Input.Key.Home:
+                _timelineViewModel.SeekTo(0);
+                e.Handled = true;
+                break;
+
+            case System.Windows.Input.Key.End:
+                _timelineViewModel.SeekTo(_timelineViewModel.TotalDuration);
+                e.Handled = true;
+                break;
         }
     }
 
@@ -350,9 +446,13 @@ public partial class MainWindow : Window
         FFmpegStatusText.Text = result.Message;
     }
 
-    private void MainWindow_Closing(object sender, CancelEventArgs e)
+    private async void MainWindow_Closing(object sender, CancelEventArgs e)
     {
         _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
+
+        // Flush any pending autosave before disposing
+        await _autosaveService.FlushAsync();
+        _autosaveService.Dispose();
 
         _canvasViewModel?.Dispose();
         _visualizerViewModel?.Dispose();
@@ -366,13 +466,11 @@ public partial class MainWindow : Window
         var project = _projectViewModel.CurrentProject;
         if (project == null)
         {
-            _timelineViewModel.AudioPeaks = Array.Empty<float>();
             _audioPlayerViewModel.StopCommand.Execute(null);
             return;
         }
 
         _audioPlayerViewModel.StopCommand.Execute(null);
-        _timelineViewModel.AudioPeaks = Array.Empty<float>();
 
         if (!string.IsNullOrWhiteSpace(project.AudioPath) && System.IO.File.Exists(project.AudioPath))
         {
@@ -401,8 +499,6 @@ public partial class MainWindow : Window
         var durationSeconds = Math.Max(audioDuration, segmentEnd);
         _timelineViewModel.TotalDuration = durationSeconds;
         _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
-        _timelineViewModel.AudioPeaks = Array.Empty<float>();
-        _ = _timelineViewModel.RefreshAudioPeaksAsync();
     }
 
     // ── AI / Image Settings stubs (UI wired but implementation pending) ──

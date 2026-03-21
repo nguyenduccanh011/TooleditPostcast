@@ -124,10 +124,6 @@ namespace PodcastVideoEditor.Ui.Views
                         UpdateSegmentLayout();
                         InvalidateWaveform();
                     }
-                    else if (args.PropertyName == nameof(TimelineViewModel.AudioPeaks))
-                    {
-                        InvalidateWaveform();
-                    }
                 };
                 _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 

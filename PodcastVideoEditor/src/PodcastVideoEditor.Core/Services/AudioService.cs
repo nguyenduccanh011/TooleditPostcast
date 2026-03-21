@@ -45,6 +45,11 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         private readonly object _mixerLock = new();
 
+        // VBR sample count cache: avoids re-scanning the entire file on repeated opens.
+        // Key = (playbackPath, fileSize, lastWriteUtcTicks), Value = total float sample count.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, long, long), long>
+            _sampleCountCache = new();
+
         public event EventHandler<PlaybackStoppedEventArgs>? PlaybackStopped;
         public event EventHandler<EventArgs>? PlaybackStarted;
         public event EventHandler<EventArgs>? PlaybackPaused;
@@ -101,16 +106,29 @@ namespace PodcastVideoEditor.Core.Services
 
                     var metadataDuration = _audioFileReader.TotalTime;
                     _waveFormat = _audioFileReader.WaveFormat;
-                    
-                    // Count actual samples from THIS EXACT reader instance.
-                    // This guarantees _totalSampleCount matches what this reader produces during playback,
-                    // eliminating VBR MP3 discrepancies between separate reader instances.
-                    long totalSamples = 0;
-                    var countBuffer = new float[8192];
-                    int countRead;
-                    while ((countRead = _audioFileReader.Read(countBuffer, 0, countBuffer.Length)) > 0)
+
+                    // Count actual samples — use cache to skip the O(N) full-file scan
+                    // when reopening the same file (identified by path + size + mtime).
+                    var playbackFileInfo = new FileInfo(playbackPath);
+                    var cacheKey = (playbackPath, playbackFileInfo.Length, playbackFileInfo.LastWriteTimeUtc.Ticks);
+                    long totalSamples;
+
+                    if (_sampleCountCache.TryGetValue(cacheKey, out var cached))
                     {
-                        totalSamples += countRead;
+                        totalSamples = cached;
+                        Log.Debug("VBR cache hit for {Path}: {Samples} samples", playbackPath, totalSamples);
+                    }
+                    else
+                    {
+                        totalSamples = 0;
+                        var countBuffer = new float[8192];
+                        int countRead;
+                        while ((countRead = _audioFileReader.Read(countBuffer, 0, countBuffer.Length)) > 0)
+                        {
+                            totalSamples += countRead;
+                        }
+                        _sampleCountCache[cacheKey] = totalSamples;
+                        Log.Debug("VBR cache miss for {Path}: counted {Samples} samples", playbackPath, totalSamples);
                     }
                     
                     // Reset reader to beginning for playback
@@ -675,12 +693,14 @@ namespace PodcastVideoEditor.Core.Services
             {
                 Log.Warning(ex, "Failed to play segment audio: {Path}", audioFilePath);
                 StopSegmentAudio();
-                // Also clean up old input on failure
+                // Dispose old reader and clear locals on failure path
+                try { oldReader?.Dispose(); } catch { /* ignore */ }
                 oldMixerInput = null;
                 oldReader = null;
+                return;
             }
 
-            // Dispose old reader outside lock
+            // Dispose old reader outside lock (success path)
             try { oldReader?.Dispose(); }
             catch (Exception ex) { Log.Warning(ex, "Error disposing old segment reader"); }
         }

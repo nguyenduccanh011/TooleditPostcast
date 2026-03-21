@@ -62,11 +62,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string scriptPasteText = string.Empty;
 
-        /// <summary>Waveform peak data for the primary audio track (legacy; per-segment peaks now in Segment.WaveformPeaks).</summary>
-        [ObservableProperty]
-        private float[] audioPeaks = Array.Empty<float>();
-
-
         /// <summary>
         /// When true, defer thumbnail strip updates (during resize/drag) to avoid FFmpeg blocking UI.
         /// </summary>
@@ -95,6 +90,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private double _cachedActiveSegmentsTime = double.MinValue;
         private List<(Track track, Segment segment)>? _cachedActiveSegments;
 
+        // Per-track binary-search index for O(log n) segment lookup.
+        // Rebuilt lazily when _segmentIndexDirty is true.
+        private Dictionary<string, SegmentIntervalIndex>? _segmentIndexMap;
+        private bool _segmentIndexDirty = true;
+
         // Undo/redo (optional — set via SetUndoRedoService from MainViewModel).
         private UndoRedoService? _undoRedo;
 
@@ -117,9 +117,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
-
-        /// <summary>Width for the main audio waveform display (same as timeline width).</summary>
-        public double AudioContentWidth => TimelineWidth;
 
         /// <summary>
         /// Called when PlayheadPosition changes.
@@ -1374,6 +1371,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_cachedActiveSegments != null && timeSeconds == _cachedActiveSegmentsTime)
                 return _cachedActiveSegments;
 
+            // Rebuild per-track interval index if dirty
+            if (_segmentIndexDirty || _segmentIndexMap == null)
+            {
+                _segmentIndexMap = new Dictionary<string, SegmentIntervalIndex>(Tracks.Count);
+                foreach (var t in Tracks)
+                {
+                    if (t.Segments != null && t.Id != null)
+                        _segmentIndexMap[t.Id] = new SegmentIntervalIndex(t.Segments);
+                }
+                _segmentIndexDirty = false;
+            }
+
             var result = new List<(Track track, Segment segment)>(4);
 
             foreach (var track in Tracks)
@@ -1381,12 +1390,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (track.Segments == null || !track.IsVisible)
                     continue;
 
-                foreach (var s in track.Segments)
+                // Use binary-search index when available, fall back to linear scan
+                if (track.Id != null && _segmentIndexMap.TryGetValue(track.Id, out var index))
                 {
-                    if (s.StartTime <= timeSeconds && timeSeconds < s.EndTime)
+                    var seg = index.FindAt(timeSeconds);
+                    if (seg != null)
+                        result.Add((track, seg));
+                }
+                else
+                {
+                    foreach (var s in track.Segments)
                     {
-                        result.Add((track, s));
-                        break; // Only one active segment per track
+                        if (s.StartTime <= timeSeconds && timeSeconds < s.EndTime)
+                        {
+                            result.Add((track, s));
+                            break;
+                        }
                     }
                 }
             }
@@ -1405,7 +1424,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Invalidate the active segments cache. Call when tracks or segments change.
         /// </summary>
-        private void InvalidateActiveSegmentsCache() => _cachedActiveSegments = null;
+        private void InvalidateActiveSegmentsCache()
+        {
+            _cachedActiveSegments = null;
+            _segmentIndexDirty = true;
+        }
 
         /// <summary>Public wrapper used by TimelineView drag-undo callbacks.</summary>
         public void InvalidateActiveSegmentsCachePublic() => InvalidateActiveSegmentsCache();
@@ -1451,6 +1474,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             SeekTo(positionSeconds);
             _isScrubbing = false;
+            ScrubCompleted?.Invoke(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -1692,28 +1716,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             OnPropertyChanged(nameof(TimelineContentWidth));
         }
 
-        partial void OnPixelsPerSecondChanged(double value)
-        {
-            OnPropertyChanged(nameof(AudioContentWidth));
-        }
-
         /// <summary>
         /// Handle total duration change.
         /// </summary>
         partial void OnTotalDurationChanged(double value)
         {
             RecalculatePixelsPerSecond();
-            OnPropertyChanged(nameof(AudioContentWidth));
         }
-
-        /// <summary>
-        /// Cleanup on dispose.
-        /// </summary>
-        /// <summary>
-        /// Refresh audio peak data. Currently a no-op as per-segment waveforms are used.
-        /// Called after an audio file is loaded to trigger waveform display update.
-        /// </summary>
-        public Task RefreshAudioPeaksAsync() => Task.CompletedTask;
 
         public void Dispose()
         {

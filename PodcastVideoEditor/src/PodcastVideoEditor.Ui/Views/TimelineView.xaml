@@ -39,7 +39,15 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="ResizeThumbStyle" TargetType="Thumb" BasedOn="{StaticResource TransparentThumbStyle}"/>
+        <Style x:Key="ResizeThumbStyle" TargetType="Thumb">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="#8064b5f6" CornerRadius="1"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -118,7 +126,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="40"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="48"/>
+                        <RowDefinition Height="26"/>
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: Ruler header -->
@@ -193,21 +201,15 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <!-- Row 2: Waveform header + Track management -->
-                    <StackPanel Grid.Row="2">
-                        <Border Height="48" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,1,0">
-                            <TextBlock Text="Audio" VerticalAlignment="Center" Margin="8,0"
-                                       Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
-                        </Border>
-                        <Border Height="26" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,1,0">
-                            <StackPanel Orientation="Horizontal" Margin="2,0">
-                                <Button Content="+" Click="AddTrack_Click" ToolTip="Add track"
-                                        Width="20" Height="20" FontSize="12" FontWeight="Bold"
-                                        Background="#43a047" Foreground="White" BorderThickness="0"
-                                        Cursor="Hand" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <!-- Row 2: Track management -->
+                    <Border Grid.Row="2" Height="26" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,1,0">
+                        <StackPanel Orientation="Horizontal" Margin="2,0">
+                            <Button Content="+" Click="AddTrack_Click" ToolTip="Add track"
+                                    Width="20" Height="20" FontSize="12" FontWeight="Bold"
+                                    Background="#43a047" Foreground="White" BorderThickness="0"
+                                    Cursor="Hand" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
                 <!-- Col 1: Scrollable Content (horizontal scroll only) -->
@@ -224,7 +226,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="40"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="48"/>
+                            <RowDefinition Height="26"/>
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Ruler -->
@@ -438,24 +440,44 @@
                                                                         </TextBlock.Style>
                                                                     </TextBlock>
                                                                 </Grid>
-                                                                <Thumb x:Name="ResizeLeftThumb" Style="{StaticResource ResizeThumbStyle}"
+                                                                <Thumb x:Name="ResizeLeftThumb"
                                                                       HorizontalAlignment="Left"
                                                                       Width="8"
                                                                       Cursor="SizeWE"
-                                                                      Opacity="0"
                                                                       Panel.ZIndex="2"
                                                                       DragDelta="ResizeLeftThumb_DragDelta"
                                                                       DragStarted="ResizeLeftThumb_DragStarted"
-                                                                      DragCompleted="ResizeLeftThumb_DragCompleted"/>
-                                                                <Thumb x:Name="ResizeThumb" Style="{StaticResource ResizeThumbStyle}"
+                                                                      DragCompleted="ResizeLeftThumb_DragCompleted">
+                                                                    <Thumb.Style>
+                                                                        <Style TargetType="Thumb" BasedOn="{StaticResource ResizeThumbStyle}">
+                                                                            <Setter Property="Opacity" Value="0"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                                                                    <Setter Property="Opacity" Value="0.85"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Thumb.Style>
+                                                                </Thumb>
+                                                                <Thumb x:Name="ResizeThumb"
                                                                       HorizontalAlignment="Right"
                                                                       Width="8"
                                                                       Cursor="SizeWE"
-                                                                      Opacity="0"
                                                                       Panel.ZIndex="2"
                                                                       DragDelta="ResizeThumb_DragDelta"
                                                                       DragStarted="ResizeThumb_DragStarted"
-                                                                      DragCompleted="ResizeThumb_DragCompleted"/>
+                                                                      DragCompleted="ResizeThumb_DragCompleted">
+                                                                    <Thumb.Style>
+                                                                        <Style TargetType="Thumb" BasedOn="{StaticResource ResizeThumbStyle}">
+                                                                            <Setter Property="Opacity" Value="0"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                                                                                    <Setter Property="Opacity" Value="0.85"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Thumb.Style>
+                                                                </Thumb>
                                                             </Grid>
                                                         </Border>
                                                     </Grid>

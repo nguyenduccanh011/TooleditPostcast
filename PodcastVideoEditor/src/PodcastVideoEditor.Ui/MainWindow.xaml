@@ -13,9 +13,11 @@
     <Window.InputBindings>
         <KeyBinding Key="B" Modifiers="Control"
                     Command="{Binding TimelineViewModel.SplitSelectedSegmentAtPlayheadCommand}"/>
+        <KeyBinding Key="S" Modifiers="Control"
+                    Command="{Binding ProjectViewModel.SaveProjectCommand}"/>
     </Window.InputBindings>
     <DockPanel>
-        <Menu DockPanel.Dock="Top" Background="#252526">
+        <Menu DockPanel.Dock="Top" Background="#252526" Foreground="#FFFFFF">
             <MenuItem Header="File">
                 <MenuItem Header="New Project" Click="NewProjectButton_Click" />
                 <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click" />
@@ -184,7 +186,6 @@
                 <Grid VerticalAlignment="Center" Margin="8,0">
                     <!-- Progress bar (visible while rendering) -->
                     <ProgressBar Value="{Binding RenderProgress}" Maximum="100"
-                                 IsIndeterminate="{Binding RenderProgressIsIndeterminate}"
                                  Height="6" Background="#3E3E42" Foreground="#28A745"
                                  Visibility="{Binding IsRendering, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
@@ -390,62 +391,6 @@
                             <TextBlock Text="Podcast Video Editor - Phase 1" Foreground="#CCCCCC" />
                             <TextBlock Text="Built with .NET 8 WPF" Foreground="#AAAAAA" />
                         </StackPanel>
-
-                        <!-- ─── AI Analysis Settings ─────────────────────────────── -->
-                        <Separator Margin="0,24,0,16" Background="#3E3E42"/>
-                        <TextBlock Text="AI Analysis (YesScale)" FontSize="16" FontWeight="Bold" Foreground="#ce93d8" Margin="0,0,0,8"/>
-                        <TextBlock Text="YesScale API Key" Margin="0,0,0,5" Foreground="#CCCCCC"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <PasswordBox x:Name="YesScaleApiKeyBox" Grid.Column="0" Height="32" Padding="8"
-                                         Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                         PasswordChanged="YesScaleApiKeyBox_PasswordChanged"/>
-                            <Button Grid.Column="1" Content="Lưu" Width="70" Height="32" Margin="8,0,0,0"
-                                    Background="#7b1fa2" Foreground="#FFFFFF" BorderThickness="0"
-                                    Click="SaveAISettings_Click"/>
-                        </Grid>
-
-                        <TextBlock Text="Model" Margin="0,0,0,5" Foreground="#CCCCCC"/>
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="YesScaleModelBox" Grid.Column="0" Height="32"
-                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                      IsEditable="True" Text="gpt-4o-mini" Padding="6,0"/>
-                            <Button x:Name="FetchModelsButton" Grid.Column="1" Content="↻ Tải models"
-                                    Height="32" Margin="8,0,0,0" Padding="10,0"
-                                    Background="#4a148c" Foreground="#FFFFFF" BorderThickness="0"
-                                    Click="FetchModels_Click"/>
-                        </Grid>
-                        <TextBlock x:Name="ModelFetchStatus" Foreground="#AAAAAA" Margin="0,0,0,12"
-                                   FontSize="11" TextWrapping="Wrap" Visibility="Collapsed"/>
-
-                        <!-- ─── Image Search Settings ─────────────────────────────── -->
-                        <TextBlock Text="Tìm kiếm ảnh" FontSize="16" FontWeight="Bold" Foreground="#80cbc4" Margin="0,0,0,8"/>
-
-                        <TextBlock Text="Pexels API Key" Margin="0,0,0,5" Foreground="#CCCCCC"/>
-                        <PasswordBox x:Name="PexelsApiKeyBox" Height="32" Padding="8" Margin="0,0,0,12"
-                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"/>
-
-                        <TextBlock Text="Pixabay API Key" Margin="0,0,0,5" Foreground="#CCCCCC"/>
-                        <PasswordBox x:Name="PixabayApiKeyBox" Height="32" Padding="8" Margin="0,0,0,12"
-                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"/>
-
-                        <TextBlock Text="Unsplash Access Key" Margin="0,0,0,5" Foreground="#CCCCCC"/>
-                        <PasswordBox x:Name="UnsplashApiKeyBox" Height="32" Padding="8" Margin="0,0,0,12"
-                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"/>
-
-                        <Button Content="Lưu cấu hình ảnh" HorizontalAlignment="Left"
-                                Width="160" Height="32" Background="#00695c" Foreground="#FFFFFF" BorderThickness="0"
-                                Click="SaveImageSettings_Click" Margin="0,4,0,0"/>
-
-                        <TextBlock x:Name="AISettingsStatusText" Foreground="#81c784" Margin="0,10,0,0"
-                                   FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

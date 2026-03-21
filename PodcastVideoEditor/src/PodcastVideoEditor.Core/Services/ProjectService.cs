@@ -101,9 +101,9 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
-        /// Create a new project with default tracks (Text 1, Visual 1, Audio).
-        /// Audio path is optional — when provided the audio file is imported as an
-        /// Asset and placed as the first segment on the default Audio track.
+        /// Create a new project with default tracks (Text 1, Visual 1).
+        /// An Audio track is only created when an audio file is provided at creation time.
+        /// Users can add audio tracks at any time by dropping audio assets onto the timeline.
         /// </summary>
         public async Task<Project> CreateProjectAsync(string name, string? audioPath = null)
         {
@@ -119,17 +119,6 @@ namespace PodcastVideoEditor.Core.Services
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     RenderSettings = new RenderSettings()
-                };
-
-                // Create default tracks for the project
-                var audioTrack = new Track
-                {
-                    ProjectId = project.Id,
-                    Order = 2,
-                    TrackType = TrackTypes.Audio,
-                    Name = "Audio",
-                    IsLocked = false,
-                    IsVisible = true
                 };
 
                 project.Tracks = new List<Track>
@@ -151,19 +140,31 @@ namespace PodcastVideoEditor.Core.Services
                         Name = "Visual 1", 
                         IsLocked = false, 
                         IsVisible = true 
-                    },
-                    audioTrack
+                    }
                 };
 
                 _context.Projects.Add(project);
                 await _context.SaveChangesAsync();
 
-                // If an audio file was provided, import it as an Asset and place
-                // a full-duration audio segment on the default Audio track.
+                // If an audio file was provided, create a dedicated Audio track,
+                // import it as an Asset and place a full-duration audio segment on it.
                 if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
                 {
                     try
                     {
+                        var audioTrack = new Track
+                        {
+                            ProjectId = project.Id,
+                            Order = 2,
+                            TrackType = TrackTypes.Audio,
+                            Name = "Audio 1",
+                            IsLocked = false,
+                            IsVisible = true
+                        };
+                        project.Tracks.Add(audioTrack);
+                        _context.Tracks.Add(audioTrack);
+                        await _context.SaveChangesAsync();
+
                         var asset = await AddAssetAsync(project.Id, audioPath, "Audio");
                         var duration = asset.Duration ?? 0;
 
@@ -263,6 +264,27 @@ namespace PodcastVideoEditor.Core.Services
                     {
                         var trackedAudioTrack = trackedProject.Tracks?.FirstOrDefault(t =>
                             string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                        // Create audio track if the project doesn't have one (e.g. created after
+                        // the default empty audio track was removed, or track was manually deleted).
+                        if (trackedAudioTrack == null)
+                        {
+                            var maxOrder = trackedProject.Tracks?.Max(t => t.Order) ?? 0;
+                            trackedAudioTrack = new Track
+                            {
+                                ProjectId = trackedProject.Id,
+                                Order = maxOrder + 1,
+                                TrackType = TrackTypes.Audio,
+                                Name = "Audio 1",
+                                IsLocked = false,
+                                IsVisible = true
+                            };
+                            trackedProject.Tracks ??= new List<Track>();
+                            trackedProject.Tracks.Add(trackedAudioTrack);
+                            _context.Tracks.Add(trackedAudioTrack);
+                            await _context.SaveChangesAsync();
+                            Log.Information("Created missing audio track for migration in project {ProjectId}", trackedProject.Id);
+                        }
 
                         if (trackedAudioTrack != null)
                         {

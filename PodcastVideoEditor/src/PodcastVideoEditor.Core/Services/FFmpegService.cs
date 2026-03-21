@@ -424,15 +424,20 @@ public static class FFmpegService
             throw new ArgumentNullException(nameof(config));
 
         var hasAudioSegs = config.AudioSegments != null && config.AudioSegments.Count > 0;
-        if (!hasAudioSegs && (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath)))
-            throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
-
         var hasTimelineVisuals = config.VisualSegments != null && config.VisualSegments.Count > 0;
         var hasTimelineText   = config.TextSegments  != null && config.TextSegments.Count  > 0;
         var hasTimelineAudio  = config.AudioSegments != null && config.AudioSegments.Count > 0;
         var hasAnyTimeline    = hasTimelineVisuals || hasTimelineText || hasTimelineAudio;
-        if (!hasAnyTimeline && (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath)))
-            throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
+
+        // Legacy single-image mode requires both audio and image files.
+        // Timeline mode uses anullsrc as silent placeholder when no primary audio exists.
+        if (!hasAnyTimeline)
+        {
+            if (!hasAudioSegs && (string.IsNullOrWhiteSpace(config.AudioPath) || !File.Exists(config.AudioPath)))
+                throw new FileNotFoundException($"Audio file not found: {config.AudioPath}");
+            if (string.IsNullOrWhiteSpace(config.ImagePath) || !File.Exists(config.ImagePath))
+                throw new FileNotFoundException($"Image file not found: {config.ImagePath}");
+        }
 
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
