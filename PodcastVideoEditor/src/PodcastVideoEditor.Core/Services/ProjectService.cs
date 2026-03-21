@@ -105,7 +105,7 @@ namespace PodcastVideoEditor.Core.Services
         /// Audio path is optional — when provided the audio file is imported as an
         /// Asset and placed as the first segment on the default Audio track.
         /// </summary>
-        public async Task<Project> CreateProjectAsync(string name)
+        public async Task<Project> CreateProjectAsync(string name, string? audioPath = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Project name cannot be empty", nameof(name));
@@ -185,19 +185,31 @@ namespace PodcastVideoEditor.Core.Services
                         await _context.SaveChangesAsync();
 
                         Log.Information("Audio segment created from project audio: {AssetId}, duration {Duration}s", asset.Id, duration);
-                            project.Tracks = new List<Track>
-                            {
-                                new Track { ProjectId = project.Id, Order = 0, TrackType = TrackTypes.Text, Name = "Text 1" },
-                                new Track { ProjectId = project.Id, Order = 1, TrackType = TrackTypes.Visual, Name = "Visual 1" },
-                                new Track { ProjectId = project.Id, Order = 2, TrackType = TrackTypes.Audio, Name = "Audio", IsLocked = false, IsVisible = true }
-                            };
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Could not create audio segment from {AudioPath}", audioPath);
+                    }
+                }
+
+                return project;
+            }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error creating project");
                 throw;
-            try
-            catch (Exception ex)
+            }
         }
+
+        /// <summary>
+        /// Retrieve a project with all related data (tracks, segments, elements, assets, BGM tracks).
+        /// </summary>
+        public async Task<Project?> GetProjectAsync(string projectId)
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                throw new ArgumentException("Project ID cannot be empty", nameof(projectId));
+
+            try
             {
                 return await _context.Projects
                     .AsNoTracking()
@@ -701,6 +713,29 @@ namespace PodcastVideoEditor.Core.Services
         /// <summary>
         /// Get recent projects (last 5).
         /// Includes tracks and their segments - essential for timeline display.
+        /// Assets, Elements, and BGM are loaded on-demand when project is opened.
+        /// </summary>
+        public async Task<List<Project>> GetAllProjectsAsync()
+        {
+            try
+            {
+                return await _context.Projects
+                    .AsNoTracking()
+                    .AsSplitQuery()
+                    .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
+                    .OrderByDescending(p => p.UpdatedAt)
+                    .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving all projects");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Get the N most recently updated projects, with tracks and segments populated.
         /// Assets, Elements, and BGM are loaded on-demand when project is opened.
         /// </summary>
         public async Task<List<Project>> GetRecentProjectsAsync(int count = 5)

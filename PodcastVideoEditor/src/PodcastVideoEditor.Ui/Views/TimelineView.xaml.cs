@@ -214,7 +214,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         private void InvalidateWaveform()
         {
-            WaveformControl?.InvalidateVisual();
+            // Waveform segments refresh via their WaveformPeaks binding; no direct control reference needed.
         }
 
         /// <summary>

@@ -36,6 +36,11 @@ public class Project
     /// </summary>
     public RenderSettings RenderSettings { get; set; } = new();
 
+    /// <summary>
+    /// Legacy audio path (deprecated — use audio segments on the Audio track instead).
+    /// </summary>
+    public string AudioPath { get; set; } = string.Empty;
+
     // Navigation properties
     /// <summary>
     /// Timeline tracks (text, visual, audio lanes).
@@ -45,8 +50,18 @@ public class Project
     /// </summary>
     public ICollection<Track> Tracks { get; set; } = [];
 
+    /// <summary>
+    /// Flat collection of all segments belonging to this project (across all tracks).
+    /// </summary>
+    public ICollection<Segment> Segments { get; set; } = [];
+
     public ICollection<Element> Elements { get; set; } = [];
     public ICollection<Asset> Assets { get; set; } = [];
+
+    /// <summary>
+    /// Background music tracks attached to this project.
+    /// </summary>
+    public ICollection<BgmTrack> BgmTracks { get; set; } = [];
 }
 
 /// <summary>

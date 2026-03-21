@@ -62,6 +62,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string scriptPasteText = string.Empty;
 
+        /// <summary>Waveform peak data for the primary audio track (legacy; per-segment peaks now in Segment.WaveformPeaks).</summary>
+        [ObservableProperty]
+        private float[] audioPeaks = Array.Empty<float>();
+
 
         /// <summary>
         /// When true, defer thumbnail strip updates (during resize/drag) to avoid FFmpeg blocking UI.
@@ -113,6 +117,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>Total width of timeline content (label column + timeline) for alignment. ST-1.</summary>
         public double TimelineContentWidth => TimelineWidth + 56;
+
+        /// <summary>Width for the main audio waveform display (same as timeline width).</summary>
+        public double AudioContentWidth => TimelineWidth;
 
         /// <summary>
         /// Called when PlayheadPosition changes.
@@ -1702,6 +1709,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Cleanup on dispose.
         /// </summary>
+        /// <summary>
+        /// Refresh audio peak data. Currently a no-op as per-segment waveforms are used.
+        /// Called after an audio file is loaded to trigger waveform display update.
+        /// </summary>
+        public Task RefreshAudioPeaksAsync() => Task.CompletedTask;
+
         public void Dispose()
         {
             _audioService.PlaybackStarted -= OnPlaybackStarted;

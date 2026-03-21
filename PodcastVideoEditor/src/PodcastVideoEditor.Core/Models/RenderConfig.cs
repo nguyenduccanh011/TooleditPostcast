@@ -5,6 +5,11 @@ namespace PodcastVideoEditor.Core.Models;
 /// </summary>
 public class RenderConfig
 {
+    /// <summary>
+    /// Path to input audio file.
+    /// </summary>
+    public string AudioPath { get; set; } = string.Empty;
+
 
     /// <summary>
     /// Path to background image (static).
@@ -71,6 +76,11 @@ public class RenderConfig
     /// Additional audio clip segments mixed into the output (BGM, sound effects, etc).
     /// </summary>
     public List<RenderAudioSegment> AudioSegments { get; set; } = [];
+
+    /// <summary>
+    /// Volume multiplier for the primary audio track (0.0 = silent, 1.0 = full volume).
+    /// </summary>
+    public double PrimaryAudioVolume { get; set; } = 1.0;
 
 
     /// <summary>
