@@ -943,7 +943,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Save canvas elements to the database via ProjectService.
         /// Converts CanvasElements → Elements and replaces all elements in the project.
         /// </summary>
-        public async Task SaveElementsAsync(ProjectService projectService)
+        public async Task SaveElementsAsync(IProjectService projectService)
         {
             if (_projectViewModel?.CurrentProject == null)
             {

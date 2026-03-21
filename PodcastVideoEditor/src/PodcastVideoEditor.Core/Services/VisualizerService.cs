@@ -13,7 +13,7 @@ namespace PodcastVideoEditor.Core.Services
     /// </summary>
     public class VisualizerService : IDisposable
     {
-        private readonly AudioService _audioService;
+        private readonly IAudioTimelinePreviewService _audioService;
         private VisualizerConfig _config;
         
         // FFT and smoothing data
@@ -45,7 +45,7 @@ namespace PodcastVideoEditor.Core.Services
         // Events
         public event EventHandler<VisualizerFrameEventArgs>? FrameRendered;
 
-        public VisualizerService(AudioService audioService, VisualizerConfig? config = null)
+        public VisualizerService(IAudioTimelinePreviewService audioService, VisualizerConfig? config = null)
         {
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _config = config?.Clone() ?? new VisualizerConfig();

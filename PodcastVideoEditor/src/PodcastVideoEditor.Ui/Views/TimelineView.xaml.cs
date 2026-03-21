@@ -55,6 +55,7 @@ namespace PodcastVideoEditor.Ui.Views
         private double _resizeLeftDeltaX;
         private double _resizeLeftOriginalStartTime;
         private double _moveDeltaX;
+        private double _dragPixelsPerSecond; // Frozen at drag start to avoid jitter from TotalDuration changes
         // Pre-drag snapshots used for undo recording (never reset mid-drag unlike _segmentOriginal*).
         private double _dragUndoOriginalStart;
         private double _dragUndoOriginalEnd;
@@ -621,6 +622,7 @@ namespace PodcastVideoEditor.Ui.Views
                         () => _viewModel.InvalidateActiveSegmentsCachePublic()));
             }
             _viewModel!.IsDeferringThumbnailUpdate = false;
+            _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
         }
 
@@ -641,6 +643,7 @@ namespace PodcastVideoEditor.Ui.Views
                         () => _viewModel.InvalidateActiveSegmentsCachePublic()));
             }
             _viewModel!.IsDeferringThumbnailUpdate = false;
+            _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
         }
 
@@ -663,9 +666,10 @@ namespace PodcastVideoEditor.Ui.Views
                 _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
                 _dragUndoOriginalEnd = segment.EndTime;     // Stable snapshot for undo
                 _moveDeltaX = 0;
+                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze conversion rate
                 grid.Cursor = Cursors.SizeAll;
-                _viewModel?.SelectSegment(segment);
-                _viewModel!.IsDeferringThumbnailUpdate = true;
+                _viewModel.SelectSegment(segment);
+                _viewModel.IsDeferringThumbnailUpdate = true;
             }
         }
 
@@ -683,35 +687,28 @@ namespace PodcastVideoEditor.Ui.Views
             {
                 _moveDeltaX += e.HorizontalChange;
                 double pixelDelta = _moveDeltaX;
-                double timeDelta = _viewModel.PixelsToTime(pixelDelta);
+                // Use the frozen PixelsPerSecond captured at drag start so that
+                // TotalDuration / TimelineWidth changes mid-drag don't shift the
+                // pixel↔time mapping and cause oscillation.
+                double pps = _dragPixelsPerSecond > 0 ? _dragPixelsPerSecond : _viewModel.PixelsPerSecond;
+                double timeDelta = pixelDelta / pps;
 
                 double duration = _segmentOriginalEndTime - _segmentOriginalStartTime;
                 double newStart = _segmentOriginalStartTime + timeDelta;
                 double newEnd = newStart + duration;
 
-                // Clamp to valid range (keep duration)
-                if (duration > _viewModel.TotalDuration)
+                // Clamp left boundary (always)
+                if (newStart < 0)
                 {
                     newStart = 0;
-                    newEnd = _viewModel.TotalDuration;
+                    newEnd = duration;
+                    // Cap accumulator so reversing direction is immediately responsive
+                    _moveDeltaX = (newStart - _segmentOriginalStartTime) * pps;
                 }
-                else
-                {
-                    if (newStart < 0)
-                    {
-                        newStart = 0;
-                        newEnd = duration;
-                    }
-
-                    if (newEnd > _viewModel.TotalDuration)
-                    {
-                        newEnd = _viewModel.TotalDuration;
-                        newStart = _viewModel.TotalDuration - duration;
-                    }
-                }
+                // No right-boundary clamp: timeline expands automatically via ExpandTimelineToFit.
 
                 // Magnetic snap: check both edges, pick the closest snap while preserving duration
-                double snapThresholdM = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
+                double snapThresholdM = pps > 0 ? 15.0 / pps : 0.1;
                 double snappedByStart = _viewModel.SnapToSegmentEdge(newStart, segment.TrackId, segment.Id, snapThresholdM);
                 double snappedByEnd   = _viewModel.SnapToSegmentEdge(newEnd,   segment.TrackId, segment.Id, snapThresholdM);
                 double distS = Math.Abs(snappedByStart - newStart);
@@ -763,7 +760,10 @@ namespace PodcastVideoEditor.Ui.Views
                         seg, _dragUndoOriginalStart, _dragUndoOriginalEnd, seg.StartTime, seg.EndTime,
                         () => _viewModel.InvalidateActiveSegmentsCachePublic()));
             }
+            // End the deferred mode FIRST so recalculations below are not suppressed.
             _viewModel!.IsDeferringThumbnailUpdate = false;
+            // Recalculate timeline length and PixelsPerSecond now that the drag is done.
+            _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
         }
 

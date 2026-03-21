@@ -21,7 +21,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class TimelineViewModel : ObservableObject
     {
-        private readonly AudioService _audioService;
+        private readonly IAudioTimelinePreviewService _audioService;
         private readonly ProjectViewModel _projectViewModel;
         private SelectionSyncService? _selectionSyncService;
         private CancellationTokenSource? _playheadSyncCts;
@@ -130,7 +130,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // CanvasViewModel throttles its own updates internally.
         }
 
-        public TimelineViewModel(AudioService audioService, ProjectViewModel projectViewModel)
+        public TimelineViewModel(IAudioTimelinePreviewService audioService, ProjectViewModel projectViewModel)
         {
             _audioService = audioService;
             _projectViewModel = projectViewModel;
@@ -204,6 +204,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Get duration from audio service; if no main audio loaded, compute
                 // from the latest segment end time so the timeline is still usable.
+                // Always use the maximum of the two so segments can always extend freely.
                 var audioDuration = _audioService.GetDuration();
                 if (audioDuration > 0)
                     TotalDuration = audioDuration;
@@ -292,6 +293,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Public wrapper so the View can trigger a full recalculation after drag completes.
+        /// </summary>
+        public void RecalculatePixelsPerSecondPublic() => RecalculatePixelsPerSecond();
+
+        /// <summary>
         /// Returns the latest EndTime across all segments on all tracks, or 0 if none.
         /// Used to determine timeline duration when no main audio file is loaded.
         /// </summary>
@@ -306,15 +312,38 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Recalculate <see cref="TotalDuration"/> from segment data when no main audio is loaded.
-        /// Falls back to 60s default if there are no segments.
+        /// Recalculate <see cref="TotalDuration"/> from segment data, always keeping the timeline
+        /// at least as long as any audio loaded in the player. Falls back to 60 s when empty.
         /// </summary>
         public void RecalculateDurationFromSegments()
         {
             var segEnd = ComputeMaxSegmentEndTime();
-            TotalDuration = segEnd > 0 ? segEnd + 5 : 60; // 5s buffer after last segment, or default 60s
+            var audioDuration = _audioService.GetDuration();
+            double computed = segEnd > 0 ? segEnd + 5 : 60; // 5s buffer after last segment, or default 60s
+            TotalDuration = Math.Max(computed, audioDuration);
             RecalculatePixelsPerSecond();
             TimelineWidth = Math.Max(800, TotalDuration * 10);
+        }
+
+        /// <summary>
+        /// True when a main audio file is loaded (defines the timeline boundary).
+        /// When false, segment durations define TotalDuration and movement is unconstrained rightward.
+        /// </summary>
+        public bool IsMainAudioLoaded => _audioService.GetDuration() > 0;
+
+        /// <summary>
+        /// Expand the timeline when a segment is moved/resized past the current right edge.
+        /// Does NOT recalculate PixelsPerSecond so active drags remain stable.
+        /// </summary>
+        public void ExpandTimelineToFit(double segmentEndTime)
+        {
+            if (segmentEndTime > TotalDuration)
+            {
+                // Set backing field directly via property — OnTotalDurationChanged will
+                // skip RecalculatePixelsPerSecond when IsDeferringThumbnailUpdate is true
+                // (i.e. during an active drag) so the conversion rate stays stable.
+                TotalDuration = segmentEndTime + 5;
+            }
         }
 
         /// <summary>
@@ -1177,7 +1206,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     newStartTime = segment.StartTime;
                     if (newEndTime > TotalDuration)
-                        newEndTime = TotalDuration;
+                        ExpandTimelineToFit(newEndTime);
                     newEndTime = SnapToGrid(newEndTime);
                 }
                 else if (resizeLeftOnly)
@@ -1191,8 +1220,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     if (newEndTime > TotalDuration)
                     {
-                        newEndTime = TotalDuration;
-                        newStartTime = newEndTime - duration;
+                        // Always expand the timeline so the segment can move freely
+                        ExpandTimelineToFit(newEndTime);
                     }
                     if (newStartTime < 0)
                     {
@@ -1712,16 +1741,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         partial void OnTimelineWidthChanged(double value)
         {
-            RecalculatePixelsPerSecond();
+            if (!IsDeferringThumbnailUpdate)
+                RecalculatePixelsPerSecond();
             OnPropertyChanged(nameof(TimelineContentWidth));
         }
 
         /// <summary>
         /// Handle total duration change.
+        /// Skip recalculation during an active segment drag so that the pixel↔time
+        /// conversion rate stays constant and the segment doesn't oscillate.
         /// </summary>
         partial void OnTotalDurationChanged(double value)
         {
-            RecalculatePixelsPerSecond();
+            if (!IsDeferringThumbnailUpdate)
+                RecalculatePixelsPerSecond();
         }
 
         public void Dispose()

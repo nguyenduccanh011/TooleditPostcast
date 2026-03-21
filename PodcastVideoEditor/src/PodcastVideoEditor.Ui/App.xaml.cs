@@ -1,19 +1,23 @@
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Utilities;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui;
 
 /// <summary>
-/// Interaction logic for App.xaml
+/// Application entry point. Bootstraps DI, initialises logging, and creates MainWindow.
 /// </summary>
 public partial class App : Application
 {
+    private IServiceProvider? _serviceProvider;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // Catch ALL unhandled exceptions — log and keep app alive
@@ -47,6 +51,7 @@ public partial class App : Application
             var appDataPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "PodcastVideoEditor");
+            Directory.CreateDirectory(appDataPath);
             LoggingConfiguration.ConfigureLogging(appDataPath);
 
             base.OnStartup(e);
@@ -56,6 +61,17 @@ public partial class App : Application
                 RenderCapability.IsPixelShaderVersionSupported(3, 0) ? "Hardware" : "Software",
                 RenderCapability.Tier >> 16);
             Log.Information("App Data Path: {Path}", appDataPath);
+
+            // Build DI container (composition root).
+            _serviceProvider = AppBootstrapper.Build(appDataPath);
+
+            // Apply pending EF Core migrations before the UI opens.
+            var dbContext = _serviceProvider.GetRequiredService<AppDbContext>();
+            Ui.MainWindow.InitializeDatabase(dbContext);
+
+            // Resolve and show the main window.
+            var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+            mainWindow.Show();
         }
         catch (Exception ex)
         {
@@ -71,6 +87,7 @@ public partial class App : Application
         Log.Information("=== Application Exit ===");
         try
         {
+            (_serviceProvider as IDisposable)?.Dispose();
             LoggingConfiguration.ShutdownLoggingAsync().GetAwaiter().GetResult();
         }
         catch

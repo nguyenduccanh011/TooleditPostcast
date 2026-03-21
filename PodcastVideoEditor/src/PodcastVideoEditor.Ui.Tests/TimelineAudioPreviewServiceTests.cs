@@ -141,6 +141,7 @@ public sealed class TimelineAudioPreviewServiceTests
         public double GetCurrentPosition() => 0;
         public double GetDuration() => 0;
         public float[] GetPeakSamples(int binCount) => [];
+        public float[] GetFFTData(int fftSize = 1024) => [];
         public void SetVolume(float volume) { }
         public float GetVolume() => 1;
 

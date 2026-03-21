@@ -18,4 +18,12 @@
     <PackageReference Include="Xabe.FFmpeg" Version="6.0.2" />
   </ItemGroup>
 
+  <!-- Dead code: test/placeholder files that belong in the .Tests project -->
+  <ItemGroup>
+    <Compile Remove="Class1.cs" />
+    <Compile Remove="AudioServiceTest.cs" />
+    <Compile Remove="ProjectServiceTest.cs" />
+    <Compile Remove="TestCrud.cs" />
+  </ItemGroup>
+
 </Project>

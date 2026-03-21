@@ -20,20 +20,24 @@ namespace PodcastVideoEditor.Ui;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly AppDbContext _dbContext;
     private readonly ProjectViewModel _projectViewModel;
-    private readonly RenderViewModel _renderViewModel;
-    private readonly CanvasViewModel _canvasViewModel;
-    private readonly AudioService _audioService;
     private readonly AudioPlayerViewModel _audioPlayerViewModel;
-    private readonly VisualizerViewModel _visualizerViewModel;
     private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
     private readonly AutosaveService _autosaveService;
     private readonly string _appDataPath;
     private bool _initialLoadDone;
 
-    public MainWindow()
+    /// <summary>
+    /// Constructor receives all dependencies from the DI container (composition root in App.xaml.cs).
+    /// No object construction or wiring happens here — only event subscriptions specific to this window.
+    /// </summary>
+    public MainWindow(
+        MainViewModel mainViewModel,
+        ProjectViewModel projectViewModel,
+        AudioPlayerViewModel audioPlayerViewModel,
+        TimelineViewModel timelineViewModel,
+        AutosaveService autosaveService)
     {
         try
         {
@@ -43,62 +47,19 @@ public partial class MainWindow : Window
             _appDataPath = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "PodcastVideoEditor");
-            Directory.CreateDirectory(_appDataPath);
 
-            var dbPath = Path.Combine(_appDataPath, "app.db");
-            var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseSqlite($"Data Source={dbPath}")
-                .Options;
+            _mainViewModel = mainViewModel;
+            _projectViewModel = projectViewModel;
+            _audioPlayerViewModel = audioPlayerViewModel;
+            _timelineViewModel = timelineViewModel;
+            _autosaveService = autosaveService;
 
-            _dbContext = new AppDbContext(options);
-            InitializeDatabase(_dbContext);
-
-            var projectService = new ProjectService(_dbContext);
-            _renderViewModel = new RenderViewModel();
-            _audioService = new AudioService();
-            _visualizerViewModel = new VisualizerViewModel(_audioService);
-            _canvasViewModel = new CanvasViewModel(_visualizerViewModel);
-            var imageAssetIngestService = new ImageAssetIngestService();
-            _projectViewModel = new ProjectViewModel(projectService, _canvasViewModel, _renderViewModel, imageAssetIngestService);
-            _audioPlayerViewModel = new AudioPlayerViewModel(_audioService);
-            _timelineViewModel = new TimelineViewModel(_audioService, _projectViewModel);
-
-            _canvasViewModel.AttachProjectAndTimeline(_projectViewModel, _timelineViewModel);
-            _renderViewModel.AttachTimeline(_timelineViewModel);
-            _renderViewModel.AttachCanvas(_canvasViewModel);
-
-            _mainViewModel = new MainViewModel(
-                _projectViewModel,
-                _renderViewModel,
-                _canvasViewModel,
-                _audioPlayerViewModel,
-                _visualizerViewModel,
-                _timelineViewModel);
             DataContext = _mainViewModel;
-            Log.Information("MainWindow DataContext set, Projects count will load on Loaded");
 
             _audioPlayerViewModel.AudioLoaded += OnAudioLoaded;
 
-            // Debounced autosave: any timeline/canvas edit triggers a save after 2s idle
-            _autosaveService = new AutosaveService(
-                () => _projectViewModel.SaveProjectAsync(),
-                delayMs: 2000);
-            _timelineViewModel.PropertyChanged += (_, e) =>
-            {
-                // Only trigger autosave for meaningful changes, not playhead position updates
-                if (_projectViewModel.CurrentProject != null
-                    && e.PropertyName is not (nameof(TimelineViewModel.PlayheadPosition)
-                        or nameof(TimelineViewModel.IsPlaying)
-                        or nameof(TimelineViewModel.StatusMessage)))
-                {
-                    _autosaveService.RequestSave();
-                }
-            };
-            _timelineViewModel.Tracks.CollectionChanged += (_, _) =>
-            {
-                if (_projectViewModel.CurrentProject != null)
-                    _autosaveService.RequestSave();
-            };
+            _timelineViewModel.PropertyChanged += OnTimelinePropertyChanged;
+            _timelineViewModel.Tracks.CollectionChanged += OnTimelineTracksChanged;
 
             Log.Information("MainWindow initialized");
         }
@@ -108,6 +69,25 @@ public partial class MainWindow : Window
             MessageBox.Show($"Fatal Error:\n{ex.GetType().Name}: {ex.Message}", "Startup Error");
             throw;
         }
+    }
+
+    // ── Named event handlers (replaces lambdas — required for clean unsubscription) ──
+
+    private void OnTimelinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (_projectViewModel.CurrentProject != null
+            && e.PropertyName is not (nameof(TimelineViewModel.PlayheadPosition)
+                or nameof(TimelineViewModel.IsPlaying)
+                or nameof(TimelineViewModel.StatusMessage)))
+        {
+            _autosaveService.RequestSave();
+        }
+    }
+
+    private void OnTimelineTracksChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (_projectViewModel.CurrentProject != null)
+            _autosaveService.RequestSave();
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -257,7 +237,7 @@ public partial class MainWindow : Window
     /// before retrying the migration so that any genuinely missing columns (e.g. SegmentId)
     /// are added correctly.
     /// </summary>
-    private static void InitializeDatabase(AppDbContext context)
+    internal static void InitializeDatabase(AppDbContext context)
     {
         try
         {
@@ -449,16 +429,14 @@ public partial class MainWindow : Window
     private async void MainWindow_Closing(object sender, CancelEventArgs e)
     {
         _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
+        _timelineViewModel.PropertyChanged -= OnTimelinePropertyChanged;
+        _timelineViewModel.Tracks.CollectionChanged -= OnTimelineTracksChanged;
 
         // Flush any pending autosave before disposing
         await _autosaveService.FlushAsync();
         _autosaveService.Dispose();
 
-        _canvasViewModel?.Dispose();
-        _visualizerViewModel?.Dispose();
-        _audioPlayerViewModel?.Dispose();
-        _timelineViewModel?.Dispose();
-        _dbContext?.Dispose();
+        _mainViewModel?.Dispose();
     }
 
     private async Task LoadProjectAudioAsync()
@@ -489,9 +467,9 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnAudioLoaded(object? sender, EventArgs e)
     {
-        _visualizerViewModel.VisualizerWidth = 800;
-        _visualizerViewModel.VisualizerHeight = 300;
-        _visualizerViewModel.Initialize();
+        _mainViewModel.VisualizerViewModel.VisualizerWidth = 800;
+        _mainViewModel.VisualizerViewModel.VisualizerHeight = 300;
+        _mainViewModel.VisualizerViewModel.Initialize();
 
         var audioDuration = Math.Max(1, _audioPlayerViewModel.TotalDuration);
         // Use whichever is longer: audio file or segment content

@@ -19,7 +19,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class ProjectViewModel : ObservableObject, IDisposable
     {
-        private readonly ProjectService _projectService;
+        private readonly IProjectService _projectService;
         private readonly CanvasViewModel _canvasViewModel;
         private readonly RenderViewModel _renderViewModel;
         private readonly ThumbnailPreGenerationService _thumbnailService;
@@ -47,7 +47,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool _disposed;
 
         public ProjectViewModel(
-            ProjectService projectService,
+            IProjectService projectService,
             CanvasViewModel canvasViewModel,
             RenderViewModel renderViewModel,
             ImageAssetIngestService imageAssetIngestService)

@@ -149,7 +149,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 if (!IsAudioLoaded)
                 {
-                    StatusMessage = "No audio loaded";
+                    // Allow play-through for segment-only timeline (no main audio file).
+                    // AudioService.Play() now handles this via silent-mixer mode.
+                    _audioService.Play();
+                    _positionUpdateTimer?.Start();
+                    IsPlaying = true;
+                    StatusMessage = "Playing";
                     return;
                 }
 
@@ -216,12 +221,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
-                if (!IsAudioLoaded)
-                {
-                    StatusMessage = "No audio loaded";
-                    return;
-                }
-
                 bool serviceIsPlaying = _audioService.IsPlaying;
                 if (IsPlaying != serviceIsPlaying)
                     IsPlaying = serviceIsPlaying;

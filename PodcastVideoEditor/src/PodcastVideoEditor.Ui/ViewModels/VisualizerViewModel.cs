@@ -16,7 +16,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class VisualizerViewModel : ObservableObject
     {
-        private readonly AudioService _audioService;
+        private readonly IAudioTimelinePreviewService _audioService;
         private readonly VisualizerService _visualizerService;
         private bool _isInitialized;
 
@@ -55,7 +55,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public ObservableCollection<ColorPalette> AvailablePalettes { get; }
         public ObservableCollection<int> AvailableBandCounts { get; }
 
-        public VisualizerViewModel(AudioService audioService)
+        public VisualizerViewModel(IAudioTimelinePreviewService audioService)
         {
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _visualizerService = new VisualizerService(audioService);

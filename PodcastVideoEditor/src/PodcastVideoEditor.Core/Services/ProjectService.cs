@@ -15,7 +15,7 @@ namespace PodcastVideoEditor.Core.Services
     /// <summary>
     /// Service for project-specific CRUD operations.
     /// </summary>
-    public class ProjectService
+    public class ProjectService : IProjectService
     {
         private readonly AppDbContext _context;
 
@@ -673,6 +673,17 @@ namespace PodcastVideoEditor.Core.Services
                               .ToListAsync())
                     : new HashSet<string>();
 
+                // Same for Elements — ReplaceElementsAsync may have already saved them;
+                // without this, Update() marks them Modified and SaveChanges fails with
+                // UNIQUE constraint when they were re-inserted by a prior replace.
+                var existingElementIds = project.Elements?.Count > 0
+                    ? new HashSet<string>(
+                          await _context.Elements
+                              .Where(el => el.ProjectId == project.Id)
+                              .Select(el => el.Id)
+                              .ToListAsync())
+                    : new HashSet<string>();
+
                 _context.Projects.Update(project);
 
                 // Fix up any brand-new BgmTrack entities that were incorrectly
@@ -696,6 +707,12 @@ namespace PodcastVideoEditor.Core.Services
                                     _context.Entry(seg).State = EntityState.Added;
                     }
                 }
+
+                // Fix up new Element entities (may already exist from ReplaceElementsAsync).
+                if (project.Elements != null)
+                    foreach (var el in project.Elements)
+                        if (!existingElementIds.Contains(el.Id))
+                            _context.Entry(el).State = EntityState.Added;
 
                 await _context.SaveChangesAsync();
 

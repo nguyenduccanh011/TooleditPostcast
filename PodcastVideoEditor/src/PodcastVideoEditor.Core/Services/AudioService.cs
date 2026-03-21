@@ -45,6 +45,50 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         private readonly object _mixerLock = new();
 
+        // ── Silent-mode: segment-only playback when no main audio file is loaded ──────
+        // When no main audio file is loaded, a silent ISampleProvider drives the mixer
+        // so segment audio can still be mixed and played.  The audio clock is then
+        // simulated with a Stopwatch instead of the SampleAggregator sample counter.
+        private bool _isSilentMixerMode;
+        private double _silentModePosition;               // base position in seconds (updated on Seek/Pause)
+        private readonly Stopwatch _virtualStopwatch = new(); // elapsed time while virtually playing
+
+        /// <summary>Provides infinite silence at a fixed WaveFormat for silent-mode mixing.</summary>
+        private sealed class InfiniteSilenceProvider : ISampleProvider
+        {
+            public WaveFormat WaveFormat { get; }
+            public InfiniteSilenceProvider(WaveFormat fmt) => WaveFormat = fmt;
+            public int Read(float[] buffer, int offset, int count)
+            {
+                Array.Clear(buffer, offset, count);
+                return count;
+            }
+        }
+
+        /// <summary>
+        /// Creates a mixer backed by an infinite-silence primary source and wires up
+        /// the WaveOutEvent, enabling segment audio to be added without a main audio file.
+        /// Idempotent: safe to call multiple times.
+        /// </summary>
+        private void EnsureSilentMixerInitialized()
+        {
+            lock (_mixerLock)
+            {
+                if (_mixer != null) return; // already initialized (real or silent)
+            }
+
+            var fmt = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
+            var silence = new InfiniteSilenceProvider(fmt);
+            lock (_mixerLock)
+            {
+                if (_mixer != null) return; // double-check after re-acquiring lock
+                _mixer = new MixingSampleProvider(new[] { (ISampleProvider)silence }) { ReadFully = true };
+            }
+            _wavePlayer?.Init(_mixer);
+            _isSilentMixerMode = true;
+            Log.Information("AudioService: initialized silent mixer for segment-only playback");
+        }
+
         // VBR sample count cache: avoids re-scanning the entire file on repeated opens.
         // Key = (playbackPath, fileSize, lastWriteUtcTicks), Value = total float sample count.
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, long, long), long>
@@ -257,6 +301,20 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public void Play()
         {
+            if (_audioFileReader == null)
+            {
+                // No main audio file — switch to silent mixer mode so segment audio can play.
+                EnsureSilentMixerInitialized();
+                if (_wavePlayer?.PlaybackState != PlaybackState.Playing)
+                {
+                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
+                    _virtualStopwatch.Restart();
+                    _wavePlayer?.Play();
+                    Log.Information("Playback started (segment-only / silent mode)");
+                }
+                return;
+            }
+
             if (_wavePlayer == null)
                 throw new InvalidOperationException("No audio loaded. Call LoadAudioAsync first.");
 
@@ -277,6 +335,12 @@ namespace PodcastVideoEditor.Core.Services
         {
             if (_wavePlayer?.PlaybackState == PlaybackState.Playing)
             {
+                if (_isSilentMixerMode && _audioFileReader == null)
+                {
+                    // Capture elapsed time into base position before pausing
+                    _silentModePosition += _virtualStopwatch.Elapsed.TotalSeconds;
+                    _virtualStopwatch.Stop();
+                }
                 _wavePlayer.Pause();
                 // Mixer pauses all inputs (segment + BGM) automatically
                 PlaybackPaused?.Invoke(this, EventArgs.Empty);
@@ -297,6 +361,12 @@ namespace PodcastVideoEditor.Core.Services
                 // Reset sample counter to 0 (beginning of file)
                 _sampleAggregator?.SetPlayedSamples(0);
 
+                if (_isSilentMixerMode && _audioFileReader == null)
+                {
+                    _silentModePosition = 0;
+                    _virtualStopwatch.Reset();
+                }
+
                 Log.Information("Playback stopped");
             }
             StopSegmentAudio();
@@ -310,7 +380,13 @@ namespace PodcastVideoEditor.Core.Services
         public void Seek(double positionSeconds)
         {
             if (_audioFileReader == null)
-                throw new InvalidOperationException("No audio loaded.");
+            {
+                // No main audio — update virtual position cursor for segment-only mode.
+                _silentModePosition = Math.Max(0, positionSeconds);
+                if (_virtualStopwatch.IsRunning)
+                    _virtualStopwatch.Restart(); // reset elapsed so GetCurrentPosition continues from new point
+                return;
+            }
 
             // Use actual duration (sample-counted) for clamping, not metadata TotalTime which can be wrong for VBR MP3
             double maxDuration = _actualDurationSeconds > 0 ? _actualDurationSeconds : _audioFileReader.TotalTime.TotalSeconds;
@@ -385,6 +461,10 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public double GetCurrentPosition()
         {
+            // In segment-only mode there is no SampleAggregator — use stopwatch-based virtual clock.
+            if (_isSilentMixerMode && _audioFileReader == null)
+                return _silentModePosition + _virtualStopwatch.Elapsed.TotalSeconds;
+
             if (_waveFormat == null || _audioFileReader == null)
                 return 0;
             
