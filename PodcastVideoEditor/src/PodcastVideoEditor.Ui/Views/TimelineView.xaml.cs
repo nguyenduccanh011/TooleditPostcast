@@ -108,11 +108,11 @@ namespace PodcastVideoEditor.Ui.Views
                         InvalidateRuler();
                         UpdatePlayheadPosition();
                         UpdateSegmentLayout();
-                        InvalidateWaveform();
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.TotalDuration))
                     {
-                        InvalidateWaveform();
+                        // Waveform no longer depends on TotalDuration (renders into ActualWidth).
+                        // Only ruler and segment positions need updating.
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
                     {
@@ -123,7 +123,6 @@ namespace PodcastVideoEditor.Ui.Views
                     {
                         InvalidateRuler();
                         UpdateSegmentLayout();
-                        InvalidateWaveform();
                     }
                 };
                 _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;

@@ -5,9 +5,11 @@ using System.Windows.Media;
 namespace PodcastVideoEditor.Ui.Controls
 {
     /// <summary>
-    /// Lightweight waveform renderer (drawn, cached) for timeline audio track.
-    /// Supports SourceStartOffset / SourceDuration to display a sliced portion of the peaks
-    /// (e.g. when an audio segment is trimmed to show only the visible window of the source file).
+    /// Lightweight waveform renderer for timeline audio segments.
+    /// Renders peaks into the control's own ActualWidth (segment-local),
+    /// so changing timeline duration does NOT affect other segments' waveforms.
+    /// Supports SourceStartOffset / SourceDuration / SegmentDisplayDuration
+    /// to display the correct slice of peaks for trimmed segments.
     /// </summary>
     public sealed class WaveformControl : FrameworkElement
     {
@@ -17,20 +19,6 @@ namespace PodcastVideoEditor.Ui.Controls
                 typeof(object),  // Must be object: float[] typed DP causes MC4102 in DataTemplate bindings
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(Array.Empty<float>(), FrameworkPropertyMetadataOptions.AffectsRender, OnPeaksChanged));
-
-        public static readonly DependencyProperty PixelsPerSecondProperty =
-            DependencyProperty.Register(
-                nameof(PixelsPerSecond),
-                typeof(double),
-                typeof(WaveformControl),
-                new FrameworkPropertyMetadata(10.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
-
-        public static readonly DependencyProperty TotalDurationProperty =
-            DependencyProperty.Register(
-                nameof(TotalDuration),
-                typeof(double),
-                typeof(WaveformControl),
-                new FrameworkPropertyMetadata(60.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
 
         /// <summary>
         /// Offset into the source audio file (seconds). Only the portion starting at this offset is rendered.
@@ -54,23 +42,23 @@ namespace PodcastVideoEditor.Ui.Controls
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
 
+        /// <summary>
+        /// The segment's visible duration on the timeline (seconds), i.e. EndTime - StartTime.
+        /// Used to compute the correct endBin when the segment is shorter than the full source audio.
+        /// Default 0 = show all peaks from startBin onwards.
+        /// </summary>
+        public static readonly DependencyProperty SegmentDisplayDurationProperty =
+            DependencyProperty.Register(
+                nameof(SegmentDisplayDuration),
+                typeof(double),
+                typeof(WaveformControl),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
+
         /// <remarks>Typed as <c>object</c> for WPF XAML DataTemplate compat (see MC4102). Only float[] values are meaningful.</remarks>
         public object Peaks
         {
             get => GetValue(PeaksProperty);
             set => SetValue(PeaksProperty, value);
-        }
-
-        public double PixelsPerSecond
-        {
-            get => (double)GetValue(PixelsPerSecondProperty);
-            set => SetValue(PixelsPerSecondProperty, value);
-        }
-
-        public double TotalDuration
-        {
-            get => (double)GetValue(TotalDurationProperty);
-            set => SetValue(TotalDurationProperty, value);
         }
 
         public double SourceStartOffset
@@ -85,6 +73,12 @@ namespace PodcastVideoEditor.Ui.Controls
             set => SetValue(SourceDurationProperty, value);
         }
 
+        public double SegmentDisplayDuration
+        {
+            get => (double)GetValue(SegmentDisplayDurationProperty);
+            set => SetValue(SegmentDisplayDurationProperty, value);
+        }
+
         private static readonly Brush WaveBrush;
 
         private DrawingGroup? _cache;
@@ -93,6 +87,7 @@ namespace PodcastVideoEditor.Ui.Controls
         private double _cachedHeight;
         private double _cachedSourceOffset;
         private double _cachedSourceDuration;
+        private double _cachedSegmentDuration;
 
         static WaveformControl()
         {
@@ -105,16 +100,13 @@ namespace PodcastVideoEditor.Ui.Controls
         {
             base.OnRender(dc);
 
+            double width = ActualWidth;
             double height = ActualHeight;
-            if (height <= 0)
+            if (width <= 0 || height <= 0)
                 return;
 
-            double contentWidth = GetContentWidth();
-            if (contentWidth <= 0)
-                return;
-
-            if (IsCacheInvalid(contentWidth, height))
-                RebuildCache(contentWidth, height);
+            if (IsCacheInvalid(width, height))
+                RebuildCache(width, height);
 
             if (_cache != null)
                 dc.DrawDrawing(_cache);
@@ -145,18 +137,11 @@ namespace PodcastVideoEditor.Ui.Controls
                 return true;
             if (Math.Abs(_cachedWidth - width) > 0.1 || Math.Abs(_cachedHeight - height) > 0.1)
                 return true;
-            if (Math.Abs(_cachedSourceOffset - SourceStartOffset) > 0.001 || Math.Abs(_cachedSourceDuration - SourceDuration) > 0.001)
+            if (Math.Abs(_cachedSourceOffset - SourceStartOffset) > 0.001
+                || Math.Abs(_cachedSourceDuration - SourceDuration) > 0.001
+                || Math.Abs(_cachedSegmentDuration - SegmentDisplayDuration) > 0.001)
                 return true;
             return false;
-        }
-
-        private double GetContentWidth()
-        {
-            if (PixelsPerSecond <= 0)
-                return 0;
-            if (TotalDuration <= 0)
-                return 0;
-            return TotalDuration * PixelsPerSecond;
         }
 
         private void RebuildCache(double width, double height)
@@ -168,27 +153,38 @@ namespace PodcastVideoEditor.Ui.Controls
             {
                 if (peaks.Length > 0)
                 {
-                    // Compute visible slice of peaks when SourceStartOffset/SourceDuration are set
+                    // Compute visible slice of peaks:
+                    // - startBin derived from SourceStartOffset
+                    // - endBin derived from SourceStartOffset + SegmentDisplayDuration
+                    // Both are relative to SourceDuration (the full source audio length).
                     int startBin = 0;
                     int endBin = peaks.Length;
                     double srcDur = SourceDuration;
                     double srcOffset = SourceStartOffset;
-                    if (srcDur > 0 && srcOffset >= 0)
+                    double segDur = SegmentDisplayDuration;
+
+                    if (srcDur > 0)
                     {
                         double ratio = (double)peaks.Length / srcDur;
-                        startBin = Math.Max(0, (int)(srcOffset * ratio));
-                        // Segment display duration = width of control in time isn't directly available,
-                        // but we render whatever peaks remain after the offset
+                        if (srcOffset > 0)
+                            startBin = Math.Clamp((int)(srcOffset * ratio), 0, peaks.Length);
+                        if (segDur > 0)
+                            endBin = Math.Clamp((int)((srcOffset + segDur) * ratio), startBin, peaks.Length);
                     }
+
                     if (startBin >= endBin)
-                        startBin = 0; // fallback: show all
+                    {
+                        startBin = 0;
+                        endBin = peaks.Length;
+                    }
 
                     int count = endBin - startBin;
+                    if (count <= 0) count = 1;
+
                     double maxBarHeight = Math.Max(1, height - 4);
                     double slotWidth = width / count;
                     double barWidth = Math.Max(0.3, slotWidth - 0.2);
 
-                    // Use StreamGeometry: one path for all bars — much faster than N DrawRectangle calls
                     var geo = new StreamGeometry();
                     using (var ctx = geo.Open())
                     {
@@ -219,6 +215,7 @@ namespace PodcastVideoEditor.Ui.Controls
             _cachedHeight = height;
             _cachedSourceOffset = SourceStartOffset;
             _cachedSourceDuration = SourceDuration;
+            _cachedSegmentDuration = SegmentDisplayDuration;
         }
     }
 }

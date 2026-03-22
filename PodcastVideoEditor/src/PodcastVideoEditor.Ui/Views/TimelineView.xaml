@@ -415,8 +415,7 @@
                                                                                                   Peaks="{Binding WaveformPeaks}"
                                                                                                   SourceStartOffset="{Binding SourceStartOffset}"
                                                                                                   SourceDuration="{Binding SourceFileDuration}"
-                                                                                                  PixelsPerSecond="{Binding DataContext.PixelsPerSecond, RelativeSource={RelativeSource AncestorType={x:Type local:TimelineView}}}"
-                                                                                                  TotalDuration="{Binding DataContext.TotalDuration, RelativeSource={RelativeSource AncestorType={x:Type local:TimelineView}}}"/>
+                                                                                                  SegmentDisplayDuration="{Binding SegmentDisplayDuration}"/>
                                                                     </Border>
                                                                     <!-- Floating label: segment name/text; vertically centered for text-kind tracks -->
                                                                     <TextBlock Text="{Binding Text}"

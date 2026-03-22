@@ -17,10 +17,19 @@ public partial class Segment : ObservableObject
     private string projectId = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SegmentDisplayDuration))]
     private double startTime;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SegmentDisplayDuration))]
     private double endTime;
+
+    /// <summary>
+    /// Computed: segment's visible duration on the timeline (EndTime - StartTime).
+    /// Used by WaveformControl to compute the correct peak bin slice.
+    /// </summary>
+    [NotMapped]
+    public double SegmentDisplayDuration => Math.Max(0, EndTime - StartTime);
 
     [ObservableProperty]
     private string text = string.Empty;
