@@ -26,6 +26,7 @@ namespace PodcastVideoEditor.Core.Services
         
         // Rendering state
         private double _colorTick;
+        private bool _idleMode;
         private const float RenderScale = 0.5f;
         
         // Rendering control
@@ -130,7 +131,8 @@ namespace PodcastVideoEditor.Core.Services
                 {
                     var frameStart = Environment.TickCount64;
 
-                    // Always update spectrum: use real FFT when playing, demo data otherwise
+                    // Always update spectrum: use real FFT when playing, idle animation otherwise
+                    _idleMode = !_audioService.IsPlaying;
                     if (_audioService.IsPlaying)
                     {
                         UpdateSpectrumData();
@@ -142,7 +144,8 @@ namespace PodcastVideoEditor.Core.Services
 
                     // Always render frame (no black frame ever)
                     RenderFrame(width, height);
-                    _colorTick += 0.15; // Slow color rotation so bars don't appear to scroll laterally
+                    // Idle: slow color drift so element looks "at rest"; active: normal rotation
+                    _colorTick += _idleMode ? 0.03 : 0.15;
 
                     var frameTime = Environment.TickCount64 - frameStart;
                     var sleepTime = Math.Max(0, frameTimeMs - (int)frameTime);
@@ -226,8 +229,9 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
-        /// Generate animated demo spectrum data when audio is not playing.
-        /// Produces a smooth, visually appealing preview pattern.
+        /// Generate idle animation when audio is not playing.
+        /// Very low amplitude and slow oscillation — clearly "at rest", not playing.
+        /// Max ~10% bar height so users cannot mistake it for real audio activity.
         /// </summary>
         private void GenerateDemoSpectrum()
         {
@@ -235,15 +239,15 @@ namespace PodcastVideoEditor.Core.Services
             for (int i = 0; i < _config.BandCount; i++)
             {
                 var freq = i / (float)_config.BandCount;
-                // Standing waves: each band oscillates in-place at its own unique frequency.
-                // No (time * speed + freq * phase) pattern — avoids left-to-right traveling motion.
-                var bandFreq = 1.0 + freq * 4.0;   // each band has its own oscillation speed
-                var val = 0.25f
-                             + 0.20f * MathF.Sin((float)(time * bandFreq))
-                             + 0.10f * MathF.Sin((float)(time * bandFreq * 1.7))
-                             + 0.08f * MathF.Sin((float)(time * bandFreq * 0.5));
-                // Lower frequencies tend to be louder (more natural)
-                val *= 1.0f - freq * 0.4f;
+                // Idle mode: 4× slower than full demo, very low amplitude.
+                // Each band still oscillates at its own rate (standing wave, no traveling motion).
+                var bandFreq = 0.25 + freq * 1.0;   // slow — 4× slower than active demo
+                var val = 0.05f
+                             + 0.03f * MathF.Sin((float)(time * bandFreq))
+                             + 0.02f * MathF.Sin((float)(time * bandFreq * 1.7))
+                             + 0.01f * MathF.Sin((float)(time * bandFreq * 0.5));
+                // Lower frequencies slightly higher — maintains natural spectral shape
+                val *= 1.0f - freq * 0.3f;
                 var newValue = Math.Clamp(val, 0f, 1f);
 
                 _currentSpectrum[i] = Lerp(_previousSpectrum[i], newValue, 1f - _config.SmoothingFactor);

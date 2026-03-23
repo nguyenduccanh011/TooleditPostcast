@@ -227,6 +227,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     segment.PropertyChanged -= _segmentPropertyChangedHandler;
             }
 
+            // Unsubscribe old segment-collection handlers
+            DetachSegmentCollectionSubscriptions();
+
             if (_trackedTracks == null)
             {
                 _trackedSegments = null;
@@ -241,7 +244,109 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     if (_trackedSegments.Add(segment))
                         segment.PropertyChanged += _segmentPropertyChangedHandler;
                 }
+
+                // Subscribe to Segments.CollectionChanged so we detect segment add/remove
+                if (track.Id != null && track.Segments is System.Collections.Specialized.INotifyCollectionChanged ncc)
+                {
+                    NotifyCollectionChangedEventHandler handler = (s, e) => OnSegmentsCollectionChanged(track, e);
+                    ncc.CollectionChanged += handler;
+                    _segmentsCollectionHandlers[track.Id] = handler;
+                }
             }
+        }
+
+        /// <summary>
+        /// Detach all segment-collection (add/remove) subscriptions.
+        /// </summary>
+        private void DetachSegmentCollectionSubscriptions()
+        {
+            if (_trackedTracks == null || _segmentsCollectionHandlers.Count == 0)
+                return;
+
+            foreach (var track in _trackedTracks)
+            {
+                if (track.Id != null
+                    && _segmentsCollectionHandlers.TryGetValue(track.Id, out var handler)
+                    && track.Segments is System.Collections.Specialized.INotifyCollectionChanged ncc)
+                {
+                    ncc.CollectionChanged -= handler;
+                }
+            }
+            _segmentsCollectionHandlers.Clear();
+        }
+
+        /// <summary>
+        /// Handles segment add/remove on a track. Cleans up orphaned canvas elements
+        /// when segments are deleted and rebuilds property-change subscriptions.
+        /// On Undo (segment re-added), restores previously cached elements.
+        /// </summary>
+        private void OnSegmentsCollectionChanged(Track track, NotifyCollectionChangedEventArgs e)
+        {
+            if (_timelineViewModel == null)
+                return;
+
+            // Handle removed segments: clean up canvas elements linked to them
+            if (e.OldItems != null)
+            {
+                var deletedIds = new List<string>();
+                foreach (Segment removed in e.OldItems)
+                {
+                    if (removed.Id != null)
+                        deletedIds.Add(removed.Id);
+                    // Unsubscribe PropertyChanged
+                    if (_segmentPropertyChangedHandler != null)
+                        removed.PropertyChanged -= _segmentPropertyChangedHandler;
+                    _trackedSegments?.Remove(removed);
+                }
+                if (deletedIds.Count > 0)
+                {
+                    var removed = RemoveOrphanedElements(deletedIds);
+                    // Cache for undo restoration
+                    foreach (var el in removed)
+                    {
+                        if (el.SegmentId != null)
+                        {
+                            if (!_orphanedElementCache.TryGetValue(el.SegmentId, out var list))
+                            {
+                                list = [];
+                                _orphanedElementCache[el.SegmentId] = list;
+                            }
+                            list.Add(el);
+                        }
+                    }
+                }
+            }
+
+            // Handle added segments: subscribe to PropertyChanged and restore cached elements (undo)
+            if (e.NewItems != null)
+            {
+                foreach (Segment added in e.NewItems)
+                {
+                    if (_trackedSegments != null && _trackedSegments.Add(added) && _segmentPropertyChangedHandler != null)
+                        added.PropertyChanged += _segmentPropertyChangedHandler;
+
+                    // Restore cached elements from a previous delete (undo scenario)
+                    if (added.Id != null && _orphanedElementCache.TryGetValue(added.Id, out var cached))
+                    {
+                        foreach (var el in cached)
+                        {
+                            if (!Elements.Contains(el))
+                                Elements.Add(el);
+                        }
+                        _orphanedElementCache.Remove(added.Id);
+                        EnsureVisualizerTimer();
+                    }
+                }
+            }
+
+            // Reset: full rebuild
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                RebuildSegmentSubscriptions();
+            }
+
+            _timelineViewModel.InvalidateActiveSegmentsCachePublic();
+            ScheduleDebouncedPreviewUpdate();
         }
 
         private void DetachTrackSubscriptions()
@@ -251,6 +356,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 foreach (var segment in _trackedSegments)
                     segment.PropertyChanged -= _segmentPropertyChangedHandler;
             }
+
+            DetachSegmentCollectionSubscriptions();
 
             if (_trackedTracks != null && _tracksCollectionChangedHandler != null)
                 _trackedTracks.CollectionChanged -= _tracksCollectionChangedHandler;

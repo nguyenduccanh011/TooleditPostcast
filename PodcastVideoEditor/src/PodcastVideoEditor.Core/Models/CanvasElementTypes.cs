@@ -104,6 +104,7 @@ namespace PodcastVideoEditor.Core.Models
                 Height = Height,
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
+                SegmentId = null, // Clone is independent — not bound to original segment
                 Text = Text,
                 FontFamily = FontFamily,
                 FontSize = FontSize,
@@ -171,6 +172,7 @@ namespace PodcastVideoEditor.Core.Models
                 Height = Height,
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
+                SegmentId = null, // Clone is independent — not bound to original segment
                 ImagePath = ImagePath,
                 Opacity = Opacity,
                 ScaleMode = ScaleMode
@@ -238,6 +240,7 @@ namespace PodcastVideoEditor.Core.Models
                 Height = Height,
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
+                SegmentId = null, // Clone is independent — not bound to original segment
                 ColorPalette = ColorPalette,
                 BandCount = BandCount,
                 Style = Style
@@ -301,6 +304,7 @@ namespace PodcastVideoEditor.Core.Models
                 Height = Height,
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
+                SegmentId = null, // Clone is independent — not bound to original segment
                 FilePath = FilePath,
                 Opacity = Opacity,
                 ScaleMode = ScaleMode
@@ -408,6 +412,7 @@ namespace PodcastVideoEditor.Core.Models
                 Height = Height,
                 ZIndex = ZIndex,
                 IsVisible = IsVisible,
+                SegmentId = null, // Clone is independent — not bound to original segment
                 Content = Content,
                 FontFamily = FontFamily,
                 FontSize = FontSize,

@@ -34,6 +34,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private ObservableCollection<Track>? _trackedTracks;
         private HashSet<Segment>? _trackedSegments;
         private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
+        private readonly Dictionary<string, NotifyCollectionChangedEventHandler> _segmentsCollectionHandlers = new(StringComparer.Ordinal);
+        // Cache orphaned elements by SegmentId so Undo (segment re-insert) can restore them
+        private readonly Dictionary<string, List<CanvasElement>> _orphanedElementCache = new(StringComparer.Ordinal);
         private PropertyChangedEventHandler? _trackPropertyChangedHandler;
         private PropertyChangedEventHandler? _segmentPropertyChangedHandler;
         private PropertyChangedEventHandler? _timelinePropertyChangedHandler;
@@ -373,6 +376,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             else if (!HasVisualizerElements && _visualizerTimer.IsEnabled)
             {
                 _visualizerTimer.Stop();
+                _visualizerViewModel.StopRendering();
             }
         }
 
@@ -509,6 +513,31 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Remove canvas elements whose SegmentId matches one of the deleted segment IDs.
+        /// Returns the list of removed elements (useful for undo scenarios).
+        /// </summary>
+        internal List<CanvasElement> RemoveOrphanedElements(IEnumerable<string> deletedSegmentIds)
+        {
+            var deletedSet = deletedSegmentIds as ISet<string>
+                ?? new HashSet<string>(deletedSegmentIds, StringComparer.Ordinal);
+
+            var orphaned = Elements
+                .Where(el => el.SegmentId != null && deletedSet.Contains(el.SegmentId))
+                .ToList();
+
+            foreach (var old in orphaned)
+                Elements.Remove(old);
+
+            if (orphaned.Count > 0)
+            {
+                EnsureVisualizerTimer();
+                Log.Information("Removed {Count} orphaned canvas element(s) for deleted segment(s)", orphaned.Count);
+            }
+
+            return orphaned;
+        }
+
+        /// <summary>
         /// Called when ApplyScriptAsync completes. Removes canvas elements that were linked to
         /// the replaced text-track segments, then creates a new TextElement for every new segment
         /// so script text is editable/draggable instead of being a read-only subtitle overlay.
@@ -516,11 +545,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private void OnScriptApplied(object? sender, ScriptAppliedEventArgs e)
         {
             // Remove canvas elements that belonged to the now-replaced text-track segments
-            var orphaned = Elements
-                .Where(el => el.SegmentId != null && e.ReplacedSegmentIds.Contains(el.SegmentId))
-                .ToList();
-            foreach (var old in orphaned)
-                Elements.Remove(old);
+            var orphaned = RemoveOrphanedElements(e.ReplacedSegmentIds);
 
             // Create an interactive TextElement for each new segment, positioned at subtitle area (center-bottom)
             double subtitleX = Math.Max(0, (CanvasWidth - 600) / 2);
@@ -999,6 +1024,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 foreach (var ce in canvasElements)
                     Elements.Add(ce);
 
+                // Validate SegmentIds: nullify references to segments that no longer exist
+                ValidateElementSegmentIds();
+
                 SelectedElement = null;
                 PropertyEditor.SetSelectedElement(null);
                 EnsureVisualizerTimer();
@@ -1011,6 +1039,42 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 LogMessage($"Error loading elements: {ex.Message}");
                 Log.Error(ex, "Error loading canvas elements from project");
             }
+        }
+
+        /// <summary>
+        /// Validate all element SegmentIds against current project segments.
+        /// Elements referencing non-existent segments get their SegmentId set to null
+        /// (becoming global overlays) to prevent orphaned references.
+        /// </summary>
+        private void ValidateElementSegmentIds()
+        {
+            if (_timelineViewModel == null)
+                return;
+
+            var validSegmentIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                foreach (var seg in track.Segments)
+                {
+                    if (seg.Id != null)
+                        validSegmentIds.Add(seg.Id);
+                }
+            }
+
+            int fixedCount = 0;
+            foreach (var element in Elements)
+            {
+                if (element.SegmentId != null && !validSegmentIds.Contains(element.SegmentId))
+                {
+                    Log.Warning("Element {ElementId} ({Name}) has stale SegmentId {SegmentId}, setting to null",
+                        element.Id, element.Name, element.SegmentId);
+                    element.SegmentId = null;
+                    fixedCount++;
+                }
+            }
+
+            if (fixedCount > 0)
+                Log.Information("Fixed {Count} element(s) with stale SegmentId references", fixedCount);
         }
 
     }

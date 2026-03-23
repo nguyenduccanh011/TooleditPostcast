@@ -123,6 +123,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Stop the visualizer rendering loop. Can be re-initialized later via <see cref="Initialize"/>.
+        /// Called when no visualizer elements remain on canvas to save CPU.
+        /// </summary>
+        public void StopRendering()
+        {
+            if (!_isInitialized)
+                return;
+
+            _visualizerService.Stop();
+            IsVisualizerRunning = false;
+            _isInitialized = false;
+            Log.Information("VisualizerViewModel rendering stopped");
+        }
+
+        /// <summary>
         /// Ensure visualizer is running (demo mode renders even when audio stopped).
         /// </summary>
         public void UpdatePlaybackState()
