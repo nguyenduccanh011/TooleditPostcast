@@ -597,69 +597,124 @@ namespace PodcastVideoEditor.Core.Services
             }
         }
 
+        // ── Waveform peak computation constants ──────────────────────────────────
+        // Bins per second of audio — ensures consistent visual density regardless of file length.
+        // Commercial DAWs typically use 100-256; 200 gives ~1 bar per 5ms of audio.
+        private const int BinsPerSecond = 200;
+        private const int MaxBinCount = 48000; // cap for very long files (~4 min at 200 bps)
+        private const int MinBinCount = 200;   // minimum for very short files
+
+        /// <summary>
+        /// Compute the bin count for a given audio duration using the BinsPerSecond constant.
+        /// </summary>
+        public static int ComputeBinCount(double durationSeconds)
+        {
+            if (durationSeconds <= 0) return MinBinCount;
+            return Math.Clamp((int)(durationSeconds * BinsPerSecond), MinBinCount, MaxBinCount);
+        }
+
         /// <summary>
         /// Get peak samples for waveform display (e.g. timeline audio track).
         /// Uses a separate reader so playback position is not affected.
         /// Returns one peak per "bin"; values are normalized 0..1.
-        /// FIXED: Uses actual sample count for accurate sync with playback.
         /// </summary>
         public float[] GetPeakSamples(int binCount)
         {
             if (string.IsNullOrEmpty(_playbackAudioPath) || !File.Exists(_playbackAudioPath) || binCount <= 0)
                 return Array.Empty<float>();
 
-            return ComputePeaks(_playbackAudioPath, binCount, _totalSampleCount);
+            return ComputePeaks(_playbackAudioPath, binCount, _totalSampleCount).Peaks;
         }
 
         /// <summary>
         /// Generate peak samples for any audio file (static, for waveform display in segments).
+        /// Returns peaks and sample-accurate duration. Bin count is computed automatically
+        /// from actual audio duration using BinsPerSecond for consistent visual density.
         /// </summary>
-        public static float[] GetPeakSamplesFromFile(string filePath, int binCount)
+        public static (float[] Peaks, double ActualDurationSeconds) GetPeakSamplesFromFile(string filePath)
         {
-            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath) || binCount <= 0)
-                return Array.Empty<float>();
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                return (Array.Empty<float>(), 0);
 
-            return ComputePeaks(filePath, binCount, totalSampleCountHint: 0);
+            // Two-phase: first count actual samples for accurate duration (handles VBR MP3),
+            // then compute peaks with correct bin mapping.
+            var result = ComputePeaks(filePath, binCount: 0, totalSampleCountHint: 0);
+            return (result.Peaks, result.ActualDurationSeconds);
         }
 
         /// <summary>
         /// Shared peak computation: read the entire audio file and bucket max-abs into bins.
+        /// Single-pass VBR-accurate: counts real samples as it reads, then re-maps to bins.
+        /// When binCount is 0, it auto-computes from actual duration using BinsPerSecond.
         /// </summary>
-        private static float[] ComputePeaks(string filePath, int binCount, long totalSampleCountHint)
+        private static (float[] Peaks, double ActualDurationSeconds) ComputePeaks(string filePath, int binCount, long totalSampleCountHint)
         {
             try
             {
                 using var reader = new AudioFileReader(filePath);
-                var peaks = new float[binCount];
-                var buffer = new float[4096];
-                long totalSamplesEstimate = totalSampleCountHint;
-                if (totalSamplesEstimate <= 0)
-                {
-                    var totalTimeSeconds = Math.Max(0.001, reader.TotalTime.TotalSeconds);
-                    totalSamplesEstimate = (long)(totalTimeSeconds * reader.WaveFormat.SampleRate * reader.WaveFormat.Channels);
-                }
-                totalSamplesEstimate = Math.Max(totalSamplesEstimate, 1);
-                long globalSampleIndex = 0;
+                var waveFormat = reader.WaveFormat;
+                var buffer = new float[8192];
 
-                int read;
-                while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+                // If totalSampleCountHint is known and binCount is specified, use fast single-pass.
+                // The caller has already counted the exact samples, so the mapping is accurate.
+                if (totalSampleCountHint > 0 && binCount > 0)
                 {
-                    for (int i = 0; i < read; i++)
+                    var peaks = new float[binCount];
+                    long globalSampleIndex = 0;
+                    int read;
+                    while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
                     {
-                        int binIndex = (int)Math.Min(binCount - 1, (globalSampleIndex * binCount) / totalSamplesEstimate);
+                        for (int i = 0; i < read; i++)
+                        {
+                            int bi = (int)Math.Min(binCount - 1, (globalSampleIndex * binCount) / totalSampleCountHint);
+                            float abs = Math.Abs(buffer[i]);
+                            if (abs > peaks[bi])
+                                peaks[bi] = abs;
+                            globalSampleIndex++;
+                        }
+                    }
+                    double dur = (double)globalSampleIndex / (waveFormat.SampleRate * waveFormat.Channels);
+                    return (peaks, dur);
+                }
+
+                // VBR-safe two-pass approach for sample-accurate peak mapping:
+                // Pass 1: count total samples (fast sequential read, no peak computation).
+                // Pass 2: re-read with correct sample→bin mapping using true sample count.
+                // This eliminates the distortion of the old metadata-estimate approach.
+                long totalSamples = 0;
+                int read1;
+                while ((read1 = reader.Read(buffer, 0, buffer.Length)) > 0)
+                    totalSamples += read1;
+
+                double actualDuration = (double)totalSamples / (waveFormat.SampleRate * waveFormat.Channels);
+                int finalBinCount = binCount > 0 ? binCount : ComputeBinCount(actualDuration);
+
+                if (totalSamples <= 0)
+                    return (new float[finalBinCount], actualDuration);
+
+                // Pass 2: re-read from start with accurate sample→bin mapping
+                reader.Position = 0;
+                var finalPeaks = new float[finalBinCount];
+                long sampleIndex = 0;
+                int read2;
+                while ((read2 = reader.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    for (int i = 0; i < read2; i++)
+                    {
+                        int bi = (int)Math.Min(finalBinCount - 1, (sampleIndex * finalBinCount) / totalSamples);
                         float abs = Math.Abs(buffer[i]);
-                        if (abs > peaks[binIndex])
-                            peaks[binIndex] = abs;
-                        globalSampleIndex++;
+                        if (abs > finalPeaks[bi])
+                            finalPeaks[bi] = abs;
+                        sampleIndex++;
                     }
                 }
 
-                return peaks;
+                return (finalPeaks, actualDuration);
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, "Could not compute peak samples for: {Path}", filePath);
-                return Array.Empty<float>();
+                return (Array.Empty<float>(), 0);
             }
         }
 

@@ -84,7 +84,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private IAIAnalysisOrchestrator? _aiOrchestrator;
         private bool _isAnalyzing;
 
-        private const int WaveformBinCount = 2400;
         private const double DefaultSegmentDurationSeconds = 5.0;
         // Cache for GetActiveSegmentsAtTime: avoid duplicate allocations within the same dispatch frame.
         // CanvasViewModel and the audio playback loop both call this per frame.
@@ -263,14 +262,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
 
             var path = asset.FilePath;
-            var assetDuration = asset.Duration ?? 0;
             _ = Task.Run(() =>
             {
-                var peaks = AudioService.GetPeakSamplesFromFile(path, WaveformBinCount);
+                var (peaks, actualDuration) = AudioService.GetPeakSamplesFromFile(path);
                 Application.Current?.Dispatcher.InvokeAsync(() =>
                 {
                     segment.WaveformPeaks = peaks;
-                    segment.SourceFileDuration = assetDuration;
+                    // Use sample-accurate duration (not metadata) for correct waveform slicing
+                    segment.SourceFileDuration = actualDuration > 0 ? actualDuration : (asset.Duration ?? 0);
                 });
             });
         }

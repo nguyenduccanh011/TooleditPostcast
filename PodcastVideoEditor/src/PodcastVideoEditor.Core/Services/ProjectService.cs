@@ -57,9 +57,18 @@ namespace PodcastVideoEditor.Core.Services
             {
                 try
                 {
+                    // Use sample-accurate duration (counts actual decoded samples)
+                    // instead of metadata TotalTime which can be wrong for VBR MP3.
                     using var reader = new AudioFileReader(destinationPath);
-                    duration = reader.TotalTime.TotalSeconds;
-                    Log.Debug("Probed audio duration for {Name}: {Duration}s", fileInfo.Name, duration);
+                    var waveFormat = reader.WaveFormat;
+                    long totalSamples = 0;
+                    var countBuffer = new float[8192];
+                    int countRead;
+                    while ((countRead = reader.Read(countBuffer, 0, countBuffer.Length)) > 0)
+                        totalSamples += countRead;
+                    duration = (double)totalSamples / (waveFormat.SampleRate * waveFormat.Channels);
+                    Log.Debug("Probed audio duration for {Name}: {Duration}s (sample-accurate, {Samples} samples)",
+                        fileInfo.Name, duration, totalSamples);
                 }
                 catch (Exception ex)
                 {

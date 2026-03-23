@@ -455,8 +455,9 @@ namespace PodcastVideoEditor.Ui.Views
                 _segmentOriginalEndTime = segment.EndTime;
                 _dragUndoOriginalEnd = segment.EndTime; // Stable snapshot for undo
                 _resizeDeltaX = 0;
+                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze PPS during resize
                 grid.Cursor = Cursors.SizeWE;
-                _viewModel!.IsDeferringThumbnailUpdate = true;
+                _viewModel.IsDeferringThumbnailUpdate = true;
             }
         }
 
@@ -479,8 +480,9 @@ namespace PodcastVideoEditor.Ui.Views
                 _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
                 _dragUndoOriginalSourceOffset = segment.SourceStartOffset; // Snapshot for undo
                 _resizeLeftDeltaX = 0;
+                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze PPS during resize
                 grid.Cursor = Cursors.SizeWE;
-                _viewModel!.IsDeferringThumbnailUpdate = true;
+                _viewModel.IsDeferringThumbnailUpdate = true;
             }
         }
 

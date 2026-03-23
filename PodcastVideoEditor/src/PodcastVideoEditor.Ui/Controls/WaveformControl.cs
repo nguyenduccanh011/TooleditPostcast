@@ -6,10 +6,10 @@ namespace PodcastVideoEditor.Ui.Controls
 {
     /// <summary>
     /// Lightweight waveform renderer for timeline audio segments.
-    /// Renders peaks into the control's own ActualWidth (segment-local),
-    /// so changing timeline duration does NOT affect other segments' waveforms.
-    /// Supports SourceStartOffset / SourceDuration / SegmentDisplayDuration
-    /// to display the correct slice of peaks for trimmed segments.
+    /// Uses global-coordinate rendering: each pixel column maps to a fixed time
+    /// range determined by PixelsPerSecond, so resizing a segment only changes how
+    /// many columns are drawn — never the mapping from time to pixel position.
+    /// This matches commercial DAW behaviour (CapCut, DaVinci, Audacity).
     /// </summary>
     public sealed class WaveformControl : FrameworkElement
     {
@@ -54,6 +54,18 @@ namespace PodcastVideoEditor.Ui.Controls
                 typeof(WaveformControl),
                 new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
 
+        /// <summary>
+        /// Timeline pixels-per-second at the current zoom level. Used for global-coordinate
+        /// rendering: each pixel column covers exactly 1/PixelsPerSecond seconds of audio.
+        /// Default 0 = fall back to segment-local (legacy) mapping.
+        /// </summary>
+        public static readonly DependencyProperty PixelsPerSecondProperty =
+            DependencyProperty.Register(
+                nameof(PixelsPerSecond),
+                typeof(double),
+                typeof(WaveformControl),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender, OnLayoutChanged));
+
         /// <remarks>Typed as <c>object</c> for WPF XAML DataTemplate compat (see MC4102). Only float[] values are meaningful.</remarks>
         public object Peaks
         {
@@ -79,6 +91,12 @@ namespace PodcastVideoEditor.Ui.Controls
             set => SetValue(SegmentDisplayDurationProperty, value);
         }
 
+        public double PixelsPerSecond
+        {
+            get => (double)GetValue(PixelsPerSecondProperty);
+            set => SetValue(PixelsPerSecondProperty, value);
+        }
+
         private static readonly Brush WaveBrush;
 
         private DrawingGroup? _cache;
@@ -88,6 +106,7 @@ namespace PodcastVideoEditor.Ui.Controls
         private double _cachedSourceOffset;
         private double _cachedSourceDuration;
         private double _cachedSegmentDuration;
+        private double _cachedPps;
 
         static WaveformControl()
         {
@@ -139,11 +158,17 @@ namespace PodcastVideoEditor.Ui.Controls
                 return true;
             if (Math.Abs(_cachedSourceOffset - SourceStartOffset) > 0.001
                 || Math.Abs(_cachedSourceDuration - SourceDuration) > 0.001
-                || Math.Abs(_cachedSegmentDuration - SegmentDisplayDuration) > 0.001)
+                || Math.Abs(_cachedSegmentDuration - SegmentDisplayDuration) > 0.001
+                || Math.Abs(_cachedPps - PixelsPerSecond) > 0.001)
                 return true;
             return false;
         }
 
+        /// <summary>
+        /// Global-coordinate rendering: for each pixel column, compute the time range it
+        /// represents via PixelsPerSecond, then find the max peak in that range.
+        /// This ensures the bar↔time mapping is constant regardless of segment width.
+        /// </summary>
         private void RebuildCache(double width, double height)
         {
             var peaks = GetPeaksArray();
@@ -153,44 +178,61 @@ namespace PodcastVideoEditor.Ui.Controls
             {
                 if (peaks.Length > 0)
                 {
-                    // Compute visible slice of peaks:
-                    // - startBin derived from SourceStartOffset
-                    // - endBin derived from SourceStartOffset + SegmentDisplayDuration
-                    // Both are relative to SourceDuration (the full source audio length).
-                    int startBin = 0;
-                    int endBin = peaks.Length;
                     double srcDur = SourceDuration;
                     double srcOffset = SourceStartOffset;
-                    double segDur = SegmentDisplayDuration;
+                    double pps = PixelsPerSecond;
 
-                    if (srcDur > 0)
+                    // Bins-per-second ratio: maps time → peak array index
+                    double binsPerSecond = srcDur > 0 ? peaks.Length / srcDur : peaks.Length;
+
+                    // ── 1. For each pixel column, compute the time window it covers ─
+                    // Global-coordinate: pixel x covers [srcOffset + x/pps, srcOffset + (x+1)/pps)
+                    // This mapping is CONSTANT — resizing the segment only changes the
+                    // number of columns, not which time each column represents.
+                    int barCount = Math.Max(1, (int)Math.Ceiling(width));
+                    var displayPeaks = new float[barCount];
+
+                    // Seconds-per-pixel: how much audio time each pixel column represents
+                    double secPerPixel = pps > 0 ? 1.0 / pps : 0;
+
+                    // Fallback: if PPS is not set, derive from segment duration (legacy)
+                    if (secPerPixel <= 0)
                     {
-                        double ratio = (double)peaks.Length / srcDur;
-                        if (srcOffset > 0)
-                            startBin = Math.Clamp((int)(srcOffset * ratio), 0, peaks.Length);
-                        if (segDur > 0)
-                            endBin = Math.Clamp((int)((srcOffset + segDur) * ratio), startBin, peaks.Length);
+                        double segDur = SegmentDisplayDuration;
+                        if (segDur <= 0) segDur = srcDur > 0 ? srcDur : 1.0;
+                        secPerPixel = segDur / width;
                     }
 
-                    if (startBin >= endBin)
+                    for (int col = 0; col < barCount; col++)
                     {
-                        startBin = 0;
-                        endBin = peaks.Length;
+                        // Time range this pixel covers (global-coordinate)
+                        double t0 = srcOffset + col * secPerPixel;
+                        double t1 = srcOffset + (col + 1) * secPerPixel;
+
+                        // Map to bin indices using floating-point, round at boundaries
+                        int binStart = Math.Clamp((int)Math.Floor(t0 * binsPerSecond), 0, peaks.Length);
+                        int binEnd = Math.Clamp((int)Math.Ceiling(t1 * binsPerSecond), binStart, peaks.Length);
+                        if (binEnd <= binStart) binEnd = Math.Min(binStart + 1, peaks.Length);
+
+                        float maxVal = 0;
+                        for (int j = binStart; j < binEnd; j++)
+                        {
+                            if (peaks[j] > maxVal) maxVal = peaks[j];
+                        }
+                        displayPeaks[col] = maxVal;
                     }
 
-                    int count = endBin - startBin;
-                    if (count <= 0) count = 1;
-
+                    // ── 2. Render bars ──────────────────────────────────────────────
                     double maxBarHeight = Math.Max(1, height - 4);
-                    double slotWidth = width / count;
+                    double slotWidth = width / barCount;
                     double barWidth = Math.Max(0.3, slotWidth - 0.2);
 
                     var geo = new StreamGeometry();
                     using (var ctx = geo.Open())
                     {
-                        for (int i = 0; i < count; i++)
+                        for (int i = 0; i < barCount; i++)
                         {
-                            float p = peaks[startBin + i];
+                            float p = displayPeaks[i];
                             if (p <= 0)
                                 continue;
                             if (p > 1f)
@@ -216,6 +258,7 @@ namespace PodcastVideoEditor.Ui.Controls
             _cachedSourceOffset = SourceStartOffset;
             _cachedSourceDuration = SourceDuration;
             _cachedSegmentDuration = SegmentDisplayDuration;
+            _cachedPps = PixelsPerSecond;
         }
     }
 }
