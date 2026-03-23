@@ -68,7 +68,7 @@ namespace PodcastVideoEditor.Ui.Views
             _videoPreview ??= (MediaElement?)FindName("VideoPreview");
             _mainCanvas ??= (Canvas?)FindName("MainCanvas");
             
-            _viewModel?.EnsureVisualizerTimer();
+            _viewModel?.OnCanvasReloaded();
             
             // Sync VideoSource if already set before Loaded fires
             if (_viewModel?.VideoSource != null && _videoPreview != null)
@@ -79,6 +79,7 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (_viewModel != null)
             {
+                _viewModel.StopVisualizerTimer();
                 _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             }
         }

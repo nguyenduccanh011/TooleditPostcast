@@ -30,10 +30,11 @@ namespace PodcastVideoEditor.Core.Services
         private const float RenderScale = 0.5f;
         
         // Rendering control
-        private bool _isRunning;
+        private volatile bool _isRunning;
         private CancellationTokenSource? _renderCts;
         private System.Diagnostics.Stopwatch _frameWatch = new();
         private int _targetFps = 30;
+        private bool _disposed;
         
         // Double-buffering
         private SKBitmap? _frontBitmap;
@@ -42,6 +43,19 @@ namespace PodcastVideoEditor.Core.Services
 
         // Events
         public event EventHandler<VisualizerFrameEventArgs>? FrameRendered;
+
+        // Idle / demo mode constants
+        private const float IdleBandFreqBase = 0.25f;
+        private const float IdleBandFreqRange = 1.0f;
+        private const float IdleBaseAmplitude = 0.05f;
+        private const float IdleWave1Amplitude = 0.03f;
+        private const float IdleWave2Amplitude = 0.02f;
+        private const float IdleWave3Amplitude = 0.01f;
+        private const float IdleFreqDamping = 0.3f;
+        private const float PeakDecayRate = 0.05f;
+        private const float PowerCurveExponent = 0.7f;
+        private const double ColorTickIdle = 0.03;
+        private const double ColorTickActive = 0.15;
 
         public VisualizerService(IAudioTimelinePreviewService audioService, VisualizerConfig? config = null)
         {
@@ -97,6 +111,11 @@ namespace PodcastVideoEditor.Core.Services
         {
             if (_isRunning)
                 return;
+            if (width <= 0 || height <= 0)
+            {
+                Log.Warning("Visualizer Start() called with invalid dimensions {Width}x{Height}", width, height);
+                return;
+            }
 
             _isRunning = true;
             _renderCts = new CancellationTokenSource();
@@ -145,7 +164,7 @@ namespace PodcastVideoEditor.Core.Services
                     // Always render frame (no black frame ever)
                     RenderFrame(width, height);
                     // Idle: slow color drift so element looks "at rest"; active: normal rotation
-                    _colorTick += _idleMode ? 0.03 : 0.15;
+                    _colorTick += _idleMode ? ColorTickIdle : ColorTickActive;
 
                     var frameTime = Environment.TickCount64 - frameStart;
                     var sleepTime = Math.Max(0, frameTimeMs - (int)frameTime);
@@ -206,7 +225,7 @@ namespace PodcastVideoEditor.Core.Services
 
                 float avg = sum / (end - start);
                 float newValue = avg / maxValue; // auto-gain normalize
-                newValue = MathF.Pow(Math.Clamp(newValue, 0f, 1f), 0.7f); // boost low levels
+                newValue = MathF.Pow(Math.Clamp(newValue, 0f, 1f), PowerCurveExponent); // boost low levels
 
                 // Apply smoothing with exponential decay
                 _currentSpectrum[i] = Lerp(_previousSpectrum[i], newValue, 1f - _config.SmoothingFactor);
@@ -220,7 +239,7 @@ namespace PodcastVideoEditor.Core.Services
                 else if (Environment.TickCount64 - _peakHoldTimes[i] > _config.PeakHoldTime)
                 {
                     // Peak hold time expired, start decay
-                    _peakBars[i] = Lerp(_peakBars[i], 0f, 0.05f);
+                    _peakBars[i] = Lerp(_peakBars[i], 0f, PeakDecayRate);
                 }
             }
 
@@ -241,13 +260,13 @@ namespace PodcastVideoEditor.Core.Services
                 var freq = i / (float)_config.BandCount;
                 // Idle mode: 4× slower than full demo, very low amplitude.
                 // Each band still oscillates at its own rate (standing wave, no traveling motion).
-                var bandFreq = 0.25 + freq * 1.0;   // slow — 4× slower than active demo
-                var val = 0.05f
-                             + 0.03f * MathF.Sin((float)(time * bandFreq))
-                             + 0.02f * MathF.Sin((float)(time * bandFreq * 1.7))
-                             + 0.01f * MathF.Sin((float)(time * bandFreq * 0.5));
+                var bandFreq = IdleBandFreqBase + freq * IdleBandFreqRange;
+                var val = IdleBaseAmplitude
+                             + IdleWave1Amplitude * MathF.Sin((float)(time * bandFreq))
+                             + IdleWave2Amplitude * MathF.Sin((float)(time * bandFreq * 1.7))
+                             + IdleWave3Amplitude * MathF.Sin((float)(time * bandFreq * 0.5));
                 // Lower frequencies slightly higher — maintains natural spectral shape
-                val *= 1.0f - freq * 0.3f;
+                val *= 1.0f - freq * IdleFreqDamping;
                 var newValue = Math.Clamp(val, 0f, 1f);
 
                 _currentSpectrum[i] = Lerp(_previousSpectrum[i], newValue, 1f - _config.SmoothingFactor);
@@ -259,7 +278,7 @@ namespace PodcastVideoEditor.Core.Services
                 }
                 else if (Environment.TickCount64 - _peakHoldTimes[i] > _config.PeakHoldTime)
                 {
-                    _peakBars[i] = Lerp(_peakBars[i], 0f, 0.05f);
+                    _peakBars[i] = Lerp(_peakBars[i], 0f, PeakDecayRate);
                 }
             }
             Array.Copy(_currentSpectrum, _previousSpectrum, _config.BandCount);
@@ -391,6 +410,10 @@ namespace PodcastVideoEditor.Core.Services
 
         public void Dispose()
         {
+            if (_disposed)
+                return;
+            _disposed = true;
+
             Stop();
             _renderCts?.Dispose();
             lock (_bitmapLock)

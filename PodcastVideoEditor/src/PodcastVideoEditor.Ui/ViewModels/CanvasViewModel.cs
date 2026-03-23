@@ -381,6 +381,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Stop visualizer timer and rendering. Called when canvas is unloaded (tab switch)
+        /// so that <see cref="EnsureVisualizerTimer"/> can reinitialize on next load.
+        /// </summary>
+        public void StopVisualizerTimer()
+        {
+            if (_visualizerTimer != null && _visualizerTimer.IsEnabled)
+                _visualizerTimer.Stop();
+
+            _visualizerViewModel?.StopRendering();
+        }
+
+        /// <summary>
+        /// Called when the canvas view is (re-)loaded (e.g. returning to Edit tab).
+        /// Restarts the visualizer and refreshes waveform peaks for audio segments.
+        /// </summary>
+        public void OnCanvasReloaded()
+        {
+            EnsureVisualizerTimer();
+            _timelineViewModel?.RefreshWaveformPeaks();
+        }
+
+        /// <summary>
         /// Add a new title element to canvas.
         /// </summary>
         [RelayCommand]
@@ -952,6 +974,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     _visualizerTimer.Stop();
                     _visualizerTimer.Tick -= OnVisualizerTimerTick;
                 }
+                _visualizerViewModel?.StopRendering();
 
                 PropertyEditor?.Dispose();
                 _pendingVideoFrameRequests.Clear();

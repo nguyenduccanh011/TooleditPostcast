@@ -693,35 +693,41 @@ namespace PodcastVideoEditor.Core.Services
                               .ToListAsync())
                     : new HashSet<string>();
 
+                // --- Delete orphaned entities (removed from in-memory but still in DB) ---
+                DeleteOrphanedEntities(
+                    existingBgmIds,
+                    project.BgmTracks?.Select(b => b.Id),
+                    _context.BgmTracks);
+
+                DeleteOrphanedEntities(
+                    existingTrackIds,
+                    project.Tracks?.Select(t => t.Id),
+                    _context.Tracks);
+
+                DeleteOrphanedEntities(
+                    existingSegmentIds,
+                    project.Tracks?.SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>()).Select(s => s.Id),
+                    _context.Segments);
+
+                DeleteOrphanedEntities(
+                    existingElementIds,
+                    project.Elements?.Select(el => el.Id),
+                    _context.Elements);
+
                 _context.Projects.Update(project);
 
                 // Fix up any brand-new BgmTrack entities that were incorrectly
                 // stamped Modified by the graph walk above.
-                if (project.BgmTracks != null)
-                    foreach (var bgm in project.BgmTracks)
-                        if (!existingBgmIds.Contains(bgm.Id))
-                            _context.Entry(bgm).State = EntityState.Added;
+                FixNewEntities(project.BgmTracks, existingBgmIds, b => b.Id);
 
                 // Fix up new Track and Segment entities.
+                FixNewEntities(project.Tracks, existingTrackIds, t => t.Id);
                 if (project.Tracks != null)
-                {
                     foreach (var track in project.Tracks)
-                    {
-                        if (!existingTrackIds.Contains(track.Id))
-                            _context.Entry(track).State = EntityState.Added;
-
-                        if (track.Segments != null)
-                            foreach (var seg in track.Segments)
-                                if (!existingSegmentIds.Contains(seg.Id))
-                                    _context.Entry(seg).State = EntityState.Added;
-                    }
-                }
+                        FixNewEntities(track.Segments, existingSegmentIds, s => s.Id);
 
                 // Fix up new Element entities (may already exist from ReplaceElementsAsync).
-                if (project.Elements != null)
-                    foreach (var el in project.Elements)
-                        if (!existingElementIds.Contains(el.Id))
-                            _context.Entry(el).State = EntityState.Added;
+                FixNewEntities(project.Elements, existingElementIds, el => el.Id);
 
                 await _context.SaveChangesAsync();
 
@@ -733,6 +739,51 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Error(ex, "Error updating project {ProjectId}", project.Id);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Delete entities from <paramref name="dbSet"/> whose IDs exist in <paramref name="existingDbIds"/>
+        /// but are no longer present in the in-memory <paramref name="currentIds"/> collection.
+        /// </summary>
+        private static void DeleteOrphanedEntities<T>(
+            HashSet<string> existingDbIds,
+            IEnumerable<string>? currentIds,
+            DbSet<T> dbSet) where T : class
+        {
+            var keepIds = currentIds != null
+                ? new HashSet<string>(currentIds, StringComparer.Ordinal)
+                : new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var id in existingDbIds)
+            {
+                if (!keepIds.Contains(id))
+                {
+                    var entity = dbSet.Local.FirstOrDefault(e => GetEntityId(e) == id)
+                                 ?? dbSet.Find(id);
+                    if (entity != null)
+                        dbSet.Remove(entity);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Mark entities as <see cref="EntityState.Added"/> if their ID is not in <paramref name="existingDbIds"/>.
+        /// </summary>
+        private void FixNewEntities<T>(IEnumerable<T>? entities, HashSet<string> existingDbIds, Func<T, string> idSelector) where T : class
+        {
+            if (entities == null) return;
+            foreach (var entity in entities)
+                if (!existingDbIds.Contains(idSelector(entity)))
+                    _context.Entry(entity).State = EntityState.Added;
+        }
+
+        /// <summary>
+        /// Get the Id property value from an entity using convention (all domain entities have string Id).
+        /// </summary>
+        private static string GetEntityId<T>(T entity) where T : class
+        {
+            var prop = typeof(T).GetProperty("Id");
+            return prop?.GetValue(entity) as string ?? string.Empty;
         }
 
         /// <summary>

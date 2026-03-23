@@ -275,6 +275,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Re-enqueue waveform peak loading for any audio segments that have null or empty peaks.
+        /// Call after the visual tree is recreated (e.g. tab switch) to restore waveform displays
+        /// even when <see cref="LoadTracksFromProject"/> is not re-triggered.
+        /// </summary>
+        public void RefreshWaveformPeaks()
+        {
+            foreach (var track in Tracks)
+                foreach (var seg in track.Segments)
+                    if (seg.WaveformPeaks == null || (seg.WaveformPeaks is float[] arr && arr.Length == 0))
+                        EnqueueSegmentPeakLoad(seg);
+        }
+
+        /// <summary>
         /// Calculate pixels per second based on timeline width and total duration.
         /// </summary>
         private void RecalculatePixelsPerSecond()
