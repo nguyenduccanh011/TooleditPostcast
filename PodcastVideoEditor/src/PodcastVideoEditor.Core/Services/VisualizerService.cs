@@ -282,12 +282,23 @@ namespace PodcastVideoEditor.Core.Services
 
             _frameWatch.Restart();
 
+            // Build spectrum/peaks arrays for rendering (mirror transform or raw)
+            float[] spectrumToRender;
+            float[] peaksToRender;
+            if (_config.SymmetricMode)
+                spectrumToRender = BuildMirroredSpectrum(_currentSpectrum, _peakBars, out peaksToRender);
+            else
+            {
+                spectrumToRender = _currentSpectrum;
+                peaksToRender = _peakBars;
+            }
+
             using (var canvas = new SKCanvas(_backBitmap))
             {
                 canvas.DrawColor(SKColors.Transparent, SKBlendMode.Src);
 
                 var renderer = _registry.GetRenderer(_config.Style);
-                renderer.Render(canvas, _currentSpectrum, _peakBars, _config,
+                renderer.Render(canvas, spectrumToRender, peaksToRender, _config,
                                scaledWidth, scaledHeight, _colorTick);
             }
 
@@ -304,6 +315,38 @@ namespace PodcastVideoEditor.Core.Services
                 _targetFps = 20;
             else if (_frameWatch.ElapsedMilliseconds < 18 && _targetFps < 30)
                 _targetFps = 30;
+        }
+
+        /// <summary>
+        /// Build a symmetric spectrum from the lowest 60% of bands.
+        /// Left half of output: band[0] → band[activeBands-1] (low→mid freq, left to right).
+        /// Right half of output: band[activeBands-1] → band[0] (mid→low freq, left to right) — mirror.
+        /// Both halves share the same data, creating a butterfly/symmetric display.
+        /// </summary>
+        private float[] BuildMirroredSpectrum(float[] spectrum, float[] peaks, out float[] mirroredPeaks)
+        {
+            var total = spectrum.Length;
+            var activeBands = (int)(total * 0.6f); // keep only the lower 60% of bands
+            var half = total / 2;
+
+            var result = new float[total];
+            mirroredPeaks = new float[total];
+
+            for (int i = 0; i < half; i++)
+            {
+                // Map slot i (0..half-1) → source band reversed: outside = high freq (quiet),
+                // center = low freq (bass, high activity). This puts energy in the center.
+                var bandIdx = activeBands - 1 - (int)(i * activeBands / (float)half);
+                bandIdx = Math.Clamp(bandIdx, 0, activeBands - 1);
+
+                result[i] = spectrum[bandIdx];             // left side: outside→center (quiet→loud)
+                result[total - 1 - i] = spectrum[bandIdx]; // right side: mirror (outside→center)
+
+                mirroredPeaks[i] = peaks[bandIdx];
+                mirroredPeaks[total - 1 - i] = peaks[bandIdx];
+            }
+
+            return result;
         }
 
         /// <summary>

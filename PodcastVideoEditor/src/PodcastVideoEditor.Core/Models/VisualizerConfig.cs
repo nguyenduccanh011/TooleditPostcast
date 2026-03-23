@@ -74,6 +74,13 @@ namespace PodcastVideoEditor.Core.Models
         public bool ShowPeaks { get; set; } = true;
 
         /// <summary>
+        /// Mirror mode: use only the lowest 60% of bands and display them symmetrically
+        /// (left half = low→mid, right half = mid→low). Hides high-frequency bands that
+        /// typically have little movement, and creates a visually appealing butterfly/symmetric look.
+        /// </summary>
+        public bool SymmetricMode { get; set; } = true;
+
+        /// <summary>
         /// Validates configuration values.
         /// </summary>
         public bool Validate()
@@ -121,7 +128,8 @@ namespace PodcastVideoEditor.Core.Models
                 MaxDb = MaxDb,
                 UseLogarithmicScale = UseLogarithmicScale,
                 PeakHoldTime = PeakHoldTime,
-                ShowPeaks = ShowPeaks
+                ShowPeaks = ShowPeaks,
+                SymmetricMode = SymmetricMode
             };
         }
     }
