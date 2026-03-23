@@ -159,22 +159,30 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (!System.IO.Directory.Exists(OutputFolder))
                     System.IO.Directory.CreateDirectory(OutputFolder);
 
-                // Use live timeline tracks (reflects unsaved changes the user made)
-                var liveProject = BuildLiveProject(project);
+                // Create an immutable render snapshot — isolates the entire render pipeline
+                // from live UI state (canvas, timeline). All downstream methods read from
+                // the snapshot, never from _canvasViewModel or _timelineViewModel.
+                var snapshot = CreateRenderSnapshot(project);
 
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
-                var timelineVisualSegments = BuildTimelineVisualSegments(liveProject, width, height);
-                var rasterizedTextVisuals  = BuildRasterizedTextSegments(liveProject, width, height);
-                var timelineAudioSegments  = BuildTimelineAudioSegments(liveProject);
+                var timelineVisualSegments = BuildTimelineVisualSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight);
+                var rasterizedTextVisuals  = BuildRasterizedTextSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight);
+                var timelineAudioSegments  = BuildTimelineAudioSegments(snapshot.Project);
 
                 // Merge rasterized text images into visual segments (rendered on top)
                 timelineVisualSegments.AddRange(rasterizedTextVisuals);
+
+                // Bake visualizer spectrum overlays and merge them on top of everything
+                StatusMessage = "Baking visualizer spectrum…";
+                var visualizerSegments = await BuildVisualizerSegmentsAsync(
+                    snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate, _renderCancellationTokenSource.Token);
+                timelineVisualSegments.AddRange(visualizerSegments);
                 var imagePath = string.Empty;
 
                 // Fallback path for legacy single-image rendering when no timeline segments exist at all.
                 if (timelineVisualSegments.Count == 0 && timelineAudioSegments.Count == 0)
-                    imagePath = await ResolveRenderImagePathAsync(liveProject, _renderCancellationTokenSource.Token) ?? string.Empty;
+                    imagePath = await ResolveRenderImagePathAsync(snapshot.Project, _renderCancellationTokenSource.Token) ?? string.Empty;
 
                 if (timelineVisualSegments.Count == 0
                     && timelineAudioSegments.Count == 0 && string.IsNullOrWhiteSpace(imagePath))
@@ -186,7 +194,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Warn when visual tracks have segments but all were skipped (missing asset files).
                 if (timelineVisualSegments.Count == 0)
                 {
-                    bool hasVisualSegments = liveProject.Tracks?
+                    bool hasVisualSegments = snapshot.Project.Tracks?
                         .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
                         .Any(t => t.Segments?.Any(s => !string.IsNullOrWhiteSpace(s.BackgroundAssetId)) == true) == true;
                     if (hasVisualSegments)
@@ -377,11 +385,48 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Create render-isolated snapshot of canvas elements.
+        /// Deep-clones all elements with IsVisible=true so preview visibility
+        /// state does not bleed into the render pipeline.
+        /// </summary>
+        private IReadOnlyList<CanvasElement>? SnapshotElementsForRender()
+        {
+            var elements = _canvasViewModel?.Elements;
+            if (elements == null || elements.Count == 0)
+                return null;
+
+            return elements.Select(e => e.CloneForRender()).ToList();
+        }
+
+        /// <summary>
+        /// Create a complete immutable snapshot of all data needed for render.
+        /// After this call, the render pipeline never reads from _canvasViewModel
+        /// or _timelineViewModel — full isolation from live UI state.
+        /// </summary>
+        private RenderSnapshot CreateRenderSnapshot(Project project)
+        {
+            var liveProject = BuildLiveProject(project);
+            var elements = SnapshotElementsForRender();
+            var registry = ElementSegmentRegistry.Build(elements, liveProject.Tracks);
+
+            return new RenderSnapshot
+            {
+                Project = liveProject,
+                Elements = elements,
+                CanvasWidth = _canvasViewModel?.CanvasWidth ?? 0,
+                CanvasHeight = _canvasViewModel?.CanvasHeight ?? 0,
+                Registry = registry
+            };
+        }
+
+        /// <summary>
         /// Collect visual (image/video) segments from ALL visible visual tracks, ordered back→front.
         /// When a linked canvas element exists for a segment, its position and size are mapped to
         /// render coordinates so the output matches the canvas preview exactly.
         /// </summary>
-        private List<RenderVisualSegment> BuildTimelineVisualSegments(Project project, int renderWidth, int renderHeight)
+        private static List<RenderVisualSegment> BuildTimelineVisualSegments(
+            Project project, int renderWidth, int renderHeight,
+            IReadOnlyList<CanvasElement>? elements, double canvasWidth, double canvasHeight)
         {
             var visualTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -390,10 +435,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (visualTracks == null || visualTracks.Count == 0)
                 return [];
-
-            var canvasWidth  = _canvasViewModel?.CanvasWidth  ?? 0;
-            var canvasHeight = _canvasViewModel?.CanvasHeight ?? 0;
-            var elements     = _canvasViewModel?.Elements;
 
             var segments = new List<RenderVisualSegment>();
             foreach (var track in visualTracks)
@@ -426,6 +467,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     // how the user has repositioned/resized them in the canvas preview.
                     var linkedElement = elements?.FirstOrDefault(e =>
                         string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal));
+
+                    // Skip image segment creation for VisualizerElement positions —
+                    // visualizers are rendered separately by BuildVisualizerSegmentsAsync.
+                    if (linkedElement is VisualizerElement)
+                        continue;
 
                     if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0 && renderWidth > 0 && renderHeight > 0)
                     {
@@ -460,7 +506,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Rasterize text elements to PNG images (WYSIWYG) and return them as visual overlay segments.
         /// This ensures text wrapping, alignment, and styling in the export match the canvas preview exactly.
         /// </summary>
-        private List<RenderVisualSegment> BuildRasterizedTextSegments(Project project, int renderWidth, int renderHeight)
+        private static List<RenderVisualSegment> BuildRasterizedTextSegments(
+            Project project, int renderWidth, int renderHeight,
+            IReadOnlyList<CanvasElement>? elements, double canvasWidth, double canvasHeight)
         {
             var textTracks = project.Tracks?
                 .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -469,10 +517,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (textTracks == null || textTracks.Count == 0)
                 return [];
-
-            var canvasWidth = _canvasViewModel?.CanvasWidth ?? 0;
-            var canvasHeight = _canvasViewModel?.CanvasHeight ?? 0;
-            var elements = _canvasViewModel?.Elements;
 
             // Create temp directory for rasterized text images
             var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
@@ -580,6 +624,136 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             return segments;
+        }
+
+        /// <summary>
+        /// Bake every visible <see cref="VisualizerElement"/> on the canvas into a
+        /// transparent video file and return them as <see cref="RenderVisualSegment"/>s.
+        /// Each element is rendered offline using the same SkiaSharp renderers that the
+        /// live preview uses, so the output is a faithful 1:1 match.
+        /// </summary>
+        private static async Task<List<RenderVisualSegment>> BuildVisualizerSegmentsAsync(
+            Project project,
+            int renderWidth,
+            int renderHeight,
+            IReadOnlyList<CanvasElement>? elements,
+            double canvasWidth,
+            double canvasHeight,
+            int frameRate,
+            CancellationToken ct)
+        {
+            if (elements == null || canvasWidth <= 0 || canvasHeight <= 0)
+                return [];
+
+            var ffmpegPath = FFmpegService.GetFFmpegPath();
+            if (string.IsNullOrEmpty(ffmpegPath))
+            {
+                Log.Warning("BuildVisualizerSegments: FFmpeg path unknown, skipping visualizer bake");
+                return [];
+            }
+
+            // Determine output duration from existing segments (or audio file length)
+            double maxEndTime = ResolveRenderDuration(project);
+            if (maxEndTime <= 0)
+                return [];
+
+            var audioFilePath = project.AudioPath ?? string.Empty;
+
+            var segments = new List<RenderVisualSegment>();
+            var invariant = System.Globalization.CultureInfo.InvariantCulture;
+            var scaleX = renderWidth  / canvasWidth;
+            var scaleY = renderHeight / canvasHeight;
+
+            foreach (var element in elements.OfType<VisualizerElement>())
+            {
+
+                // If the visualizer is bound to a specific segment, limit its time range
+                double vizStart = 0;
+                double vizEnd   = maxEndTime;
+
+                if (!string.IsNullOrEmpty(element.SegmentId))
+                {
+                    var linked = project.Tracks?
+                        .SelectMany(t => t.Segments ?? [])
+                        .FirstOrDefault(s => s.Id == element.SegmentId);
+                    if (linked != null)
+                    {
+                        vizStart = linked.StartTime;
+                        vizEnd   = linked.EndTime;
+                    }
+                }
+
+                if (vizEnd <= vizStart) continue;
+
+                Log.Information(
+                    "Baking VisualizerElement {Id} ({Style}) [{Start:F2}–{End:F2}s]",
+                    element.Id, element.Style, vizStart, vizEnd);
+
+                var bakedPath = await OfflineVisualizerBaker.BakeAsync(
+                    element,
+                    audioFilePath,
+                    renderWidth, renderHeight,
+                    (int)canvasWidth, (int)canvasHeight,
+                    vizStart, vizEnd,
+                    frameRate,
+                    ffmpegPath,
+                    ct);
+
+                if (string.IsNullOrEmpty(bakedPath)) continue;
+
+                int overlayX = Math.Max(0, (int)Math.Round(element.X * scaleX));
+                int overlayY = Math.Max(0, (int)Math.Round(element.Y * scaleY));
+                int overlayW = Math.Max(1, (int)Math.Round(element.Width  * scaleX));
+                int overlayH = Math.Max(1, (int)Math.Round(element.Height * scaleY));
+
+                segments.Add(new RenderVisualSegment
+                {
+                    SourcePath          = bakedPath,
+                    StartTime           = vizStart,
+                    EndTime             = vizEnd,
+                    IsVideo             = true,
+                    HasAlpha            = true,
+                    SourceOffsetSeconds = 0,
+                    OverlayX            = overlayX.ToString(invariant),
+                    OverlayY            = overlayY.ToString(invariant),
+                    ScaleWidth          = overlayW,
+                    ScaleHeight         = overlayH
+                });
+            }
+
+            return segments;
+        }
+
+        /// <summary>
+        /// Derive the total render duration from the project's tracks and audio file.
+        /// Used to set the end time when baking full-timeline visualizer elements.
+        /// </summary>
+        private static double ResolveRenderDuration(Project project)
+        {
+            // Max end time across all track segments
+            var trackMax = project.Tracks?
+                .SelectMany(t => t.Segments ?? [])
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0)
+                .Max() ?? 0;
+
+            // Audio file duration (if available)
+            double audioMax = 0;
+            if (!string.IsNullOrWhiteSpace(project.AudioPath)
+                && System.IO.File.Exists(project.AudioPath))
+            {
+                try
+                {
+                    using var reader = new NAudio.Wave.AudioFileReader(project.AudioPath);
+                    audioMax = reader.TotalTime.TotalSeconds;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "ResolveRenderDuration: could not read audio duration");
+                }
+            }
+
+            return Math.Max(trackMax, audioMax);
         }
 
         /// <summary>

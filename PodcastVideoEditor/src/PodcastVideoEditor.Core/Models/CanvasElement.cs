@@ -159,6 +159,20 @@ namespace PodcastVideoEditor.Core.Models
         public abstract CanvasElement Clone();
 
         /// <summary>
+        /// Create a render-isolated snapshot: deep clone that preserves SegmentId
+        /// and forces IsVisible=true so no element is skipped during render.
+        /// </summary>
+        public virtual CanvasElement CloneForRender()
+        {
+            var clone = Clone();
+            clone.Id = Id;            // Preserve identity for segment binding lookup
+            clone.SegmentId = SegmentId; // Preserve segment binding (Clone() nulls it)
+            clone.IsVisible = true;      // Force visible — render includes everything
+            clone.IsSelected = false;
+            return clone;
+        }
+
+        /// <summary>
         /// Get a string representation of this element.
         /// </summary>
         public override string ToString() =>

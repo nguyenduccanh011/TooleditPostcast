@@ -68,8 +68,11 @@ public class RenderConfig
     public List<RenderVisualSegment> VisualSegments { get; set; } = [];
 
     /// <summary>
-    /// Text overlay segments. Each renders as drawtext filter in the output video.
+    /// Text overlay segments rendered via FFmpeg drawtext filter.
+    /// NOTE: Currently unused — text is rasterized to PNG (WYSIWYG) and added as
+    /// visual overlay segments instead. Kept for future drawtext fallback support.
     /// </summary>
+    [Obsolete("Text is rasterized to PNG overlays. This property is always empty.")]
     public List<RenderTextSegment> TextSegments { get; set; } = [];
 
     /// <summary>
@@ -154,6 +157,19 @@ public class RenderVisualSegment
     /// Fill = cover and crop, Fit = contain with padding, Stretch = distort to bounds.
     /// </summary>
     public string ScaleMode { get; set; } = "Fill";
+
+    /// <summary>
+    /// True when the source video contains an alpha channel (e.g. baked visualizer overlay).
+    /// When set, the FFmpeg filter uses yuva420p pixel format to preserve transparency.
+    /// </summary>
+    public bool HasAlpha { get; set; }
+
+    /// <summary>
+    /// Explicit z-order for layer stacking (higher = rendered on top).
+    /// When set, segments are sorted by ZOrder before FFmpeg overlay composition.
+    /// Default 0 = use list insertion order.
+    /// </summary>
+    public int ZOrder { get; set; }
 }
 
 /// <summary>

@@ -607,7 +607,8 @@ public static class FFmpegService
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
                         File.Exists(s.SourcePath) &&
                         s.EndTime > s.StartTime)
-            .OrderBy(s => s.StartTime)
+            .OrderBy(s => s.ZOrder)
+            .ThenBy(s => s.StartTime)
             .ToList();
 
         var textSegments = (config.TextSegments ?? [])
@@ -678,9 +679,10 @@ public static class FFmpegService
                 ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                 : BuildScalingFilter(config);
 
-            // PNG overlays (e.g. rasterized text) need yuva420p to preserve alpha transparency
+            // PNG overlays (e.g. rasterized text) and baked visualizer videos have alpha channels
+            // and require yuva420p so the transparency is preserved during compositing.
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
-            var pixFmt = isPngOverlay ? "yuva420p" : "yuv420p";
+            var pixFmt = (isPngOverlay || seg.HasAlpha) ? "yuva420p" : "yuv420p";
 
             if (seg.IsVideo)
             {
