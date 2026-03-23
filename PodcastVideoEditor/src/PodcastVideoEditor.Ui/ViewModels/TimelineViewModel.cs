@@ -49,7 +49,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private double timelineWidth = 800.0; // pixels
 
         [ObservableProperty]
-        private double totalDuration = 60.0; // seconds (from audio)
+        private double totalDuration = TimelineConstants.DefaultEmptyDuration; // seconds (from audio)
 
         [ObservableProperty]
         private double pixelsPerSecond = 10.0; // calculated
@@ -84,7 +84,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private IAIAnalysisOrchestrator? _aiOrchestrator;
         private bool _isAnalyzing;
 
-        private const double DefaultSegmentDurationSeconds = 5.0;
+        private const double DefaultSegmentDurationSeconds = TimelineConstants.DefaultSegmentDuration;
         // Cache for GetActiveSegmentsAtTime: avoid duplicate allocations within the same dispatch frame.
         // CanvasViewModel and the audio playback loop both call this per frame.
         private double _cachedActiveSegmentsTime = double.MinValue;
@@ -280,14 +280,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private void RecalculatePixelsPerSecond()
         {
             if (TotalDuration <= 0)
-                TotalDuration = 60;
+                TotalDuration = TimelineConstants.DefaultEmptyDuration;
 
             // Ensure minimum timeline duration so we don't get zero/extreme values
-            double displayDuration = Math.Max(TotalDuration + 10, 60); // Add 10s buffer
+            double displayDuration = Math.Max(TotalDuration + TimelineConstants.DisplayDurationBuffer, TimelineConstants.DefaultEmptyDuration);
             PixelsPerSecond = TimelineWidth / displayDuration;
 
-            if (PixelsPerSecond < 1)
-                PixelsPerSecond = 1; // Minimum 1px per second
+            if (PixelsPerSecond < TimelineConstants.MinPixelsPerSecond)
+                PixelsPerSecond = TimelineConstants.MinPixelsPerSecond;
         }
 
         /// <summary>
@@ -317,10 +317,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             var segEnd = ComputeMaxSegmentEndTime();
             var audioDuration = _audioService.GetDuration();
-            double computed = segEnd > 0 ? segEnd + 5 : 60; // 5s buffer after last segment, or default 60s
+            double computed = segEnd > 0 ? segEnd + TimelineConstants.SegmentEndBuffer : TimelineConstants.DefaultEmptyDuration;
             TotalDuration = Math.Max(computed, audioDuration);
             RecalculatePixelsPerSecond();
-            TimelineWidth = Math.Max(800, TotalDuration * 10);
+            TimelineWidth = Math.Max(TimelineConstants.MinTimelineWidth, TotalDuration * 10);
         }
 
         /// <summary>
@@ -340,7 +340,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Set backing field directly via property — OnTotalDurationChanged will
                 // skip RecalculatePixelsPerSecond when IsDeferringThumbnailUpdate is true
                 // (i.e. during an active drag) so the conversion rate stays stable.
-                TotalDuration = segmentEndTime + 5;
+                TotalDuration = segmentEndTime + TimelineConstants.SegmentEndBuffer;
             }
         }
 
@@ -454,42 +454,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Create new segment starting at playhead
                 double endTime = PlayheadPosition + DefaultSegmentDurationSeconds;
-                if (TotalDuration > 0 && endTime > TotalDuration)
-                    endTime = TotalDuration;
 
-                var newSegment = new Segment
-                {
-                    ProjectId = _projectViewModel.CurrentProject.Id,
-                    TrackId = targetTrack.Id,
-                    StartTime = SnapToGrid(PlayheadPosition),
-                    EndTime = SnapToGrid(endTime),
-                    Text = "New Segment",
-                    Kind = SegmentKinds.Visual,
-                    TransitionType = "fade",
-                    TransitionDuration = 0.5,
-                    Order = targetTrack.Segments.Count
-                };
+                var newSegment = BuildSegment(
+                    targetTrack,
+                    SnapToGrid(PlayheadPosition),
+                    SnapToGrid(endTime),
+                    SegmentKinds.Visual,
+                    "New Segment");
 
-                if (newSegment.EndTime <= newSegment.StartTime)
-                {
-                    StatusMessage = "No room at playhead (near end of timeline)";
+                string msg = targetTrack != SelectedTrack ? "Segment added to Visual 1" : "Segment added";
+                if (!CommitSegmentToTrack(targetTrack, newSegment, msg))
                     return;
-                }
 
-                // Check for collision within the same track
-                if (CheckCollisionInTrack(newSegment, targetTrack.Id))
-                {
-                    StatusMessage = "Segment overlaps with existing segment in this track";
-                    return;
-                }
-
-                targetTrack.Segments.Add(newSegment);
-                InvalidateActiveSegmentsCache();
-                SelectSegment(newSegment);
-                _undoRedo?.Record(new SegmentAddedAction(
-                    (System.Collections.ObjectModel.ObservableCollection<Segment>)targetTrack.Segments,
-                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
-                StatusMessage = targetTrack != SelectedTrack ? "Segment added to Visual 1" : "Segment added";
                 Log.Information("Segment added at {StartTime}s in track {TrackId}", newSegment.StartTime, targetTrack.Id);
             }
             catch (Exception ex)
@@ -545,9 +521,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     RecalculatePixelsPerSecond();
                 }
 
-                if (TotalDuration > 0 && endTime > TotalDuration)
-                    endTime = TotalDuration;
-
                 var newSegment = BuildSegment(
                     targetTrack,
                     SnapToGrid(PlayheadPosition),
@@ -556,25 +529,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     asset.Name ?? "Segment",
                     asset.Id);
 
-                if (newSegment.EndTime <= newSegment.StartTime)
-                {
-                    StatusMessage = "No room at playhead (near end of timeline)";
+                if (!CommitSegmentToTrack(targetTrack, newSegment, "Segment added with media"))
                     return;
-                }
-                if (CheckCollisionInTrack(newSegment, targetTrack.Id))
-                {
-                    StatusMessage = "Segment overlaps with existing segment in this track";
-                    return;
-                }
 
-                targetTrack.Segments.Add(newSegment);
-                InvalidateActiveSegmentsCache();
-                SelectSegment(newSegment);
-                EnqueueSegmentPeakLoad(newSegment);
-                _undoRedo?.Record(new SegmentAddedAction(
-                    (System.Collections.ObjectModel.ObservableCollection<Segment>)targetTrack.Segments,
-                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
-                StatusMessage = "Segment added with media";
                 Log.Information("Segment added with asset {AssetId} at {StartTime}s", asset.Id, newSegment.StartTime);
             }
             catch (Exception ex)
@@ -606,6 +563,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
         /// <summary>
+        /// Unified pipeline: auto-expand timeline, collision check, add to track, invalidate,
+        /// select, enqueue waveform peaks, record undo. Returns true on success.
+        /// </summary>
+        private bool CommitSegmentToTrack(Track track, Segment segment, string? successMessage = null)
+        {
+            // Auto-expand timeline if segment exceeds current end
+            if (segment.EndTime > TotalDuration)
+                ExpandTimelineToFit(segment.EndTime);
+
+            if (segment.EndTime <= segment.StartTime)
+            {
+                StatusMessage = "No room for segment (zero duration)";
+                return false;
+            }
+
+            if (CheckCollisionInTrack(segment, track.Id))
+            {
+                StatusMessage = "Segment overlaps with existing segment in this track";
+                return false;
+            }
+
+            track.Segments.Add(segment);
+            InvalidateActiveSegmentsCache();
+            SelectSegment(segment);
+            EnqueueSegmentPeakLoad(segment);
+            _undoRedo?.Record(new SegmentAddedAction(
+                (System.Collections.ObjectModel.ObservableCollection<Segment>)track.Segments,
+                segment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
+            StatusMessage = successMessage ?? "Segment added";
+            return true;
+        }
+
+        /// <summary>
         /// Add a segment at a specific time position on a specific track, with an asset.
         /// Used for drag-and-drop from asset panel to timeline.
         /// Returns true if segment was added successfully.
@@ -625,9 +615,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 double startTime = SnapToGrid(Math.Max(0, timeSeconds));
                 double endTime = SnapToGrid(startTime + duration);
 
-                if (TotalDuration > 0 && endTime > TotalDuration)
-                    endTime = TotalDuration;
-
                 var newSegment = BuildSegment(
                     track,
                     startTime,
@@ -636,26 +623,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     asset.Name ?? "Segment",
                     asset.Id);
 
-                if (newSegment.EndTime <= newSegment.StartTime)
-                {
-                    StatusMessage = "No room at drop position";
+                if (!CommitSegmentToTrack(track, newSegment, $"Dropped '{asset.Name}' at {startTime:F2}s"))
                     return false;
-                }
 
-                if (CheckCollisionInTrack(newSegment, track.Id))
-                {
-                    StatusMessage = "Segment would overlap with existing segment";
-                    return false;
-                }
-
-                track.Segments.Add(newSegment);
-                InvalidateActiveSegmentsCache();
-                SelectSegment(newSegment);
-                EnqueueSegmentPeakLoad(newSegment);
-                _undoRedo?.Record(new SegmentAddedAction(
-                    (System.Collections.ObjectModel.ObservableCollection<Segment>)track.Segments,
-                    newSegment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
-                StatusMessage = $"Dropped '{asset.Name}' at {startTime:F2}s";
                 Log.Information("Segment dropped: asset {AssetId} at {StartTime}s on track {TrackId}", asset.Id, startTime, track.Id);
                 return true;
             }
@@ -709,22 +679,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             double startTime = SnapToGrid(PlayheadPosition);
             double endTime = SnapToGrid(startTime + duration);
-            if (TotalDuration > 0 && endTime > TotalDuration)
-                endTime = TotalDuration;
 
             var newSegment = BuildSegment(targetTrack, startTime, endTime, trackType, text);
 
-            if (newSegment.EndTime <= newSegment.StartTime)
+            if (!CommitSegmentToTrack(targetTrack, newSegment, $"Created element segment"))
                 return null;
 
-            if (CheckCollisionInTrack(newSegment, targetTrack.Id))
-            {
-                StatusMessage = $"Element segment overlaps existing segment";
-                return null;
-            }
-
-            targetTrack.Segments.Add(newSegment);
-            InvalidateActiveSegmentsCache();
             Log.Information("Created element segment '{Text}' on {TrackType} track at {Start}s-{End}s", text, trackType, startTime, endTime);
             return newSegment;
         }
@@ -917,29 +877,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     ProjectId = original.ProjectId,
                     TrackId = original.TrackId,
-                    StartTime = SnapToGrid(original.EndTime + 0.5),
-                    EndTime = SnapToGrid(original.EndTime + 0.5 + duration),
+                    StartTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds),
+                    EndTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds + duration),
                     Text = original.Text + " (Copy)",
                     Kind = original.Kind,
                     BackgroundAssetId = original.BackgroundAssetId,
                     TransitionType = original.TransitionType,
                     TransitionDuration = original.TransitionDuration,
+                    Volume = original.Volume,
+                    FadeInDuration = original.FadeInDuration,
+                    FadeOutDuration = original.FadeOutDuration,
+                    SourceStartOffset = original.SourceStartOffset,
                     Order = SelectedTrack.Segments.Count
                 };
 
-                if (CheckCollisionInTrack(duplicate, SelectedTrack.Id))
-                {
-                    StatusMessage = "Duplicate would overlap with existing segment in this track";
+                if (!CommitSegmentToTrack(SelectedTrack, duplicate, "Segment duplicated"))
                     return;
-                }
 
-                SelectedTrack.Segments.Add(duplicate);
-                InvalidateActiveSegmentsCache();
-                SelectSegment(duplicate);
-                _undoRedo?.Record(new SegmentAddedAction(
-                    (System.Collections.ObjectModel.ObservableCollection<Segment>)SelectedTrack.Segments,
-                    duplicate, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
-                StatusMessage = "Segment duplicated";
                 Log.Information("Segment duplicated in track {TrackId}", SelectedTrack.Id);
             }
             catch (Exception ex)
@@ -1468,7 +1422,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
-                positionSeconds = Math.Clamp(positionSeconds, 0, TotalDuration);
+                // Allow playhead to seek up to 30s beyond content; auto-expand timeline if needed
+                double maxSeek = TotalDuration + TimelineConstants.PlayheadOvershoot;
+                positionSeconds = Math.Clamp(positionSeconds, 0, maxSeek);
+                if (positionSeconds > TotalDuration)
+                    ExpandTimelineToFit(positionSeconds);
                 _audioService.Seek(positionSeconds);
                 PlayheadPosition = positionSeconds;
                 _lastSyncedPlayhead = positionSeconds;
@@ -1490,7 +1448,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void PreviewPlayhead(double positionSeconds)
         {
             _isScrubbing = true;
-            positionSeconds = Math.Clamp(positionSeconds, 0, TotalDuration);
+            double maxScrub = TotalDuration + TimelineConstants.PlayheadOvershoot;
+            positionSeconds = Math.Clamp(positionSeconds, 0, maxScrub);
+            if (positionSeconds > TotalDuration)
+                ExpandTimelineToFit(positionSeconds);
             PlayheadPosition = positionSeconds;
             StatusMessage = $"Preview: {positionSeconds:F1}s";
         }

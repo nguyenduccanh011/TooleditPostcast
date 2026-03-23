@@ -281,7 +281,7 @@
                                                           Height="{Binding DataContext.TrackType,
                                                                    RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}},
                                                                    Converter={StaticResource TrackHeightConverter},
-                                                                   FallbackValue=36}"
+                                                                   FallbackValue=48}"
                                                           Cursor="Hand">
                                                         <!-- Kind-based color: visual=blue, text=green, audio=teal; multi-select=orange -->
                                                         <Border x:Name="SegmentFill" BorderThickness="0,2,0,0"

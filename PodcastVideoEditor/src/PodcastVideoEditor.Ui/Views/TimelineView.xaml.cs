@@ -3,6 +3,7 @@ using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.Converters;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
@@ -65,6 +66,7 @@ namespace PodcastVideoEditor.Ui.Views
         private double _pendingZoomFactor = 1.0;
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
         private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
+        private readonly List<(System.Collections.ObjectModel.ObservableCollection<Segment> collection, NotifyCollectionChangedEventHandler handler)> _segmentsCollectionHandlers = new();
         private DateTime _lastScrubPreviewTime = DateTime.MinValue;
         private const int ScrubPreviewThrottleMs = 16;
 
@@ -130,6 +132,23 @@ namespace PodcastVideoEditor.Ui.Views
                 // Subscribe to tracks collection changes — defer layout so new item container exists
                 _tracksCollectionChangedHandler = (s, args) =>
                 {
+                    // When tracks are added/removed, update per-track Segments subscriptions
+                    if (args.NewItems != null)
+                    {
+                        foreach (PodcastVideoEditor.Core.Models.Track newTrack in args.NewItems)
+                            SubscribeToTrackSegments(newTrack);
+                    }
+                    if (args.OldItems != null)
+                    {
+                        foreach (PodcastVideoEditor.Core.Models.Track oldTrack in args.OldItems)
+                            UnsubscribeFromTrackSegments(oldTrack);
+                    }
+                    if (args.Action == NotifyCollectionChangedAction.Reset)
+                    {
+                        UnsubscribeAllSegmentsHandlers();
+                        foreach (PodcastVideoEditor.Core.Models.Track track in _viewModel.Tracks)
+                            SubscribeToTrackSegments(track);
+                    }
                     Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
                     {
                         if (IsLoaded)
@@ -137,6 +156,10 @@ namespace PodcastVideoEditor.Ui.Views
                     }));
                 };
                 _viewModel.Tracks.CollectionChanged += _tracksCollectionChangedHandler;
+
+                // Subscribe to each existing track's Segments collection for segment add/remove
+                foreach (PodcastVideoEditor.Core.Models.Track track in _viewModel.Tracks)
+                    SubscribeToTrackSegments(track);
 
                 // Subscribe to undo/redo state changes to refresh visual layout.
                 if (_viewModel.UndoRedoService != null)
@@ -159,9 +182,55 @@ namespace PodcastVideoEditor.Ui.Views
                 _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
             if (_viewModel != null && _tracksCollectionChangedHandler != null)
                 _viewModel.Tracks.CollectionChanged -= _tracksCollectionChangedHandler;
+            UnsubscribeAllSegmentsHandlers();
             if (_viewModel?.UndoRedoService != null && _undoRedoStateChangedHandler != null)
                 _viewModel.UndoRedoService.StateChanged -= _undoRedoStateChangedHandler;
             _zoomTimer.Stop();
+        }
+
+        /// <summary>
+        /// Subscribe to a track's Segments collection to trigger deferred layout on segment add/remove.
+        /// </summary>
+        private void SubscribeToTrackSegments(PodcastVideoEditor.Core.Models.Track track)
+        {
+            if (track.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> oc)
+            {
+                NotifyCollectionChangedEventHandler handler = (s, args) =>
+                {
+                    Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
+                    {
+                        if (IsLoaded)
+                        {
+                            UpdateSegmentLayout();
+                            UpdateSegmentSelection();
+                        }
+                    }));
+                };
+                oc.CollectionChanged += handler;
+                _segmentsCollectionHandlers.Add((oc, handler));
+            }
+        }
+
+        private void UnsubscribeFromTrackSegments(PodcastVideoEditor.Core.Models.Track track)
+        {
+            if (track.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> oc)
+            {
+                for (int i = _segmentsCollectionHandlers.Count - 1; i >= 0; i--)
+                {
+                    if (_segmentsCollectionHandlers[i].collection == oc)
+                    {
+                        oc.CollectionChanged -= _segmentsCollectionHandlers[i].handler;
+                        _segmentsCollectionHandlers.RemoveAt(i);
+                    }
+                }
+            }
+        }
+
+        private void UnsubscribeAllSegmentsHandlers()
+        {
+            foreach (var (collection, handler) in _segmentsCollectionHandlers)
+                collection.CollectionChanged -= handler;
+            _segmentsCollectionHandlers.Clear();
         }
 
         /// <summary>
@@ -291,7 +360,7 @@ namespace PodcastVideoEditor.Ui.Views
                         if (segmentHeight <= 0 || double.IsNaN(segmentHeight))
                             segmentHeight = rootGrid.Height;
                         if (segmentHeight <= 0 || double.IsNaN(segmentHeight))
-                            segmentHeight = 40;
+                            segmentHeight = TrackHeightConverter.GetHeight(track.TrackType);
                         double verticalCenter = Math.Max(0, (trackHeight - segmentHeight) / 2);
                         Canvas.SetTop(presenter, verticalCenter);
                         rootGrid.Width = pixelWidth;
@@ -505,9 +574,7 @@ namespace PodcastVideoEditor.Ui.Views
                 double timeDelta = _viewModel.PixelsToTime(pixelDelta);
                 double newEndTime = _segmentOriginalEndTime + timeDelta;
 
-                // Clamp to valid range
-                if (newEndTime > _viewModel.TotalDuration)
-                    newEndTime = _viewModel.TotalDuration;
+                // Let UpdateSegmentTiming auto-expand the timeline when resizing past current end
                 if (newEndTime <= segment.StartTime)
                     newEndTime = segment.StartTime + _viewModel.GridSize;
 
