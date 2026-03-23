@@ -66,7 +66,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 VisualizerStyle.Bars,
                 VisualizerStyle.Waveform,
-                VisualizerStyle.Circular
+                VisualizerStyle.Circular,
+                VisualizerStyle.NeonGlow,
+                VisualizerStyle.Particles,
+                VisualizerStyle.Ring,
+                VisualizerStyle.LineWave
             };
 
             AvailablePalettes = new ObservableCollection<ColorPalette>
@@ -81,6 +85,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             AvailableBandCounts = new ObservableCollection<int>
             {
                 32,
+                48,
                 64,
                 128
             };
@@ -118,22 +123,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Start/stop visualizer based on audio playback.
+        /// Ensure visualizer is running (demo mode renders even when audio stopped).
         /// </summary>
         public void UpdatePlaybackState()
         {
             if (!_isInitialized)
                 return;
 
-            if (_audioService.IsPlaying && !_visualizerService.IsRunning)
+            // Always keep running — VisualizerService handles demo mode internally
+            if (!_visualizerService.IsRunning)
             {
                 _visualizerService.Start(VisualizerWidth, VisualizerHeight);
                 IsVisualizerRunning = true;
-            }
-            else if (!_audioService.IsPlaying && _visualizerService.IsRunning)
-            {
-                _visualizerService.Stop();
-                IsVisualizerRunning = false;
             }
         }
 
@@ -226,7 +227,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [RelayCommand]
         public void SetBandCount(int bandCount)
         {
-            if (bandCount != 32 && bandCount != 64 && bandCount != 128)
+            if (bandCount is not (32 or 48 or 64 or 128))
                 return;
 
             SelectedBandCount = bandCount;

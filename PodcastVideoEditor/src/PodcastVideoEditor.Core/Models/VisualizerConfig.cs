@@ -78,7 +78,7 @@ namespace PodcastVideoEditor.Core.Models
         /// </summary>
         public bool Validate()
         {
-            if (BandCount != 32 && BandCount != 48 && BandCount != 64 && BandCount != 128)
+            if (BandCount is not (32 or 48 or 64 or 128))
                 return false;
 
             if (SmoothingFactor < 0f || SmoothingFactor > 1f)

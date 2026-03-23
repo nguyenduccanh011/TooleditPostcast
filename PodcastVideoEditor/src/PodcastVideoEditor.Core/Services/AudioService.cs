@@ -89,7 +89,8 @@ namespace PodcastVideoEditor.Core.Services
                 if (_mixer != null) return; // double-check after re-acquiring lock
                 _mixer = new MixingSampleProvider(new[] { (ISampleProvider)silence }) { ReadFully = true };
             }
-            _wavePlayer?.Init(_mixer);
+            _mixerTap = new MixerTapSampleProvider(_mixer);
+            _wavePlayer?.Init(_mixerTap);
             _isSilentMixerMode = true;
             Log.Information("AudioService: initialized silent mixer for segment-only playback");
         }
@@ -142,6 +143,7 @@ namespace PodcastVideoEditor.Core.Services
                     StopBgmAudio();
                     _audioFileReader?.Dispose();
                     _sampleAggregator = null;
+                    _mixerTap = null;
                     lock (_mixerLock) { _mixer = null; }
                     bool sameSource = string.Equals(_sourceAudioPath, filePath, StringComparison.OrdinalIgnoreCase);
                     if (!sameSource)
@@ -194,7 +196,8 @@ namespace PodcastVideoEditor.Core.Services
                     {
                         _mixer = new MixingSampleProvider(new[] { (ISampleProvider)_sampleAggregator }) { ReadFully = true };
                     }
-                    _wavePlayer?.Init(_mixer);
+                    _mixerTap = new MixerTapSampleProvider(_mixer);
+                    _wavePlayer?.Init(_mixerTap);
                     
                     // Use actual duration for accurate timeline sync
                     var duration = TimeSpan.FromSeconds(_actualDurationSeconds);
@@ -583,12 +586,12 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public float[] GetFFTData(int fftSize = 1024)
         {
-            if (_sampleAggregator == null)
+            if (_mixerTap == null)
                 return Array.Empty<float>();
 
             try
             {
-                return _sampleAggregator.GetFFTData(fftSize);
+                return _mixerTap.GetFFTData(fftSize);
             }
             catch (Exception ex)
             {
@@ -734,6 +737,7 @@ namespace PodcastVideoEditor.Core.Services
         // MixingSampleProvider routes primary + segment + BGM through one output clock,
         // guaranteeing zero inter-stream timing offset.
         private MixingSampleProvider? _mixer;
+        private MixerTapSampleProvider? _mixerTap;
 
         // Segment audio: dictionary supports multiple simultaneous segments (multi-track mixing)
         // Key = segmentId, Value = (mixerInput wrapping the reader, raw reader for volume/seek)
@@ -1040,6 +1044,7 @@ namespace PodcastVideoEditor.Core.Services
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
             _sampleAggregator = null;
+            _mixerTap = null;
             lock (_mixerLock) { _mixer = null; }
             CleanupDecodedCache();
             Log.Information("AudioService disposed");

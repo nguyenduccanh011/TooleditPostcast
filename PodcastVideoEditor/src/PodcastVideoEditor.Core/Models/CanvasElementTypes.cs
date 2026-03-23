@@ -205,7 +205,7 @@ namespace PodcastVideoEditor.Core.Models
             get => _bandCount;
             set => SetProperty(ref _bandCount, value switch
             {
-                32 or 64 or 128 => value,
+                32 or 48 or 64 or 128 => value,
                 _ => 64
             });
         }
@@ -458,7 +458,11 @@ namespace PodcastVideoEditor.Core.Models
     {
         Bars,
         Waveform,
-        Circular
+        Circular,
+        NeonGlow,
+        Particles,
+        Ring,
+        LineWave
     }
 
     /// <summary>

@@ -232,7 +232,7 @@
         <!-- Template for VisualizerElement: live spectrum bitmap + 4 corner handles -->
         <DataTemplate x:Key="VisualizerElementTemplate">
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
-                <Border Background="#000000"
+                <Border Background="Transparent"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2">
                     <Image Source="{Binding DataContext.VisualizerBitmapSource, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
