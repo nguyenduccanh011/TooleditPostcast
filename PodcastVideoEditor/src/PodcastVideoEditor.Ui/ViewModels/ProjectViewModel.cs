@@ -127,11 +127,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         Projects.Add(project);
                 }
 
-                // Restore selection if the project still exists
+                // Restore list selection if the project still exists.
+                // IMPORTANT: Do NOT replace CurrentProject when it is already the
+                // fully-loaded instance (with Assets, Elements, etc.).  The list
+                // query (GetRecentProjectsAsync) returns a *partial* entity that
+                // lacks Assets/Elements/BgmTracks — replacing unconditionally would
+                // trigger a full track reload that destroys UI-only state such as
+                // WaveformPeaks, and subsequent peak loads would fail because
+                // Assets is null on the shallow copy.
                 if (!string.IsNullOrEmpty(currentProjectId))
                 {
                     var restoredProject = Projects.FirstOrDefault(p => p.Id == currentProjectId);
-                    if (restoredProject != null)
+                    if (restoredProject != null && CurrentProject?.Id != currentProjectId)
                         CurrentProject = restoredProject;
                 }
 

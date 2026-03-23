@@ -254,12 +254,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (string.IsNullOrEmpty(segment.BackgroundAssetId))
                 return;
 
-            var asset = _projectViewModel?.CurrentProject?.Assets?
-                .FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+            var assets = _projectViewModel?.CurrentProject?.Assets;
+            if (assets == null || assets.Count == 0)
+            {
+                Log.Warning("EnqueueSegmentPeakLoad: Assets collection is null/empty for segment {SegmentId} — waveform peaks will not load. " +
+                    "This may indicate CurrentProject was replaced with a partially-loaded entity.",
+                    segment.Id);
+                return;
+            }
+
+            var asset = assets.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
 
             if (asset == null || string.IsNullOrEmpty(asset.FilePath)
                 || !string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Debug("EnqueueSegmentPeakLoad: No matching audio asset for segment {SegmentId}, assetId={AssetId}",
+                    segment.Id, segment.BackgroundAssetId);
                 return;
+            }
 
             var path = asset.FilePath;
             _ = Task.Run(() =>
@@ -281,10 +293,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public void RefreshWaveformPeaks()
         {
+            var hasAudioSegments = false;
             foreach (var track in Tracks)
+            {
                 foreach (var seg in track.Segments)
+                {
                     if (seg.WaveformPeaks == null || (seg.WaveformPeaks is float[] arr && arr.Length == 0))
+                    {
+                        hasAudioSegments |= !string.IsNullOrEmpty(seg.BackgroundAssetId);
                         EnqueueSegmentPeakLoad(seg);
+                    }
+                }
+            }
+
+            if (hasAudioSegments)
+                Log.Debug("RefreshWaveformPeaks: Re-enqueued peak loads for audio segments with missing waveforms");
         }
 
         /// <summary>

@@ -834,8 +834,10 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
-        /// Get the N most recently updated projects, with tracks and segments populated.
-        /// Assets, Elements, and BGM are loaded on-demand when project is opened.
+        /// Get the N most recently updated projects, with tracks, segments, and assets populated.
+        /// Elements and BGM are loaded on-demand when project is opened.
+        /// Assets are included so that waveform peak loading can resolve audio file
+        /// paths even if CurrentProject is replaced from this list query.
         /// </summary>
         public async Task<List<Project>> GetRecentProjectsAsync(int count = 5)
         {
@@ -846,6 +848,7 @@ namespace PodcastVideoEditor.Core.Services
                     .AsSplitQuery()
                     .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
+                    .Include(p => p.Assets)
                     .OrderByDescending(p => p.UpdatedAt)
                     .Take(count)
                     .ToListAsync();
