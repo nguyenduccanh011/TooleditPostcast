@@ -69,6 +69,8 @@ namespace PodcastVideoEditor.Ui.Views
         private readonly List<(System.Collections.ObjectModel.ObservableCollection<Segment> collection, NotifyCollectionChangedEventHandler handler)> _segmentsCollectionHandlers = new();
         private DateTime _lastScrubPreviewTime = DateTime.MinValue;
         private const int ScrubPreviewThrottleMs = 16;
+        private Point _trackHeaderDragStartPoint;
+        private PodcastVideoEditor.Core.Models.Track? _draggedTrackHeader;
 
         public TimelineView()
         {
@@ -1157,8 +1159,114 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is Border border && border.DataContext is PodcastVideoEditor.Core.Models.Track track)
             {
                 _viewModel.SelectTrack(track);
+                _trackHeaderDragStartPoint = e.GetPosition(this);
+                _draggedTrackHeader = track;
                 e.Handled = true;
             }
+        }
+
+        private void TrackHeader_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || _draggedTrackHeader == null)
+                return;
+
+            var current = e.GetPosition(this);
+            var delta = current - _trackHeaderDragStartPoint;
+            if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
+                return;
+
+            DragDrop.DoDragDrop((DependencyObject)sender, _draggedTrackHeader, DragDropEffects.Move);
+            _draggedTrackHeader = null;
+        }
+
+        private void TrackHeader_DragOver(object sender, DragEventArgs e)
+        {
+            if (_viewModel == null || !e.Data.GetDataPresent(typeof(PodcastVideoEditor.Core.Models.Track)))
+            {
+                e.Effects = DragDropEffects.None;
+                return;
+            }
+
+            if (sender is not Border border || border.DataContext is not PodcastVideoEditor.Core.Models.Track targetTrack)
+            {
+                e.Effects = DragDropEffects.None;
+                return;
+            }
+
+            var draggedTrack = e.Data.GetData(typeof(PodcastVideoEditor.Core.Models.Track)) as PodcastVideoEditor.Core.Models.Track;
+            if (draggedTrack == null || draggedTrack == targetTrack)
+            {
+                e.Effects = DragDropEffects.None;
+                border.BorderBrush = Brushes.Transparent;
+                return;
+            }
+
+            e.Effects = DragDropEffects.Move;
+            var pos = e.GetPosition(border);
+            border.BorderBrush = Brushes.DeepSkyBlue;
+            border.BorderThickness = pos.Y < border.ActualHeight / 2
+                ? new Thickness(0, 3, 1, 0)
+                : new Thickness(0, 0, 1, 3);
+            e.Handled = true;
+        }
+
+        private void TrackHeader_DragLeave(object sender, DragEventArgs e)
+        {
+            if (sender is Border border)
+            {
+                border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x37, 0x47, 0x4f));
+                border.BorderThickness = new Thickness(0, 0, 1, 0);
+            }
+        }
+
+        private void TrackHeader_Drop(object sender, DragEventArgs e)
+        {
+            if (_viewModel == null || !e.Data.GetDataPresent(typeof(PodcastVideoEditor.Core.Models.Track)))
+                return;
+
+            if (sender is not Border border || border.DataContext is not PodcastVideoEditor.Core.Models.Track targetTrack)
+                return;
+
+            border.BorderBrush = new SolidColorBrush(Color.FromRgb(0x37, 0x47, 0x4f));
+            border.BorderThickness = new Thickness(0, 0, 1, 0);
+
+            var draggedTrack = e.Data.GetData(typeof(PodcastVideoEditor.Core.Models.Track)) as PodcastVideoEditor.Core.Models.Track;
+            if (draggedTrack == null || draggedTrack == targetTrack)
+                return;
+
+            var targetIndex = _viewModel.Tracks.IndexOf(targetTrack);
+            if (targetIndex < 0)
+                return;
+
+            var pos = e.GetPosition(border);
+            var insertIndex = pos.Y < border.ActualHeight / 2 ? targetIndex : targetIndex + 1;
+
+            if (_viewModel.Tracks.IndexOf(draggedTrack) < targetIndex && pos.Y >= border.ActualHeight / 2)
+                insertIndex--;
+
+            _viewModel.ReorderTrack(draggedTrack, insertIndex);
+            UpdateSegmentLayout();
+            _draggedTrackHeader = null;
+            e.Handled = true;
+        }
+
+        private void TrackMoveUp_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.MoveTrackUp(track);
+        }
+
+        private void TrackMoveDown_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.MoveTrackDown(track);
+        }
+
+        private void TrackRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
+                _viewModel?.RemoveTrack(track);
         }
     }
 }

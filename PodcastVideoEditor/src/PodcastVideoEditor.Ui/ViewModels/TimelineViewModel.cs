@@ -1232,6 +1232,107 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Move a track one position towards front (decrease Order → higher visual priority).
+        /// In the timeline, the track moves up.
+        /// </summary>
+        public void MoveTrackUp(Track? track)
+        {
+            if (track == null) return;
+
+            // Find the track with the next-lower Order (the one just above in the timeline)
+            var aboveTrack = Tracks
+                .Where(t => t.Order < track.Order)
+                .OrderByDescending(t => t.Order)
+                .FirstOrDefault();
+
+            if (aboveTrack == null)
+            {
+                StatusMessage = $"Track '{track.Name}' is already at the top";
+                return;
+            }
+
+            // Swap Order values
+            (aboveTrack.Order, track.Order) = (track.Order, aboveTrack.Order);
+            RebuildTrackCollectionOrder();
+            _ = _projectViewModel.SaveProjectAsync();
+            StatusMessage = $"Moved track '{track.Name}' up";
+            Log.Information("Track moved up: {Name} → Order {Order}", track.Name, track.Order);
+        }
+
+        /// <summary>
+        /// Move a track one position towards back (increase Order → lower visual priority).
+        /// In the timeline, the track moves down.
+        /// </summary>
+        public void MoveTrackDown(Track? track)
+        {
+            if (track == null) return;
+
+            // Find the track with the next-higher Order (the one just below in the timeline)
+            var belowTrack = Tracks
+                .Where(t => t.Order > track.Order)
+                .OrderBy(t => t.Order)
+                .FirstOrDefault();
+
+            if (belowTrack == null)
+            {
+                StatusMessage = $"Track '{track.Name}' is already at the bottom";
+                return;
+            }
+
+            // Swap Order values
+            (belowTrack.Order, track.Order) = (track.Order, belowTrack.Order);
+            RebuildTrackCollectionOrder();
+            _ = _projectViewModel.SaveProjectAsync();
+            StatusMessage = $"Moved track '{track.Name}' down";
+            Log.Information("Track moved down: {Name} → Order {Order}", track.Name, track.Order);
+        }
+
+        /// <summary>
+        /// Reorder a track to a new visual position in the timeline.
+        /// Lower index means closer to the top/front.
+        /// </summary>
+        public void ReorderTrack(Track? track, int newIndex)
+        {
+            if (track == null)
+                return;
+
+            var orderedTracks = Tracks.OrderBy(t => t.Order).ToList();
+            var currentIndex = orderedTracks.IndexOf(track);
+            if (currentIndex < 0)
+                return;
+
+            newIndex = Math.Max(0, Math.Min(newIndex, orderedTracks.Count - 1));
+            if (currentIndex == newIndex)
+                return;
+
+            orderedTracks.RemoveAt(currentIndex);
+            orderedTracks.Insert(newIndex, track);
+
+            for (int i = 0; i < orderedTracks.Count; i++)
+                orderedTracks[i].Order = i;
+
+            RebuildTrackCollectionOrder();
+            _ = _projectViewModel.SaveProjectAsync();
+            StatusMessage = $"Reordered track '{track.Name}'";
+            Log.Information("Track reordered: {Name} → Index {Index}", track.Name, newIndex);
+        }
+
+        /// <summary>
+        /// Resort the Tracks ObservableCollection to reflect current Order values.
+        /// Preserves data binding — uses in-place sorting via move operations.
+        /// </summary>
+        private void RebuildTrackCollectionOrder()
+        {
+            var sorted = Tracks.OrderBy(t => t.Order).ToList();
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                int currentIndex = Tracks.IndexOf(sorted[i]);
+                if (currentIndex != i)
+                    Tracks.Move(currentIndex, i);
+            }
+        }
+
+        /// <summary>
         /// Update segment timing with collision check within the same track.
         /// When overlap detected, snaps to nearest valid boundary (edge of blocking segment) to prevent jitter.
         /// </summary>
