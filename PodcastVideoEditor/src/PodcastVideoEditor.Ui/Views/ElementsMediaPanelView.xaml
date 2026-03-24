@@ -128,7 +128,16 @@
             <TabItem Header="Media">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
-                        <TextBlock Text="Hình ảnh / Video" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Hình ảnh / Video" Foreground="#b0bec5" FontSize="11" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="Import Media"
+                                    Click="ImportMediaButton_Click"
+                                    Background="#007acc" Foreground="White" Padding="10,4" FontSize="11" Cursor="Hand"/>
+                        </Grid>
                         <ItemsControl x:Name="MediaAssetsList"
                                       ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}"
                                       ItemTemplate="{StaticResource MediaThumbnailTemplate}">
@@ -139,7 +148,7 @@
                             </ItemsControl.ItemsPanel>
                             <!-- Filtered in code-behind to Image/Video only -->
                         </ItemsControl>
-                        <TextBlock x:Name="NoMediaText" Text="Chưa có media. Import từ Segment Properties."
+                        <TextBlock x:Name="NoMediaText" Text="Chưa có media. Nhấn Import Media để thêm ảnh hoặc video."
                                    Foreground="#546e7a" FontStyle="Italic" Margin="0,8,0,0"
                                    Visibility="Collapsed"/>
                     </StackPanel>

@@ -448,8 +448,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             try
             {
                 var asset = await _projectService.AddAssetAsync(CurrentProject.Id, filePath, type);
-                CurrentProject.Assets.Add(asset);
-                if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase))
+                // EF Core navigation fix-up (singleton DbContext) may have already added the
+                // asset to CurrentProject.Assets when _context.Assets.Add() was called inside
+                // AddAssetAsync. Guard against the double-add that would cause duplicates in UI.
+                if (!CurrentProject.Assets.Any(a => a.Id == asset.Id))
+                    CurrentProject.Assets.Add(asset);
+                if (string.Equals(type, "Audio", StringComparison.OrdinalIgnoreCase)
+                    && !AudioAssets.Any(a => a.Id == asset.Id))
                     AudioAssets.Add(asset);
                 StatusMessage = $"Asset added: {asset.FileName}";
                 Log.Information("Asset added to current project {ProjectId}: {AssetId}", CurrentProject.Id, asset.Id);

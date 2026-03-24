@@ -133,6 +133,55 @@ public partial class ElementsMediaPanelView : UserControl
         _isDragging = false;
     }
 
+    private async void ImportMediaButton_Click(object sender, RoutedEventArgs e)
+    {
+        var mainVm = DataContext as MainViewModel;
+        if (mainVm?.ProjectViewModel?.CurrentProject == null)
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import Hình ảnh / Video",
+            Filter = "Images & Videos|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.mp4;*.mov;*.mkv;*.avi;*.webm|All Files|*.*",
+            CheckFileExists = true,
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        foreach (var filePath in dialog.FileNames)
+        {
+            try
+            {
+                var assetType = InferMediaAssetType(filePath);
+                var asset = await mainVm.ProjectViewModel.AddAssetToCurrentProjectAsync(filePath, assetType);
+                if (asset == null)
+                    Serilog.Log.Warning("Import media asset returned null for {FilePath}", filePath);
+            }
+            catch (System.Exception ex)
+            {
+                Serilog.Log.Error(ex, "Error importing media asset {FilePath}", filePath);
+                MessageBox.Show(ex.Message, "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Refresh filter + empty-state visibility
+        ApplyAssetFilters();
+        UpdateNoMediaTextVisibility();
+    }
+
+    private static string InferMediaAssetType(string filePath)
+    {
+        var ext = System.IO.Path.GetExtension(filePath).Trim('.').ToLowerInvariant();
+        return ext switch
+        {
+            "png" or "jpg" or "jpeg" or "bmp" or "gif" or "webp" => "Image",
+            "mp4" or "mov" or "mkv" or "avi" or "webm" => "Video",
+            _ => "Image"
+        };
+    }
+
     private async void ImportAudioButton_Click(object sender, RoutedEventArgs e)
     {
         var mainVm = DataContext as MainViewModel;
