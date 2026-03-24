@@ -138,9 +138,8 @@ namespace PodcastVideoEditor.Core.Services
                     }
                     catch { /* ignore */ }
 
-                    // Cleanup previous audio (including any active segment/BGM mixer inputs)
+                    // Cleanup previous audio (including any active segment mixer inputs)
                     StopSegmentAudio();
-                    StopBgmAudio();
                     _audioFileReader?.Dispose();
                     _sampleAggregator = null;
                     _mixerTap = null;
@@ -189,7 +188,7 @@ namespace PodcastVideoEditor.Core.Services
                     _actualDurationSeconds = (double)totalSamples / (_waveFormat.SampleRate * _waveFormat.Channels);
                     
                     // Now init the player chain AFTER counting (reader is at position 0)
-                    // Single-mixer architecture: all audio (primary + segment + BGM) goes through
+                    // Single-mixer architecture: all audio (primary + segment) goes through
                     // one MixingSampleProvider → one WaveOutEvent, guaranteeing zero inter-stream offset.
                     _sampleAggregator = new SampleAggregator(_audioFileReader);
                     lock (_mixerLock)
@@ -330,7 +329,7 @@ namespace PodcastVideoEditor.Core.Services
             if (_wavePlayer.PlaybackState != PlaybackState.Playing)
             {
                 // Fire event BEFORE starting playback so subscribers can add mixer inputs
-                // (segment + BGM). The first mixer Read() then includes all sources = zero offset.
+                // (segment). The first mixer Read() then includes all sources = zero offset.
                 // IMPORTANT: Keep _frozenPausePosition active through this event so any
                 // position reads return the stable pause-point (not the buffer-ahead SampleAggregator).
                 PlaybackStarted?.Invoke(this, EventArgs.Empty);
@@ -362,7 +361,7 @@ namespace PodcastVideoEditor.Core.Services
                     _virtualStopwatch.Stop();
                 }
                 _wavePlayer.Pause();
-                // Mixer pauses all inputs (segment + BGM) automatically
+                // Mixer pauses all inputs automatically
                 PlaybackPaused?.Invoke(this, EventArgs.Empty);
                 Log.Information("Playback paused at {Position}s", _frozenPausePosition);
             }
@@ -391,7 +390,6 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Information("Playback stopped");
             }
             StopSegmentAudio();
-            StopBgmAudio();
         }
 
         /// <summary>
@@ -466,7 +464,7 @@ namespace PodcastVideoEditor.Core.Services
                 _sampleAggregator.SetPlayedSamples(seekSampleCount);
             }
 
-            // Note: segment and BGM readers are resynced by the caller
+            // Note: segment readers are resynced by the caller
             // (SeekTo → UpdateSegmentAudioPlayback with forceResync=true)
             // after the mixer is resumed, so they hear the correct position.
 
@@ -734,7 +732,7 @@ namespace PodcastVideoEditor.Core.Services
         public string? CurrentAudioPath => _sourceAudioPath;
 
         // ======== Single-mixer architecture: all audio through one WaveOutEvent ========
-        // MixingSampleProvider routes primary + segment + BGM through one output clock,
+        // MixingSampleProvider routes primary + segment through one output clock,
         // guaranteeing zero inter-stream timing offset.
         private MixingSampleProvider? _mixer;
         private MixerTapSampleProvider? _mixerTap;
@@ -901,108 +899,6 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public string? CurrentSegmentId => _activeSegments.Keys.FirstOrDefault();
 
-        // ======== BGM (Background Music) audio — added/removed from mixer ========
-        private ISampleProvider? _bgmMixerInput;
-        private AudioFileReader? _bgmReader;
-        private string? _currentBgmPath;
-        private bool _bgmIsPlaying;
-
-        /// <summary>
-        /// Start or update BGM playback for preview. Adds to mixer for zero-offset sync.
-        /// During normal playback only volume is updated (mixer keeps position in sync).
-        /// Set forceResync=true after an explicit Seek() to resync the reader position.
-        /// </summary>
-        public void PlayBgmAudio(string audioFilePath, double playheadPosition, float volume, double totalDuration,
-                                  double fadeInSeconds, double fadeOutSeconds, bool forceResync = false)
-        {
-            if (!File.Exists(audioFilePath))
-                return;
-            lock (_mixerLock)
-            {
-                if (_mixer == null) return;
-            }
-
-            // Already playing same file — just adjust volume; only resync on explicit seek
-            if (_currentBgmPath == audioFilePath && _bgmReader != null && _bgmMixerInput != null)
-            {
-                float effectiveVol = CalculateBgmFadeVolume(volume, playheadPosition, totalDuration, fadeInSeconds, fadeOutSeconds);
-                _bgmReader.Volume = Math.Clamp(effectiveVol, 0f, 1f);
-
-                if (forceResync)
-                {
-                    var seekTarget = TimeSpan.FromSeconds(
-                        Math.Min(playheadPosition, _bgmReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
-                    if (seekTarget >= TimeSpan.Zero)
-                        _bgmReader.CurrentTime = seekTarget;
-                }
-                return;
-            }
-
-            // Different file or not yet started
-            StopBgmAudio();
-
-            try
-            {
-                _bgmReader = new AudioFileReader(audioFilePath);
-                float effectiveVol = CalculateBgmFadeVolume(volume, playheadPosition, totalDuration, fadeInSeconds, fadeOutSeconds);
-                _bgmReader.Volume = Math.Clamp(effectiveVol, 0f, 1f);
-
-                if (playheadPosition > SegmentOffsetSkipThresholdSeconds)
-                {
-                    var seekTarget = TimeSpan.FromSeconds(
-                        Math.Min(playheadPosition, _bgmReader.TotalTime.TotalSeconds - SeekSafetyMarginSeconds));
-                    if (seekTarget > TimeSpan.Zero)
-                        _bgmReader.CurrentTime = seekTarget;
-                }
-
-                lock (_mixerLock)
-                {
-                    if (_mixer == null) { _bgmReader?.Dispose(); _bgmReader = null; return; }
-                    _bgmMixerInput = ConvertToMixerFormat(_bgmReader, _mixer.WaveFormat);
-                    _mixer.AddMixerInput(_bgmMixerInput);
-                }
-                _currentBgmPath = audioFilePath;
-                _bgmIsPlaying = true;
-                Log.Debug("BGM added to mixer: {Path} at {Pos}s", audioFilePath, playheadPosition);
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Failed to play BGM audio: {Path}", audioFilePath);
-                StopBgmAudio();
-            }
-        }
-
-        /// <summary>Stop and remove BGM from mixer.</summary>
-        public void StopBgmAudio()
-        {
-            var mixerInput = _bgmMixerInput;
-            var reader = _bgmReader;
-            _bgmMixerInput = null;
-            _bgmReader = null;
-            _currentBgmPath = null;
-            _bgmIsPlaying = false;
-
-            try { if (mixerInput != null) lock (_mixerLock) { _mixer?.RemoveMixerInput(mixerInput); } }
-            catch (Exception ex) { Log.Warning(ex, "Error removing BGM from mixer"); }
-            try { reader?.Dispose(); }
-            catch (Exception ex) { Log.Warning(ex, "Error disposing BGM reader"); }
-        }
-
-        /// <summary>Whether BGM is currently in the mixer.</summary>
-        public bool IsBgmPlaying => _bgmIsPlaying && _bgmMixerInput != null;
-
-        private static float CalculateBgmFadeVolume(float baseVolume, double playheadPosition, double totalDuration,
-                                                     double fadeInSeconds, double fadeOutSeconds)
-        {
-            float vol = baseVolume;
-            if (fadeInSeconds > 0 && playheadPosition < fadeInSeconds)
-                vol *= (float)(playheadPosition / fadeInSeconds);
-            double remaining = totalDuration - playheadPosition;
-            if (fadeOutSeconds > 0 && remaining < fadeOutSeconds)
-                vol *= (float)(remaining / fadeOutSeconds);
-            return Math.Clamp(vol, 0f, 1f);
-        }
-
         private void OnPlaybackStopped(object? sender, StoppedEventArgs e)
         {
             Log.Information("Playback stopped (event)");
@@ -1011,7 +907,7 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Convert an ISampleProvider to match the mixer's WaveFormat (sample rate + channels).
-        /// This ensures segment/BGM audio from files with different formats can be mixed.
+        /// This ensures segment audio from files with different formats can be mixed.
         /// Must be called while holding _mixerLock or with a captured WaveFormat.
         /// </summary>
         private ISampleProvider ConvertToMixerFormat(ISampleProvider source, WaveFormat target)
@@ -1040,7 +936,6 @@ namespace PodcastVideoEditor.Core.Services
             if (!disposing) return;
             StopSegmentAudio();
             DisposePreloadedSegment();
-            StopBgmAudio();
             _wavePlayer?.Dispose();
             _audioFileReader?.Dispose();
             _sampleAggregator = null;
