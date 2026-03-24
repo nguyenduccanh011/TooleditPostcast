@@ -204,8 +204,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Common causes: missing audio file, FFmpeg error, invalid time range.
                 if (hasVisualizerElements && visualizerSegments.Count == 0)
                 {
-                    var audioMissing = string.IsNullOrWhiteSpace(snapshot.Project.AudioPath)
-                                       || !System.IO.File.Exists(snapshot.Project.AudioPath);
+                    var audioMissing = RenderSegmentBuilder.ResolveProjectAudioPath(snapshot.Project) == null;
                     var reason = audioMissing
                         ? "audio file not found at project.AudioPath"
                         : "baking failed — check application logs for FFmpeg error details";
@@ -240,6 +239,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 var config = new RenderConfig
                 {
+                    AudioPath = RenderSegmentBuilder.ResolveProjectAudioPath(snapshot.Project) ?? string.Empty,
                     ImagePath = imagePath,
                     VisualSegments = timelineVisualSegments,
                     TextSegments   = [],  // Text is rasterized to PNG overlays (WYSIWYG)
