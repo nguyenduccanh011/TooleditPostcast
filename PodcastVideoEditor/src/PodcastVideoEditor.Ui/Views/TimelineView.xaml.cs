@@ -1134,5 +1134,24 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
                 _viewModel?.ToggleTrackVisibility(track);
         }
+
+        /// <summary>
+        /// Handle click on track header to select the track and display its properties.
+        /// </summary>
+        private void TrackHeader_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (_viewModel == null)
+                return;
+
+            if (sender is Border border && border.DataContext is PodcastVideoEditor.Core.Models.Track track)
+            {
+                // Only select if clicking on empty area, not on buttons
+                if (e.OriginalSource is Border)
+                {
+                    _viewModel.SelectTrack(track);
+                    e.Handled = true;
+                }
+            }
+        }
     }
 }

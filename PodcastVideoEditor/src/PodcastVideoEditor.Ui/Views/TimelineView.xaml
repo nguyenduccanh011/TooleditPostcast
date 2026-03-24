@@ -148,7 +148,8 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
-                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0">
+                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0"
+                                    PreviewMouseLeftButtonDown="TrackHeader_Click" Cursor="Hand">
                                     <!-- Single-row: [type icon] [lock] [eye] all on one line -->
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                                 VerticalAlignment="Center" Margin="2,0">
