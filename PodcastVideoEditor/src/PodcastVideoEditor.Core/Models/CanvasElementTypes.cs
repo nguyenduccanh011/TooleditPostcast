@@ -190,6 +190,9 @@ namespace PodcastVideoEditor.Core.Models
         private float _smoothingFactor = 0.6f;
         private bool _showPeaks = true;
         private bool _symmetricMode = true;
+        private int _peakHoldTime = 300;
+        private float _barWidth = 8f;
+        private float _barSpacing = 2f;
 
         public override ElementType Type => ElementType.Visualizer;
 
@@ -251,6 +254,33 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _symmetricMode, value);
         }
 
+        /// <summary>
+        /// How long peak indicators hold at their peak position before falling (milliseconds).
+        /// </summary>
+        public int PeakHoldTime
+        {
+            get => _peakHoldTime;
+            set => SetProperty(ref _peakHoldTime, Math.Clamp(value, 0, 2000));
+        }
+
+        /// <summary>
+        /// Width of each frequency bar in pixels (Bars style).
+        /// </summary>
+        public float BarWidth
+        {
+            get => _barWidth;
+            set => SetProperty(ref _barWidth, Math.Clamp(value, 1f, 50f));
+        }
+
+        /// <summary>
+        /// Spacing between bars in pixels.
+        /// </summary>
+        public float BarSpacing
+        {
+            get => _barSpacing;
+            set => SetProperty(ref _barSpacing, Math.Clamp(value, 0f, 20f));
+        }
+
         public override void ResetToDefault()
         {
             base.ResetToDefault();
@@ -260,6 +290,9 @@ namespace PodcastVideoEditor.Core.Models
             SmoothingFactor = 0.6f;
             ShowPeaks = true;
             SymmetricMode = true;
+            PeakHoldTime = 300;
+            BarWidth = 8f;
+            BarSpacing = 2f;
         }
 
         public override CanvasElement Clone() =>
@@ -279,7 +312,10 @@ namespace PodcastVideoEditor.Core.Models
                 Style = Style,
                 SmoothingFactor = SmoothingFactor,
                 ShowPeaks = ShowPeaks,
-                SymmetricMode = SymmetricMode
+                SymmetricMode = SymmetricMode,
+                PeakHoldTime = PeakHoldTime,
+                BarWidth = BarWidth,
+                BarSpacing = BarSpacing
             };
     }
 

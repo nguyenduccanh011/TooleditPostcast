@@ -36,6 +36,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private float smoothingFactor = 0.7f;
 
         [ObservableProperty]
+        private bool showPeaks = true;
+
+        [ObservableProperty]
+        private bool symmetricMode = true;
+
+        [ObservableProperty]
+        private int peakHoldTime = 300;
+
+        [ObservableProperty]
+        private float barWidth = 8f;
+
+        [ObservableProperty]
+        private float barSpacing = 2f;
+
+        [ObservableProperty]
         private float currentBitmap;
 
         [ObservableProperty]
@@ -165,7 +180,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     Style = SelectedStyle,
                     ColorPalette = SelectedPalette,
                     BandCount = SelectedBandCount,
-                    SmoothingFactor = Math.Clamp(SmoothingFactor, 0f, 1f)
+                    SmoothingFactor = Math.Clamp(SmoothingFactor, 0f, 1f),
+                    ShowPeaks = ShowPeaks,
+                    SymmetricMode = SymmetricMode,
+                    PeakHoldTime = PeakHoldTime,
+                    BarWidth = BarWidth,
+                    BarSpacing = BarSpacing
                 };
 
                 if (!newConfig.Validate())
@@ -202,6 +222,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 case nameof(SelectedPalette):
                 case nameof(SelectedBandCount):
                 case nameof(SmoothingFactor):
+                case nameof(ShowPeaks):
+                case nameof(SymmetricMode):
+                case nameof(PeakHoldTime):
+                case nameof(BarWidth):
+                case nameof(BarSpacing):
                     UpdateVisualizerConfig();
                     break;
 

@@ -446,8 +446,9 @@ public static class RenderSegmentBuilder
     }
 
     /// <summary>
-    /// Derive the total render duration from the project's tracks and audio file.
-    /// Used to set the end time when baking full-timeline visualizer elements.
+    /// Derive the total render duration from the project's timeline tracks.
+    /// Uses the furthest segment end time only — the audio file length is intentionally
+    /// ignored so the rendered video matches the timeline, not the raw audio file.
     /// </summary>
     public static double ResolveRenderDuration(Project project)
     {
@@ -458,23 +459,7 @@ public static class RenderSegmentBuilder
             .DefaultIfEmpty(0)
             .Max() ?? 0;
 
-        // Audio file duration (if available)
-        double audioMax = 0;
-        if (!string.IsNullOrWhiteSpace(project.AudioPath)
-            && File.Exists(project.AudioPath))
-        {
-            try
-            {
-                using var reader = new NAudio.Wave.AudioFileReader(project.AudioPath);
-                audioMax = reader.TotalTime.TotalSeconds;
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "ResolveRenderDuration: could not read audio duration");
-            }
-        }
-
-        return Math.Max(trackMax, audioMax);
+        return trackMax;
     }
 
     /// <summary>

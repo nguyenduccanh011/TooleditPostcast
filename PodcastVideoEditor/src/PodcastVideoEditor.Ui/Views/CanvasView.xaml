@@ -378,7 +378,8 @@
 
                         <Canvas Width="{Binding CanvasWidth}"
                                 Height="{Binding CanvasHeight}"
-                                IsHitTestVisible="False">
+                                IsHitTestVisible="False"
+                                Panel.ZIndex="0">
                             <!-- Background image layers: additional visual tracks rendered back to front -->
                             <ItemsControl ItemsSource="{Binding BackgroundLayers}"
                                           CacheMode="BitmapCache">
@@ -475,7 +476,8 @@
                                 Background="Transparent"
                                 Width="{Binding CanvasWidth}"
                                 Height="{Binding CanvasHeight}"
-                                MouseDown="OnCanvasMouseDown">
+                                MouseDown="OnCanvasMouseDown"
+                                Panel.ZIndex="10">
                             <ItemsControl ItemsSource="{Binding Elements}"
                                          ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
                                 <ItemsControl.ItemContainerStyle>

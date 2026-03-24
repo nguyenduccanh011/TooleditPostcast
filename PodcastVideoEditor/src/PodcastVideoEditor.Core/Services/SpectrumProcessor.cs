@@ -71,7 +71,11 @@ public sealed class SpectrumProcessor
     /// Handles the full pipeline: auto-gain normalise, power curve boost, exponential
     /// smoothing, and peak hold/decay. When input is silent the spectrum decays gently.
     /// </summary>
-    public void ProcessSpectrum(float[] magnitudes, VisualizerConfig config)
+    /// <param name="timestampMs">Optional simulated timestamp in milliseconds.
+    /// When null, uses <see cref="Environment.TickCount64"/> (wall-clock).  Offline
+    /// bakers should pass a virtual timestamp so peak decay works correctly even when
+    /// frames are processed faster than real-time.</param>
+    public void ProcessSpectrum(float[] magnitudes, VisualizerConfig config, long? timestampMs = null)
     {
         int bandCount = config.BandCount;
         int maxIndex = Math.Max(1, (int)(magnitudes.Length * 0.6f));
@@ -89,7 +93,7 @@ public sealed class SpectrumProcessor
             return;
         }
 
-        long now = Environment.TickCount64;
+        long now = timestampMs ?? Environment.TickCount64;
         for (int i = 0; i < bandCount; i++)
         {
             int start = (int)(i * (maxIndex / (float)bandCount));
@@ -127,8 +131,9 @@ public sealed class SpectrumProcessor
     /// Very low amplitude standing waves (~10% bar height) so users can see
     /// the visualizer is alive without mistaking it for real audio.
     /// </summary>
-    public void GenerateDemoSpectrum(VisualizerConfig config, double timeSeconds)
+    public void GenerateDemoSpectrum(VisualizerConfig config, double timeSeconds, long? timestampMs = null)
     {
+        long now = timestampMs ?? Environment.TickCount64;
         int bandCount = config.BandCount;
         for (int i = 0; i < bandCount; i++)
         {
@@ -146,9 +151,9 @@ public sealed class SpectrumProcessor
             if (_currentSpectrum[i] > _peakBars[i])
             {
                 _peakBars[i] = _currentSpectrum[i];
-                _peakHoldTimes[i] = Environment.TickCount64;
+                _peakHoldTimes[i] = now;
             }
-            else if (Environment.TickCount64 - _peakHoldTimes[i] > config.PeakHoldTime)
+            else if (now - _peakHoldTimes[i] > config.PeakHoldTime)
             {
                 _peakBars[i] = Lerp(_peakBars[i], 0f, PeakDecayRate);
             }

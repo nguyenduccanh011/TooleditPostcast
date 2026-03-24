@@ -292,7 +292,8 @@ public static class FFmpegCommandComposer
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
         args.Append("-movflags +faststart ");
-        if (!hasPrimaryAudio)
+        // Always add -t flag so FFmpeg stops at the timeline end, not at the end of
+        // the (potentially longer) audio file.
         {
             var allEndTimes = visualSegments.Select(s => s.EndTime)
                 .Concat(textSegments.Select(s => s.EndTime))

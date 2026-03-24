@@ -72,9 +72,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 object? converted = ConvertValue(newValue, targetType);
                 prop.SetValue(field.SourceElement, converted);
 
-                // Sync VisualizerElement Style/ColorPalette/BandCount to VisualizerViewModel
+                // Sync VisualizerElement config changes to VisualizerViewModel
                 if (field.SourceElement is VisualizerElement ve &&
-                    (prop.Name == "Style" || prop.Name == "ColorPalette" || prop.Name == "BandCount"))
+                    prop.Name is "Style" or "ColorPalette" or "BandCount"
+                               or "SmoothingFactor" or "ShowPeaks" or "SymmetricMode"
+                               or "PeakHoldTime" or "BarWidth" or "BarSpacing")
                 {
                     OnVisualizerElementConfigChanged?.Invoke(ve);
                 }
@@ -135,6 +137,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     field.MinValue = 32;
                     field.MaxValue = 128;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "PeakHoldTime")
+                {
+                    field.MinValue = 0;
+                    field.MaxValue = 2000;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+            }
+            else if (propType == typeof(float))
+            {
+                field.FieldType = PropertyFieldType.Float;
+                field.Value = (double)(float)(value ?? 0f);
+                if (prop.Name == "SmoothingFactor")
+                {
+                    field.MinValue = 0;
+                    field.MaxValue = 1;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "BarWidth")
+                {
+                    field.MinValue = 1;
+                    field.MaxValue = 50;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "BarSpacing")
+                {
+                    field.MinValue = 0;
+                    field.MaxValue = 20;
                     field.FieldType = PropertyFieldType.Slider;
                 }
             }
@@ -214,6 +245,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (targetType == typeof(double))
                 return double.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : 0.0;
+
+            if (targetType == typeof(float))
+            {
+                if (value is double dbl) return (float)dbl;
+                return float.TryParse(str, NumberStyles.Any, CultureInfo.InvariantCulture, out var f) ? f : 0f;
+            }
 
             return value;
         }

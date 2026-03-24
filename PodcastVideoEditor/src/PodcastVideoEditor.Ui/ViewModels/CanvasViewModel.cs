@@ -268,6 +268,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Recalculate ZIndex for every canvas element based on current track Order values.
+        /// Called when tracks are reordered so the visual stacking stays in sync.
+        /// </summary>
+        private void RefreshElementZIndices()
+        {
+            foreach (var element in Elements)
+            {
+                var track = FindTrackForSegment(element.SegmentId);
+                element.ZIndex = ComputeZIndexForTrack(track);
+            }
+        }
+
+        /// <summary>
         /// Find the track that owns the given segment.
         /// </summary>
         private Track? FindTrackForSegment(string? segmentId)
@@ -382,6 +395,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerViewModel.SelectedStyle = element.Style;
             _visualizerViewModel.SelectedPalette = element.ColorPalette;
             _visualizerViewModel.SelectedBandCount = element.BandCount;
+            _visualizerViewModel.SmoothingFactor = element.SmoothingFactor;
+            _visualizerViewModel.ShowPeaks = element.ShowPeaks;
+            _visualizerViewModel.SymmetricMode = element.SymmetricMode;
+            _visualizerViewModel.PeakHoldTime = element.PeakHoldTime;
+            _visualizerViewModel.BarWidth = element.BarWidth;
+            _visualizerViewModel.BarSpacing = element.BarSpacing;
         }
 
         private void OnVisualizerTimerTick(object? sender, EventArgs e)

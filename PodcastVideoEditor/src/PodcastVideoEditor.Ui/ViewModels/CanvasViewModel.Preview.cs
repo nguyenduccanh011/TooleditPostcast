@@ -170,6 +170,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (e.PropertyName == nameof(Track.ImageLayoutPreset) && sender is Track changedTrack)
                 UpdateLinkedImageElementsForTrack(changedTrack);
 
+            if (e.PropertyName == nameof(Track.Order))
+                RefreshElementZIndices();
+
             _timelineViewModel.InvalidateActiveSegmentsCachePublic();
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
         }

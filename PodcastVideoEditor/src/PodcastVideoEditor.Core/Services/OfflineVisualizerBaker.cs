@@ -284,15 +284,18 @@ public static class OfflineVisualizerBaker
             }
 
             // ── Compute FFT → process spectrum ────────────────────────────
+            // Use simulated time so peak hold/decay works correctly even though
+            // the baker processes frames much faster than real-time.
             var magnitudes = SpectrumProcessor.ComputeFFTMagnitudes(ringBuffer, ringWrite, fftSize);
-            specProcessor.ProcessSpectrum(magnitudes, config);
+            long simulatedMs = (long)((startTime + frameIdx / (double)fps) * 1000.0);
+            specProcessor.ProcessSpectrum(magnitudes, config, simulatedMs);
 
             // ── Demo fallback: replace silent frames with animated idle spectrum ──
             if (specProcessor.IsSilent(SilenceLevel))
             {
                 silentFrames++;
                 if (silentFrames >= SilenceFrameThreshold)
-                    specProcessor.GenerateDemoSpectrum(config, startTime + frameIdx / (double)fps);
+                    specProcessor.GenerateDemoSpectrum(config, startTime + frameIdx / (double)fps, simulatedMs);
             }
             else
             {
