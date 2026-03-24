@@ -1143,14 +1143,18 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel == null)
                 return;
 
+            // Don't intercept if the original click was on a Button (lock/visibility toggles)
+            var dep = e.OriginalSource as DependencyObject;
+            while (dep != null)
+            {
+                if (dep is Button) return;
+                dep = VisualTreeHelper.GetParent(dep);
+            }
+
             if (sender is Border border && border.DataContext is PodcastVideoEditor.Core.Models.Track track)
             {
-                // Only select if clicking on empty area, not on buttons
-                if (e.OriginalSource is Border)
-                {
-                    _viewModel.SelectTrack(track);
-                    e.Handled = true;
-                }
+                _viewModel.SelectTrack(track);
+                e.Handled = true;
             }
         }
     }
