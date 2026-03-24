@@ -473,7 +473,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             // Always create a dedicated new track so the visualizer segment never
             // collides with image/video segments that share the first visual track.
-            var segment = _timelineViewModel?.CreateSegmentOnNewTrack(TrackTypes.Visual, element.Name);
+            // Use the full project duration so the baked visualizer covers the whole
+            // project, not just the 5-second default stub.
+            var projectEnd       = _timelineViewModel?.GetProjectDuration() ?? 30.0;
+            var playhead         = _timelineViewModel?.PlayheadPosition ?? 0.0;
+            var segmentDuration  = Math.Max(10.0, projectEnd - playhead);
+            var segment = _timelineViewModel?.CreateSegmentOnNewTrack(TrackTypes.Effect, element.Name, segmentDuration);
             if (segment != null)
                 element.SegmentId = segment.Id;
 

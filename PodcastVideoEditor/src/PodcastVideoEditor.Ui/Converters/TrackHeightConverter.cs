@@ -17,6 +17,7 @@ namespace PodcastVideoEditor.Ui.Converters
                 "text"   => "T",
                 "visual" => "🖼",
                 "audio"  => "♪",
+                "effect" => "✦",
                 _        => "☰"
             } : "☰";
         }
@@ -53,6 +54,7 @@ namespace PodcastVideoEditor.Ui.Converters
                 "text"   => 22.0,
                 "audio"  => 48.0,
                 "visual" => 48.0,
+                "effect" => 48.0,
                 _        => 22.0
             };
         }

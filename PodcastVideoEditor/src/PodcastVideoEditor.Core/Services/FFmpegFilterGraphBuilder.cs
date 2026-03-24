@@ -161,7 +161,10 @@ public static class FFmpegFilterGraphBuilder
                 : BuildScalingFilter(config);
 
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
-            var pixFmt = (isPngOverlay || seg.HasAlpha) ? "yuva420p" : "yuv420p";
+            // Use 'rgba' (not 'yuva420p') for alpha-containing sources to avoid 4:2:0 chroma
+            // subsampling which causes colour banding in spectrum visualizer overlays.
+            // The overlay filter handles the final RGBA→YUV420P compositing via format=auto.
+            var pixFmt = (isPngOverlay || seg.HasAlpha) ? "rgba" : "yuv420p";
 
             if (seg.IsVideo)
             {

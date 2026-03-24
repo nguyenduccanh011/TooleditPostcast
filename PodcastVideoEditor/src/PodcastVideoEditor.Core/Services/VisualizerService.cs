@@ -18,11 +18,8 @@ namespace PodcastVideoEditor.Core.Services
         private readonly VisualizerRendererRegistry _registry;
         private VisualizerConfig _config;
         
-        // FFT and smoothing data
-        private float[] _currentSpectrum = Array.Empty<float>();
-        private float[] _previousSpectrum = Array.Empty<float>();
-        private float[] _peakBars = Array.Empty<float>();
-        private long[] _peakHoldTimes = Array.Empty<long>();
+        // Shared spectrum processing (replaces duplicated FFT/smoothing/peak logic)
+        private SpectrumProcessor _specProcessor;
         
         // Rendering state
         private double _colorTick;
@@ -44,16 +41,7 @@ namespace PodcastVideoEditor.Core.Services
         // Events
         public event EventHandler<VisualizerFrameEventArgs>? FrameRendered;
 
-        // Idle / demo mode constants
-        private const float IdleBandFreqBase = 0.25f;
-        private const float IdleBandFreqRange = 1.0f;
-        private const float IdleBaseAmplitude = 0.05f;
-        private const float IdleWave1Amplitude = 0.03f;
-        private const float IdleWave2Amplitude = 0.02f;
-        private const float IdleWave3Amplitude = 0.01f;
-        private const float IdleFreqDamping = 0.3f;
-        private const float PeakDecayRate = 0.05f;
-        private const float PowerCurveExponent = 0.7f;
+        // Color tick speed constants
         private const double ColorTickIdle = 0.03;
         private const double ColorTickActive = 0.15;
 
@@ -62,33 +50,10 @@ namespace PodcastVideoEditor.Core.Services
             _audioService = audioService ?? throw new ArgumentNullException(nameof(audioService));
             _registry = new VisualizerRendererRegistry();
             _config = config?.Clone() ?? new VisualizerConfig();
+            _specProcessor = new SpectrumProcessor(_config.BandCount);
 
-            InitializeBuffers();
             Log.Information("VisualizerService initialized with {BandCount} bands, style: {Style}",
                 _config.BandCount, _config.Style);
-        }
-
-        /// <summary>
-        /// Initialize FFT and peak-hold buffers.
-        /// </summary>
-        private void InitializeBuffers()
-        {
-            _currentSpectrum = new float[_config.BandCount];
-            _previousSpectrum = new float[_config.BandCount];
-            _peakBars = new float[_config.BandCount];
-            _peakHoldTimes = new long[_config.BandCount];
-
-            Array.Clear(_currentSpectrum, 0, _currentSpectrum.Length);
-            Array.Clear(_previousSpectrum, 0, _previousSpectrum.Length);
-            Array.Clear(_peakBars, 0, _peakBars.Length);
-        }
-
-        /// <summary>
-        /// Linear interpolation helper function.
-        /// </summary>
-        private static float Lerp(float a, float b, float t)
-        {
-            return a + (b - a) * Math.Clamp(t, 0f, 1f);
         }
 
         /// <summary>
@@ -100,7 +65,7 @@ namespace PodcastVideoEditor.Core.Services
                 throw new ArgumentException("Invalid visualizer configuration", nameof(config));
 
             _config = config.Clone();
-            InitializeBuffers();
+            _specProcessor.Reinitialize(_config.BandCount);
             Log.Information("VisualizerService config updated");
         }
 
@@ -158,7 +123,7 @@ namespace PodcastVideoEditor.Core.Services
                     }
                     else
                     {
-                        GenerateDemoSpectrum();
+                        _specProcessor.GenerateDemoSpectrum(_config, Environment.TickCount64 / 1000.0);
                     }
 
                     // Always render frame (no black frame ever)
@@ -192,96 +157,16 @@ namespace PodcastVideoEditor.Core.Services
 
             if (rawFFT == null || rawFFT.Length == 0)
             {
-                // Fallback: generate demo data instead of showing black
-                GenerateDemoSpectrum();
+                _specProcessor.GenerateDemoSpectrum(_config, Environment.TickCount64 / 1000.0);
                 return;
             }
 
-            var maxIndex = Math.Max(1, (int)(rawFFT.Length * 0.6f));
-            var maxValue = 0f;
-            for (int i = 0; i < maxIndex; i++)
-            {
-                if (rawFFT[i] > maxValue)
-                    maxValue = rawFFT[i];
-            }
+            _specProcessor.ProcessSpectrum(rawFFT, _config);
 
-            if (maxValue <= 1e-6f)
-            {
-                GenerateDemoSpectrum();
-                return;
-            }
-
-            // Downsample to band count with auto-gain
-            for (int i = 0; i < _config.BandCount; i++)
-            {
-                var start = (int)(i * (maxIndex / (float)_config.BandCount));
-                var end = (int)((i + 1) * (maxIndex / (float)_config.BandCount));
-                if (end <= start)
-                    end = Math.Min(maxIndex, start + 1);
-
-                float sum = 0f;
-                for (int j = start; j < end; j++)
-                    sum += rawFFT[j];
-
-                float avg = sum / (end - start);
-                float newValue = avg / maxValue; // auto-gain normalize
-                newValue = MathF.Pow(Math.Clamp(newValue, 0f, 1f), PowerCurveExponent); // boost low levels
-
-                // Apply smoothing with exponential decay
-                _currentSpectrum[i] = Lerp(_previousSpectrum[i], newValue, 1f - _config.SmoothingFactor);
-
-                // Handle peak hold
-                if (_currentSpectrum[i] > _peakBars[i])
-                {
-                    _peakBars[i] = _currentSpectrum[i];
-                    _peakHoldTimes[i] = Environment.TickCount64;
-                }
-                else if (Environment.TickCount64 - _peakHoldTimes[i] > _config.PeakHoldTime)
-                {
-                    // Peak hold time expired, start decay
-                    _peakBars[i] = Lerp(_peakBars[i], 0f, PeakDecayRate);
-                }
-            }
-
-            // Store current as previous for next frame
-            Array.Copy(_currentSpectrum, _previousSpectrum, _config.BandCount);
-        }
-
-        /// <summary>
-        /// Generate idle animation when audio is not playing.
-        /// Very low amplitude and slow oscillation — clearly "at rest", not playing.
-        /// Max ~10% bar height so users cannot mistake it for real audio activity.
-        /// </summary>
-        private void GenerateDemoSpectrum()
-        {
-            var time = Environment.TickCount64 / 1000.0;
-            for (int i = 0; i < _config.BandCount; i++)
-            {
-                var freq = i / (float)_config.BandCount;
-                // Idle mode: 4× slower than full demo, very low amplitude.
-                // Each band still oscillates at its own rate (standing wave, no traveling motion).
-                var bandFreq = IdleBandFreqBase + freq * IdleBandFreqRange;
-                var val = IdleBaseAmplitude
-                             + IdleWave1Amplitude * MathF.Sin((float)(time * bandFreq))
-                             + IdleWave2Amplitude * MathF.Sin((float)(time * bandFreq * 1.7))
-                             + IdleWave3Amplitude * MathF.Sin((float)(time * bandFreq * 0.5));
-                // Lower frequencies slightly higher — maintains natural spectral shape
-                val *= 1.0f - freq * IdleFreqDamping;
-                var newValue = Math.Clamp(val, 0f, 1f);
-
-                _currentSpectrum[i] = Lerp(_previousSpectrum[i], newValue, 1f - _config.SmoothingFactor);
-
-                if (_currentSpectrum[i] > _peakBars[i])
-                {
-                    _peakBars[i] = _currentSpectrum[i];
-                    _peakHoldTimes[i] = Environment.TickCount64;
-                }
-                else if (Environment.TickCount64 - _peakHoldTimes[i] > _config.PeakHoldTime)
-                {
-                    _peakBars[i] = Lerp(_peakBars[i], 0f, PeakDecayRate);
-                }
-            }
-            Array.Copy(_currentSpectrum, _previousSpectrum, _config.BandCount);
+            // If ProcessSpectrum decayed to silence (all near-zero magnitudes),
+            // fall back to demo animation so the visualizer is never blank.
+            if (_specProcessor.IsSilent(0.001f))
+                _specProcessor.GenerateDemoSpectrum(_config, Environment.TickCount64 / 1000.0);
         }
 
         /// <summary>
@@ -305,11 +190,11 @@ namespace PodcastVideoEditor.Core.Services
             float[] spectrumToRender;
             float[] peaksToRender;
             if (_config.SymmetricMode)
-                spectrumToRender = BuildMirroredSpectrum(_currentSpectrum, _peakBars, out peaksToRender);
+                spectrumToRender = _specProcessor.BuildMirroredSpectrum(out peaksToRender);
             else
             {
-                spectrumToRender = _currentSpectrum;
-                peaksToRender = _peakBars;
+                spectrumToRender = _specProcessor.CurrentSpectrum;
+                peaksToRender = _specProcessor.PeakBars;
             }
 
             using (var canvas = new SKCanvas(_backBitmap))
@@ -334,38 +219,6 @@ namespace PodcastVideoEditor.Core.Services
                 _targetFps = 20;
             else if (_frameWatch.ElapsedMilliseconds < 18 && _targetFps < 30)
                 _targetFps = 30;
-        }
-
-        /// <summary>
-        /// Build a symmetric spectrum from the lowest 60% of bands.
-        /// Left half of output: band[0] → band[activeBands-1] (low→mid freq, left to right).
-        /// Right half of output: band[activeBands-1] → band[0] (mid→low freq, left to right) — mirror.
-        /// Both halves share the same data, creating a butterfly/symmetric display.
-        /// </summary>
-        private float[] BuildMirroredSpectrum(float[] spectrum, float[] peaks, out float[] mirroredPeaks)
-        {
-            var total = spectrum.Length;
-            var activeBands = (int)(total * 0.6f); // keep only the lower 60% of bands
-            var half = total / 2;
-
-            var result = new float[total];
-            mirroredPeaks = new float[total];
-
-            for (int i = 0; i < half; i++)
-            {
-                // Map slot i (0..half-1) → source band reversed: outside = high freq (quiet),
-                // center = low freq (bass, high activity). This puts energy in the center.
-                var bandIdx = activeBands - 1 - (int)(i * activeBands / (float)half);
-                bandIdx = Math.Clamp(bandIdx, 0, activeBands - 1);
-
-                result[i] = spectrum[bandIdx];             // left side: outside→center (quiet→loud)
-                result[total - 1 - i] = spectrum[bandIdx]; // right side: mirror (outside→center)
-
-                mirroredPeaks[i] = peaks[bandIdx];
-                mirroredPeaks[total - 1 - i] = peaks[bandIdx];
-            }
-
-            return result;
         }
 
         /// <summary>

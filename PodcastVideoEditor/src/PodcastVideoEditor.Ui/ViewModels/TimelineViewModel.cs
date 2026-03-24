@@ -9,6 +9,7 @@ using PodcastVideoEditor.Ui.Services;
 using Serilog;
 using System;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -644,7 +645,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             try
             {
                 // Determine segment kind based on asset type and track type
-                string kind = string.Equals(track.TrackType, "audio", StringComparison.OrdinalIgnoreCase) ? SegmentKinds.Audio : SegmentKinds.Visual;
+                string kind = track.TrackType?.ToLowerInvariant() switch
+                {
+                    "audio"  => SegmentKinds.Audio,
+                    "effect" => SegmentKinds.Effect,
+                    "text"   => SegmentKinds.Text,
+                    _        => SegmentKinds.Visual
+                };
 
                 // Determine duration: use asset duration if available, else default 5s
                 double duration = asset.Duration > 0 ? asset.Duration.Value : 5.0;
@@ -690,6 +697,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 TrackTypes.Visual => assetType is "image" or "video",
                 TrackTypes.Audio => assetType is "audio",
                 TrackTypes.Text => false, // Text segments created via script, not drag-drop
+                TrackTypes.Effect => false, // Effect tracks are for visualizer elements only
                 _ => false
             };
         }
@@ -750,6 +758,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Log.Information("Created element segment '{Text}' on NEW {TrackType} track at {Start}s-{End}s",
                 text, trackType, startTime, endTime);
             return newSegment;
+        }
+
+        /// <summary>
+        /// Returns the total duration of the current project in seconds.
+        /// Computed as the maximum of all track-segment end times and the project audio file length.
+        /// Falls back to a 30-second minimum so a freshly-created project yields a sensible range.
+        /// Used by <see cref="PodcastVideoEditor.Ui.ViewModels.CanvasViewModel"/> when sizing the
+        /// visualizer timeline segment to span the full project instead of the 5-second stub default.
+        /// </summary>
+        public double GetProjectDuration()
+        {
+            var trackMax = Tracks
+                .SelectMany(t => t.Segments)
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0.0)
+                .Max();
+
+            double audioMax = 0.0;
+            var audioPath = _projectViewModel?.CurrentProject?.AudioPath;
+            if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
+            {
+                try
+                {
+                    using var reader = new NAudio.Wave.AudioFileReader(audioPath);
+                    audioMax = reader.TotalTime.TotalSeconds;
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug(ex, "GetProjectDuration: could not read audio file length, using track max");
+                }
+            }
+
+            return Math.Max(30.0, Math.Max(trackMax, audioMax));
         }
 
         /// <summary>
@@ -1053,6 +1094,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 TrackTypes.Text => "Text",
                 TrackTypes.Visual => "Visual",
                 TrackTypes.Audio => "Audio",
+                TrackTypes.Effect => "Effect",
                 _ => trackType
             };
 

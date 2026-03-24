@@ -12,5 +12,9 @@ public static class SegmentKind
     /// <summary>Script/subtitle text segment. Emphasizes Text; may have no background image.</summary>
     public const string Text = "text";
 
-    // Future: "audio", "sticker"
+    /// <summary>Audio segment on an audio track.</summary>
+    public const string Audio = "audio";
+
+    /// <summary>Effect segment (visualizer, overlay) on an effect track.</summary>
+    public const string Effect = "effect";
 }

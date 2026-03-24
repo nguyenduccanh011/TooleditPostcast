@@ -10,6 +10,7 @@ public static class TrackTypes
     public const string Text = "text";
     public const string Visual = "visual";
     public const string Audio = "audio";
+    public const string Effect = "effect";
 }
 
 public static class SegmentKinds
@@ -17,4 +18,5 @@ public static class SegmentKinds
     public const string Text = "text";
     public const string Visual = "visual";
     public const string Audio = "audio";
+    public const string Effect = "effect";
 }

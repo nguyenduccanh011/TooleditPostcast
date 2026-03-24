@@ -187,6 +187,9 @@ namespace PodcastVideoEditor.Core.Models
         private ColorPalette _colorPalette = ColorPalette.Rainbow;
         private int _bandCount = 64;
         private VisualizerStyle _style = VisualizerStyle.Bars;
+        private float _smoothingFactor = 0.6f;
+        private bool _showPeaks = true;
+        private bool _symmetricMode = true;
 
         public override ElementType Type => ElementType.Visualizer;
 
@@ -221,12 +224,42 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _style, value);
         }
 
+        /// <summary>
+        /// Smoothing factor for bar decay (0.0 = no smoothing, 1.0 = max smoothing).
+        /// </summary>
+        public float SmoothingFactor
+        {
+            get => _smoothingFactor;
+            set => SetProperty(ref _smoothingFactor, Math.Clamp(value, 0f, 1f));
+        }
+
+        /// <summary>
+        /// Whether to show peak indicators above the bars.
+        /// </summary>
+        public bool ShowPeaks
+        {
+            get => _showPeaks;
+            set => SetProperty(ref _showPeaks, value);
+        }
+
+        /// <summary>
+        /// Mirror mode: use only the lowest 60% of bands and display them symmetrically.
+        /// </summary>
+        public bool SymmetricMode
+        {
+            get => _symmetricMode;
+            set => SetProperty(ref _symmetricMode, value);
+        }
+
         public override void ResetToDefault()
         {
             base.ResetToDefault();
             ColorPalette = ColorPalette.Rainbow;
             BandCount = 64;
             Style = VisualizerStyle.Bars;
+            SmoothingFactor = 0.6f;
+            ShowPeaks = true;
+            SymmetricMode = true;
         }
 
         public override CanvasElement Clone() =>
@@ -243,7 +276,10 @@ namespace PodcastVideoEditor.Core.Models
                 SegmentId = null, // Clone is independent — not bound to original segment
                 ColorPalette = ColorPalette,
                 BandCount = BandCount,
-                Style = Style
+                Style = Style,
+                SmoothingFactor = SmoothingFactor,
+                ShowPeaks = ShowPeaks,
+                SymmetricMode = SymmetricMode
             };
     }
 

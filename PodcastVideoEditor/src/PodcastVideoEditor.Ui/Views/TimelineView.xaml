@@ -299,6 +299,10 @@
                                                                             <Setter Property="Background" Value="#1a2a2d"/>
                                                                             <Setter Property="BorderBrush" Value="#00acc1"/>
                                                                         </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Kind}" Value="effect">
+                                                                            <Setter Property="Background" Value="#2a1a3a"/>
+                                                                            <Setter Property="BorderBrush" Value="#7c4dff"/>
+                                                                        </DataTrigger>
                                                                         <DataTrigger Binding="{Binding IsMultiSelected}" Value="True">
                                                                             <Setter Property="Background" Value="#3a3a2a"/>
                                                                             <Setter Property="BorderBrush" Value="#FF9800"/>

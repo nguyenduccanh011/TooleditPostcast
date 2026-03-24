@@ -1111,10 +1111,13 @@ namespace PodcastVideoEditor.Ui.Views
             addText.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Text);
             var addAudio = new System.Windows.Controls.MenuItem { Header = "Audio Track" };
             addAudio.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Audio);
+            var addEffect = new System.Windows.Controls.MenuItem { Header = "Effect Track" };
+            addEffect.Click += (_, _) => _viewModel.AddTrack(TrackTypes.Effect);
 
             menu.Items.Add(addVisual);
             menu.Items.Add(addText);
             menu.Items.Add(addAudio);
+            menu.Items.Add(addEffect);
 
             if (sender is FrameworkElement btn)
             {

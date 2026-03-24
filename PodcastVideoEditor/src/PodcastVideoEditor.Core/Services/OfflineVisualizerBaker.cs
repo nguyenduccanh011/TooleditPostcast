@@ -1,5 +1,4 @@
 #nullable enable
-using NAudio.Dsp;
 using NAudio.Wave;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services.Visualizers;
@@ -21,8 +20,8 @@ namespace PodcastVideoEditor.Core.Services;
 ///   1. Opens the project audio with NAudio AudioFileReader (supports MP3, WAV, etc.)
 ///   2. Uses a sliding ring-buffer to extract per-frame FFT windows (same approach as
 ///      SampleAggregator used in the live preview).
-///   3. Processes spectrum data identically to VisualizerService (auto-gain, power
-///      curve, exponential smoothing, peak hold).
+///   3. Delegates spectrum processing to <see cref="SpectrumProcessor"/> (auto-gain,
+///      power curve, exponential smoothing, peak hold).
 ///   4. Renders each frame with VisualizerRendererRegistry onto a transparent
 ///      SKBitmap then pipes the raw RGBA bytes to an FFmpeg child process.
 ///   5. FFmpeg encodes the frames as a lossless PNG-in-MOV container (-c:v png
@@ -30,9 +29,9 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class OfflineVisualizerBaker
 {
-    private const float PowerCurveExponent = 0.7f;
-    private const float PeakDecayRate      = 0.05f;
     private const double ColorTickActive   = 0.15;
+    private const int    SilenceFrameThreshold  = 3;   // switch to demo after this many silent frames
+    private const float  SilenceLevel           = 0.005f;
 
     /// <summary>
     /// Bake a <see cref="VisualizerElement"/> to a transparent video file.
@@ -99,10 +98,10 @@ public static class OfflineVisualizerBaker
             BandCount        = element.BandCount,
             Style            = element.Style,
             ColorPalette     = element.ColorPalette,
-            SmoothingFactor  = 0.6f,
-            ShowPeaks        = true,
+            SmoothingFactor  = element.SmoothingFactor,
+            ShowPeaks        = element.ShowPeaks,
             PeakHoldTime     = 300,
-            SymmetricMode    = true
+            SymmetricMode    = element.SymmetricMode
         };
 
         // ── Prepare temp output file ────────────────────────────────────────
@@ -229,7 +228,7 @@ public static class OfflineVisualizerBaker
         Stream pipeStream,
         CancellationToken ct)
     {
-        int fftSize       = NextPow2(config.BandCount * 8);
+        int fftSize       = SpectrumProcessor.NextPow2(config.BandCount * 8);
         double duration   = endTime - startTime;
         int totalFrames   = (int)Math.Ceiling(duration * fps);
 
@@ -244,21 +243,21 @@ public static class OfflineVisualizerBaker
         if (startTime > 0)
             audioReader.CurrentTime = TimeSpan.FromSeconds(startTime);
 
-        // ── Spectrum state ────────────────────────────────────────────────────
-        var ringBuffer     = new float[fftSize];    // mono ring buffer for FFT
-        int ringWrite      = 0;
-        var currentSpec    = new float[config.BandCount];
-        var previousSpec   = new float[config.BandCount];
-        var peakBars       = new float[config.BandCount];
-        var peakHoldTimes  = new long[config.BandCount];
-        double colorTick   = 0;
+        // ── Spectrum state via shared SpectrumProcessor ───────────────────────
+        var ringBuffer = new float[fftSize];    // mono ring buffer for FFT
+        int ringWrite  = 0;
+        var specProcessor = new SpectrumProcessor(config.BandCount);
+        double colorTick  = 0;
+        int silentFrames  = 0;  // consecutive frames with near-zero spectrum
 
         // Read buffer: interleaved stereo samples from NAudio
         var readBuf = new float[samplesPerFrame * channels];
 
         // ── Renderer ─────────────────────────────────────────────────────────
         using var registry = new VisualizerRendererRegistry();
-        using var bitmap   = new SKBitmap(outW, outH, SKColorType.Rgba8888, SKAlphaType.Premul);
+        // SKAlphaType.Unpremul → bytes are written as straight (non-premultiplied) RGBA,
+        // which is what FFmpeg's -pixel_format rgba expects for correct alpha compositing.
+        using var bitmap   = new SKBitmap(outW, outH, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
         // Frame byte buffer (reuse across frames to avoid GC pressure)
         var frameBytes = new byte[outW * outH * 4];
@@ -284,22 +283,31 @@ public static class OfflineVisualizerBaker
                 ringWrite = (ringWrite + 1) % fftSize;
             }
 
-            // ── Compute FFT ────────────────────────────────────────────────
-            var magnitudes = ComputeFFTMagnitudes(ringBuffer, ringWrite, fftSize);
+            // ── Compute FFT → process spectrum ────────────────────────────
+            var magnitudes = SpectrumProcessor.ComputeFFTMagnitudes(ringBuffer, ringWrite, fftSize);
+            specProcessor.ProcessSpectrum(magnitudes, config);
 
-            // ── Process spectrum ───────────────────────────────────────────
-            ProcessSpectrum(magnitudes, currentSpec, previousSpec,
-                            peakBars, peakHoldTimes, config);
+            // ── Demo fallback: replace silent frames with animated idle spectrum ──
+            if (specProcessor.IsSilent(SilenceLevel))
+            {
+                silentFrames++;
+                if (silentFrames >= SilenceFrameThreshold)
+                    specProcessor.GenerateDemoSpectrum(config, startTime + frameIdx / (double)fps);
+            }
+            else
+            {
+                silentFrames = 0;
+            }
 
             // Build symmetric or raw arrays
             float[] specToRender;
             float[] peaksToRender;
             if (config.SymmetricMode)
-                specToRender = BuildMirroredSpectrum(currentSpec, peakBars, out peaksToRender);
+                specToRender = specProcessor.BuildMirroredSpectrum(out peaksToRender);
             else
             {
-                specToRender  = currentSpec;
-                peaksToRender = peakBars;
+                specToRender  = specProcessor.CurrentSpectrum;
+                peaksToRender = specProcessor.PeakBars;
             }
 
             // ── Render frame ────────────────────────────────────────────────
@@ -320,131 +328,13 @@ public static class OfflineVisualizerBaker
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Spectrum processing  (mirrors VisualizerService logic exactly)
-    // ────────────────────────────────────────────────────────────────────────
-
-    private static float[] ComputeFFTMagnitudes(float[] ringBuffer, int writeIndex, int fftSize)
-    {
-        var complex = new Complex[fftSize];
-        for (int i = 0; i < fftSize; i++)
-        {
-            int idx = (writeIndex - fftSize + i + ringBuffer.Length) % ringBuffer.Length;
-            var sample = ringBuffer[idx];
-            // Hann window
-            var window = 0.5f * (1f - (float)Math.Cos(2.0 * Math.PI * i / (fftSize - 1)));
-            complex[i].X = sample * window;
-            complex[i].Y = 0f;
-        }
-
-        int m = (int)Math.Log2(fftSize);
-        FastFourierTransform.FFT(true, m, complex);
-
-        var magnitudes = new float[fftSize / 2];
-        for (int i = 0; i < magnitudes.Length; i++)
-        {
-            magnitudes[i] = (float)Math.Sqrt(
-                complex[i].X * complex[i].X + complex[i].Y * complex[i].Y);
-        }
-        return magnitudes;
-    }
-
-    private static void ProcessSpectrum(
-        float[] magnitudes,
-        float[] current,
-        float[] previous,
-        float[] peaks,
-        long[] peakHoldTimes,
-        VisualizerConfig config)
-    {
-        int bandCount = config.BandCount;
-        int maxIndex  = Math.Max(1, (int)(magnitudes.Length * 0.6f));
-        float maxVal  = 0f;
-
-        for (int i = 0; i < maxIndex; i++)
-            if (magnitudes[i] > maxVal) maxVal = magnitudes[i];
-
-        if (maxVal <= 1e-6f)
-        {
-            // Silence — decay gently toward zero
-            for (int i = 0; i < bandCount; i++)
-                current[i] = Lerp(previous[i], 0f, 1f - config.SmoothingFactor);
-            Array.Copy(current, previous, bandCount);
-            return;
-        }
-
-        long now = Environment.TickCount64;
-        for (int i = 0; i < bandCount; i++)
-        {
-            int start = (int)(i       * (maxIndex / (float)bandCount));
-            int end   = (int)((i + 1) * (maxIndex / (float)bandCount));
-            if (end <= start) end = Math.Min(maxIndex, start + 1);
-
-            float sum = 0f;
-            for (int j = start; j < end; j++) sum += magnitudes[j];
-            float avg      = sum / (end - start);
-            float rawVal   = avg / maxVal;
-            float newValue = MathF.Pow(Math.Clamp(rawVal, 0f, 1f), PowerCurveExponent);
-
-            current[i] = Lerp(previous[i], newValue, 1f - config.SmoothingFactor);
-
-            if (current[i] > peaks[i])
-            {
-                peaks[i]         = current[i];
-                peakHoldTimes[i] = now;
-            }
-            else if (now - peakHoldTimes[i] > config.PeakHoldTime)
-            {
-                peaks[i] = Lerp(peaks[i], 0f, PeakDecayRate);
-            }
-        }
-
-        Array.Copy(current, previous, bandCount);
-    }
-
-    private static float[] BuildMirroredSpectrum(
-        float[] spectrum, float[] peaks, out float[] mirroredPeaks)
-    {
-        int total       = spectrum.Length;
-        int activeBands = (int)(total * 0.6f);
-        int half        = total / 2;
-
-        var result = new float[total];
-        mirroredPeaks   = new float[total];
-
-        for (int i = 0; i < half; i++)
-        {
-            int bandIdx = activeBands - 1 - (int)(i * activeBands / (float)half);
-            bandIdx = Math.Clamp(bandIdx, 0, activeBands - 1);
-
-            result[i]                 = spectrum[bandIdx];
-            result[total - 1 - i]     = spectrum[bandIdx];
-            mirroredPeaks[i]          = peaks[bandIdx];
-            mirroredPeaks[total-1-i]  = peaks[bandIdx];
-        }
-        return result;
-    }
-
-    // ────────────────────────────────────────────────────────────────────────
     // Helpers
     // ────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Copies RGBA pixel bytes out of a SKBitmap into a pre-allocated byte array.</summary>
     private static void CopyBitmapBytes(SKBitmap bitmap, byte[] dest)
     {
         var ptr = bitmap.GetPixels();
         System.Runtime.InteropServices.Marshal.Copy(ptr, dest, 0, bitmap.ByteCount);
-    }
-
-    private static float Lerp(float a, float b, float t) =>
-        a + (b - a) * Math.Clamp(t, 0f, 1f);
-
-    private static int NextPow2(int v)
-    {
-        if (v <= 0) return 1;
-        v--;
-        v |= v >> 1;  v |= v >> 2;  v |= v >> 4;
-        v |= v >> 8;  v |= v >> 16;
-        return v + 1;
     }
 
     private static void TryDelete(string path)
