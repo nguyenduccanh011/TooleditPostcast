@@ -438,7 +438,13 @@ namespace PodcastVideoEditor.Core.Services
             }
 
             if (migrated)
+            {
                 await _context.SaveChangesAsync();
+
+                // Detach all tracked entities left by the migration queries so they
+                // don't conflict with subsequent load/update operations (Singleton DbContext).
+                _context.ChangeTracker.Clear();
+            }
 
             return migrated;
         }
@@ -611,7 +617,8 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Replace all elements of a project with a new list (for canvas save).
-        /// Old elements are removed and new ones inserted in a single transaction.
+        /// Uses ExecuteDeleteAsync (direct SQL) for deletion to avoid EF change-tracker
+        /// conflicts with stale tracked instances from prior saves or failed operations.
         /// </summary>
         public async Task ReplaceElementsAsync(string projectId, IEnumerable<Element> newElements)
         {
@@ -620,9 +627,20 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                var oldElements = _context.Elements.Where(e => e.ProjectId == projectId).ToList();
-                foreach (var el in oldElements)
-                    _context.Elements.Remove(el);
+                // Detach any stale tracked elements for this project that may have been
+                // left behind by a previous failed UpdateProjectAsync. Without this,
+                // Remove(tracked)+Add(new-same-Id) causes EF to revert the tracked entity
+                // back to Added state, which then fails SaveChanges with UNIQUE constraint.
+                var staleEntries = _context.ChangeTracker.Entries<Element>()
+                    .Where(e => e.Entity.ProjectId == projectId)
+                    .ToList();
+                foreach (var entry in staleEntries)
+                    entry.State = EntityState.Detached;
+
+                // Delete existing elements via direct SQL — no tracking conflict possible.
+                await _context.Elements
+                    .Where(e => e.ProjectId == projectId)
+                    .ExecuteDeleteAsync();
 
                 var elementList = newElements.ToList();
                 foreach (var el in elementList)
@@ -653,6 +671,13 @@ namespace PodcastVideoEditor.Core.Services
             {
                 project.UpdatedAt = DateTime.UtcNow;
 
+                // Clear the change tracker to prevent "already tracked" conflicts.
+                // With a Singleton DbContext, previous operations (e.g. migration,
+                // prior saves) may leave tracked entities that clash with the
+                // incoming object graph.  All state decisions below are based on
+                // explicit DB queries, so a clean tracker is safe.
+                _context.ChangeTracker.Clear();
+
                 // Determine which BgmTracks already exist in DB BEFORE attaching the
                 // object graph. Projects.Update() marks every reachable entity as
                 // Modified; new BgmTrack rows (not yet in DB) must be re-marked as
@@ -682,16 +707,11 @@ namespace PodcastVideoEditor.Core.Services
                               .ToListAsync())
                     : new HashSet<string>();
 
-                // Same for Elements — ReplaceElementsAsync may have already saved them;
-                // without this, Update() marks them Modified and SaveChanges fails with
-                // UNIQUE constraint when they were re-inserted by a prior replace.
-                var existingElementIds = project.Elements?.Count > 0
-                    ? new HashSet<string>(
-                          await _context.Elements
-                              .Where(el => el.ProjectId == project.Id)
-                              .Select(el => el.Id)
-                              .ToListAsync())
-                    : new HashSet<string>();
+                // Elements are fully managed by ReplaceElementsAsync / SaveElementsAsync.
+                // Do NOT query, orphan-delete, or FixNew for elements here — doing so
+                // causes tracking conflicts (InvalidOperationException) and UNIQUE constraint
+                // failures because project.Elements holds stale AsNoTracking instances that
+                // clash with the freshly-tracked instances saved by ReplaceElementsAsync.
 
                 // --- Delete orphaned entities (removed from in-memory but still in DB) ---
                 DeleteOrphanedEntities(
@@ -709,12 +729,17 @@ namespace PodcastVideoEditor.Core.Services
                     project.Tracks?.SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>()).Select(s => s.Id),
                     _context.Segments);
 
-                DeleteOrphanedEntities(
-                    existingElementIds,
-                    project.Elements?.Select(el => el.Id),
-                    _context.Elements);
+                // Exclude project.Elements from the Update() graph walk.
+                // Elements are owned exclusively by ReplaceElementsAsync; including them
+                // in the graph walk causes tracking conflicts with the AsNoTracking objects
+                // stored in project.Elements when elements already exist in the context.
+                ICollection<Element> elementsSnapshot = project.Elements;
+                project.Elements = [];
 
                 _context.Projects.Update(project);
+
+                // Restore the in-memory collection so callers still see the full project.
+                project.Elements = elementsSnapshot;
 
                 // Fix up any brand-new BgmTrack entities that were incorrectly
                 // stamped Modified by the graph walk above.
@@ -725,9 +750,6 @@ namespace PodcastVideoEditor.Core.Services
                 if (project.Tracks != null)
                     foreach (var track in project.Tracks)
                         FixNewEntities(track.Segments, existingSegmentIds, s => s.Id);
-
-                // Fix up new Element entities (may already exist from ReplaceElementsAsync).
-                FixNewEntities(project.Elements, existingElementIds, el => el.Id);
 
                 await _context.SaveChangesAsync();
 

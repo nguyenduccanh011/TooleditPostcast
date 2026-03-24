@@ -726,6 +726,33 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Create a segment on a BRAND-NEW dedicated track of the given type.
+        /// Used by VisualizerElement (and similar overlays) so they never conflict
+        /// with existing segments on shared visual tracks.
+        /// </summary>
+        public Segment? CreateSegmentOnNewTrack(string trackType, string text, double duration = 5.0)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return null;
+
+            AddTrack(trackType, name: text);
+            var newTrack = Tracks.LastOrDefault(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase));
+            if (newTrack == null)
+                return null;
+
+            double startTime = SnapToGrid(PlayheadPosition);
+            double endTime   = SnapToGrid(startTime + duration);
+
+            var newSegment = BuildSegment(newTrack, startTime, endTime, trackType, text);
+            if (!CommitSegmentToTrack(newTrack, newSegment, $"Created element segment on new track"))
+                return null;
+
+            Log.Information("Created element segment '{Text}' on NEW {TrackType} track at {Start}s-{End}s",
+                text, trackType, startTime, endTime);
+            return newSegment;
+        }
+
+        /// <summary>
         /// Clear all segments in the selected track.
         /// </summary>
         [RelayCommand]

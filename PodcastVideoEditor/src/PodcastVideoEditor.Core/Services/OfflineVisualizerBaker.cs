@@ -180,8 +180,8 @@ public static class OfflineVisualizerBaker
         using var ffmpegProcess = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start FFmpeg for visualizer bake");
 
-        // Drain stderr asynchronously to avoid deadlock
-        _ = ffmpegProcess.StandardError.ReadToEndAsync();
+        // Capture stderr asynchronously (must drain to prevent deadlock)
+        var stderrTask = ffmpegProcess.StandardError.ReadToEndAsync();
 
         try
         {
@@ -196,10 +196,22 @@ public static class OfflineVisualizerBaker
         }
 
         await ffmpegProcess.WaitForExitAsync(ct);
+        var stderrOutput = await stderrTask;
 
         if (ffmpegProcess.ExitCode != 0)
+        {
+            Log.Error("OfflineVisualizerBaker: FFmpeg stderr:\n{Stderr}", stderrOutput);
             throw new Exception(
                 $"FFmpeg exited with code {ffmpegProcess.ExitCode} while baking visualizer");
+        }
+
+        // Log last few lines of stderr at Debug level for diagnosis even on success
+        if (!string.IsNullOrWhiteSpace(stderrOutput))
+        {
+            var lastLines = stderrOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var summary = string.Join("\n", lastLines.TakeLast(5));
+            Log.Debug("OfflineVisualizerBaker: FFmpeg completed (last lines):\n{Summary}", summary);
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────────

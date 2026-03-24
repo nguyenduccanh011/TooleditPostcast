@@ -19,6 +19,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class RenderViewModel : ObservableObject
     {
+        // ── Layer ZOrder ranges ──────────────────────────────────────────
+        // Visual (images/video) : 0 – 999
+        // Text overlays         : 1000 – 1999
+        // Visualizer/effects    : 2000+
+        private const int ZOrderBaseVisual     = 0;
+        private const int ZOrderBaseText       = 1000;
+        private const int ZOrderBaseVisualizer = 2000;
+
         private static readonly string[] VideoExtensions = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
 
         [ObservableProperty]
@@ -175,9 +183,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Bake visualizer spectrum overlays and merge them on top of everything
                 StatusMessage = "Baking visualizer spectrum…";
+                var hasVisualizerElements = snapshot.Elements?.OfType<VisualizerElement>().Any() == true;
                 var visualizerSegments = await BuildVisualizerSegmentsAsync(
                     snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate, _renderCancellationTokenSource.Token);
                 timelineVisualSegments.AddRange(visualizerSegments);
+
+                // Warn when the canvas has visualizer elements but none were baked into render.
+                // Common causes: missing audio file, FFmpeg error, invalid time range.
+                if (hasVisualizerElements && visualizerSegments.Count == 0)
+                {
+                    var audioMissing = string.IsNullOrWhiteSpace(snapshot.Project.AudioPath)
+                                       || !System.IO.File.Exists(snapshot.Project.AudioPath);
+                    var reason = audioMissing
+                        ? "audio file not found at project.AudioPath"
+                        : "baking failed — check application logs for FFmpeg error details";
+                    Log.Warning("Render: {Count} VisualizerElement(s) on canvas were NOT rendered — {Reason}",
+                        snapshot.Elements!.OfType<VisualizerElement>().Count(), reason);
+                    StatusMessage = $"⚠ Visualizer skipped: {reason}";
+                    await Task.Delay(1500, _renderCancellationTokenSource.Token); // briefly show the warning
+                    StatusMessage = "Continuing render without visualizer…";
+                }
                 var imagePath = string.Empty;
 
                 // Fallback path for legacy single-image rendering when no timeline segments exist at all.
@@ -437,6 +462,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return [];
 
             var segments = new List<RenderVisualSegment>();
+            var zOrder = 0;
             foreach (var track in visualTracks)
             {
                 if (track.Segments == null) continue;
@@ -459,7 +485,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         StartTime           = segment.StartTime,
                         EndTime             = segment.EndTime,
                         IsVideo             = IsVideoAsset(asset),
-                        SourceOffsetSeconds = 0
+                        SourceOffsetSeconds = 0,
+                        ZOrder              = ZOrderBaseVisual + zOrder++
                     };
 
                     // Sync position and size from the linked canvas element when available.
@@ -616,7 +643,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         OverlayX    = overlayX.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         OverlayY    = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture),
                         ScaleWidth  = imgWidth,
-                        ScaleHeight = imgHeight
+                        ScaleHeight = imgHeight,
+                        ZOrder      = ZOrderBaseText + index
                     });
 
                     index++;
@@ -717,7 +745,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     OverlayX            = overlayX.ToString(invariant),
                     OverlayY            = overlayY.ToString(invariant),
                     ScaleWidth          = overlayW,
-                    ScaleHeight         = overlayH
+                    ScaleHeight         = overlayH,
+                    ZOrder              = ZOrderBaseVisualizer + segments.Count
                 });
             }
 
