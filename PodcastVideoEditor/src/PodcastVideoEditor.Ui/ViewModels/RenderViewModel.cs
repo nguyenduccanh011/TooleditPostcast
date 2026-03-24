@@ -19,15 +19,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class RenderViewModel : ObservableObject
     {
-        // ── Layer ZOrder ranges ──────────────────────────────────────────
-        // Visual (images/video) : 0 – 999
-        // Text overlays         : 1000 – 1999
-        // Visualizer/effects    : 2000+
-        private const int ZOrderBaseVisual     = 0;
-        private const int ZOrderBaseText       = 1000;
-        private const int ZOrderBaseVisualizer = 2000;
-
-        private static readonly string[] VideoExtensions = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
 
         [ObservableProperty]
         private string selectedResolution = "1080p";
@@ -167,6 +158,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (!System.IO.Directory.Exists(OutputFolder))
                     System.IO.Directory.CreateDirectory(OutputFolder);
 
+                // Initialize FFmpeg early — BuildVisualizerSegmentsAsync needs GetFFmpegPath()
+                // to be non-null for the offline bake subprocess.
+                if (!FFmpegService.IsInitialized())
+                {
+                    StatusMessage = "Detecting FFmpeg...";
+                    var initResult = await FFmpegService.InitializeAsync();
+
+                    if (!initResult.IsValid)
+                    {
+                        StatusMessage = "FFmpeg not found. Please install FFmpeg.";
+                        IsRendering = false;
+                        CanCancel = false;
+                        return;
+                    }
+                }
+
                 // Create an immutable render snapshot — isolates the entire render pipeline
                 // from live UI state (canvas, timeline). All downstream methods read from
                 // the snapshot, never from _canvasViewModel or _timelineViewModel.
@@ -174,18 +181,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Build render config from selections
                 var (width, height) = ParseResolution(SelectedResolution);
-                var timelineVisualSegments = BuildTimelineVisualSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight);
-                var rasterizedTextVisuals  = BuildRasterizedTextSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight);
-                var timelineAudioSegments  = BuildTimelineAudioSegments(snapshot.Project);
 
-                // Merge rasterized text images into visual segments (rendered on top)
+                // Compute a unified z-order map so all track types participate in one
+                // global layering based on Track.Order (background → foreground).
+                var zOrderMap = RenderSegmentBuilder.ComputeTrackZOrderMap(snapshot.Project);
+
+                var timelineVisualSegments = RenderSegmentBuilder.BuildTimelineVisualSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
+                var rasterizedTextVisuals  = RenderSegmentBuilder.BuildRasterizedTextSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
+                var timelineAudioSegments  = RenderSegmentBuilder.BuildTimelineAudioSegments(snapshot.Project);
+
+                // Merge all visual layers into one list — FFmpegCommandComposer sorts by ZOrder.
                 timelineVisualSegments.AddRange(rasterizedTextVisuals);
 
-                // Bake visualizer spectrum overlays and merge them on top of everything
+                // Bake visualizer spectrum overlays and merge them
                 StatusMessage = "Baking visualizer spectrum…";
                 var hasVisualizerElements = snapshot.Elements?.OfType<VisualizerElement>().Any() == true;
-                var visualizerSegments = await BuildVisualizerSegmentsAsync(
-                    snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate, _renderCancellationTokenSource.Token);
+                var visualizerSegments = await RenderSegmentBuilder.BuildVisualizerSegmentsAsync(
+                    snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate, _renderCancellationTokenSource.Token, zOrderMap);
                 timelineVisualSegments.AddRange(visualizerSegments);
 
                 // Warn when the canvas has visualizer elements but none were baked into render.
@@ -258,21 +270,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         Log.Information("Render completed: {OutputPath}", config.OutputPath);
                     }
                 });
-
-                // Initialize FFmpeg if not already done
-                if (!FFmpegService.IsInitialized())
-                {
-                    StatusMessage = "Detecting FFmpeg...";
-                    var result = await FFmpegService.InitializeAsync();
-                    
-                    if (!result.IsValid)
-                    {
-                        StatusMessage = "FFmpeg not found. Please install FFmpeg.";
-                        IsRendering = false;
-                        CanCancel = false;
-                        return;
-                    }
-                }
 
                 // Start render
                 var outputPath = await FFmpegService.RenderVideoAsync(config, progress, _renderCancellationTokenSource.Token);
@@ -369,7 +366,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
                 return null;
 
-            if (IsVideoAsset(asset))
+            if (RenderSegmentBuilder.IsVideoAsset(asset))
             {
                 var frameTime = ResolveFrameTimeWithinSegment(segment);
                 return await FFmpegService.GetOrCreateVideoThumbnailPathAsync(asset.FilePath, frameTime, cancellationToken);
@@ -438,394 +435,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 Project = liveProject,
                 Elements = elements,
-                CanvasWidth = _canvasViewModel?.CanvasWidth ?? 0,
-                CanvasHeight = _canvasViewModel?.CanvasHeight ?? 0,
+                CanvasWidth = (_canvasViewModel?.CanvasWidth is > 0 ? _canvasViewModel.CanvasWidth : 1920),
+                CanvasHeight = (_canvasViewModel?.CanvasHeight is > 0 ? _canvasViewModel.CanvasHeight : 1080),
                 Registry = registry
             };
-        }
-
-        /// <summary>
-        /// Collect visual (image/video) segments from ALL visible visual tracks, ordered back→front.
-        /// When a linked canvas element exists for a segment, its position and size are mapped to
-        /// render coordinates so the output matches the canvas preview exactly.
-        /// </summary>
-        private static List<RenderVisualSegment> BuildTimelineVisualSegments(
-            Project project, int renderWidth, int renderHeight,
-            IReadOnlyList<CanvasElement>? elements, double canvasWidth, double canvasHeight)
-        {
-            var visualTracks = project.Tracks?
-                .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
-                .OrderBy(t => t.Order)
-                .ToList();
-
-            if (visualTracks == null || visualTracks.Count == 0)
-                return [];
-
-            var segments = new List<RenderVisualSegment>();
-            var zOrder = 0;
-            foreach (var track in visualTracks)
-            {
-                if (track.Segments == null) continue;
-                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
-                {
-                    if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
-                        continue;
-
-                    var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-                    if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
-                    {
-                        Log.Warning("Render: skipping segment {SegId} — asset not found or file missing (AssetId={AssetId}, Path={Path})",
-                            segment.Id, segment.BackgroundAssetId, asset?.FilePath ?? "(null)");
-                        continue;
-                    }
-
-                    var renderSeg = new RenderVisualSegment
-                    {
-                        SourcePath          = asset.FilePath,
-                        StartTime           = segment.StartTime,
-                        EndTime             = segment.EndTime,
-                        IsVideo             = IsVideoAsset(asset),
-                        SourceOffsetSeconds = 0,
-                        ZOrder              = ZOrderBaseVisual + zOrder++
-                    };
-
-                    // Sync position and size from the linked canvas element when available.
-                    // Without this, all images render at (0,0) full-canvas regardless of
-                    // how the user has repositioned/resized them in the canvas preview.
-                    var linkedElement = elements?.FirstOrDefault(e =>
-                        string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal));
-
-                    // Skip image segment creation for VisualizerElement positions —
-                    // visualizers are rendered separately by BuildVisualizerSegmentsAsync.
-                    if (linkedElement is VisualizerElement)
-                        continue;
-
-                    if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0 && renderWidth > 0 && renderHeight > 0)
-                    {
-                        var scaleX = renderWidth  / canvasWidth;
-                        var scaleY = renderHeight / canvasHeight;
-
-                        var overlayX = (int)Math.Round(linkedElement.X * scaleX);
-                        var overlayY = (int)Math.Round(linkedElement.Y * scaleY);
-                        var scaleW   = (int)Math.Round(linkedElement.Width  * scaleX);
-                        var scaleH   = (int)Math.Round(linkedElement.Height * scaleY);
-
-                        // Clamp to valid render bounds
-                        overlayX = Math.Max(0, Math.Min(overlayX, renderWidth  - 1));
-                        overlayY = Math.Max(0, Math.Min(overlayY, renderHeight - 1));
-                        scaleW   = Math.Max(1, Math.Min(scaleW,   renderWidth));
-                        scaleH   = Math.Max(1, Math.Min(scaleH,   renderHeight));
-
-                        renderSeg.OverlayX     = overlayX.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        renderSeg.OverlayY     = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                        renderSeg.ScaleWidth   = scaleW;
-                        renderSeg.ScaleHeight  = scaleH;
-                    }
-
-                    segments.Add(renderSeg);
-                }
-            }
-
-            return segments;
-        }
-
-        /// <summary>
-        /// Rasterize text elements to PNG images (WYSIWYG) and return them as visual overlay segments.
-        /// This ensures text wrapping, alignment, and styling in the export match the canvas preview exactly.
-        /// </summary>
-        private static List<RenderVisualSegment> BuildRasterizedTextSegments(
-            Project project, int renderWidth, int renderHeight,
-            IReadOnlyList<CanvasElement>? elements, double canvasWidth, double canvasHeight)
-        {
-            var textTracks = project.Tracks?
-                .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
-                .OrderBy(t => t.Order)
-                .ToList();
-
-            if (textTracks == null || textTracks.Count == 0)
-                return [];
-
-            // Create temp directory for rasterized text images
-            var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
-            System.IO.Directory.CreateDirectory(textImageDir);
-
-            var segments = new List<RenderVisualSegment>();
-            var index = 0;
-            foreach (var track in textTracks)
-            {
-                if (track.Segments == null) continue;
-                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
-                {
-                    if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
-                        continue;
-
-                    // Look up linked canvas element to get position/style/size data
-                    var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
-
-                    // Build rasterization options from element properties
-                    var options = new TextRasterizeOptions
-                    {
-                        Text = segment.Text,
-                        CanvasWidth = canvasWidth,
-                        CanvasHeight = canvasHeight
-                    };
-
-                    int overlayX = 0, overlayY = 0;
-                    int imgWidth = renderWidth, imgHeight = 80;
-
-                    if (linkedElement != null && canvasWidth > 0 && canvasHeight > 0)
-                    {
-                        var scaleX = (double)renderWidth / canvasWidth;
-                        var scaleY = (double)renderHeight / canvasHeight;
-
-                        overlayX = (int)Math.Round(linkedElement.X * scaleX);
-                        overlayY = (int)Math.Round(linkedElement.Y * scaleY);
-                        imgWidth = Math.Max(1, (int)Math.Round(linkedElement.Width * scaleX));
-                        imgHeight = Math.Max(1, (int)Math.Round(linkedElement.Height * scaleY));
-
-                        // Clamp position
-                        overlayX = Math.Max(0, Math.Min(overlayX, renderWidth - 1));
-                        overlayY = Math.Max(0, Math.Min(overlayY, renderHeight - 1));
-
-                        if (linkedElement is TitleElement title)
-                        {
-                            options.FontSize = (float)CoordinateMapper.ScaleFontSize(title.FontSize, canvasHeight, renderHeight);
-                            options.ColorHex = title.ColorHex;
-                            options.FontFamily = title.FontFamily;
-                            options.IsBold = title.IsBold;
-                            options.IsItalic = title.IsItalic;
-                            options.Alignment = title.Alignment switch
-                            {
-                                Core.Models.TextAlignment.Left => TextRasterizeAlignment.Left,
-                                Core.Models.TextAlignment.Right => TextRasterizeAlignment.Right,
-                                _ => TextRasterizeAlignment.Center
-                            };
-                        }
-                        else if (linkedElement is TextElement text)
-                        {
-                            options.FontSize = (float)CoordinateMapper.ScaleFontSize(text.FontSize, canvasHeight, renderHeight);
-                            options.ColorHex = text.ColorHex;
-                            options.Alignment = TextRasterizeAlignment.Center;
-                        }
-                    }
-                    else
-                    {
-                        // No linked element — use defaults
-                        options.FontSize = CoordinateMapper.ScaleFontSize(24, canvasHeight > 0 ? canvasHeight : renderHeight, renderHeight);
-                        imgHeight = (int)(renderHeight * 0.1);
-                        overlayY = (int)(renderHeight * 0.8);
-                        overlayX = 0;
-                        imgWidth = renderWidth;
-                    }
-
-                    options.Width = imgWidth;
-                    options.Height = imgHeight;
-
-                    // Rasterize text to PNG
-                    var imagePath = System.IO.Path.Combine(textImageDir, $"text_{index}.png");
-                    try
-                    {
-                        TextRasterizer.RenderToFile(options, imagePath);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(ex, "Failed to rasterize text segment {Index}, skipping", index);
-                        index++;
-                        continue;
-                    }
-
-                    segments.Add(new RenderVisualSegment
-                    {
-                        SourcePath  = imagePath,
-                        StartTime   = segment.StartTime,
-                        EndTime     = segment.EndTime,
-                        IsVideo     = false,
-                        OverlayX    = overlayX.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        OverlayY    = overlayY.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                        ScaleWidth  = imgWidth,
-                        ScaleHeight = imgHeight,
-                        ZOrder      = ZOrderBaseText + index
-                    });
-
-                    index++;
-                }
-            }
-
-            return segments;
-        }
-
-        /// <summary>
-        /// Bake every visible <see cref="VisualizerElement"/> on the canvas into a
-        /// transparent video file and return them as <see cref="RenderVisualSegment"/>s.
-        /// Each element is rendered offline using the same SkiaSharp renderers that the
-        /// live preview uses, so the output is a faithful 1:1 match.
-        /// </summary>
-        private static async Task<List<RenderVisualSegment>> BuildVisualizerSegmentsAsync(
-            Project project,
-            int renderWidth,
-            int renderHeight,
-            IReadOnlyList<CanvasElement>? elements,
-            double canvasWidth,
-            double canvasHeight,
-            int frameRate,
-            CancellationToken ct)
-        {
-            if (elements == null || canvasWidth <= 0 || canvasHeight <= 0)
-                return [];
-
-            var ffmpegPath = FFmpegService.GetFFmpegPath();
-            if (string.IsNullOrEmpty(ffmpegPath))
-            {
-                Log.Warning("BuildVisualizerSegments: FFmpeg path unknown, skipping visualizer bake");
-                return [];
-            }
-
-            // Determine output duration from existing segments (or audio file length)
-            double maxEndTime = ResolveRenderDuration(project);
-            if (maxEndTime <= 0)
-                return [];
-
-            var audioFilePath = project.AudioPath ?? string.Empty;
-
-            var segments = new List<RenderVisualSegment>();
-            var invariant = System.Globalization.CultureInfo.InvariantCulture;
-            var scaleX = renderWidth  / canvasWidth;
-            var scaleY = renderHeight / canvasHeight;
-
-            foreach (var element in elements.OfType<VisualizerElement>())
-            {
-
-                // If the visualizer is bound to a specific segment, limit its time range
-                double vizStart = 0;
-                double vizEnd   = maxEndTime;
-
-                if (!string.IsNullOrEmpty(element.SegmentId))
-                {
-                    var linked = project.Tracks?
-                        .SelectMany(t => t.Segments ?? [])
-                        .FirstOrDefault(s => s.Id == element.SegmentId);
-                    if (linked != null)
-                    {
-                        vizStart = linked.StartTime;
-                        vizEnd   = linked.EndTime;
-                    }
-                }
-
-                if (vizEnd <= vizStart) continue;
-
-                Log.Information(
-                    "Baking VisualizerElement {Id} ({Style}) [{Start:F2}–{End:F2}s]",
-                    element.Id, element.Style, vizStart, vizEnd);
-
-                var bakedPath = await OfflineVisualizerBaker.BakeAsync(
-                    element,
-                    audioFilePath,
-                    renderWidth, renderHeight,
-                    (int)canvasWidth, (int)canvasHeight,
-                    vizStart, vizEnd,
-                    frameRate,
-                    ffmpegPath,
-                    ct);
-
-                if (string.IsNullOrEmpty(bakedPath)) continue;
-
-                int overlayX = Math.Max(0, (int)Math.Round(element.X * scaleX));
-                int overlayY = Math.Max(0, (int)Math.Round(element.Y * scaleY));
-                int overlayW = Math.Max(1, (int)Math.Round(element.Width  * scaleX));
-                int overlayH = Math.Max(1, (int)Math.Round(element.Height * scaleY));
-
-                segments.Add(new RenderVisualSegment
-                {
-                    SourcePath          = bakedPath,
-                    StartTime           = vizStart,
-                    EndTime             = vizEnd,
-                    IsVideo             = true,
-                    HasAlpha            = true,
-                    SourceOffsetSeconds = 0,
-                    OverlayX            = overlayX.ToString(invariant),
-                    OverlayY            = overlayY.ToString(invariant),
-                    ScaleWidth          = overlayW,
-                    ScaleHeight         = overlayH,
-                    ZOrder              = ZOrderBaseVisualizer + segments.Count
-                });
-            }
-
-            return segments;
-        }
-
-        /// <summary>
-        /// Derive the total render duration from the project's tracks and audio file.
-        /// Used to set the end time when baking full-timeline visualizer elements.
-        /// </summary>
-        private static double ResolveRenderDuration(Project project)
-        {
-            // Max end time across all track segments
-            var trackMax = project.Tracks?
-                .SelectMany(t => t.Segments ?? [])
-                .Select(s => s.EndTime)
-                .DefaultIfEmpty(0)
-                .Max() ?? 0;
-
-            // Audio file duration (if available)
-            double audioMax = 0;
-            if (!string.IsNullOrWhiteSpace(project.AudioPath)
-                && System.IO.File.Exists(project.AudioPath))
-            {
-                try
-                {
-                    using var reader = new NAudio.Wave.AudioFileReader(project.AudioPath);
-                    audioMax = reader.TotalTime.TotalSeconds;
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "ResolveRenderDuration: could not read audio duration");
-                }
-            }
-
-            return Math.Max(trackMax, audioMax);
-        }
-
-        /// <summary>
-        /// Collect extra audio clip segments from all visible audio tracks.
-        /// Fixes BUG-2: audio track clips were never mixed into the render output.
-        /// </summary>
-        private static List<RenderAudioSegment> BuildTimelineAudioSegments(Project project)
-        {
-            var audioTracks = project.Tracks?
-                .Where(t => string.Equals(t.TrackType, "audio", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
-                .OrderBy(t => t.Order)
-                .ToList();
-
-            if (audioTracks == null || audioTracks.Count == 0)
-                return [];
-
-            var segments = new List<RenderAudioSegment>();
-            foreach (var track in audioTracks)
-            {
-                if (track.Segments == null) continue;
-                foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
-                {
-                    if (segment.EndTime <= segment.StartTime || string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
-                        continue;
-
-                    var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-                    if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
-                        continue;
-
-                    segments.Add(new RenderAudioSegment
-                    {
-                        SourcePath          = asset.FilePath,
-                        StartTime           = segment.StartTime,
-                        EndTime             = segment.EndTime,
-                        Volume              = segment.Volume,
-                        FadeInDuration      = segment.FadeInDuration,
-                        FadeOutDuration     = segment.FadeOutDuration,
-                        SourceOffsetSeconds = segment.SourceStartOffset
-                    });
-                }
-            }
-
-            return segments;
         }
 
         private Segment? ResolvePreferredVisualSegment(Project project)
@@ -869,15 +482,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (double.IsNaN(offset) || double.IsInfinity(offset))
                 return 0;
             return Math.Max(0, offset);
-        }
-
-        private static bool IsVideoAsset(Asset asset)
-        {
-            if (string.Equals(asset.Type, "Video", StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            var ext = System.IO.Path.GetExtension(asset.FilePath);
-            return VideoExtensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
         }
 
         public void ApplyProjectRenderSettings(RenderSettings? settings)

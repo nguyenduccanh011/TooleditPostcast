@@ -530,7 +530,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             var preset = track?.ImageLayoutPreset ?? ImageLayoutPresets.FullFrame;
             var (x, y, width, height) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(preset, CanvasWidth, CanvasHeight);
-            return new PreviewVisualLayer(image, x, y, width, height);
+            var zIndex = ComputeZIndexForTrack(track);
+            return new PreviewVisualLayer(image, x, y, width, height, zIndex);
         }
 
         private void SetActiveVisualLayout(string? preset)
@@ -616,13 +617,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
     public sealed class PreviewVisualLayer
     {
-        public PreviewVisualLayer(BitmapSource image, double x, double y, double width, double height)
+        public PreviewVisualLayer(BitmapSource image, double x, double y, double width, double height, int zIndex = 0)
         {
             Image = image;
             X = x;
             Y = y;
             Width = width;
             Height = height;
+            ZIndex = zIndex;
         }
 
         public BitmapSource Image { get; }
@@ -634,5 +636,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public double Width { get; }
 
         public double Height { get; }
+
+        public int ZIndex { get; }
     }
 }

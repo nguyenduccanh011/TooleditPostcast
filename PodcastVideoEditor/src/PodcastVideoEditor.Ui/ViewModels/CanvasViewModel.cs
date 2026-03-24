@@ -236,7 +236,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Y = 0,
                 Width = CanvasWidth,
                 Height = CanvasHeight,
-                ZIndex = Elements.Count,
+                ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segmentId)),
                 SegmentId = segmentId
             };
 
@@ -244,6 +244,40 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _undoRedo?.Record(new ElementAddedAction(Elements, element));
             Log.Information("Auto-created ImageElement for visual segment {SegmentId}", segmentId);
             return element;
+        }
+
+        /// <summary>
+        /// Compute a Canvas.ZIndex value for an element based on its parent track's Order.
+        /// Lower Track.Order (foreground) → higher ZIndex (drawn on top in WPF Canvas).
+        /// Falls back to <see cref="Elements.Count"/> when track info is unavailable.
+        /// </summary>
+        private int ComputeZIndexForTrack(Track? track)
+        {
+            if (track == null || _timelineViewModel == null)
+                return Elements.Count;
+
+            // maxOrder is the highest Order value across all tracks.
+            // ZIndex = maxOrder - track.Order so that Order 0 gets the highest ZIndex.
+            var maxOrder = _timelineViewModel.Tracks.Count > 0
+                ? _timelineViewModel.Tracks.Max(t => t.Order)
+                : 0;
+            return maxOrder - track.Order;
+        }
+
+        /// <summary>
+        /// Find the track that owns the given segment.
+        /// </summary>
+        private Track? FindTrackForSegment(string? segmentId)
+        {
+            if (string.IsNullOrEmpty(segmentId) || _timelineViewModel == null)
+                return null;
+
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                if (track.Segments?.Any(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal)) == true)
+                    return track;
+            }
+            return null;
         }
 
         /// <summary>
@@ -269,7 +303,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Y = Math.Max(0, CanvasHeight - 160),
                 Width = 600,
                 Height = 80,
-                ZIndex = Elements.Count,
+                ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id)),
                 SegmentId = segment.Id
             };
 
@@ -315,7 +349,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Y = Math.Max(0, CanvasHeight - 160),
                 Width = 600,
                 Height = 80,
-                ZIndex = Elements.Count,
+                ZIndex = ComputeZIndexForTrack(ownerTrack),
                 SegmentId = segmentId
             };
 
@@ -414,14 +448,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 X = Math.Max(0, (CanvasWidth - 400) / 2),
                 Y = Math.Max(0, CanvasHeight * 0.08),
                 Width = 400,
-                Height = 100,
-                ZIndex = Elements.Count
+                Height = 100
             };
 
             // Link to timeline segment so user can control visibility time range
             var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
+            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
 
             Elements.Add(element);
             SelectElement(element);
@@ -441,13 +475,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 X = Math.Max(0, CanvasWidth - 220),
                 Y = 20,
                 Width = 200,
-                Height = 200,
-                ZIndex = Elements.Count
+                Height = 200
             };
 
             var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
+            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
 
             Elements.Add(element);
             SelectElement(element);
@@ -467,8 +501,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 X = Math.Max(0, (CanvasWidth - 600) / 2),
                 Y = Math.Max(0, (CanvasHeight - 400) / 2),
                 Width = 600,
-                Height = 400,
-                ZIndex = Elements.Count
+                Height = 400
             };
 
             // Always create a dedicated new track so the visualizer segment never
@@ -481,6 +514,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var segment = _timelineViewModel?.CreateSegmentOnNewTrack(TrackTypes.Effect, element.Name, segmentDuration);
             if (segment != null)
                 element.SegmentId = segment.Id;
+            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
 
             Elements.Add(element);
             SelectElement(element);
@@ -501,13 +535,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 X = Math.Max(0, (CanvasWidth - 300) / 2),
                 Y = Math.Max(0, (CanvasHeight - 300) / 2),
                 Width = 300,
-                Height = 300,
-                ZIndex = Elements.Count
+                Height = 300
             };
 
             var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
+            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
 
             Elements.Add(element);
             SelectElement(element);
@@ -527,13 +561,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 X = Math.Max(0, (CanvasWidth - 600) / 2),
                 Y = Math.Max(0, CanvasHeight - 160),
                 Width = 600,
-                Height = 80,
-                ZIndex = Elements.Count
+                Height = 80
             };
 
             var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
+            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
 
             Elements.Add(element);
             SelectElement(element);
@@ -590,7 +624,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     Y = subtitleY,
                     Width = 600,
                     Height = 80,
-                    ZIndex = Elements.Count,
+                    ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id)),
                     SegmentId = segment.Id
                 };
                 Elements.Add(element);
@@ -697,7 +731,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var cloned = SelectedElement.Clone();
             cloned.X += 20;
             cloned.Y += 20;
-            cloned.ZIndex = Elements.Count;
+            cloned.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(cloned.SegmentId));
 
             Elements.Add(cloned);
             SelectElement(cloned);
