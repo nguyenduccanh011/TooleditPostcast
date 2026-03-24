@@ -33,6 +33,48 @@ public static class RenderSegmentBuilder
     private static readonly string[] VideoExtensions = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
 
     /// <summary>
+    /// Resolve the primary audio file path for the project.
+    /// First tries <see cref="Project.AudioPath"/> (legacy), then falls back to the
+    /// first audio segment asset on any visible audio track.
+    /// Returns <c>null</c> when no audio file can be found.
+    /// </summary>
+    public static string? ResolveProjectAudioPath(Project project)
+    {
+        Log.Information("ResolveProjectAudioPath: legacy AudioPath='{AudioPath}', Tracks={TrackCount}, Assets={AssetCount}",
+            project.AudioPath ?? "(null)",
+            project.Tracks?.Count ?? -1,
+            project.Assets?.Count ?? -1);
+
+        // Try legacy AudioPath first
+        if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
+        {
+            Log.Information("ResolveProjectAudioPath: using legacy AudioPath: {Path}", project.AudioPath);
+            return project.AudioPath;
+        }
+
+        // Fallback: resolve from the first audio segment with a valid asset file
+        var audioTracks = project.Tracks?
+            .Where(t => string.Equals(t.TrackType, "audio", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+            .ToList();
+        Log.Information("ResolveProjectAudioPath: found {Count} visible audio tracks", audioTracks?.Count ?? 0);
+
+        var fallbackAsset = audioTracks?
+            .SelectMany(t => t.Segments ?? [])
+            .Where(s => !string.IsNullOrWhiteSpace(s.BackgroundAssetId))
+            .Select(s => project.Assets?.FirstOrDefault(a => a.Id == s.BackgroundAssetId))
+            .FirstOrDefault(a => a != null && !string.IsNullOrWhiteSpace(a.FilePath) && File.Exists(a.FilePath));
+
+        if (fallbackAsset != null)
+        {
+            Log.Information("ResolveProjectAudioPath: resolved from audio segment asset: {Path}", fallbackAsset.FilePath);
+            return fallbackAsset.FilePath;
+        }
+
+        Log.Warning("ResolveProjectAudioPath: no audio file found");
+        return null;
+    }
+
+    /// <summary>
     /// Build a map from Track.Id → ZOrder base value.
     /// Tracks are sorted by Order descending (background first = low ZOrder),
     /// each gets a slot of <see cref="ZOrderSlotSize"/> values.
@@ -324,7 +366,9 @@ public static class RenderSegmentBuilder
             return [];
         }
 
-        var audioFilePath = project.AudioPath ?? string.Empty;
+        var audioFilePath = ResolveProjectAudioPath(project) ?? string.Empty;
+        Log.Information("BuildVisualizerSegments: resolved audioFilePath='{AudioPath}', exists={Exists}",
+            audioFilePath, !string.IsNullOrEmpty(audioFilePath) && File.Exists(audioFilePath));
 
         var segments = new List<RenderVisualSegment>();
         var invariant = CultureInfo.InvariantCulture;
