@@ -236,19 +236,30 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Ctrl + mouse wheel: zoom timeline. Without Ctrl: normal scroll (pan).
+        /// Ctrl + mouse wheel: zoom timeline. Without Ctrl: vertical scroll via OuterScroller.
+        /// NOTE: WPF ScrollViewer.OnMouseWheel always marks e.Handled=true even when
+        /// VerticalScrollBarVisibility=Disabled, so TimelineScroller would eat the event and
+        /// OuterScroller would never receive it. We must forward manually in PreviewMouseWheel.
         /// </summary>
         private void TimelineScroller_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers != ModifierKeys.Control)
-                return;
-            if (_viewModel == null)
-                return;
-            double factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
-            _pendingZoomFactor *= factor;
-            _zoomTimer.Stop();
-            _zoomTimer.Start();
-            e.Handled = true;
+            if (Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (_viewModel == null)
+                    return;
+                double factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
+                _pendingZoomFactor *= factor;
+                _zoomTimer.Stop();
+                _zoomTimer.Start();
+                e.Handled = true;
+            }
+            else
+            {
+                // Forward vertical scroll to the outer scroller.
+                // e.Delta is ±120 per notch; divide by 3 ≈ 40px per notch.
+                OuterScroller.ScrollToVerticalOffset(OuterScroller.VerticalOffset - e.Delta / 3.0);
+                e.Handled = true;
+            }
         }
 
         private void ZoomTimer_Tick(object? sender, EventArgs e)
