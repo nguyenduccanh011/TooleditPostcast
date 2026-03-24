@@ -71,16 +71,53 @@ public sealed class YesScaleProvider : IAIProvider
     // ── Fields ───────────────────────────────────────────────────────────────
 
     private readonly HttpClient _http;
-    private readonly AIAnalysisSettings _settings;
+    private readonly IRuntimeApiSettings _settings;
     private static readonly JsonSerializerOptions _jsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-    public YesScaleProvider(AIAnalysisSettings settings, HttpClient? httpClient = null)
+    public YesScaleProvider(IRuntimeApiSettings settings, HttpClient? httpClient = null)
     {
         _http = httpClient ?? _sharedHttp;
         _settings = settings;
     }
 
+    public YesScaleProvider(AIAnalysisSettings settings, HttpClient? httpClient = null)
+        : this(new LegacyRuntimeApiSettings(ai: settings), httpClient)
+    {
+    }
+
     // ── Public API ───────────────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<string>> GetAvailableModelsAsync(
+        string apiKey,
+        string? baseUrl = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey)) return Array.Empty<string>();
+
+        var normalizedBaseUrl = NormalizeBaseUrl(baseUrl ?? _settings.YesScaleBaseUrl);
+        var models = new List<string>();
+
+        var firstPage = await FetchModelIdsAsync($"{normalizedBaseUrl}/models?limit=1000", apiKey, ct);
+        models.AddRange(firstPage);
+
+        if (firstPage.Count == 20)
+        {
+            for (var page = 2; page <= 5; page++)
+            {
+                var pageItems = await FetchModelIdsAsync($"{normalizedBaseUrl}/models?page={page}", apiKey, ct);
+                if (pageItems.Count == 0) break;
+
+                models.AddRange(pageItems);
+                if (pageItems.Count < 20) break;
+            }
+        }
+
+        return models
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 
     public async Task<string> NormalizeScriptAsync(string script, CancellationToken ct = default)
     {
@@ -90,7 +127,7 @@ public sealed class YesScaleProvider : IAIProvider
             var result = await CallChatAsync(
                 systemPrompt: "You are a transcript correction assistant. Fix speech recognition errors only. Return the corrected transcript with timestamps unchanged.",
                 userPrompt: prompt,
-                model: _settings.DefaultModel,
+                model: _settings.YesScaleModel,
                 temperature: 0.3,
                 maxTokens: 4096,
                 timeoutSeconds: 60,
@@ -110,7 +147,7 @@ public sealed class YesScaleProvider : IAIProvider
         var systemPrompt = request.SystemPrompt ?? ScriptAnalysisSystemPrompt;
 
         var raw = await FetchWithRetryAsync(
-            () => CallChatAsync(systemPrompt, userPrompt, request.Model ?? _settings.DefaultModel,
+            () => CallChatAsync(systemPrompt, userPrompt, request.Model ?? _settings.YesScaleModel,
                                 request.Temperature, request.MaxTokens, 90, ct),
             maxRetries: 1,
             ct);
@@ -124,7 +161,7 @@ public sealed class YesScaleProvider : IAIProvider
     {
         var userPrompt = BuildImageSelectionUserPrompt(segments);
         var raw = await FetchWithRetryAsync(
-            () => CallChatAsync(ImageSelectionSystemPrompt, userPrompt, _settings.DefaultModel,
+            () => CallChatAsync(ImageSelectionSystemPrompt, userPrompt, _settings.YesScaleModel,
                                 0.3, 2048, 120, ct),
             maxRetries: 2,
             ct);
@@ -139,7 +176,7 @@ public sealed class YesScaleProvider : IAIProvider
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(30));
 
-            var req = new HttpRequestMessage(HttpMethod.Get, $"{_settings.BaseUrl}/models");
+            var req = new HttpRequestMessage(HttpMethod.Get, $"{NormalizeBaseUrl(_settings.YesScaleBaseUrl)}/models");
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.YesScaleApiKey);
             var resp = await _http.SendAsync(req, cts.Token);
             return resp.IsSuccessStatusCode;
@@ -204,7 +241,7 @@ public sealed class YesScaleProvider : IAIProvider
         var json = JsonSerializer.Serialize(body);
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.BaseUrl}/chat/completions")
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{NormalizeBaseUrl(_settings.YesScaleBaseUrl)}/chat/completions")
         {
             Content = content
         };
@@ -242,6 +279,34 @@ public sealed class YesScaleProvider : IAIProvider
         // last attempt — let it throw
         return await action();
     }
+
+    private async Task<IReadOnlyList<string>> FetchModelIdsAsync(string url, string apiKey, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        using var response = await _http.SendAsync(request, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"YesScale models API returned {(int)response.StatusCode}: {responseBody}");
+
+        using var doc = JsonDocument.Parse(responseBody);
+        if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+            return Array.Empty<string>();
+
+        return data.EnumerateArray()
+            .Select(static item => item.TryGetProperty("id", out var idProp) ? idProp.GetString() : null)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .Select(static id => id!)
+            .ToArray();
+    }
+
+    private static string NormalizeBaseUrl(string baseUrl)
+        => string.IsNullOrWhiteSpace(baseUrl)
+            ? "https://api.yescale.vip/v1"
+            : baseUrl.Trim().TrimEnd('/');
 
     // ── Response parsers ─────────────────────────────────────────────────────
 

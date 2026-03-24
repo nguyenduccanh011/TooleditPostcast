@@ -16,21 +16,27 @@ public sealed class PixabayImageSearchProvider : IImageSearchProvider
     private static readonly HttpClient _sharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly HttpClient _http;
-    private readonly string _apiKey;
+    private readonly IRuntimeApiSettings _settings;
 
-    public PixabayImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+    public PixabayImageSearchProvider(IRuntimeApiSettings settings, HttpClient? httpClient = null)
     {
         _http = httpClient ?? _sharedHttp;
-        _apiKey = settings.PixabayApiKey;
+        _settings = settings;
+    }
+
+    public PixabayImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+        : this(new LegacyRuntimeApiSettings(image: settings), httpClient)
+    {
     }
 
     public async Task<ImageCandidate[]> SearchAsync(string query, int count = 20, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_apiKey)) return [];
+        var apiKey = _settings.PixabayApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey)) return [];
 
         try
         {
-            var url = $"https://pixabay.com/api/?key={Uri.EscapeDataString(_apiKey)}&q={Uri.EscapeDataString(query)}&per_page={count}&image_type=photo";
+            var url = $"https://pixabay.com/api/?key={Uri.EscapeDataString(apiKey)}&q={Uri.EscapeDataString(query)}&per_page={count}&image_type=photo";
             var response = await _http.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode) return [];
 

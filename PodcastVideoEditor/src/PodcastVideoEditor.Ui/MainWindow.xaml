@@ -361,9 +361,9 @@
 
             <TabItem Header="Settings">
                 <ScrollViewer>
-                    <StackPanel Margin="20">
+                    <StackPanel x:Name="SettingsPanel" Margin="20">
                         <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" Foreground="#007ACC" />
-                        <TextBlock Text="Configure FFmpeg and application paths." Margin="0,6,0,20" Foreground="#CCCCCC" />
+                        <TextBlock Text="Configure FFmpeg, application paths, and shared API keys." Margin="0,6,0,20" Foreground="#CCCCCC" />
 
                         <TextBlock Text="FFmpeg Path" Margin="0,0,0,6" />
                         <Grid Margin="0,0,0,10">
@@ -385,6 +385,82 @@
                         <TextBlock Text="App Data Path" Margin="0,0,0,6" />
                         <TextBox x:Name="AppDataPathText" Height="32" Padding="8" IsReadOnly="True"
                                  Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                        <Border Margin="0,24,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Text="AI Analysis" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="Shared YesScale configuration used by all projects on this machine profile." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
+
+                                <TextBlock Text="YesScale API Key" Margin="0,0,0,6" />
+                                <TextBox Height="32" Padding="8"
+                                         Text="{Binding YesScaleApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                                <TextBlock Text="Base URL" Margin="0,12,0,6" />
+                                <TextBox Height="32" Padding="8"
+                                         Text="{Binding YesScaleBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                                <TextBlock Text="Default Model" Margin="0,12,0,6" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0"
+                                              Height="32"
+                                              IsEditable="True"
+                                              ItemsSource="{Binding AvailableYesScaleModels}"
+                                              Text="{Binding YesScaleModel, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedItem="{Binding YesScaleModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Grid.Column="1"
+                                            Width="90"
+                                            Height="32"
+                                            Margin="10,0,0,0"
+                                            Content="Refresh"
+                                            Command="{Binding RefreshYesScaleModelsCommand}"
+                                            Background="#3E3E42"
+                                            Foreground="#FFFFFF"
+                                            BorderThickness="0" />
+                                </Grid>
+                                <TextBlock Margin="0,8,0,0"
+                                           Foreground="#BBBBBB"
+                                           Text="{Binding YesScaleModelStatus}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,16,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Text="Image Search APIs" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="These API keys are shared across all projects and used when searching stock images." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
+
+                                <TextBlock Text="Pexels API Key" Margin="0,0,0,6" />
+                                <TextBox Height="32" Padding="8"
+                                         Text="{Binding PexelsApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                                <TextBlock Text="Pixabay API Key" Margin="0,12,0,6" />
+                                <TextBox Height="32" Padding="8"
+                                         Text="{Binding PixabayApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                                <TextBlock Text="Unsplash API Key" Margin="0,12,0,6" />
+                                <TextBox Height="32" Padding="8"
+                                         Text="{Binding UnsplashApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Width="120" Height="34"
+                                    Content="Save Settings"
+                                    Command="{Binding SaveSettingsCommand}"
+                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" />
+                            <TextBlock Margin="12,8,0,0"
+                                       Text="{Binding StatusMessage}"
+                                       Foreground="#CCCCCC" />
+                        </StackPanel>
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />

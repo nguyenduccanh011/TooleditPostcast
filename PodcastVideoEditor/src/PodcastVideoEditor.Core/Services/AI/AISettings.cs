@@ -1,5 +1,35 @@
 namespace PodcastVideoEditor.Core.Services.AI;
 
+public interface IRuntimeApiSettings
+{
+    string YesScaleApiKey { get; }
+    string YesScaleBaseUrl { get; }
+    string YesScaleModel { get; }
+    string PexelsApiKey { get; }
+    string PixabayApiKey { get; }
+    string UnsplashApiKey { get; }
+}
+
+internal sealed class LegacyRuntimeApiSettings : IRuntimeApiSettings
+{
+    public LegacyRuntimeApiSettings(AIAnalysisSettings? ai = null, ImageSearchSettings? image = null)
+    {
+        YesScaleApiKey = ai?.YesScaleApiKey ?? string.Empty;
+        YesScaleBaseUrl = ai?.BaseUrl ?? "https://api.yescale.vip/v1";
+        YesScaleModel = ai?.DefaultModel ?? "gpt-4o-mini";
+        PexelsApiKey = image?.PexelsApiKey ?? string.Empty;
+        PixabayApiKey = image?.PixabayApiKey ?? string.Empty;
+        UnsplashApiKey = image?.UnsplashApiKey ?? string.Empty;
+    }
+
+    public string YesScaleApiKey { get; }
+    public string YesScaleBaseUrl { get; }
+    public string YesScaleModel { get; }
+    public string PexelsApiKey { get; }
+    public string PixabayApiKey { get; }
+    public string UnsplashApiKey { get; }
+}
+
 /// <summary>
 /// Configuration for the YesScale AI analysis service.
 /// Bound from appsettings.json "AIAnalysis" section.

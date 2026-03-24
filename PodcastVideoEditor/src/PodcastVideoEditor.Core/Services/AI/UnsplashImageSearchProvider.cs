@@ -17,23 +17,29 @@ public sealed class UnsplashImageSearchProvider : IImageSearchProvider
     private static readonly HttpClient _sharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly HttpClient _http;
-    private readonly string _accessKey;
+    private readonly IRuntimeApiSettings _settings;
 
-    public UnsplashImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+    public UnsplashImageSearchProvider(IRuntimeApiSettings settings, HttpClient? httpClient = null)
     {
         _http = httpClient ?? _sharedHttp;
-        _accessKey = settings.UnsplashApiKey;
+        _settings = settings;
+    }
+
+    public UnsplashImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+        : this(new LegacyRuntimeApiSettings(image: settings), httpClient)
+    {
     }
 
     public async Task<ImageCandidate[]> SearchAsync(string query, int count = 20, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_accessKey)) return [];
+        var accessKey = _settings.UnsplashApiKey;
+        if (string.IsNullOrWhiteSpace(accessKey)) return [];
 
         try
         {
             var url = $"https://api.unsplash.com/search/photos?query={Uri.EscapeDataString(query)}&per_page={count}";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new AuthenticationHeaderValue("Client-ID", _accessKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Client-ID", accessKey);
 
             var response = await _http.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode) return [];
