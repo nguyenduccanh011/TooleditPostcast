@@ -226,17 +226,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
                 return null;
 
-            // Create an ImageElement at full canvas size to match the current background rendering.
-            // The user can then drag/resize it freely.
+            // Create an ImageElement using the track's ImageLayoutPreset so the auto-created
+            // element matches the preview (Square_Center, Widescreen_Center, or FullFrame).
+            var ownerTrack = FindTrackForSegment(segmentId);
+            var layoutPreset = ownerTrack?.ImageLayoutPreset ?? global::PodcastVideoEditor.Core.Models.ImageLayoutPresets.FullFrame;
+            var (elemX, elemY, elemW, elemH) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(layoutPreset, CanvasWidth, CanvasHeight);
             var element = new ImageElement
             {
                 Name = asset.Name ?? Path.GetFileNameWithoutExtension(asset.FilePath) ?? "Image",
                 FilePath = asset.FilePath,
-                X = 0,
-                Y = 0,
-                Width = CanvasWidth,
-                Height = CanvasHeight,
-                ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segmentId)),
+                X = elemX,
+                Y = elemY,
+                Width = elemW,
+                Height = elemH,
+                ZIndex = ComputeZIndexForTrack(ownerTrack),
                 SegmentId = segmentId
             };
 

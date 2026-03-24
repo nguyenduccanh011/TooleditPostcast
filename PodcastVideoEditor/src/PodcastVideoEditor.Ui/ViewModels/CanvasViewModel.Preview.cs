@@ -167,8 +167,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
+            if (e.PropertyName == nameof(Track.ImageLayoutPreset) && sender is Track changedTrack)
+                UpdateLinkedImageElementsForTrack(changedTrack);
+
             _timelineViewModel.InvalidateActiveSegmentsCachePublic();
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+        }
+
+        /// <summary>
+        /// When the track's ImageLayoutPreset changes, reposition any auto-created ImageElements
+        /// linked to segments on that track so the canvas preview reflects the new layout.
+        /// </summary>
+        private void UpdateLinkedImageElementsForTrack(Track track)
+        {
+            if (track.Segments == null || Elements.Count == 0)
+                return;
+
+            var preset = string.IsNullOrWhiteSpace(track.ImageLayoutPreset)
+                ? global::PodcastVideoEditor.Core.Models.ImageLayoutPresets.FullFrame
+                : track.ImageLayoutPreset;
+            var (ex, ey, ew, eh) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(preset, CanvasWidth, CanvasHeight);
+
+            foreach (var segment in track.Segments)
+            {
+                var linked = Elements.FirstOrDefault(el =>
+                    el is ImageElement && string.Equals(el.SegmentId, segment.Id, StringComparison.Ordinal));
+                if (linked is ImageElement imgEl)
+                {
+                    imgEl.X = ex;
+                    imgEl.Y = ey;
+                    imgEl.Width = ew;
+                    imgEl.Height = eh;
+                }
+            }
         }
 
         private void OnSegmentPropertyChanged(object? sender, PropertyChangedEventArgs e)

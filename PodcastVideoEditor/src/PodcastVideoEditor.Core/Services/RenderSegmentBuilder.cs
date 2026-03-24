@@ -134,6 +134,19 @@ public static class RenderSegmentBuilder
                     renderSeg.ScaleWidth   = scaleW;
                     renderSeg.ScaleHeight  = scaleH;
                 }
+                else if (renderWidth > 0 && renderHeight > 0)
+                {
+                    // No linked canvas element: apply the track's ImageLayoutPreset so
+                    // Square_Center / Widescreen_Center are respected in the render output.
+                    var preset = string.IsNullOrWhiteSpace(track.ImageLayoutPreset)
+                        ? Models.ImageLayoutPresets.FullFrame
+                        : track.ImageLayoutPreset;
+                    var (rx, ry, rw, rh) = RenderHelper.ComputeImageRect(preset, renderWidth, renderHeight);
+                    renderSeg.OverlayX    = ((int)Math.Round(rx)).ToString(CultureInfo.InvariantCulture);
+                    renderSeg.OverlayY    = ((int)Math.Round(ry)).ToString(CultureInfo.InvariantCulture);
+                    renderSeg.ScaleWidth  = (int)Math.Round(rw);
+                    renderSeg.ScaleHeight = (int)Math.Round(rh);
+                }
 
                 segments.Add(renderSeg);
             }
