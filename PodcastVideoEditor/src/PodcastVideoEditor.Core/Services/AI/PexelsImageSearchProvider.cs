@@ -17,24 +17,30 @@ public sealed class PexelsImageSearchProvider : IImageSearchProvider
     private static readonly HttpClient _sharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
 
     private readonly HttpClient _http;
-    private readonly string _apiKey;
+    private readonly IRuntimeApiSettings _settings;
 
-    public PexelsImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+    public PexelsImageSearchProvider(IRuntimeApiSettings settings, HttpClient? httpClient = null)
     {
         _http = httpClient ?? _sharedHttp;
-        _apiKey = settings.PexelsApiKey;
+        _settings = settings;
+    }
+
+    public PexelsImageSearchProvider(ImageSearchSettings settings, HttpClient? httpClient = null)
+        : this(new LegacyRuntimeApiSettings(image: settings), httpClient)
+    {
     }
 
     public async Task<ImageCandidate[]> SearchAsync(string query, int count = 20, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(_apiKey)) return [];
+        var apiKey = _settings.PexelsApiKey;
+        if (string.IsNullOrWhiteSpace(apiKey)) return [];
 
         try
         {
             var url = $"https://api.pexels.com/v1/search?query={Uri.EscapeDataString(query)}&per_page={count}&orientation=portrait";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             // Pexels uses the API key directly in Authorization (not Bearer)
-            request.Headers.Add("Authorization", _apiKey);
+            request.Headers.Add("Authorization", apiKey);
 
             var response = await _http.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode) return [];

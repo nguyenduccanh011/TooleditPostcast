@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Ui.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
@@ -25,7 +26,7 @@ public static class AppBootstrapper
         var services = new ServiceCollection();
         RegisterInfrastructure(services, appDataPath);
         RegisterCoreServices(services);
-        RegisterViewModels(services);
+        RegisterViewModels(services, appDataPath);
         RegisterUiServices(services);
         return services.BuildServiceProvider(new Microsoft.Extensions.DependencyInjection.ServiceProviderOptions { ValidateOnBuild = true });
     }
@@ -35,6 +36,8 @@ public static class AppBootstrapper
     private static void RegisterInfrastructure(IServiceCollection services, string appDataPath)
     {
         var dbPath = Path.Combine(appDataPath, "app.db");
+        services.AddSingleton<UserSettingsStore>(_ => UserSettingsStore.Load(appDataPath));
+        services.AddSingleton<IRuntimeApiSettings>(sp => sp.GetRequiredService<UserSettingsStore>());
         services.AddDbContext<AppDbContext>(opts =>
             opts.UseSqlite($"Data Source={dbPath}"),
             ServiceLifetime.Singleton);
@@ -45,10 +48,18 @@ public static class AppBootstrapper
     private static void RegisterCoreServices(IServiceCollection services)
     {
         // ProjectService: single instance wrapping the shared DbContext.
-        services.AddSingleton<IProjectService, ProjectService>();
+        services.AddSingleton<ProjectService>();
+        services.AddSingleton<IProjectService>(sp => sp.GetRequiredService<ProjectService>());
 
         // ImageAssetIngestService: stateless, default HTTP client.
         services.AddSingleton<ImageAssetIngestService>();
+
+        services.AddSingleton<IAIProvider, YesScaleProvider>();
+        services.AddSingleton<IImageSearchProvider, PexelsImageSearchProvider>();
+        services.AddSingleton<IImageSearchProvider, PixabayImageSearchProvider>();
+        services.AddSingleton<IImageSearchProvider, UnsplashImageSearchProvider>();
+        services.AddSingleton<IAIImageSelectionService, AIImageSelectionService>();
+        services.AddSingleton<IAIAnalysisOrchestrator, AIAnalysisOrchestrator>();
 
         // AudioService: single instance because it holds the WaveOut device.
         // Register as concrete type first so it can be resolved as either interface.
@@ -59,12 +70,17 @@ public static class AppBootstrapper
 
     // ── ViewModels ────────────────────────────────────────────────────────────────
 
-    private static void RegisterViewModels(IServiceCollection services)
+    private static void RegisterViewModels(IServiceCollection services, string appDataPath)
     {
         services.AddSingleton<RenderViewModel>();
         services.AddSingleton<VisualizerViewModel>();
         services.AddSingleton<CanvasViewModel>();
         services.AddSingleton<ProjectViewModel>();
+        services.AddSingleton<SettingsViewModel>(sp =>
+            new SettingsViewModel(
+                sp.GetRequiredService<UserSettingsStore>(),
+                sp.GetRequiredService<IAIProvider>(),
+                appDataPath));
         services.AddSingleton<AudioPlayerViewModel>(sp =>
             new AudioPlayerViewModel(sp.GetRequiredService<IAudioPlaybackService>()));
         services.AddSingleton<TimelineViewModel>();

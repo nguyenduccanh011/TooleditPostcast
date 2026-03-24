@@ -6,6 +6,15 @@ namespace PodcastVideoEditor.Core.Services.AI;
 public interface IAIProvider
 {
     /// <summary>
+    /// Fetches the list of available model IDs for a specific API key/base URL combination.
+    /// Used by Settings UI before the configuration is persisted.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAvailableModelsAsync(
+        string apiKey,
+        string? baseUrl = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Normalize the raw ASR script: fix obvious mis-transcriptions while preserving timestamps.
     /// Uses temperature=0.3, timeout 60 s.
     /// Returns the normalized script text, or the original on timeout.

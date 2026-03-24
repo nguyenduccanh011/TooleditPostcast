@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private readonly AudioPlayerViewModel _audioPlayerViewModel;
     private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
+    private readonly SettingsViewModel _settingsViewModel;
     private readonly AutosaveService _autosaveService;
     private readonly string _appDataPath;
     private bool _initialLoadDone;
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
         ProjectViewModel projectViewModel,
         AudioPlayerViewModel audioPlayerViewModel,
         TimelineViewModel timelineViewModel,
+        SettingsViewModel settingsViewModel,
         AutosaveService autosaveService)
     {
         try
@@ -52,9 +54,11 @@ public partial class MainWindow : Window
             _projectViewModel = projectViewModel;
             _audioPlayerViewModel = audioPlayerViewModel;
             _timelineViewModel = timelineViewModel;
+            _settingsViewModel = settingsViewModel;
             _autosaveService = autosaveService;
 
             DataContext = _mainViewModel;
+            SettingsPanel.DataContext = _settingsViewModel;
 
             _audioPlayerViewModel.AudioLoaded += OnAudioLoaded;
 
@@ -479,9 +483,4 @@ public partial class MainWindow : Window
         _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
     }
 
-    // ── AI / Image Settings stubs (UI wired but implementation pending) ──
-    private void YesScaleApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e) { }
-    private void SaveAISettings_Click(object sender, RoutedEventArgs e) { }
-    private void FetchModels_Click(object sender, RoutedEventArgs e) { }
-    private void SaveImageSettings_Click(object sender, RoutedEventArgs e) { }
 }
