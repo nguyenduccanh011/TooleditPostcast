@@ -364,31 +364,12 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Toolbar -->
-        <ToolBar Grid.Row="0" Background="#2d2d2d" ToolBarTray.IsLocked="True">
-            <Button Content="Title" Command="{Binding AddTitleElementCommand}" Padding="8,4" Background="#007ACC" Foreground="White"/>
-            <Button Content="Logo" Command="{Binding AddLogoElementCommand}" Padding="8,4" Background="#007ACC" Foreground="White"/>
-            <Button Content="Image" Command="{Binding AddImageElementCommand}" Padding="8,4" Background="#007ACC" Foreground="White"/>
-            <Button Content="Visualizer" Command="{Binding AddVisualizerElementCommand}" Padding="8,4" Background="#007ACC" Foreground="White"/>
-            <Button Content="Text" Command="{Binding AddTextElementCommand}" Padding="8,4" Background="#007ACC" Foreground="White"/>
-            <Separator/>
-            <Button Content="Delete" Command="{Binding DeleteSelectedElementCommand}" Padding="8,4" Background="#D32F2F" Foreground="White"/>
-            <Button Content="Duplicate" Command="{Binding DuplicateElementCommand}" Padding="8,4" Background="#6F42C1" Foreground="White"/>
-            <Separator/>
-            <Button Content="Front" Command="{Binding BringToFrontCommand}" Padding="8,4" Background="#FF9800" Foreground="White"/>
-            <Button Content="Back" Command="{Binding SendToBackCommand}" Padding="8,4" Background="#FF9800" Foreground="White"/>
-            <Separator/>
-            <Button Content="Clear" Command="{Binding ClearAllCommand}" Padding="8,4" Background="#D32F2F" Foreground="White"/>
-            <CheckBox Content="Grid" IsChecked="{Binding ShowGrid}" Foreground="White" VerticalAlignment="Center"/>
-        </ToolBar>
-
         <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
-        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#404040" BorderThickness="1">
+        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#404040" BorderThickness="1">
             <Grid>
                 <!-- Viewbox for preview -->
                 <Viewbox Stretch="Uniform" StretchDirection="Both">
@@ -517,7 +498,7 @@
         </Border>
 
         <!-- Status Bar: Playback controls + Time display + Status message + Ratio selector -->
-        <Border Grid.Row="2" Background="#2d2d2d" BorderBrush="#404040" BorderThickness="1,0,0,0" Padding="8,0" Height="40">
+        <Border Grid.Row="1" Background="#2d2d2d" BorderBrush="#404040" BorderThickness="1,0,0,0" Padding="8,0" Height="40">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
