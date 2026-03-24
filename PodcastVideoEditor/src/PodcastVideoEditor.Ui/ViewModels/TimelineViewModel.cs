@@ -107,8 +107,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
 
-        /// <summary>Select the given track (called from TimelineView code-behind).</summary>
-        public void SelectTrack(Track track) => SelectedTrack = track;
+        /// <summary>Select the given track (called from TimelineView code-behind). Clears SelectedSegment so TrackPanel takes priority.</summary>
+        public void SelectTrack(Track track)
+        {
+            SelectedSegment = null;
+            SelectedTrack = track;
+        }
 
         /// <summary>Inject AI orchestrator for script analysis (called from MainWindow).</summary>
         public void SetOrchestrator(IAIAnalysisOrchestrator orchestrator)
