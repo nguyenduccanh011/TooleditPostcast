@@ -715,14 +715,14 @@ public static class FFmpegService
             {
                 var scaledPtsLabel = $"scaledpts{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{scaledPtsLabel}];");
-                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}format=auto:shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             else
             {
                 // Video: already trimmed+PTS-reset; shift into output timeline
                 var shiftedLabel = $"shifted{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
-                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}format=auto:shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             currentVideo = outLabel;
         }

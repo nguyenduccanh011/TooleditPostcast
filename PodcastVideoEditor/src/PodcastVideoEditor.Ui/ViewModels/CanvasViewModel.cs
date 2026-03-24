@@ -471,7 +471,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ZIndex = Elements.Count
             };
 
-            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
+            // Always create a dedicated new track so the visualizer segment never
+            // collides with image/video segments that share the first visual track.
+            var segment = _timelineViewModel?.CreateSegmentOnNewTrack(TrackTypes.Visual, element.Name);
             if (segment != null)
                 element.SegmentId = segment.Id;
 

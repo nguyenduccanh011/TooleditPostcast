@@ -196,7 +196,7 @@ public static class FFmpegFilterGraphBuilder
             var shiftedLabel = seg.IsVideo ? $"shifted{i}" : $"scaledpts{i}";
             filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
             filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}" +
-                          $"shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                          $"format=auto:shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
 
             currentVideo = outLabel;
         }
