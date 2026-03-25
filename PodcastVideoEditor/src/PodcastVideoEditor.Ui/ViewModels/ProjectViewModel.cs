@@ -185,6 +185,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
                 _renderViewModel.ApplyProjectRenderSettings(project.RenderSettings);
 
+                // Clear canvas elements — new project has none
+                _canvasViewModel.LoadElementsFromProject();
+
                 // Reset form
                 NewProjectName = string.Empty;
                 SelectedAudioPath = string.Empty;

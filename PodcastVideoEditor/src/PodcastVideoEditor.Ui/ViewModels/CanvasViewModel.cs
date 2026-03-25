@@ -1134,8 +1134,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Validate all element SegmentIds against current project segments.
-        /// Elements referencing non-existent segments get their SegmentId set to null
-        /// (becoming global overlays) to prevent orphaned references.
+        /// Elements referencing non-existent segments, or elements with no SegmentId at all,
+        /// are removed from the canvas — they are orphaned and have no place in the project.
         /// </summary>
         private void ValidateElementSegmentIds()
         {
@@ -1152,20 +1152,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
             }
 
-            int fixedCount = 0;
-            foreach (var element in Elements)
+            var orphaned = Elements
+                .Where(e => string.IsNullOrEmpty(e.SegmentId) || !validSegmentIds.Contains(e.SegmentId))
+                .ToList();
+
+            foreach (var element in orphaned)
             {
-                if (element.SegmentId != null && !validSegmentIds.Contains(element.SegmentId))
-                {
-                    Log.Warning("Element {ElementId} ({Name}) has stale SegmentId {SegmentId}, setting to null",
-                        element.Id, element.Name, element.SegmentId);
-                    element.SegmentId = null;
-                    fixedCount++;
-                }
+                Log.Warning("Removing orphaned canvas element {ElementId} ({Name}) — SegmentId '{SegmentId}' not in project",
+                    element.Id, element.Name, element.SegmentId ?? "<null>");
+                Elements.Remove(element);
             }
 
-            if (fixedCount > 0)
-                Log.Information("Fixed {Count} element(s) with stale SegmentId references", fixedCount);
+            if (orphaned.Count > 0)
+                Log.Information("Removed {Count} orphaned element(s) with stale or missing SegmentId", orphaned.Count);
         }
 
     }
