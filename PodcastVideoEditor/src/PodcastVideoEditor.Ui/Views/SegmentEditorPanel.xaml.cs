@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using PodcastVideoEditor.Ui.ViewModels;
 using Serilog;
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,11 +18,13 @@ namespace PodcastVideoEditor.Ui.Views
     public partial class SegmentEditorPanel : UserControl
     {
         private TimelineViewModel? _viewModel;
+        private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
         public SegmentEditorPanel()
         {
             InitializeComponent();
             Loaded += SegmentEditorPanel_Loaded;
+            Unloaded += SegmentEditorPanel_Unloaded;
         }
 
         private void SegmentEditorPanel_Loaded(object sender, RoutedEventArgs e)
@@ -31,18 +34,28 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel != null)
             {
                 // Subscribe to selected segment changes
-                _viewModel.PropertyChanged += (s, args) =>
+                _viewModelPropertyChangedHandler = (s, args) =>
                 {
                     if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
                     {
                         UpdateVisibility();
                     }
                 };
+                _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
                 // Initial state
                 UpdateVisibility();
 
                 Log.Information("SegmentEditorPanel loaded, ViewModel connected");
+            }
+        }
+
+        private void SegmentEditorPanel_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel != null && _viewModelPropertyChangedHandler != null)
+            {
+                _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
+                _viewModelPropertyChangedHandler = null;
             }
         }
 
@@ -106,14 +119,6 @@ namespace PodcastVideoEditor.Ui.Views
             if (!string.Equals(_viewModel.SelectedSegment.Kind, "visual", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            var projectVm = _viewModel.ProjectViewModel;
-            var project = projectVm.CurrentProject;
-            if (project == null)
-            {
-                _viewModel.StatusMessage = "No project loaded";
-                return;
-            }
-
             var dialog = new OpenFileDialog
             {
                 Title = "Select image or video",
@@ -124,24 +129,8 @@ namespace PodcastVideoEditor.Ui.Views
             if (dialog.ShowDialog() != true)
                 return;
 
-            try
-            {
-                var assetType = InferAssetType(dialog.FileName);
-                var asset = await projectVm.AddAssetToCurrentProjectAsync(dialog.FileName, assetType);
-                if (asset == null)
-                    return;
-
-                _viewModel.SelectedSegment.BackgroundAssetId = asset.Id;
-                await projectVm.SaveProjectAsync();
+            if (await _viewModel.SetSegmentBackgroundAsync(dialog.FileName))
                 RefreshBackgroundInfo();
-                _viewModel.StatusMessage = $"Background set: {asset.FileName}";
-                Log.Information("Background asset assigned to segment {SegmentId}: {AssetId}", _viewModel.SelectedSegment.Id, asset.Id);
-            }
-            catch (Exception ex)
-            {
-                _viewModel.StatusMessage = $"Error setting background: {ex.Message}";
-                Log.Error(ex, "Error choosing background for segment {SegmentId}", _viewModel.SelectedSegment.Id);
-            }
         }
 
         private async void ClearBackgroundButton_Click(object sender, RoutedEventArgs e)
@@ -149,23 +138,9 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel?.SelectedSegment == null)
                 return;
 
-            _viewModel.SelectedSegment.BackgroundAssetId = null;
-            await _viewModel.ProjectViewModel.SaveProjectAsync();
+            await _viewModel.ClearSegmentBackgroundAsync();
             RefreshBackgroundInfo();
-            _viewModel.StatusMessage = "Background cleared";
-            Log.Information("Background cleared for segment {SegmentId}", _viewModel.SelectedSegment.Id);
         }
 
-        private static string InferAssetType(string filePath)
-        {
-            var extension = System.IO.Path.GetExtension(filePath).Trim('.').ToLowerInvariant();
-
-            return extension switch
-            {
-                "png" or "jpg" or "jpeg" or "bmp" or "gif" or "webp" => "Image",
-                "mp4" or "mov" or "mkv" or "avi" or "webm" => "Video",
-                _ => "File"
-            };
-        }
     }
 }

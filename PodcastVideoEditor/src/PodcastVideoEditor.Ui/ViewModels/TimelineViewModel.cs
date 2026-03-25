@@ -107,11 +107,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
 
-        /// <summary>Select the given track (called from TimelineView code-behind). Clears SelectedSegment so TrackPanel takes priority.</summary>
+        /// <summary>Select the given track (called from TimelineView code-behind). Clears SelectedSegment and SelectedElement so TrackPanel takes priority.</summary>
         public void SelectTrack(Track track)
         {
             SelectedSegment = null;
             SelectedTrack = track;
+            // Clear canvas element selection so UpdateVisibility() shows TrackPanel
+            _selectionSyncService?.NotifyTimelineSegmentSelected(null, false);
         }
 
         /// <summary>Inject AI orchestrator for script analysis (called from MainWindow).</summary>
@@ -1726,8 +1728,69 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void Dispose()
         {
             _projectViewModel.PropertyChanged -= OnProjectViewModelPropertyChanged;
+            if (_selectionSyncService != null)
+                _selectionSyncService.CanvasSelectionChanged -= OnCanvasElementSelected;
             _playbackCoordinator.Dispose();
             _audioService.StopSegmentAudio();
+        }
+
+        // ── Segment background management (called by SegmentEditorPanel) ───
+
+        /// <summary>
+        /// Assign a file as the background asset for the currently selected segment.
+        /// Ingests the file as a project asset if not already present.
+        /// </summary>
+        public async Task<bool> SetSegmentBackgroundAsync(string filePath)
+        {
+            if (SelectedSegment == null) return false;
+            if (!string.Equals(SelectedSegment.Kind, "visual", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var project = _projectViewModel.CurrentProject;
+            if (project == null)
+            {
+                StatusMessage = "No project loaded";
+                return false;
+            }
+
+            try
+            {
+                var ext = System.IO.Path.GetExtension(filePath).Trim('.').ToLowerInvariant();
+                var assetType = ext switch
+                {
+                    "png" or "jpg" or "jpeg" or "bmp" or "gif" or "webp" => "Image",
+                    "mp4" or "mov" or "mkv" or "avi" or "webm" => "Video",
+                    _ => "File"
+                };
+
+                var asset = await _projectViewModel.AddAssetToCurrentProjectAsync(filePath, assetType);
+                if (asset == null) return false;
+
+                SelectedSegment.BackgroundAssetId = asset.Id;
+                await _projectViewModel.SaveProjectAsync();
+                StatusMessage = $"Background set: {asset.FileName}";
+                Serilog.Log.Information("Background asset assigned to segment {SegmentId}: {AssetId}",
+                    SelectedSegment.Id, asset.Id);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error setting background: {ex.Message}";
+                Serilog.Log.Error(ex, "Error choosing background for segment {SegmentId}", SelectedSegment.Id);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Clear the background asset for the currently selected segment.
+        /// </summary>
+        public async Task ClearSegmentBackgroundAsync()
+        {
+            if (SelectedSegment == null) return;
+
+            SelectedSegment.BackgroundAssetId = null;
+            await _projectViewModel.SaveProjectAsync();
+            StatusMessage = "Background cleared";
+            Serilog.Log.Information("Background cleared for segment {SegmentId}", SelectedSegment.Id);
         }
     }
 

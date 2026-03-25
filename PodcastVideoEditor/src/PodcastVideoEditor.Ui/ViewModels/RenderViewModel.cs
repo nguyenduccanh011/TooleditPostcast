@@ -17,7 +17,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// <summary>
     /// ViewModel for video rendering (MVVM Toolkit).
     /// </summary>
-    public partial class RenderViewModel : ObservableObject
+    public partial class RenderViewModel : ObservableObject, IDisposable
     {
 
         [ObservableProperty]
@@ -511,6 +511,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 VideoCodec = VideoCodec,
                 AudioCodec = AudioCodec
             };
+        }
+
+        public void Dispose()
+        {
+            _renderCancellationTokenSource?.Dispose();
         }
     }
 }

@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
+             xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
              Background="#1e1e1e"
              Foreground="#e0e0e0"
              MinWidth="220">
@@ -125,7 +126,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="#81c784"
+                    <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat='{}{0:0.##}'}" Foreground="#81c784"
                                FontFamily="Courier New" FontSize="12" Margin="8,0,0,4"/>
                 </Grid>
                 <Slider Grid.Row="1" Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
@@ -144,28 +145,79 @@
             EnumTemplate="{StaticResource PropertyFieldEnumTemplate}"
             BoolTemplate="{StaticResource PropertyFieldBoolTemplate}"
             SliderTemplate="{StaticResource PropertyFieldSliderTemplate}"/>
+
+        <!-- CollectionViewSource for grouping -->
+        <CollectionViewSource x:Key="GroupedProperties" Source="{Binding Properties}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="GroupName"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
     </UserControl.Resources>
 
     <Grid Margin="12">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <TextBlock Grid.Row="0" FontSize="14" FontWeight="Bold" Foreground="#64b5f6"
-                   Margin="0,0,0,12" Text="{Binding HeaderText}"/>
+                   Margin="0,0,0,8" Text="{Binding HeaderText}"/>
+
+        <!-- Timing badge (visible only when element is bound to a segment) -->
+        <Border Grid.Row="1" CornerRadius="4" Background="#252530" Padding="8,5"
+                Margin="0,0,0,10"
+                Visibility="{Binding SegmentTimingText, Converter={StaticResource ObjectToVisibilityConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="⏱" FontSize="12" Foreground="#90caf9" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding SegmentTimingText}" FontSize="12" FontFamily="Courier New"
+                           Foreground="#81c784" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
 
         <!-- No selection -->
-        <TextBlock Grid.Row="1" Text="Select an element on canvas to edit properties"
+        <TextBlock Grid.Row="2" Text="Select an element on canvas to edit properties"
                    Foreground="#7a8a96" FontStyle="Italic"
                    Visibility="{Binding SelectedElement, Converter={StaticResource NullToVisibilityConverter}}"/>
 
-        <!-- Properties list -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+        <!-- Properties list with grouping -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                      Visibility="{Binding SelectedElement, Converter={StaticResource ObjectToVisibilityConverter}}">
-            <ItemsControl ItemsSource="{Binding Properties}"
-                          ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}"/>
+            <ItemsControl ItemsSource="{Binding Source={StaticResource GroupedProperties}}"
+                          ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}">
+                <ItemsControl.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="4" Margin="0,8,0,6" Padding="8,6">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#252530"/>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Name}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Name}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="Bold"
+                                               Foreground="#90caf9"/>
+                                </Border>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                        <GroupStyle.Panel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Margin="4,0,0,0"/>
+                            </ItemsPanelTemplate>
+                        </GroupStyle.Panel>
+                    </GroupStyle>
+                </ItemsControl.GroupStyle>
+            </ItemsControl>
         </ScrollViewer>
     </Grid>
 </UserControl>

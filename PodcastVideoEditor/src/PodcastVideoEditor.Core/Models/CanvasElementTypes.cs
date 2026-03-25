@@ -21,6 +21,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// The text content to display.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 100, IsTextArea = true)]
         public string Text
         {
             get => _text;
@@ -30,6 +31,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Font family name (Arial, Verdana, etc.).
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 101)]
         public string FontFamily
         {
             get => _fontFamily;
@@ -39,6 +41,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Font size in points.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 102, IsSlider = true, MinValue = 8, MaxValue = 200)]
         public double FontSize
         {
             get => _fontSize;
@@ -48,6 +51,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Text color as hex string (#FFFFFF).
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 103, IsColor = true)]
         public string ColorHex
         {
             get => _colorHex;
@@ -57,6 +61,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether text is bold.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 104)]
         public bool IsBold
         {
             get => _isBold;
@@ -66,6 +71,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether text is italic.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 105)]
         public bool IsItalic
         {
             get => _isItalic;
@@ -75,6 +81,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Text alignment (Left, Center, Right).
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 106)]
         public TextAlignment Alignment
         {
             get => _alignment;
@@ -129,6 +136,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Path to the image file.
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 100)]
         public string ImagePath
         {
             get => _imagePath;
@@ -138,6 +146,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Opacity from 0.0 (transparent) to 1.0 (opaque).
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1)]
         public double Opacity
         {
             get => _opacity;
@@ -147,6 +156,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// How to scale the image (Fit, Fill, Stretch).
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 102)]
         public ScaleMode ScaleMode
         {
             get => _scaleMode;
@@ -193,12 +203,21 @@ namespace PodcastVideoEditor.Core.Models
         private int _peakHoldTime = 300;
         private float _barWidth = 8f;
         private float _barSpacing = 2f;
+        private double _opacity = 1.0;
+        private float _sensitivity = 1.0f;
+        private int _minFrequency = 20;
+        private int _maxFrequency = 20000;
+        private float _barCornerRadius = 0f;
+        private string _primaryColorHex = "#00FF00";
+        private float _glowIntensity = 0.5f;
+        private float _animationSpeed = 1.0f;
 
         public override ElementType Type => ElementType.Visualizer;
 
         /// <summary>
         /// Color palette for the visualizer.
         /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 101)]
         public ColorPalette ColorPalette
         {
             get => _colorPalette;
@@ -208,6 +227,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Number of frequency bands (32, 64, 128).
         /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 200, IsSlider = true, MinValue = 32, MaxValue = 128)]
         public int BandCount
         {
             get => _bandCount;
@@ -221,6 +241,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Visualization style.
         /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 100)]
         public VisualizerStyle Style
         {
             get => _style;
@@ -230,6 +251,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Smoothing factor for bar decay (0.0 = no smoothing, 1.0 = max smoothing).
         /// </summary>
+        [PropertyMetadata(Group = "🎵 Audio Response", Order = 301, IsSlider = true, MinValue = 0, MaxValue = 1)]
         public float SmoothingFactor
         {
             get => _smoothingFactor;
@@ -239,6 +261,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether to show peak indicators above the bars.
         /// </summary>
+        [PropertyMetadata(Group = "📍 Peaks", Order = 400)]
         public bool ShowPeaks
         {
             get => _showPeaks;
@@ -248,6 +271,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Mirror mode: use only the lowest 60% of bands and display them symmetrically.
         /// </summary>
+        [PropertyMetadata(Group = "🔄 Mode", Order = 500)]
         public bool SymmetricMode
         {
             get => _symmetricMode;
@@ -257,6 +281,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// How long peak indicators hold at their peak position before falling (milliseconds).
         /// </summary>
+        [PropertyMetadata(Group = "📍 Peaks", Order = 401, IsSlider = true, MinValue = 0, MaxValue = 2000)]
         public int PeakHoldTime
         {
             get => _peakHoldTime;
@@ -266,6 +291,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Width of each frequency bar in pixels (Bars style).
         /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 201, IsSlider = true, MinValue = 1, MaxValue = 50)]
         public float BarWidth
         {
             get => _barWidth;
@@ -275,10 +301,91 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Spacing between bars in pixels.
         /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 202, IsSlider = true, MinValue = 0, MaxValue = 20)]
         public float BarSpacing
         {
             get => _barSpacing;
             set => SetProperty(ref _barSpacing, Math.Clamp(value, 0f, 20f));
+        }
+
+        /// <summary>
+        /// Opacity from 0.0 (transparent) to 1.0 (opaque).
+        /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 103, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        public double Opacity
+        {
+            get => _opacity;
+            set => SetProperty(ref _opacity, Math.Clamp(value, 0.0, 1.0));
+        }
+
+        /// <summary>
+        /// Audio reactivity gain multiplier (0.5 = subtle, 3.0 = very reactive).
+        /// </summary>
+        [PropertyMetadata(Group = "🎵 Audio Response", Order = 300, IsSlider = true, MinValue = 0.1, MaxValue = 3)]
+        public float Sensitivity
+        {
+            get => _sensitivity;
+            set => SetProperty(ref _sensitivity, Math.Clamp(value, 0.1f, 3.0f));
+        }
+
+        /// <summary>
+        /// Low frequency cutoff in Hz for spectrum analysis.
+        /// </summary>
+        [PropertyMetadata(Group = "🎵 Audio Response", Order = 302, IsSlider = true, MinValue = 20, MaxValue = 2000)]
+        public int MinFrequency
+        {
+            get => _minFrequency;
+            set => SetProperty(ref _minFrequency, Math.Clamp(value, 20, 2000));
+        }
+
+        /// <summary>
+        /// High frequency cutoff in Hz for spectrum analysis.
+        /// </summary>
+        [PropertyMetadata(Group = "🎵 Audio Response", Order = 303, IsSlider = true, MinValue = 2000, MaxValue = 20000)]
+        public int MaxFrequency
+        {
+            get => _maxFrequency;
+            set => SetProperty(ref _maxFrequency, Math.Clamp(value, 2000, 20000));
+        }
+
+        /// <summary>
+        /// Corner radius for frequency bars (0 = sharp, 20 = fully rounded).
+        /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 203, IsSlider = true, MinValue = 0, MaxValue = 20)]
+        public float BarCornerRadius
+        {
+            get => _barCornerRadius;
+            set => SetProperty(ref _barCornerRadius, Math.Clamp(value, 0f, 20f));
+        }
+
+        /// <summary>
+        /// Custom primary color hex for Mono palette or color override (#RRGGBB).
+        /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 102, IsColor = true)]
+        public string PrimaryColorHex
+        {
+            get => _primaryColorHex;
+            set => SetProperty(ref _primaryColorHex, value ?? "#00FF00");
+        }
+
+        /// <summary>
+        /// Glow effect intensity (0 = none, 2.0 = maximum). Primarily for NeonGlow style.
+        /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 104, IsSlider = true, MinValue = 0, MaxValue = 2)]
+        public float GlowIntensity
+        {
+            get => _glowIntensity;
+            set => SetProperty(ref _glowIntensity, Math.Clamp(value, 0f, 2.0f));
+        }
+
+        /// <summary>
+        /// Animation/decay speed multiplier (0.1 = very slow, 3.0 = very fast).
+        /// </summary>
+        [PropertyMetadata(Group = "🎵 Audio Response", Order = 304, IsSlider = true, MinValue = 0.1, MaxValue = 3)]
+        public float AnimationSpeed
+        {
+            get => _animationSpeed;
+            set => SetProperty(ref _animationSpeed, Math.Clamp(value, 0.1f, 3.0f));
         }
 
         public override void ResetToDefault()
@@ -293,6 +400,14 @@ namespace PodcastVideoEditor.Core.Models
             PeakHoldTime = 300;
             BarWidth = 8f;
             BarSpacing = 2f;
+            Opacity = 1.0;
+            Sensitivity = 1.0f;
+            MinFrequency = 20;
+            MaxFrequency = 20000;
+            BarCornerRadius = 0f;
+            PrimaryColorHex = "#00FF00";
+            GlowIntensity = 0.5f;
+            AnimationSpeed = 1.0f;
         }
 
         public override CanvasElement Clone() =>
@@ -315,7 +430,15 @@ namespace PodcastVideoEditor.Core.Models
                 SymmetricMode = SymmetricMode,
                 PeakHoldTime = PeakHoldTime,
                 BarWidth = BarWidth,
-                BarSpacing = BarSpacing
+                BarSpacing = BarSpacing,
+                Opacity = Opacity,
+                Sensitivity = Sensitivity,
+                MinFrequency = MinFrequency,
+                MaxFrequency = MaxFrequency,
+                BarCornerRadius = BarCornerRadius,
+                PrimaryColorHex = PrimaryColorHex,
+                GlowIntensity = GlowIntensity,
+                AnimationSpeed = AnimationSpeed
             };
     }
 
@@ -333,6 +456,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Path to the image file.
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 100)]
         public string FilePath
         {
             get => _filePath;
@@ -342,6 +466,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Opacity from 0.0 (transparent) to 1.0 (opaque).
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1)]
         public double Opacity
         {
             get => _opacity;
@@ -351,6 +476,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// How to scale the image.
         /// </summary>
+        [PropertyMetadata(Group = "🖼 Image", Order = 102)]
         public ScaleMode ScaleMode
         {
             get => _scaleMode;
@@ -401,6 +527,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Text content.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 100, IsTextArea = true)]
         public string Content
         {
             get => _content;
@@ -410,6 +537,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Font family name (Arial, Verdana, etc.).
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 101)]
         public string FontFamily
         {
             get => _fontFamily;
@@ -419,6 +547,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Font size in points.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 102, IsSlider = true, MinValue = 8, MaxValue = 200)]
         public double FontSize
         {
             get => _fontSize;
@@ -428,6 +557,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Text color as hex string.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 103, IsColor = true)]
         public string ColorHex
         {
             get => _colorHex;
@@ -437,6 +567,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether text is bold.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 104)]
         public bool IsBold
         {
             get => _isBold;
@@ -446,6 +577,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether text is italic.
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 105)]
         public bool IsItalic
         {
             get => _isItalic;
@@ -455,6 +587,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Text alignment (Left, Center, Right).
         /// </summary>
+        [PropertyMetadata(Group = "✍ Text", Order = 106)]
         public TextAlignment Alignment
         {
             get => _alignment;

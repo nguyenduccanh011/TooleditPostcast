@@ -22,16 +22,19 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Unique identifier for the element.
         /// </summary>
+        [EditorHidden]
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
         /// <summary>
         /// Type of element (Title, Logo, Visualizer, Image, Text).
         /// </summary>
+        [EditorHidden]
         public abstract ElementType Type { get; }
 
         /// <summary>
         /// Display name for the element.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 900)]
         public string Name
         {
             get => _name;
@@ -41,6 +44,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// X position in pixels (absolute positioning).
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 901)]
         public double X
         {
             get => _x;
@@ -50,6 +54,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Y position in pixels (absolute positioning).
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 902)]
         public double Y
         {
             get => _y;
@@ -59,6 +64,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Width in pixels.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 903)]
         public double Width
         {
             get => _width;
@@ -68,6 +74,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Height in pixels.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 904)]
         public double Height
         {
             get => _height;
@@ -78,6 +85,7 @@ namespace PodcastVideoEditor.Core.Models
         /// Z-index for layering (higher = on top).
         /// Range: -100 to +100.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 906)]
         public int ZIndex
         {
             get => _zIndex;
@@ -87,6 +95,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Rotation angle in degrees.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 905)]
         public double Rotation
         {
             get => _rotation;
@@ -96,6 +105,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether this element is currently selected.
         /// </summary>
+        [EditorHidden]
         public bool IsSelected
         {
             get => _isSelected;
@@ -105,6 +115,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Whether this element is visible on canvas.
         /// </summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 907)]
         public bool IsVisible
         {
             get => _isVisible;
@@ -114,12 +125,14 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Timestamp when element was created.
         /// </summary>
+        [EditorHidden]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
         /// Optional: ID of the segment this element is attached to. When set, element is only shown during segment's [StartTime, EndTime].
         /// Null = global overlay (always visible).
         /// </summary>
+        [EditorHidden]
         public string? SegmentId { get; set; }
 
         /// <summary>
