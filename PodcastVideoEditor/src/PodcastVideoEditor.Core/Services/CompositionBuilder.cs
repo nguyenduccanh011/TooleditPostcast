@@ -69,17 +69,81 @@ public class CompositionBuilder : ICompositionBuilder
         var zOrder = new ZOrderCounter();
         var registry = ElementSegmentRegistry.Build(ctx.Elements, ctx.Project.Tracks);
 
-        // Layer 1: Visual segments (images/videos from timeline tracks) — lowest z
-        var visualLayers = BuildVisualLayers(ctx, zOrder, registry);
-        layers.AddRange(visualLayers);
+        // ── Unified single-pass compositing ──────────────────────────────
+        // All visible tracks are processed in a single z-order space, sorted
+        // from highest Order (background) → lowest Order (foreground).
+        // This matches commercial editors (CapCut, Premiere, DaVinci) where
+        // Track.Order is the single source of truth for visual stacking.
 
-        // Layer 2: Rasterized text overlays — above visuals
-        var textLayers = BuildRasterizedTextLayers(ctx, zOrder, registry);
-        layers.AddRange(textLayers);
+        var allVisibleTracks = ctx.Project.Tracks?
+            .Where(t => t.IsVisible)
+            .OrderByDescending(t => t.Order) // background first → low z → overlaid first
+            .ToList() ?? [];
 
-        // Layer 3: Baked visualizer spectrum overlays — on top
-        var visualizerLayers = await BuildVisualizerLayersAsync(ctx, zOrder, registry, ct);
-        layers.AddRange(visualizerLayers);
+        var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
+        System.IO.Directory.CreateDirectory(textImageDir);
+        int textIndex = 0;
+
+        // Pre-resolve audio path for visualizer baking (shared across all visualizers)
+        var resolvedAudioPath = RenderSegmentBuilder.ResolveProjectAudioPath(ctx.Project) ?? string.Empty;
+
+        foreach (var track in allVisibleTracks)
+        {
+            if (track.Segments == null) continue;
+
+            var trackType = track.TrackType?.ToLowerInvariant() ?? "";
+
+            foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+            {
+                if (segment.EndTime <= segment.StartTime) continue;
+
+                switch (trackType)
+                {
+                    case "visual":
+                        var visualLayer = BuildSingleVisualLayer(ctx, segment, zOrder, registry);
+                        if (visualLayer != null) layers.Add(visualLayer);
+                        break;
+
+                    case "text":
+                        var textLayer = BuildSingleTextLayer(ctx, segment, zOrder, registry, textImageDir, ref textIndex);
+                        if (textLayer != null) layers.Add(textLayer);
+                        break;
+
+                    case "effect":
+                        // Effect tracks hold VisualizerElements — process their linked elements
+                        var linkedElement = registry.GetElementForSegment(segment.Id);
+                        if (linkedElement is VisualizerElement vizElement)
+                        {
+                            var vizLayer = await BuildSingleVisualizerLayerAsync(ctx, vizElement, segment, zOrder, resolvedAudioPath, ct);
+                            if (vizLayer != null) layers.Add(vizLayer);
+                        }
+                        break;
+
+                    // "audio" tracks are handled separately in BuildAudioLayers
+                }
+            }
+        }
+
+        // Also catch VisualizerElements that are NOT on effect tracks (orphaned / global)
+        if (ctx.Elements != null)
+        {
+            var handledSegmentIds = new HashSet<string>(
+                allVisibleTracks
+                    .Where(t => string.Equals(t.TrackType, "effect", StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(t => t.Segments ?? [])
+                    .Select(s => s.Id),
+                StringComparer.Ordinal);
+
+            foreach (var element in ctx.Elements.OfType<VisualizerElement>())
+            {
+                if (!string.IsNullOrEmpty(element.SegmentId) && handledSegmentIds.Contains(element.SegmentId))
+                    continue; // already processed above
+
+                double maxEndTime = ResolveRenderDuration(ctx.Project);
+                var vizLayer = await BuildSingleVisualizerLayerAsync(ctx, element, null, zOrder, resolvedAudioPath, ct);
+                if (vizLayer != null) layers.Add(vizLayer);
+            }
+        }
 
         var totalDuration = ResolveRenderDuration(ctx.Project);
 
@@ -88,7 +152,7 @@ public class CompositionBuilder : ICompositionBuilder
             RenderWidth = ctx.RenderWidth,
             RenderHeight = ctx.RenderHeight,
             FrameRate = ctx.FrameRate,
-            PrimaryAudioPath = ctx.Project.AudioPath ?? string.Empty,
+            PrimaryAudioPath = resolvedAudioPath,
             PrimaryAudioVolume = ctx.PrimaryAudioVolume,
             Layers = layers,
             AudioLayers = BuildAudioLayers(ctx.Project),
@@ -102,260 +166,206 @@ public class CompositionBuilder : ICompositionBuilder
         };
     }
 
-    private static List<CompositionLayer> BuildVisualLayers(CompositionBuildContext ctx, ZOrderCounter zOrder, ElementSegmentRegistry registry)
+    // ── Single-segment layer builders (called from unified loop) ──────
+
+    private static CompositionLayer? BuildSingleVisualLayer(
+        CompositionBuildContext ctx, Segment segment, ZOrderCounter zOrder, ElementSegmentRegistry registry)
     {
-        var visualTracks = ctx.Project.Tracks?
-            .Where(t => string.Equals(t.TrackType, "visual", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
-            .OrderBy(t => t.Order)
-            .ToList();
+        if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+            return null;
 
-        if (visualTracks == null || visualTracks.Count == 0)
-            return [];
-
-        var layers = new List<CompositionLayer>();
-        foreach (var track in visualTracks)
+        var asset = ctx.Project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
+        if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
         {
-            if (track.Segments == null) continue;
-            foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
-            {
-                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
-                    continue;
-
-                var asset = ctx.Project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-                if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
-                {
-                    Log.Warning("CompositionBuilder: skipping segment {SegId} — asset missing (AssetId={AssetId})",
-                        segment.Id, segment.BackgroundAssetId);
-                    continue;
-                }
-
-                // O(1) lookup via registry — skip if it's a VisualizerElement (handled separately)
-                var linkedElement = registry.GetElementForSegment(segment.Id);
-
-                if (linkedElement is VisualizerElement)
-                    continue;
-
-                var (overlayX, overlayY, scaleW, scaleH) = MapElementToRenderCoords(
-                    linkedElement, ctx.CanvasWidth, ctx.CanvasHeight, ctx.RenderWidth, ctx.RenderHeight);
-
-                layers.Add(new CompositionLayer
-                {
-                    ZOrder = zOrder.Next(),
-                    SourceType = IsVideoAsset(asset) ? CompositionSourceType.Video : CompositionSourceType.Image,
-                    SourcePath = asset.FilePath,
-                    StartTime = segment.StartTime,
-                    EndTime = segment.EndTime,
-                    OverlayX = overlayX,
-                    OverlayY = overlayY,
-                    ScaleWidth = scaleW,
-                    ScaleHeight = scaleH
-                });
-            }
+            Log.Warning("CompositionBuilder: skipping segment {SegId} — asset missing (AssetId={AssetId})",
+                segment.Id, segment.BackgroundAssetId);
+            return null;
         }
 
-        return layers;
+        var linkedElement = registry.GetElementForSegment(segment.Id);
+        if (linkedElement is VisualizerElement)
+            return null;
+
+        var (overlayX, overlayY, scaleW, scaleH) = MapElementToRenderCoords(
+            linkedElement, ctx.CanvasWidth, ctx.CanvasHeight, ctx.RenderWidth, ctx.RenderHeight);
+
+        return new CompositionLayer
+        {
+            ZOrder = zOrder.Next(),
+            SourceType = IsVideoAsset(asset) ? CompositionSourceType.Video : CompositionSourceType.Image,
+            SourcePath = asset.FilePath,
+            StartTime = segment.StartTime,
+            EndTime = segment.EndTime,
+            OverlayX = overlayX,
+            OverlayY = overlayY,
+            ScaleWidth = scaleW,
+            ScaleHeight = scaleH
+        };
     }
 
-    private static List<CompositionLayer> BuildRasterizedTextLayers(CompositionBuildContext ctx, ZOrderCounter zOrder, ElementSegmentRegistry registry)
+    private static CompositionLayer? BuildSingleTextLayer(
+        CompositionBuildContext ctx, Segment segment, ZOrderCounter zOrder,
+        ElementSegmentRegistry registry, string textImageDir, ref int textIndex)
     {
-        var textTracks = ctx.Project.Tracks?
-            .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
-            .OrderBy(t => t.Order)
-            .ToList();
+        if (string.IsNullOrWhiteSpace(segment.Text))
+            return null;
 
-        if (textTracks == null || textTracks.Count == 0)
-            return [];
+        var linkedElement = registry.GetElementForSegment(segment.Id);
 
-        var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
-        System.IO.Directory.CreateDirectory(textImageDir);
-
-        var layers = new List<CompositionLayer>();
-        var index = 0;
-        foreach (var track in textTracks)
+        var options = new TextRasterizeOptions
         {
-            if (track.Segments == null) continue;
-            foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
+            Text = segment.Text,
+            CanvasWidth = ctx.CanvasWidth,
+            CanvasHeight = ctx.CanvasHeight
+        };
+
+        int overlayX = 0, overlayY = 0;
+        int imgWidth = ctx.RenderWidth, imgHeight = 80;
+
+        if (linkedElement != null && ctx.CanvasWidth > 0 && ctx.CanvasHeight > 0)
+        {
+            var scaleX = (double)ctx.RenderWidth / ctx.CanvasWidth;
+            var scaleY = (double)ctx.RenderHeight / ctx.CanvasHeight;
+
+            overlayX = (int)Math.Round(linkedElement.X * scaleX);
+            overlayY = (int)Math.Round(linkedElement.Y * scaleY);
+            imgWidth = Math.Max(1, (int)Math.Round(linkedElement.Width * scaleX));
+            imgHeight = Math.Max(1, (int)Math.Round(linkedElement.Height * scaleY));
+
+            overlayX = Math.Max(0, Math.Min(overlayX, ctx.RenderWidth - 1));
+            overlayY = Math.Max(0, Math.Min(overlayY, ctx.RenderHeight - 1));
+
+            if (linkedElement is TextOverlayElement overlay)
             {
-                if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
-                    continue;
-
-                var linkedElement = registry.GetElementForSegment(segment.Id);
-
-                var options = new TextRasterizeOptions
+                options.FontSize = (float)CoordinateMapper.ScaleFontSize(overlay.FontSize, ctx.CanvasHeight, ctx.RenderHeight);
+                options.ColorHex = overlay.ColorHex;
+                options.FontFamily = overlay.FontFamily;
+                options.IsBold = overlay.IsBold;
+                options.IsItalic = overlay.IsItalic;
+                options.Alignment = overlay.Alignment switch
                 {
-                    Text = segment.Text,
-                    CanvasWidth = ctx.CanvasWidth,
-                    CanvasHeight = ctx.CanvasHeight
+                    TextAlignment.Left => TextRasterizeAlignment.Left,
+                    TextAlignment.Right => TextRasterizeAlignment.Right,
+                    _ => TextRasterizeAlignment.Center
                 };
-
-                int overlayX = 0, overlayY = 0;
-                int imgWidth = ctx.RenderWidth, imgHeight = 80;
-
-                if (linkedElement != null && ctx.CanvasWidth > 0 && ctx.CanvasHeight > 0)
+                options.LineHeightMultiplier = (float)overlay.LineHeight;
+                options.LetterSpacing = (float)overlay.LetterSpacing;
+                options.HasShadow = overlay.HasShadow;
+                options.ShadowColorHex = overlay.ShadowColorHex;
+                options.ShadowOffsetX = overlay.ShadowOffsetX;
+                options.ShadowOffsetY = overlay.ShadowOffsetY;
+                options.ShadowBlur = overlay.ShadowBlur;
+                options.HasOutline = overlay.HasOutline;
+                options.OutlineColorHex = overlay.OutlineColorHex;
+                options.OutlineThickness = overlay.OutlineThickness;
+                if (overlay.HasBackground)
                 {
-                    var scaleX = (double)ctx.RenderWidth / ctx.CanvasWidth;
-                    var scaleY = (double)ctx.RenderHeight / ctx.CanvasHeight;
-
-                    overlayX = (int)Math.Round(linkedElement.X * scaleX);
-                    overlayY = (int)Math.Round(linkedElement.Y * scaleY);
-                    imgWidth = Math.Max(1, (int)Math.Round(linkedElement.Width * scaleX));
-                    imgHeight = Math.Max(1, (int)Math.Round(linkedElement.Height * scaleY));
-
-                    overlayX = Math.Max(0, Math.Min(overlayX, ctx.RenderWidth - 1));
-                    overlayY = Math.Max(0, Math.Min(overlayY, ctx.RenderHeight - 1));
-
-                    if (linkedElement is TextOverlayElement overlay)
-                    {
-                        options.FontSize = (float)CoordinateMapper.ScaleFontSize(overlay.FontSize, ctx.CanvasHeight, ctx.RenderHeight);
-                        options.ColorHex = overlay.ColorHex;
-                        options.FontFamily = overlay.FontFamily;
-                        options.IsBold = overlay.IsBold;
-                        options.IsItalic = overlay.IsItalic;
-                        options.Alignment = overlay.Alignment switch
-                        {
-                            TextAlignment.Left => TextRasterizeAlignment.Left,
-                            TextAlignment.Right => TextRasterizeAlignment.Right,
-                            _ => TextRasterizeAlignment.Center
-                        };
-                        options.LineHeightMultiplier = (float)overlay.LineHeight;
-                        options.LetterSpacing = (float)overlay.LetterSpacing;
-                        options.HasShadow = overlay.HasShadow;
-                        options.ShadowColorHex = overlay.ShadowColorHex;
-                        options.ShadowOffsetX = overlay.ShadowOffsetX;
-                        options.ShadowOffsetY = overlay.ShadowOffsetY;
-                        options.ShadowBlur = overlay.ShadowBlur;
-                        options.HasOutline = overlay.HasOutline;
-                        options.OutlineColorHex = overlay.OutlineColorHex;
-                        options.OutlineThickness = overlay.OutlineThickness;
-                        if (overlay.HasBackground)
-                        {
-                            options.DrawBox = true;
-                            options.BoxColor = overlay.BackgroundColorHex;
-                            options.BoxAlpha = (float)overlay.BackgroundOpacity;
-                            options.BackgroundCornerRadius = (float)overlay.BackgroundCornerRadius;
-                        }
-                        else
-                        {
-                            options.DrawBox = false;
-                        }
-                    }
+                    options.DrawBox = true;
+                    options.BoxColor = overlay.BackgroundColorHex;
+                    options.BoxAlpha = (float)overlay.BackgroundOpacity;
+                    options.BackgroundCornerRadius = (float)overlay.BackgroundCornerRadius;
                 }
                 else
                 {
-                    options.FontSize = CoordinateMapper.ScaleFontSize(24, ctx.CanvasHeight > 0 ? ctx.CanvasHeight : ctx.RenderHeight, ctx.RenderHeight);
-                    imgHeight = (int)(ctx.RenderHeight * 0.1);
-                    overlayY = (int)(ctx.RenderHeight * 0.8);
-                    overlayX = 0;
-                    imgWidth = ctx.RenderWidth;
+                    options.DrawBox = false;
                 }
-
-                options.Width = imgWidth;
-                options.Height = imgHeight;
-
-                var imagePath = System.IO.Path.Combine(textImageDir, $"text_{index}.png");
-                try
-                {
-                    TextRasterizer.RenderToFile(options, imagePath);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "CompositionBuilder: failed to rasterize text segment {Index}", index);
-                    index++;
-                    continue;
-                }
-
-                layers.Add(new CompositionLayer
-                {
-                    ZOrder = zOrder.Next(),
-                    SourceType = CompositionSourceType.RasterizedText,
-                    SourcePath = imagePath,
-                    StartTime = segment.StartTime,
-                    EndTime = segment.EndTime,
-                    HasAlpha = true,
-                    OverlayX = overlayX,
-                    OverlayY = overlayY,
-                    ScaleWidth = imgWidth,
-                    ScaleHeight = imgHeight
-                });
-                index++;
             }
         }
+        else
+        {
+            options.FontSize = CoordinateMapper.ScaleFontSize(24, ctx.CanvasHeight > 0 ? ctx.CanvasHeight : ctx.RenderHeight, ctx.RenderHeight);
+            imgHeight = (int)(ctx.RenderHeight * 0.1);
+            overlayY = (int)(ctx.RenderHeight * 0.8);
+            overlayX = 0;
+            imgWidth = ctx.RenderWidth;
+        }
 
-        return layers;
+        options.Width = imgWidth;
+        options.Height = imgHeight;
+
+        var imagePath = System.IO.Path.Combine(textImageDir, $"text_{textIndex}.png");
+        try
+        {
+            TextRasterizer.RenderToFile(options, imagePath);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "CompositionBuilder: failed to rasterize text segment {Index}", textIndex);
+            textIndex++;
+            return null;
+        }
+
+        var layer = new CompositionLayer
+        {
+            ZOrder = zOrder.Next(),
+            SourceType = CompositionSourceType.RasterizedText,
+            SourcePath = imagePath,
+            StartTime = segment.StartTime,
+            EndTime = segment.EndTime,
+            HasAlpha = true,
+            OverlayX = overlayX,
+            OverlayY = overlayY,
+            ScaleWidth = imgWidth,
+            ScaleHeight = imgHeight
+        };
+        textIndex++;
+        return layer;
     }
 
-    private static async Task<List<CompositionLayer>> BuildVisualizerLayersAsync(
-        CompositionBuildContext ctx, ZOrderCounter zOrder, ElementSegmentRegistry registry, CancellationToken ct)
+    private static async Task<CompositionLayer?> BuildSingleVisualizerLayerAsync(
+        CompositionBuildContext ctx, VisualizerElement element, Segment? segment,
+        ZOrderCounter zOrder, string audioFilePath, CancellationToken ct)
     {
-        if (ctx.Elements == null || ctx.CanvasWidth <= 0 || ctx.CanvasHeight <= 0)
-            return [];
+        if (ctx.CanvasWidth <= 0 || ctx.CanvasHeight <= 0)
+            return null;
 
         var ffmpegPath = FFmpegService.GetFFmpegPath();
         if (string.IsNullOrEmpty(ffmpegPath))
         {
             Log.Warning("CompositionBuilder: FFmpeg path unknown, skipping visualizer bake");
-            return [];
+            return null;
         }
 
         double maxEndTime = ResolveRenderDuration(ctx.Project);
         if (maxEndTime <= 0)
-            return [];
+            return null;
 
-        var audioFilePath = ctx.Project.AudioPath ?? string.Empty;
-        var layers = new List<CompositionLayer>();
+        double vizStart = segment?.StartTime ?? 0;
+        double vizEnd = segment?.EndTime ?? maxEndTime;
+        if (vizEnd <= vizStart) return null;
+
+        Log.Information("CompositionBuilder: baking VisualizerElement {Id} ({Style}) [{Start:F2}–{End:F2}s]",
+            element.Id, element.Style, vizStart, vizEnd);
+
+        var bakedPath = await OfflineVisualizerBaker.BakeAsync(
+            element, audioFilePath,
+            ctx.RenderWidth, ctx.RenderHeight,
+            (int)ctx.CanvasWidth, (int)ctx.CanvasHeight,
+            vizStart, vizEnd, ctx.FrameRate, ffmpegPath, ct);
+
+        if (string.IsNullOrEmpty(bakedPath)) return null;
+
         var scaleX = ctx.RenderWidth / ctx.CanvasWidth;
         var scaleY = ctx.RenderHeight / ctx.CanvasHeight;
 
-        foreach (var element in ctx.Elements.OfType<VisualizerElement>())
+        int overlayX = Math.Max(0, (int)Math.Round(element.X * scaleX));
+        int overlayY = Math.Max(0, (int)Math.Round(element.Y * scaleY));
+        int overlayW = Math.Max(1, (int)Math.Round(element.Width * scaleX));
+        int overlayH = Math.Max(1, (int)Math.Round(element.Height * scaleY));
+
+        return new CompositionLayer
         {
-            double vizStart = 0;
-            double vizEnd = maxEndTime;
-
-            if (!string.IsNullOrEmpty(element.SegmentId))
-            {
-                // O(1) lookup via registry
-                var linked = registry.GetSegmentById(element.SegmentId);
-                if (linked != null)
-                {
-                    vizStart = linked.StartTime;
-                    vizEnd = linked.EndTime;
-                }
-            }
-
-            if (vizEnd <= vizStart) continue;
-
-            Log.Information("CompositionBuilder: baking VisualizerElement {Id} ({Style}) [{Start:F2}–{End:F2}s]",
-                element.Id, element.Style, vizStart, vizEnd);
-
-            var bakedPath = await OfflineVisualizerBaker.BakeAsync(
-                element, audioFilePath,
-                ctx.RenderWidth, ctx.RenderHeight,
-                (int)ctx.CanvasWidth, (int)ctx.CanvasHeight,
-                vizStart, vizEnd, ctx.FrameRate, ffmpegPath, ct);
-
-            if (string.IsNullOrEmpty(bakedPath)) continue;
-
-            int overlayX = Math.Max(0, (int)Math.Round(element.X * scaleX));
-            int overlayY = Math.Max(0, (int)Math.Round(element.Y * scaleY));
-            int overlayW = Math.Max(1, (int)Math.Round(element.Width * scaleX));
-            int overlayH = Math.Max(1, (int)Math.Round(element.Height * scaleY));
-
-            layers.Add(new CompositionLayer
-            {
-                ZOrder = zOrder.Next(),
-                SourceType = CompositionSourceType.Visualizer,
-                SourcePath = bakedPath,
-                StartTime = vizStart,
-                EndTime = vizEnd,
-                HasAlpha = true,
-                OverlayX = overlayX,
-                OverlayY = overlayY,
-                ScaleWidth = overlayW,
-                ScaleHeight = overlayH
-            });
-        }
-
-        return layers;
+            ZOrder = zOrder.Next(),
+            SourceType = CompositionSourceType.Visualizer,
+            SourcePath = bakedPath,
+            StartTime = vizStart,
+            EndTime = vizEnd,
+            HasAlpha = true,
+            OverlayX = overlayX,
+            OverlayY = overlayY,
+            ScaleWidth = overlayW,
+            ScaleHeight = overlayH
+        };
     }
 
     private static List<CompositionAudioLayer> BuildAudioLayers(Project project)

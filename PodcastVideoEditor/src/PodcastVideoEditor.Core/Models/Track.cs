@@ -36,7 +36,8 @@ public partial class Track : ObservableObject
     /// During rendering: render from highest Order → lowest Order (back → front).
     /// For display: row 0 (under ruler) is Order 0; rows increase downward.
     /// </summary>
-    public int Order { get; set; }
+    [ObservableProperty]
+    private int order;
 
     /// <summary>
     /// Track type categorization.

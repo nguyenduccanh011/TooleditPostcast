@@ -26,7 +26,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
-        private readonly LRUCache<string, BitmapSource> _assetFrameCache = new(120, global::PodcastVideoEditor.Ui.Helpers.BitmapCacheMetrics.EstimateBitmapBytes, 96L * 1024 * 1024);
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private SelectionSyncService? _selectionSyncService;
@@ -45,10 +44,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool _disposed;
         // Guard: prevents selection-sync auto-creation while an AddElement method is in progress
         private bool _isCreatingElement;
-        private string? _lastVisualSegmentId;
-        private string? _lastVisualFrameKey;
-        private readonly HashSet<string> _pendingVideoFrameRequests = new(StringComparer.Ordinal);
-        private readonly object _pendingVideoFrameLock = new();
 
         // Performance: throttle canvas updates to ~60fps
         private DateTime _lastCanvasUpdateTime = DateTime.MinValue;
@@ -90,9 +85,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private string statusMessage = "Ready";
 
         [ObservableProperty]
-        private BitmapSource? activeVisualImage;
-
-        [ObservableProperty]
         private Uri? videoSource;
 
         [ObservableProperty]
@@ -102,20 +94,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isVideoMode;
 
         [ObservableProperty]
-        private string activeTextContent = string.Empty;
-
-        [ObservableProperty]
         private bool isVisualPlaceholderVisible = true;
 
         [ObservableProperty]
         private Segment? activeVisualSegment;
 
         /// <summary>
-        /// Background image layers from all active visual tracks, ordered back-to-front (highest Track.Order first).
-        /// Each entry is a BitmapSource for a non-video visual segment.
-        /// The frontmost video (if any) is rendered via MediaElement, not included here.
+        /// Canvas.ZIndex for the video MediaElement so it participates in the unified compositing
+        /// z-order alongside ImageElements, VisualizerElements, etc. Computed from Track.Order.
         /// </summary>
-        public ObservableCollection<PreviewVisualLayer> BackgroundLayers { get; } = new();
+        [ObservableProperty]
+        private int primaryVideoZIndex;
 
         [ObservableProperty]
         private double activeVisualX;
@@ -738,29 +727,45 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Bring selected element to front (increase z-index).
+        /// Bring selected element to front by moving its track to the top (lowest Order).
+        /// Uses track reorder so the z-order change is persistent and consistent with the
+        /// track-based compositing model used by commercial editors.
         /// </summary>
         [RelayCommand]
         public void BringToFront()
         {
-            if (SelectedElement == null) return;
+            if (SelectedElement == null || _timelineViewModel == null) return;
 
-            var maxZ = Elements.Max(e => e.ZIndex);
-            SelectedElement.ZIndex = maxZ + 1;
-            LogMessage($"Moved {SelectedElement.Name} to front");
+            var track = FindTrackForSegment(SelectedElement.SegmentId);
+            if (track == null)
+            {
+                LogMessage("Cannot bring to front: element has no track");
+                return;
+            }
+
+            _timelineViewModel.ReorderTrack(track, 0);
+            RefreshElementZIndices();
+            LogMessage($"Moved {SelectedElement.Name} to front (track reorder)");
         }
 
         /// <summary>
-        /// Send selected element to back (decrease z-index).
+        /// Send selected element to back by moving its track to the bottom (highest Order).
         /// </summary>
         [RelayCommand]
         public void SendToBack()
         {
-            if (SelectedElement == null) return;
+            if (SelectedElement == null || _timelineViewModel == null) return;
 
-            var minZ = Elements.Min(e => e.ZIndex);
-            SelectedElement.ZIndex = minZ - 1;
-            LogMessage($"Moved {SelectedElement.Name} to back");
+            var track = FindTrackForSegment(SelectedElement.SegmentId);
+            if (track == null)
+            {
+                LogMessage("Cannot send to back: element has no track");
+                return;
+            }
+
+            _timelineViewModel.ReorderTrack(track, _timelineViewModel.Tracks.Count - 1);
+            RefreshElementZIndices();
+            LogMessage($"Moved {SelectedElement.Name} to back (track reorder)");
         }
 
         /// <summary>
@@ -998,6 +1003,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Stop debounce timer
                 _previewDebounceTimer?.Stop();
+                if (_previewDebounceTimer != null)
+                    _previewDebounceTimer.Tick -= OnPreviewDebounceTimerTick;
 
                 // Unsubscribe from audio player
                 if (_audioPlayerViewModel != null && _audioPlayerPropertyChangedHandler != null)
@@ -1015,8 +1022,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _visualizerViewModel?.StopRendering();
 
                 PropertyEditor?.Dispose();
-                _pendingVideoFrameRequests.Clear();
-                _assetFrameCache.Clear();
                 Elements.Clear();
 
                 Serilog.Log.Debug("CanvasViewModel disposed");
