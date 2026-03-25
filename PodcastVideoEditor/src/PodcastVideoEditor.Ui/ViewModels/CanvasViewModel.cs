@@ -1134,8 +1134,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Validate all element SegmentIds against current project segments.
-        /// Elements referencing non-existent segments, or elements with no SegmentId at all,
-        /// are removed from the canvas — they are orphaned and have no place in the project.
+        /// Elements referencing non-existent segments are removed — they were auto-generated
+        /// to represent a segment that has since been deleted and have no standalone value.
+            /// Elements with SegmentId=null are left untouched when they are intentional global overlays.
+            /// Ghost text overlays left behind by older bugs are removed during the same pass.
         /// </summary>
         private void ValidateElementSegmentIds()
         {
@@ -1152,19 +1154,37 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
             }
 
-            var orphaned = Elements
-                .Where(e => string.IsNullOrEmpty(e.SegmentId) || !validSegmentIds.Contains(e.SegmentId))
-                .ToList();
-
-            foreach (var element in orphaned)
+            var toRemove = new List<CanvasElement>();
+            foreach (var element in Elements)
             {
-                Log.Warning("Removing orphaned canvas element {ElementId} ({Name}) — SegmentId '{SegmentId}' not in project",
-                    element.Id, element.Name, element.SegmentId ?? "<null>");
-                Elements.Remove(element);
+                // Remove elements with stale SegmentId (segment was deleted)
+                if (element.SegmentId != null && !validSegmentIds.Contains(element.SegmentId))
+                {
+                    Log.Warning("Element {ElementId} ({Name}) has stale SegmentId {SegmentId}, removing element",
+                        element.Id, element.Name, element.SegmentId);
+                    toRemove.Add(element);
+                    continue;
+                }
+
+                // Remove ghost TextOverlayElements: orphaned global overlays with empty or
+                // legacy placeholder content (leftover from previous default-value bug).
+                if (element is TextOverlayElement tov
+                    && element.SegmentId == null
+                    && (string.IsNullOrWhiteSpace(tov.Content)
+                        || string.Equals(tov.Content, "Text", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(tov.Content, "Title", StringComparison.OrdinalIgnoreCase)))
+                {
+                    Log.Warning("Removing ghost TextOverlayElement {ElementId} ({Name}) with placeholder Content '{Content}'",
+                        element.Id, element.Name, tov.Content);
+                    toRemove.Add(element);
+                }
             }
 
-            if (orphaned.Count > 0)
-                Log.Information("Removed {Count} orphaned element(s) with stale or missing SegmentId", orphaned.Count);
+            foreach (var element in toRemove)
+                Elements.Remove(element);
+
+            if (toRemove.Count > 0)
+                Log.Information("Removed {Count} orphaned/ghost element(s) during validation", toRemove.Count);
         }
 
     }

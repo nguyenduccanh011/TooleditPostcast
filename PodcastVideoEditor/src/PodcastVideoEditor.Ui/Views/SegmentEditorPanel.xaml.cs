@@ -33,13 +33,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (_viewModel != null)
             {
-                // Subscribe to selected segment changes
+                // Subscribe to selected segment changes (store handler ref for Unloaded cleanup)
                 _viewModelPropertyChangedHandler = (s, args) =>
                 {
                     if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
-                    {
                         UpdateVisibility();
-                    }
                 };
                 _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 

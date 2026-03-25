@@ -473,7 +473,7 @@ namespace PodcastVideoEditor.Core.Models
     public class TextOverlayElement : CanvasElement
     {
         // ── Content ──────────────────────────────────────────────────────────
-        private string _content = "Text";
+        private string _content = "";
         private TextStyle _style = TextStyle.Custom;
 
         // ── Font ─────────────────────────────────────────────────────────────
@@ -745,7 +745,7 @@ namespace PodcastVideoEditor.Core.Models
         public override void ResetToDefault()
         {
             base.ResetToDefault();
-            Content = "Text"; Style = TextStyle.Custom;
+            Content = ""; Style = TextStyle.Custom;
             FontFamily = "Arial"; FontSize = 32; ColorHex = "#FFFFFF";
             IsBold = false; IsItalic = false; IsUnderline = false;
             Alignment = TextAlignment.Center; LineHeight = 1.2; LetterSpacing = 0;

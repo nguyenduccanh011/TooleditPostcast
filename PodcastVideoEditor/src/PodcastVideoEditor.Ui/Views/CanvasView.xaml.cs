@@ -209,6 +209,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             _viewModel?.SelectElement(element);
 
+            // Ensure keyboard focus stays on this control so canvas keyboard shortcuts
+            // (Delete, arrows, Ctrl+D) fire via OnCanvasKeyDown rather than bubbling up
+            // to MainWindow and being misrouted to the timeline.
+            Keyboard.Focus(this);
+
             _dragStartPoint = e.GetPosition(_mainCanvas);
             _originalX = element.X;
             _originalY = element.Y;
