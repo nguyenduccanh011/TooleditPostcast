@@ -376,46 +376,34 @@
                     <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
                         <Border Background="#2d2d2d" />
 
-                        <Canvas Width="{Binding CanvasWidth}"
-                                Height="{Binding CanvasHeight}"
-                                IsHitTestVisible="False"
-                                Panel.ZIndex="0">
-                            <!-- Background image layers: additional visual tracks rendered back to front -->
-                            <ItemsControl ItemsSource="{Binding BackgroundLayers}"
-                                          CacheMode="BitmapCache">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <Canvas/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemContainerStyle>
-                                    <Style TargetType="ContentPresenter">
-                                        <Setter Property="Canvas.Left" Value="{Binding X}"/>
-                                        <Setter Property="Canvas.Top" Value="{Binding Y}"/>
-                                        <Setter Property="Canvas.ZIndex" Value="{Binding ZIndex}"/>
-                                    </Style>
-                                </ItemsControl.ItemContainerStyle>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Width="{Binding Width}"
-                                                Height="{Binding Height}"
-                                                ClipToBounds="True"
-                                                CacheMode="BitmapCache">
-                                            <Image Source="{Binding Image}"
-                                                   Stretch="UniformToFill"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                        <TextBlock Text="No active visual segment"
+                                   Foreground="#cccccc"
+                                   FontStyle="Italic"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Background="#33000000"
+                                   Padding="12,6"
+                                   IsHitTestVisible="False"
+                                   Visibility="{Binding IsVisualPlaceholderVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                            <!-- GPU-accelerated video preview (MediaElement) -->
-                            <!-- Note: Source is set from code-behind, not binding -->
+                        <!-- Unified compositing canvas: ALL visual content (video, images, visualizer, text)
+                             shares a single z-order space via Canvas.ZIndex computed from Track.Order.
+                             Video MediaElement participates in the same z-order as ImageElements etc.
+                             This matches commercial editors (CapCut, Premiere, DaVinci) where moving
+                             a track up/down directly changes its visual stacking in the composite. -->
+                        <Canvas x:Name="MainCanvas"
+                                Background="Transparent"
+                                Width="{Binding CanvasWidth}"
+                                Height="{Binding CanvasHeight}"
+                                MouseDown="OnCanvasMouseDown">
+                            <!-- Video preview: participates in unified z-order -->
                             <Border Canvas.Left="{Binding ActiveVisualX}"
                                     Canvas.Top="{Binding ActiveVisualY}"
+                                    Canvas.ZIndex="{Binding PrimaryVideoZIndex}"
                                     Width="{Binding ActiveVisualWidth}"
                                     Height="{Binding ActiveVisualHeight}"
                                     ClipToBounds="True"
+                                    IsHitTestVisible="False"
                                     Visibility="{Binding IsVideoMode, Converter={StaticResource BoolToVisibilityConverter}}">
                                 <MediaElement x:Name="VideoPreview"
                                               LoadedBehavior="Manual"
@@ -427,57 +415,7 @@
                                               IsHitTestVisible="False"
                                               RenderOptions.BitmapScalingMode="HighQuality"/>
                             </Border>
-
-                            <!-- Static image preview (fallback for frontmost non-video visual) -->
-                            <Border Canvas.Left="{Binding ActiveVisualX}"
-                                    Canvas.Top="{Binding ActiveVisualY}"
-                                    Width="{Binding ActiveVisualWidth}"
-                                    Height="{Binding ActiveVisualHeight}"
-                                    ClipToBounds="True"
-                                    CacheMode="BitmapCache"
-                                    Visibility="{Binding IsVideoMode, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-                                <Image Source="{Binding ActiveVisualImage}"
-                                       Stretch="UniformToFill"
-                                       Width="{Binding ActiveVisualWidth}"
-                                       Height="{Binding ActiveVisualHeight}"
-                                       IsHitTestVisible="False"
-                                       RenderOptions.BitmapScalingMode="HighQuality"/>
-                            </Border>
-                        </Canvas>
-
-                        <TextBlock Text="No active visual segment"
-                                   Foreground="#cccccc"
-                                   FontStyle="Italic"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Background="#33000000"
-                                   Padding="12,6"
-                                   IsHitTestVisible="False"
-                                   Visibility="{Binding IsVisualPlaceholderVisible, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-                        <!-- Multi-text overlays: all active text tracks stacked at bottom -->
-                        <ItemsControl ItemsSource="{Binding ActiveTextOverlays}"
-                                      VerticalAlignment="Bottom"
-                                      IsHitTestVisible="False"
-                                      Visibility="{Binding IsTextOverlayVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="#80000000" Padding="12" Margin="0,2">
-                                        <TextBlock Text="{Binding}"
-                                                   Foreground="White"
-                                                   TextWrapping="Wrap"
-                                                   FontSize="20"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-
-                        <Canvas x:Name="MainCanvas"
-                                Background="Transparent"
-                                Width="{Binding CanvasWidth}"
-                                Height="{Binding CanvasHeight}"
-                                MouseDown="OnCanvasMouseDown"
-                                Panel.ZIndex="10">
+                            <!-- All other elements: images, visualizers, text, logos -->
                             <ItemsControl ItemsSource="{Binding Elements}"
                                          ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
                                 <ItemsControl.ItemContainerStyle>

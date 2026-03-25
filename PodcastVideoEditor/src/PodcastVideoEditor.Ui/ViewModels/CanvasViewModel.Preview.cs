@@ -17,6 +17,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private DispatcherTimer? _previewDebounceTimer;
         private const int PreviewDebounceMs = 30; // coalesce changes within 30ms window
 
+        private void OnPreviewDebounceTimerTick(object? sender, EventArgs e)
+        {
+            _previewDebounceTimer?.Stop();
+            UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
+        }
+
         private void ScheduleDebouncedPreviewUpdate()
         {
             if (_previewDebounceTimer == null)
@@ -25,11 +31,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     Interval = TimeSpan.FromMilliseconds(PreviewDebounceMs)
                 };
-                _previewDebounceTimer.Tick += (_, _) =>
-                {
-                    _previewDebounceTimer.Stop();
-                    UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
-                };
+                _previewDebounceTimer.Tick += OnPreviewDebounceTimerTick;
             }
             _previewDebounceTimer.Stop();
             _previewDebounceTimer.Start();
@@ -126,9 +128,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             if (e.PropertyName == nameof(ProjectViewModel.CurrentProject))
             {
-                _assetFrameCache.Clear();
                 InvalidateAssetLookup();
-                ClearActiveVisualCache();
                 UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
             }
         }
@@ -212,7 +212,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (e.PropertyName == nameof(Segment.BackgroundAssetId))
             {
-                ClearActiveVisualCache();
                 ScheduleDebouncedPreviewUpdate();
                 return;
             }
@@ -416,7 +415,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             var active = _timelineViewModel.GetActiveSegmentsAtTime(playheadSeconds);
 
-            // --- Collect ALL visual and text segments (multi-track composite) ---
+            // --- Classify active segments by track type ---
             // GetActiveSegmentsAtTime already filters by Track.IsVisible and sorts by Track.Order (0=front)
             var visualPairs = new List<(Track track, Segment segment)>();
             var textPairs = new List<(Track track, Segment segment)>();
@@ -427,13 +426,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     visualPairs.Add(pair);
                 else if (string.Equals(pair.track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
                     textPairs.Add(pair);
-                // Audio type segments are not visual — skip for preview rendering
+                // Effect / Audio segments: not classified here, but their CanvasElements
+                // (VisualizerElement etc.) are managed via UpdateElementVisibility below.
             }
 
-            // --- Multi-text composite ---
-            // Auto-create interactive TextElement for any text segment that doesn't have one yet.
-            // This ensures text always renders as a draggable/resizable canvas element,
-            // never as the legacy read-only overlay at the bottom.
+            // --- Auto-create TextElements for text segments ---
             foreach (var tp in textPairs)
             {
                 if (string.IsNullOrWhiteSpace(tp.segment.Text))
@@ -445,27 +442,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     EnsureTextElementForSegment(tp.segment);
             }
 
-            // Read-only overlay is no longer used — all text renders via interactive elements.
-            ActiveTextOverlays.Clear();
-            IsTextOverlayVisible = false;
+            // --- Unified visual composite: auto-create ImageElements for ALL visual segments ---
+            // This replaces the old BackgroundLayers + ActiveVisualImage dual-path rendering.
+            // All images now live in the Elements collection, sharing a single z-order space
+            // with VisualizerElements, TextElements, etc. Track.Order controls stacking.
+            foreach (var vp in visualPairs)
+            {
+                EnsureImageElementForVisualSegment(vp.track, vp.segment);
+            }
 
-            // Legacy single-text properties (kept for backward compatibility)
-            var primaryTextPair = textPairs.Count > 0 ? textPairs[0] : default;
-            ActiveTextSegment = primaryTextPair.segment;
-            ActiveTextContent = textPairs.Count > 0
-                ? string.Join("\n", textPairs.Where(tp => !string.IsNullOrWhiteSpace(tp.segment.Text)).Select(tp => tp.segment.Text))
-                : string.Empty;
-
-            // --- Multi-visual composite: iterate visual tracks by z-order ---
-            // Strategy: frontmost video → MediaElement; other images → BackgroundLayers
             var primaryVisualPair = visualPairs.Count > 0 ? visualPairs[0] : default;
             ActiveVisualSegment = primaryVisualPair.segment;
-            SetActiveVisualLayout(primaryVisualPair.track?.ImageLayoutPreset);
 
+            // --- Video handling: MediaElement for the frontmost video segment ---
             bool videoHandled = false;
-            BackgroundLayers.Clear();
-
-            // Try to find a video asset in the frontmost visual segment
             if (primaryVisualPair.segment != null && !string.IsNullOrWhiteSpace(primaryVisualPair.segment.BackgroundAssetId))
             {
                 var asset = FindAssetById(primaryVisualPair.segment.BackgroundAssetId);
@@ -485,6 +475,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                             VideoPosition = TimeSpan.FromSeconds(Math.Max(0, segmentOffset));
                             IsVideoMode = true;
                             videoHandled = true;
+
+                            // Compute video z-index from track order for unified compositing
+                            SetActiveVisualLayout(primaryVisualPair.track?.ImageLayoutPreset);
+                            PrimaryVideoZIndex = ComputeZIndexForTrack(primaryVisualPair.track);
                         }
                         catch (Exception ex)
                         {
@@ -500,72 +494,57 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 VideoSource = null;
             }
 
-            // Load image layers for all visual segments (skip the one handled as video)
-            // Add from back to front: highest Order (background) first in collection
-            for (int i = visualPairs.Count - 1; i >= 0; i--)
-            {
-                var (track, segment) = visualPairs[i];
+            // Determine placeholder visibility
+            bool hasAnyVisual = visualPairs.Count > 0 || IsVideoMode ||
+                Elements.Any(e => e is ImageElement || e is VisualizerElement);
+            IsVisualPlaceholderVisible = !hasAnyVisual;
 
-                // If this is the primary video segment already handled by MediaElement, skip
-                if (videoHandled && i == 0)
-                    continue;
-
-                if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
-                    continue;
-
-                // If an interactive ImageElement exists for this segment, skip background rendering.
-                // The element renders the image on the interactive canvas layer instead.
-                if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
-                    continue;
-
-                var layerAsset = FindAssetById(segment.BackgroundAssetId);
-                if (layerAsset == null)
-                    continue;
-
-                var layerFrame = LoadFrameForAsset(layerAsset, segment, playheadSeconds);
-                var layer = CreatePreviewLayer(layerFrame, track);
-                if (layer != null)
-                    BackgroundLayers.Add(layer);
-            }
-
-            // Legacy single-image property: set to frontmost non-video visual (or null)
-            // Skip if the primary segment has a linked canvas element (it renders via interactive layer).
-            if (!videoHandled && visualPairs.Count > 0)
-            {
-                var primarySeg = primaryVisualPair.segment;
-                bool primaryHasElement = primarySeg != null &&
-                    Elements.Any(e => string.Equals(e.SegmentId, primarySeg.Id, StringComparison.Ordinal));
-
-                if (primaryHasElement)
-                {
-                    ActiveVisualImage = null;
-                }
-                else
-                {
-                    var frontAsset = FindAssetById(primarySeg?.BackgroundAssetId);
-                    ActiveVisualImage = frontAsset != null
-                        ? LoadFrameForAsset(frontAsset, primarySeg!, playheadSeconds)
-                        : null;
-                }
-            }
-            else if (!videoHandled)
-            {
-                ActiveVisualImage = null;
-            }
-
-            IsVisualPlaceholderVisible = ActiveVisualSegment == null && BackgroundLayers.Count == 0 && !IsVideoMode;
             UpdateElementVisibility(active);
         }
 
-        private PreviewVisualLayer? CreatePreviewLayer(BitmapSource? image, Track? track)
+        /// <summary>
+        /// Auto-create an ImageElement for a visual-track segment that has no linked canvas element,
+        /// so images participate in the unified z-order alongside VisualizerElements and other elements.
+        /// Video assets are skipped (handled by the MediaElement path).
+        /// </summary>
+        private void EnsureImageElementForVisualSegment(Track track, Segment segment)
         {
-            if (image == null)
-                return null;
+            // Already has a linked canvas element
+            if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
+                return;
 
-            var preset = track?.ImageLayoutPreset ?? ImageLayoutPresets.FullFrame;
-            var (x, y, width, height) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(preset, CanvasWidth, CanvasHeight);
-            var zIndex = ComputeZIndexForTrack(track);
-            return new PreviewVisualLayer(image, x, y, width, height, zIndex);
+            if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+                return;
+
+            var asset = FindAssetById(segment.BackgroundAssetId);
+            if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath))
+                return;
+
+            // Video assets are rendered via MediaElement, not ImageElement
+            if (IsVideoAsset(asset))
+                return;
+
+            // Audio assets are not visual
+            if (string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var preset = track.ImageLayoutPreset ?? ImageLayoutPresets.FullFrame;
+            var (x, y, w, h) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(preset, CanvasWidth, CanvasHeight);
+
+            var element = new ImageElement
+            {
+                Name = asset.Name ?? Path.GetFileNameWithoutExtension(asset.FilePath) ?? "Image",
+                FilePath = asset.FilePath,
+                X = x,
+                Y = y,
+                Width = w,
+                Height = h,
+                ZIndex = ComputeZIndexForTrack(track),
+                SegmentId = segment.Id
+            };
+
+            Elements.Add(element);
+            Serilog.Log.Debug("Auto-created ImageElement for unified compositing: segment {SegId}", segment.Id);
         }
 
         private void SetActiveVisualLayout(string? preset)
@@ -635,42 +614,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private void ClearActivePreview()
         {
-            ActiveVisualImage = null;
             VideoSource = null;
             IsVideoMode = false;
-            ActiveTextContent = string.Empty;
             ActiveVisualSegment = null;
-            ActiveTextSegment = null;
-            IsTextOverlayVisible = false;
             IsVisualPlaceholderVisible = true;
-            SetActiveVisualLayout(ImageLayoutPresets.FullFrame);
-            BackgroundLayers.Clear();
-            ActiveTextOverlays.Clear();
         }
-    }
-
-    public sealed class PreviewVisualLayer
-    {
-        public PreviewVisualLayer(BitmapSource image, double x, double y, double width, double height, int zIndex = 0)
-        {
-            Image = image;
-            X = x;
-            Y = y;
-            Width = width;
-            Height = height;
-            ZIndex = zIndex;
-        }
-
-        public BitmapSource Image { get; }
-
-        public double X { get; }
-
-        public double Y { get; }
-
-        public double Width { get; }
-
-        public double Height { get; }
-
-        public int ZIndex { get; }
     }
 }
