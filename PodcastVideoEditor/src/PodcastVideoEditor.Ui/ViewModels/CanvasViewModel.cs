@@ -233,7 +233,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
             Elements.Add(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             Log.Information("Auto-created ImageElement for visual segment {SegmentId}", segmentId);
             return element;
         }
@@ -356,7 +355,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
             Elements.Add(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
             Log.Information("Auto-created TextOverlayElement for text segment {SegmentId}", segmentId);
             return element;
         }
@@ -465,18 +463,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _isCreatingElement = true;
             try
             {
-                Segment? segment = newTrack
-                    ? _timelineViewModel?.CreateSegmentOnNewTrack(trackType, element.Name, duration ?? 5.0)
-                    : _timelineViewModel?.CreateSegmentForElement(trackType, element.Name, duration ?? 5.0);
+                if (_timelineViewModel == null)
+                {
+                    LogMessage("Cannot add element: no project loaded");
+                    return null;
+                }
 
-                if (segment != null)
-                    element.SegmentId = segment.Id;
-                element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
+                Segment? segment = newTrack
+                    ? _timelineViewModel.CreateSegmentOnNewTrack(trackType, element.Name, duration ?? 5.0)
+                    : _timelineViewModel.CreateSegmentForElement(trackType, element.Name, duration ?? 5.0);
+
+                if (segment == null)
+                    return null; // Segment creation failed (collision or no active project)
+
+                element.SegmentId = segment.Id;
+                element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id));
 
                 Elements.Add(element);
                 SelectElement(element);
                 _undoRedo?.Record(new ElementAddedAction(Elements, element));
-                LogMessage($"Added {element.Type} element{(segment != null ? " + timeline segment" : "")}");
+                LogMessage($"Added {element.Type} element + timeline segment");
                 return segment;
             }
             finally

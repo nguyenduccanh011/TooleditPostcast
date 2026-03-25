@@ -730,7 +730,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             double startTime = SnapToGrid(PlayheadPosition);
             double endTime = SnapToGrid(startTime + duration);
 
-            var newSegment = BuildSegment(targetTrack, startTime, endTime, trackType, text);
+            string kind = trackType.ToLowerInvariant() switch
+            {
+                TrackTypes.Audio  => SegmentKinds.Audio,
+                TrackTypes.Effect => SegmentKinds.Effect,
+                TrackTypes.Text   => SegmentKinds.Text,
+                _                 => SegmentKinds.Visual
+            };
+            var newSegment = BuildSegment(targetTrack, startTime, endTime, kind, text);
 
             if (!CommitSegmentToTrack(targetTrack, newSegment, $"Created element segment"))
                 return null;
@@ -757,7 +764,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             double startTime = SnapToGrid(PlayheadPosition);
             double endTime   = SnapToGrid(startTime + duration);
 
-            var newSegment = BuildSegment(newTrack, startTime, endTime, trackType, text);
+            string kind = trackType.ToLowerInvariant() switch
+            {
+                TrackTypes.Audio  => SegmentKinds.Audio,
+                TrackTypes.Effect => SegmentKinds.Effect,
+                TrackTypes.Text   => SegmentKinds.Text,
+                _                 => SegmentKinds.Visual
+            };
+            var newSegment = BuildSegment(newTrack, startTime, endTime, kind, text);
             if (!CommitSegmentToTrack(newTrack, newSegment, $"Created element segment on new track"))
                 return null;
 
