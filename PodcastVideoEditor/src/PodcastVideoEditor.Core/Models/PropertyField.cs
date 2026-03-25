@@ -76,9 +76,14 @@ namespace PodcastVideoEditor.Core.Models
         public IReadOnlyList<object>? EnumValues { get; set; }
 
         /// <summary>
-        /// Whether this property is read-only.
+        /// Group name for section headers (e.g. "Appearance", "Audio Response").
+        /// Null or empty means ungrouped. Alias for Group.
         /// </summary>
-        public bool IsReadOnly { get; set; }
+        public string? GroupName
+        {
+            get => Group;
+            set => Group = value ?? string.Empty;
+        }
     }
 
     /// <summary>

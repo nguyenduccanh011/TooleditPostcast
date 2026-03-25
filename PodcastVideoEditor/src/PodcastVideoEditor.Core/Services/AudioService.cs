@@ -136,7 +136,7 @@ namespace PodcastVideoEditor.Core.Services
                         if (_audioFileReader != null)
                             _audioFileReader.CurrentTime = TimeSpan.Zero;
                     }
-                    catch { /* ignore */ }
+                    catch (Exception ex) { Serilog.Log.Debug(ex, "Failed to stop/reset player before audio reload"); }
 
                     // Cleanup previous audio (including any active segment mixer inputs)
                     StopSegmentAudio();

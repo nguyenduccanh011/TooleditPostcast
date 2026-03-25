@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -18,6 +19,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// </summary>
     public partial class PropertyEditorViewModel : ObservableObject, IDisposable
     {
+        // Reflection cache: per element type, cache the list of property descriptors
+        private static readonly ConcurrentDictionary<Type, List<CachedPropertyDescriptor>> _reflectionCache = new();
+
+        private sealed class CachedPropertyDescriptor
+        {
+            public required PropertyInfo PropertyInfo { get; init; }
+            public required PropertyMetadataAttribute? Metadata { get; init; }
+            public required string DisplayName { get; init; }
+        }
+
         private static readonly string[] ExcludedProperties = { "Id", "Type", "CreatedAt", "IsSelected" };
 
         // Property name → (Group, SortOrder, VisibilityToggle)
@@ -117,6 +128,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private string headerText = "Element Properties";
 
+        /// <summary>
+        /// Compact timing badge text (e.g. "3.0s – 7.2s") when element is bound to a segment.
+        /// Null when element has no segment binding.
+        /// </summary>
+        [ObservableProperty]
+        private string? segmentTimingText;
+
+        /// <summary>
+        /// Segment that this element is bound to (via SegmentId). Used for timing badge display.
+        /// </summary>
+        private Segment? _boundSegment;
+
         private CanvasElement? _subscribedElement;
         private bool _disposed;
         private UndoRedoService? _undoRedo;
@@ -128,6 +151,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>Wire undo/redo. Called from CanvasViewModel after construction.</summary>
         public void SetUndoRedoService(UndoRedoService? service) => _undoRedo = service;
+
+        /// <summary>
+        /// Set the bound segment for timing badge display.
+        /// Call after SetSelectedElement when the element has a SegmentId.
+        /// </summary>
+        public void SetBoundSegment(Segment? segment)
+        {
+            if (_boundSegment != null)
+                _boundSegment.PropertyChanged -= OnBoundSegmentPropertyChanged;
+
+            _boundSegment = segment;
+
+            if (segment != null)
+            {
+                segment.PropertyChanged += OnBoundSegmentPropertyChanged;
+                UpdateTimingText(segment);
+            }
+            else
+            {
+                SegmentTimingText = null;
+            }
+        }
+
+        private void OnBoundSegmentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (sender is Segment seg && e.PropertyName is nameof(Segment.StartTime) or nameof(Segment.EndTime))
+                UpdateTimingText(seg);
+        }
+
+        private void UpdateTimingText(Segment segment)
+        {
+            SegmentTimingText = $"{segment.StartTime:F1}s \u2013 {segment.EndTime:F1}s  ({segment.SegmentDisplayDuration:F1}s)";
+        }
 
         /// <summary>
         /// Call when CanvasViewModel.SelectedElement changes.
@@ -145,6 +201,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Properties.Clear();
                 PropertyGroups.Clear();
                 HeaderText = "Element Properties";
+                SetBoundSegment(null);
                 return;
             }
 
@@ -202,10 +259,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
 
                 // Sync VisualizerElement config changes to VisualizerViewModel
-                if (field.SourceElement is VisualizerElement ve &&
-                    prop.Name is "Style" or "ColorPalette" or "BandCount"
-                               or "SmoothingFactor" or "ShowPeaks" or "SymmetricMode"
-                               or "PeakHoldTime" or "BarWidth" or "BarSpacing")
+                if (field.SourceElement is VisualizerElement ve)
                 {
                     OnVisualizerElementConfigChanged?.Invoke(ve);
                 }
@@ -219,26 +273,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private void BuildPropertyFields(CanvasElement element)
         {
             ClearPropertySubscriptions();
-            var type = element.GetType();
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead && p.CanWrite && !ExcludedProperties.Contains(p.Name));
+            var descriptors = GetCachedDescriptors(element.GetType());
 
             Properties.Clear();
             PropertyGroups.Clear();
 
             var groupDict = new Dictionary<string, PropertyGroupViewModel>();
 
-            foreach (var prop in props)
+            foreach (var desc in descriptors)
             {
-                var field = CreatePropertyField(element, prop);
+                var field = CreatePropertyField(element, desc);
                 if (field != null)
                 {
-                    // Assign group metadata
-                    if (PropertyGroupMap.TryGetValue(prop.Name, out var meta))
+                    // Determine group: attribute > PropertyGroupMap > "General"
+                    if (field.GroupName != null)
                     {
-                        field.Group = meta.Group;
-                        field.SortOrder = meta.Sort;
-                        field.VisibilityToggle = meta.Toggle;
+                        field.Group = field.GroupName;
+                    }
+                    else if (PropertyGroupMap.TryGetValue(desc.PropertyInfo.Name, out var mapMeta))
+                    {
+                        field.Group = mapMeta.Group;
+                        field.SortOrder = mapMeta.Sort;
+                        field.VisibilityToggle = mapMeta.Toggle;
                     }
                     else
                     {
@@ -274,6 +330,27 @@ namespace PodcastVideoEditor.Ui.ViewModels
             UpdateToggleVisibility(element);
         }
 
+        private static List<CachedPropertyDescriptor> GetCachedDescriptors(Type type)
+        {
+            return _reflectionCache.GetOrAdd(type, t =>
+            {
+                var props = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(p => p.CanRead && p.CanWrite && p.GetCustomAttribute<EditorHiddenAttribute>() == null);
+
+                var list = new List<CachedPropertyDescriptor>();
+                foreach (var p in props)
+                {
+                    list.Add(new CachedPropertyDescriptor
+                    {
+                        PropertyInfo = p,
+                        Metadata = p.GetCustomAttribute<PropertyMetadataAttribute>(),
+                        DisplayName = FormatPropertyName(p.Name)
+                    });
+                }
+                return list;
+            });
+        }
+
         /// <summary>
         /// Updates IsFieldVisible for all fields that have a VisibilityToggle,
         /// based on the current boolean value of the toggle property.
@@ -298,17 +375,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
             ApplyValueToElement(field, field.Value);
         }
 
-        private static PropertyField? CreatePropertyField(CanvasElement element, PropertyInfo prop)
+        private static PropertyField? CreatePropertyField(CanvasElement element, CachedPropertyDescriptor desc)
         {
+            var prop = desc.PropertyInfo;
+            var meta = desc.Metadata;
             var propType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
             var value = prop.GetValue(element);
 
             var field = new PropertyField
             {
-                Name = FormatPropertyName(prop.Name),
+                Name = desc.DisplayName,
                 Value = value,
                 PropertyInfo = prop,
-                SourceElement = element
+                SourceElement = element,
+                GroupName = meta?.Group,
+                SortOrder = meta?.Order ?? 600
             };
 
             if (propType == typeof(bool))
@@ -318,7 +399,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             else if (propType == typeof(int))
             {
                 field.FieldType = PropertyFieldType.Int;
-                if (prop.Name == "BandCount")
+                if (meta?.IsSlider == true)
+                {
+                    field.MinValue = meta.MinValue;
+                    field.MaxValue = meta.MaxValue;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "BandCount")
                 {
                     field.MinValue = 32;
                     field.MaxValue = 128;
@@ -335,7 +422,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 field.FieldType = PropertyFieldType.Float;
                 field.Value = (double)(float)(value ?? 0f);
-                if (prop.Name == "SmoothingFactor")
+                if (meta?.IsSlider == true)
+                {
+                    field.MinValue = meta.MinValue;
+                    field.MaxValue = meta.MaxValue;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "SmoothingFactor")
                 {
                     field.MinValue = 0;
                     field.MaxValue = 1;
@@ -375,7 +468,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             else if (propType == typeof(double))
             {
                 field.FieldType = PropertyFieldType.Float;
-                if (prop.Name == "FontSize")
+                if (meta?.IsSlider == true)
+                {
+                    field.MinValue = meta.MinValue;
+                    field.MaxValue = meta.MaxValue;
+                    field.FieldType = PropertyFieldType.Slider;
+                }
+                else if (prop.Name == "FontSize")
                 {
                     field.MinValue = 8;
                     field.MaxValue = 200;
@@ -413,9 +512,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
             else if (propType == typeof(string))
             {
-                if (prop.Name is "ColorHex" or "ShadowColorHex" or "OutlineColorHex" or "BackgroundColorHex")
+                if (meta?.IsColor == true || prop.Name is "ColorHex" or "ShadowColorHex" or "OutlineColorHex" or "BackgroundColorHex" or "PrimaryColorHex")
                     field.FieldType = PropertyFieldType.Color;
-                else if (prop.Name is "Text" or "Content")
+                else if (meta?.IsTextArea == true || prop.Name is "Text" or "Content")
                     field.FieldType = PropertyFieldType.TextArea;
                 else
                     field.FieldType = PropertyFieldType.String;
@@ -523,6 +622,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             _disposed = true;
             UnsubscribeFromElement();
+            SetBoundSegment(null);
             ClearPropertySubscriptions();
             Properties.Clear();
             PropertyGroups.Clear();

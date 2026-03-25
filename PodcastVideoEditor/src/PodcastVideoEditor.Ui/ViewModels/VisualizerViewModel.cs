@@ -6,6 +6,7 @@ using Serilog;
 using SkiaSharp.Views.Desktop;
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 
@@ -14,11 +15,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// <summary>
     /// ViewModel for visualizer control and settings.
     /// </summary>
-    public partial class VisualizerViewModel : ObservableObject
+    public partial class VisualizerViewModel : ObservableObject, IDisposable
     {
         private readonly IAudioTimelinePreviewService _audioService;
         private readonly VisualizerService _visualizerService;
         private bool _isInitialized;
+        private PropertyChangedEventHandler? _selfPropertyChangedHandler;
 
         [ObservableProperty]
         private VisualizerConfig currentConfig;
@@ -106,7 +108,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
             // Wire up property changes to refresh visualizer config
-            PropertyChanged += (s, e) => HandleViewModelPropertyChanged(e.PropertyName);
+            _selfPropertyChangedHandler = (s, e) => HandleViewModelPropertyChanged(e.PropertyName);
+            PropertyChanged += _selfPropertyChangedHandler;
 
             Log.Information("VisualizerViewModel initialized");
         }
@@ -284,6 +287,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public void Dispose()
         {
+            if (_selfPropertyChangedHandler != null)
+                PropertyChanged -= _selfPropertyChangedHandler;
             _visualizerService?.Dispose();
             Log.Information("VisualizerViewModel disposed");
         }

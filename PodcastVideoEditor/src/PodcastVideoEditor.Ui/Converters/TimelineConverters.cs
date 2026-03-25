@@ -322,7 +322,7 @@ namespace PodcastVideoEditor.Ui.Converters
                                             bmp.Freeze();
                                             s_cache.Add(capturedKey, bmp);
                                         }
-                                        catch { }
+                                        catch (Exception ex) { Serilog.Log.Debug(ex, "Thumbnail load failed for {Key}", capturedKey); }
                                     });
                                 }
                                 finally
@@ -685,7 +685,7 @@ namespace PodcastVideoEditor.Ui.Converters
                             bmp.Freeze();
                             s_frameCache.Add(cacheKey, bmp);
                         }
-                        catch { /* ignore load errors */ }
+                        catch (Exception ex) { Serilog.Log.Debug(ex, "Video frame load failed for {Key}", cacheKey); }
                     });
                 }
                 finally

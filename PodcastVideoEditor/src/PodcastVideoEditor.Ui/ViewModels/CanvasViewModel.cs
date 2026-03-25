@@ -286,6 +286,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Find a segment by its ID across all tracks.
+        /// </summary>
+        private Segment? FindSegmentById(string? segmentId)
+        {
+            if (string.IsNullOrEmpty(segmentId) || _timelineViewModel == null)
+                return null;
+
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                var seg = track.Segments?.FirstOrDefault(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal));
+                if (seg != null)
+                    return seg;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Returns an existing TextOverlayElement for the given segment, or creates one if none exists.
         /// Used both by preview pipeline and timeline-segment-selection to ensure a single
         /// code path for text element creation, eliminating duplication.
@@ -642,6 +659,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 element.IsSelected = true;
                 SelectedElement = element;
                 PropertyEditor.SetSelectedElement(element);
+                // Wire timing badge: find bound segment for this element
+                PropertyEditor.SetBoundSegment(FindSegmentById(element.SegmentId));
                 if (element is VisualizerElement ve)
                     SyncVisualizerFromElement(ve);
 

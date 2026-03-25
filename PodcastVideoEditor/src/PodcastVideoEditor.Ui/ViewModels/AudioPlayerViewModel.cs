@@ -15,7 +15,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// ViewModel for audio player functionality with MVVM pattern.
     /// Handles UI state and commands for audio playback control.
     /// </summary>
-    public partial class AudioPlayerViewModel : ObservableObject
+    public partial class AudioPlayerViewModel : ObservableObject, IDisposable
     {
         private readonly IAudioPlaybackService _audioService;
         private System.Timers.Timer? _positionUpdateTimer;
@@ -328,6 +328,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public void Dispose()
         {
+            _audioService.PlaybackStarted -= OnPlaybackStarted;
+            _audioService.PlaybackPaused -= OnPlaybackPaused;
+            _audioService.PlaybackStopped -= OnPlaybackStopped;
             _positionUpdateTimer?.Dispose();
             _audioService?.Dispose();
         }
