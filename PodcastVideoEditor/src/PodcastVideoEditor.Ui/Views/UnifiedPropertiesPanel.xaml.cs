@@ -6,8 +6,10 @@ using PodcastVideoEditor.Ui.ViewModels;
 namespace PodcastVideoEditor.Ui.Views;
 
 /// <summary>
-/// Unified properties panel: shows Segment properties or Element properties based on selection.
-/// Priority: Segment (timeline) > Element (canvas). DataContext should be MainViewModel.
+/// Unified properties panel: element-centric design (like CapCut/Premiere).
+/// When a segment has a linked element → show element properties only (timing shown as badge).
+/// SegmentEditorPanel is a fallback for segments without linked elements (e.g. bare audio).
+/// DataContext should be MainViewModel.
 /// </summary>
 public partial class UnifiedPropertiesPanel : UserControl
 {
@@ -74,16 +76,17 @@ public partial class UnifiedPropertiesPanel : UserControl
         SegmentPanel.Visibility    = Visibility.Collapsed;
         ElementPanel.Visibility    = Visibility.Collapsed;
 
-        if (hasSegment)
+        if (hasElement)
         {
-            // Segment selected → show segment props, and if it has a linked element show element props below
-            SegmentPanel.Visibility = Visibility.Visible;
-            ElementPanel.Visibility = hasElement ? Visibility.Visible : Visibility.Collapsed;
-        }
-        else if (hasElement)
-        {
-            // Element selected standalone (no segment) → show only element properties
+            // Element selected (via canvas or linked segment) → show element properties only.
+            // Timing is shown as a badge inside PropertyEditorView (SegmentTimingText).
+            // This matches CapCut/Premiere: properties panel shows only the element's properties.
             ElementPanel.Visibility = Visibility.Visible;
+        }
+        else if (hasSegment)
+        {
+            // Segment without linked element (e.g. bare audio/visual) → show segment fallback panel
+            SegmentPanel.Visibility = Visibility.Visible;
         }
         else if (hasTrack)
         {

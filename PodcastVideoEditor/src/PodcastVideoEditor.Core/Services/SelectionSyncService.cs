@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using Serilog;
 
 namespace PodcastVideoEditor.Core.Services;
 
@@ -8,6 +9,7 @@ namespace PodcastVideoEditor.Core.Services;
 /// When a segment is selected on the timeline, linked canvas elements are highlighted.
 /// When an element is selected on the canvas, its linked segment is highlighted on the timeline.
 /// Prevents circular event loops via a guard flag.
+/// Invokes each subscriber in a try/catch so one bad subscriber cannot break the chain.
 /// </summary>
 public class SelectionSyncService
 {
@@ -36,7 +38,7 @@ public class SelectionSyncService
         _isSyncing = true;
         try
         {
-            TimelineSelectionChanged?.Invoke(segmentId, playheadInRange);
+            InvokeEach(TimelineSelectionChanged, handler => handler(segmentId, playheadInRange));
         }
         finally
         {
@@ -55,11 +57,32 @@ public class SelectionSyncService
         _isSyncing = true;
         try
         {
-            CanvasSelectionChanged?.Invoke(segmentId);
+            InvokeEach(CanvasSelectionChanged, handler => handler(segmentId));
         }
         finally
         {
             _isSyncing = false;
+        }
+    }
+
+    /// <summary>
+    /// Invoke each subscriber individually so one exception doesn't break the chain.
+    /// </summary>
+    private static void InvokeEach<T>(T? multicastDelegate, Action<T> invoke) where T : Delegate
+    {
+        if (multicastDelegate == null)
+            return;
+
+        foreach (var d in multicastDelegate.GetInvocationList())
+        {
+            try
+            {
+                invoke((T)d);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "SelectionSyncService: subscriber threw exception");
+            }
         }
     }
 }

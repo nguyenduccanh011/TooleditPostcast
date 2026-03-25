@@ -18,15 +18,15 @@ public class Element
     /// <summary>
     /// Element type: Title, Logo, ScriptText, Visualizer, Image, Video, Shape
     /// </summary>
-    public string Type { get; set; } = "Title";
+    public string Type { get; set; } = "TextOverlay";
 
     /// <summary>
-    /// X position (0-1 normalized, or pixel)
+    /// X position in pixels.
     /// </summary>
     public double X { get; set; }
 
     /// <summary>
-    /// Y position (0-1 normalized, or pixel)
+    /// Y position in pixels.
     /// </summary>
     public double Y { get; set; }
 

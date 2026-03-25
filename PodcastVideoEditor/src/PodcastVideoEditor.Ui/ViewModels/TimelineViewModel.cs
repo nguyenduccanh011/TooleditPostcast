@@ -21,7 +21,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     /// ViewModel for timeline editing - manages segments and playhead sync.
     /// ST-9: Timeline Editor & Segment Manager
     /// </summary>
-    public partial class TimelineViewModel : ObservableObject
+    public partial class TimelineViewModel : ObservableObject, IDisposable
     {
         private readonly IAudioTimelinePreviewService _audioService;
         private readonly ProjectViewModel _projectViewModel;

@@ -51,6 +51,12 @@ public sealed class PropertyMetadataAttribute : Attribute
     /// If true, string property is rendered as PropertyFieldType.TextArea.
     /// </summary>
     public bool IsTextArea { get; set; }
+
+    /// <summary>
+    /// Name of a boolean property on the same element that controls this field's visibility.
+    /// When the toggle property is false, this field is hidden. E.g. "HasShadow" hides shadow sub-properties.
+    /// </summary>
+    public string? VisibilityToggle { get; set; }
 }
 
 /// <summary>

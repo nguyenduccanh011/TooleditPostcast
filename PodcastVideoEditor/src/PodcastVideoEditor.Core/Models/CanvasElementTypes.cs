@@ -604,21 +604,21 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _hasShadow, value);
         }
 
-        [PropertyMetadata(Group = "👤 Shadow", Order = 201, IsColor = true)]
+        [PropertyMetadata(Group = "👤 Shadow", Order = 201, IsColor = true, VisibilityToggle = "HasShadow")]
         public string ShadowColorHex
         {
             get => _shadowColorHex;
             set => SetProperty(ref _shadowColorHex, value ?? "#000000");
         }
 
-        [PropertyMetadata(Group = "👤 Shadow", Order = 202, IsSlider = true, MinValue = -20, MaxValue = 20)]
+        [PropertyMetadata(Group = "👤 Shadow", Order = 202, IsSlider = true, MinValue = -20, MaxValue = 20, VisibilityToggle = "HasShadow")]
         public float ShadowOffsetX
         {
             get => _shadowOffsetX;
             set => SetProperty(ref _shadowOffsetX, value);
         }
 
-        [PropertyMetadata(Group = "👤 Shadow", Order = 203, IsSlider = true, MinValue = -20, MaxValue = 20)]
+        [PropertyMetadata(Group = "👤 Shadow", Order = 203, IsSlider = true, MinValue = -20, MaxValue = 20, VisibilityToggle = "HasShadow")]
         public float ShadowOffsetY
         {
             get => _shadowOffsetY;
@@ -626,7 +626,7 @@ namespace PodcastVideoEditor.Core.Models
         }
 
         /// <summary>Shadow blur sigma (0 = sharp, higher = softer).</summary>
-        [PropertyMetadata(Group = "👤 Shadow", Order = 204, IsSlider = true, MinValue = 0, MaxValue = 25)]
+        [PropertyMetadata(Group = "👤 Shadow", Order = 204, IsSlider = true, MinValue = 0, MaxValue = 25, VisibilityToggle = "HasShadow")]
         public float ShadowBlur
         {
             get => _shadowBlur;
@@ -642,14 +642,14 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _hasOutline, value);
         }
 
-        [PropertyMetadata(Group = "□ Outline", Order = 301, IsColor = true)]
+        [PropertyMetadata(Group = "□ Outline", Order = 301, IsColor = true, VisibilityToggle = "HasOutline")]
         public string OutlineColorHex
         {
             get => _outlineColorHex;
             set => SetProperty(ref _outlineColorHex, value ?? "#000000");
         }
 
-        [PropertyMetadata(Group = "□ Outline", Order = 302, IsSlider = true, MinValue = 0.5, MaxValue = 20)]
+        [PropertyMetadata(Group = "□ Outline", Order = 302, IsSlider = true, MinValue = 0.5, MaxValue = 20, VisibilityToggle = "HasOutline")]
         public float OutlineThickness
         {
             get => _outlineThickness;
@@ -665,28 +665,28 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _hasBackground, value);
         }
 
-        [PropertyMetadata(Group = "🟦 Background", Order = 401, IsColor = true)]
+        [PropertyMetadata(Group = "🟦 Background", Order = 401, IsColor = true, VisibilityToggle = "HasBackground")]
         public string BackgroundColorHex
         {
             get => _backgroundColorHex;
             set => SetProperty(ref _backgroundColorHex, value ?? "#000000");
         }
 
-        [PropertyMetadata(Group = "🟦 Background", Order = 402, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        [PropertyMetadata(Group = "🟦 Background", Order = 402, IsSlider = true, MinValue = 0, MaxValue = 1, VisibilityToggle = "HasBackground")]
         public double BackgroundOpacity
         {
             get => _backgroundOpacity;
             set => SetProperty(ref _backgroundOpacity, Math.Clamp(value, 0.0, 1.0));
         }
 
-        [PropertyMetadata(Group = "🟦 Background", Order = 403, IsSlider = true, MinValue = 0, MaxValue = 100)]
+        [PropertyMetadata(Group = "🟦 Background", Order = 403, IsSlider = true, MinValue = 0, MaxValue = 100, VisibilityToggle = "HasBackground")]
         public double BackgroundPadding
         {
             get => _backgroundPadding;
             set => SetProperty(ref _backgroundPadding, Math.Clamp(value, 0, 100));
         }
 
-        [PropertyMetadata(Group = "🟦 Background", Order = 404, IsSlider = true, MinValue = 0, MaxValue = 50)]
+        [PropertyMetadata(Group = "🟦 Background", Order = 404, IsSlider = true, MinValue = 0, MaxValue = 50, VisibilityToggle = "HasBackground")]
         public double BackgroundCornerRadius
         {
             get => _backgroundCornerRadius;

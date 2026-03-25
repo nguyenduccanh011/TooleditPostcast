@@ -8,13 +8,12 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition x:Name="SegmentRow" Height="Auto" MaxHeight="300"/>
-            <RowDefinition x:Name="ElementRow" Height="*"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <!-- No selection message -->
         <TextBlock x:Name="NoSelectionText"
-                   Grid.Row="0" Grid.RowSpan="2"
+                   Grid.Row="0"
                    Text="Chọn segment trên timeline hoặc element trên preview để chỉnh thuộc tính"
                    Foreground="#7a8a96"
                    FontStyle="Italic"
@@ -23,21 +22,21 @@
                    VerticalAlignment="Top"
                    Visibility="Visible"/>
 
-        <!-- Segment properties (top section — scrolls independently) -->
+        <!-- Element properties (primary — shown when element is selected, full space) -->
+        <views:PropertyEditorView x:Name="ElementPanel"
+                                  Grid.Row="0"
+                                  DataContext="{Binding CanvasViewModel.PropertyEditor}"
+                                  Visibility="Collapsed"/>
+
+        <!-- Segment properties (fallback — shown only for segments without linked elements) -->
         <views:SegmentEditorPanel x:Name="SegmentPanel"
                                  Grid.Row="0"
                                  DataContext="{Binding TimelineViewModel}"
                                  Visibility="Collapsed"/>
 
-        <!-- Element properties (bottom section — fills remaining space, scrolls independently) -->
-        <views:PropertyEditorView x:Name="ElementPanel"
-                                  Grid.Row="1"
-                                  DataContext="{Binding CanvasViewModel.PropertyEditor}"
-                                  Visibility="Collapsed"/>
-
-        <!-- Track properties (shown when a track header is clicked — full span) -->
+        <!-- Track properties (shown when a track header is clicked) -->
         <views:TrackEditorPanel x:Name="TrackPanel"
-                                Grid.Row="0" Grid.RowSpan="2"
+                                Grid.Row="0"
                                 DataContext="{Binding TimelineViewModel}"
                                 Visibility="Collapsed"/>
     </Grid>
