@@ -94,14 +94,16 @@ public static class ElementMapper
 
     private static CanvasElement? CreateCanvasElementByType(string type)
     {
+#pragma warning disable CS0618 // Legacy ElementType values needed for deserializing older project files
         return type switch
         {
-            "Title" or "Text" or "TextOverlay" => new TextOverlayElement(),
-            "Logo" => new LogoElement(),
-            "Visualizer" => new VisualizerElement(),
-            "Image" => new ImageElement(),
+            nameof(ElementType.Title) or nameof(ElementType.Text) or nameof(ElementType.TextOverlay) => new TextOverlayElement(),
+            nameof(ElementType.Logo) => new LogoElement(),
+            nameof(ElementType.Visualizer) => new VisualizerElement(),
+            nameof(ElementType.Image) => new ImageElement(),
             _ => null
         };
+#pragma warning restore CS0618
     }
 
     private static string SerializeTypeProperties(CanvasElement canvas)
@@ -201,8 +203,8 @@ public static class ElementMapper
                 break;
             case TextOverlayElement to:
                 // Support loading legacy TitleElement (has "Text" key) and TextElement (has "Content" key)
-                if (dict.TryGetValue("Content", out var tc)) to.Content = tc.GetString() ?? "Text";
-                else if (dict.TryGetValue("Text", out var tt)) to.Content = tt.GetString() ?? "Title";
+                if (dict.TryGetValue("Content", out var tc)) to.Content = tc.GetString() ?? string.Empty;
+                else if (dict.TryGetValue("Text", out var tt)) to.Content = tt.GetString() ?? string.Empty;
                 if (dict.TryGetValue("FontFamily", out var tff)) to.FontFamily = tff.GetString() ?? "Arial";
                 if (dict.TryGetValue("FontSize", out var tfs)) to.FontSize = tfs.GetDouble();
                 if (dict.TryGetValue("ColorHex", out var tch)) to.ColorHex = tch.GetString() ?? "#FFFFFF";

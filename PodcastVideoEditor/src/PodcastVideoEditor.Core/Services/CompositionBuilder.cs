@@ -99,17 +99,17 @@ public class CompositionBuilder : ICompositionBuilder
 
                 switch (trackType)
                 {
-                    case "visual":
+                    case TrackTypes.Visual:
                         var visualLayer = BuildSingleVisualLayer(ctx, segment, zOrder, registry);
                         if (visualLayer != null) layers.Add(visualLayer);
                         break;
 
-                    case "text":
+                    case TrackTypes.Text:
                         var textLayer = BuildSingleTextLayer(ctx, segment, zOrder, registry, textImageDir, ref textIndex);
                         if (textLayer != null) layers.Add(textLayer);
                         break;
 
-                    case "effect":
+                    case TrackTypes.Effect:
                         // Effect tracks hold VisualizerElements — process their linked elements
                         var linkedElement = registry.GetElementForSegment(segment.Id);
                         if (linkedElement is VisualizerElement vizElement)
@@ -119,7 +119,7 @@ public class CompositionBuilder : ICompositionBuilder
                         }
                         break;
 
-                    // "audio" tracks are handled separately in BuildAudioLayers
+                    // TrackTypes.Audio tracks are handled separately in BuildAudioLayers
                 }
             }
         }
@@ -129,7 +129,7 @@ public class CompositionBuilder : ICompositionBuilder
         {
             var handledSegmentIds = new HashSet<string>(
                 allVisibleTracks
-                    .Where(t => string.Equals(t.TrackType, "effect", StringComparison.OrdinalIgnoreCase))
+                    .Where(t => string.Equals(t.TrackType, TrackTypes.Effect, StringComparison.OrdinalIgnoreCase))
                     .SelectMany(t => t.Segments ?? [])
                     .Select(s => s.Id),
                 StringComparer.Ordinal);
@@ -371,7 +371,7 @@ public class CompositionBuilder : ICompositionBuilder
     private static List<CompositionAudioLayer> BuildAudioLayers(Project project)
     {
         var audioTracks = project.Tracks?
-            .Where(t => string.Equals(t.TrackType, "audio", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+            .Where(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase) && t.IsVisible)
             .OrderBy(t => t.Order)
             .ToList();
 

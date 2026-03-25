@@ -1109,8 +1109,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Validate all element SegmentIds against current project segments.
-        /// Elements referencing non-existent segments get their SegmentId set to null
-        /// (becoming global overlays) to prevent orphaned references.
+        /// Elements referencing non-existent segments are removed — they were auto-generated
+        /// to represent a segment that has since been deleted and have no standalone value.
+        /// Elements with SegmentId=null are left untouched (intentional global overlays).
         /// </summary>
         private void ValidateElementSegmentIds()
         {
@@ -1127,20 +1128,37 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
             }
 
-            int fixedCount = 0;
+            var toRemove = new List<CanvasElement>();
             foreach (var element in Elements)
             {
+                // Remove elements with stale SegmentId (segment was deleted)
                 if (element.SegmentId != null && !validSegmentIds.Contains(element.SegmentId))
                 {
-                    Log.Warning("Element {ElementId} ({Name}) has stale SegmentId {SegmentId}, setting to null",
+                    Log.Warning("Element {ElementId} ({Name}) has stale SegmentId {SegmentId}, removing element",
                         element.Id, element.Name, element.SegmentId);
-                    element.SegmentId = null;
-                    fixedCount++;
+                    toRemove.Add(element);
+                    continue;
+                }
+
+                // Remove ghost TextOverlayElements: orphaned global overlays with empty or
+                // legacy placeholder content (leftover from previous default-value bug).
+                if (element is TextOverlayElement tov
+                    && element.SegmentId == null
+                    && (string.IsNullOrWhiteSpace(tov.Content)
+                        || string.Equals(tov.Content, "Text", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(tov.Content, "Title", StringComparison.OrdinalIgnoreCase)))
+                {
+                    Log.Warning("Removing ghost TextOverlayElement {ElementId} ({Name}) with placeholder Content '{Content}'",
+                        element.Id, element.Name, tov.Content);
+                    toRemove.Add(element);
                 }
             }
 
-            if (fixedCount > 0)
-                Log.Information("Fixed {Count} element(s) with stale SegmentId references", fixedCount);
+            foreach (var element in toRemove)
+                Elements.Remove(element);
+
+            if (toRemove.Count > 0)
+                Log.Information("Removed {Count} orphaned/ghost element(s) during validation", toRemove.Count);
         }
 
     }

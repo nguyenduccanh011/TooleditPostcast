@@ -228,7 +228,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         tov.Content = editedSeg.Text ?? string.Empty;
                         tov.Name = editedSeg.Text?.Length > 20
                             ? editedSeg.Text[..20] + "…"
-                            : editedSeg.Text ?? "Text";
+                            : editedSeg.Text ?? string.Empty;
                     }
                 }
                 ScheduleDebouncedPreviewUpdate();

@@ -148,7 +148,11 @@ public partial class MainWindow : Window
                 break;
 
             case System.Windows.Input.Key.Delete:
-                if (_timelineViewModel.DeleteSelectedSegmentCommand.CanExecute(null))
+                // Canvas element takes priority: if one is selected, delete it (with its segment).
+                // Fall back to timeline-only delete when nothing is selected on canvas.
+                if (_mainViewModel.CanvasViewModel.SelectedElement != null)
+                    _mainViewModel.CanvasViewModel.DeleteSelectedElementCommand.Execute(null);
+                else if (_timelineViewModel.DeleteSelectedSegmentCommand.CanExecute(null))
                     _timelineViewModel.DeleteSelectedSegmentCommand.Execute(null);
                 e.Handled = true;
                 break;

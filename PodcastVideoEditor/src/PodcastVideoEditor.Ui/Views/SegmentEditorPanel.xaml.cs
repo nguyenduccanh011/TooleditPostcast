@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using PodcastVideoEditor.Ui.ViewModels;
 using Serilog;
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,11 +18,13 @@ namespace PodcastVideoEditor.Ui.Views
     public partial class SegmentEditorPanel : UserControl
     {
         private TimelineViewModel? _viewModel;
+        private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
 
         public SegmentEditorPanel()
         {
             InitializeComponent();
             Loaded += SegmentEditorPanel_Loaded;
+            Unloaded += SegmentEditorPanel_Unloaded;
         }
 
         private void SegmentEditorPanel_Loaded(object sender, RoutedEventArgs e)
@@ -30,19 +33,27 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (_viewModel != null)
             {
-                // Subscribe to selected segment changes
-                _viewModel.PropertyChanged += (s, args) =>
+                // Store handler reference so it can be removed on Unloaded (prevents memory leak)
+                _viewModelPropertyChangedHandler = (s, args) =>
                 {
                     if (args.PropertyName == nameof(TimelineViewModel.SelectedSegment))
-                    {
                         UpdateVisibility();
-                    }
                 };
+                _viewModel.PropertyChanged += _viewModelPropertyChangedHandler;
 
                 // Initial state
                 UpdateVisibility();
 
                 Log.Information("SegmentEditorPanel loaded, ViewModel connected");
+            }
+        }
+
+        private void SegmentEditorPanel_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (_viewModel != null && _viewModelPropertyChangedHandler != null)
+            {
+                _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
+                _viewModelPropertyChangedHandler = null;
             }
         }
 
