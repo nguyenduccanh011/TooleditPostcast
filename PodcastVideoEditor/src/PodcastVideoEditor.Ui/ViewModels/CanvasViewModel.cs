@@ -43,6 +43,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private PropertyChangedEventHandler? _projectPropertyChangedHandler;
         private PropertyChangedEventHandler? _audioPlayerPropertyChangedHandler;
         private bool _disposed;
+        // Guard: prevents selection-sync auto-creation while an AddElement method is in progress
+        private bool _isCreatingElement;
         private string? _lastVisualSegmentId;
         private string? _lastVisualFrameKey;
         private readonly HashSet<string> _pendingVideoFrameRequests = new(StringComparer.Ordinal);
@@ -106,13 +108,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isVisualPlaceholderVisible = true;
 
         [ObservableProperty]
-        private bool isTextOverlayVisible;
-
-        [ObservableProperty]
         private Segment? activeVisualSegment;
-
-        [ObservableProperty]
-        private Segment? activeTextSegment;
 
         /// <summary>
         /// Background image layers from all active visual tracks, ordered back-to-front (highest Track.Order first).
@@ -132,11 +128,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         [ObservableProperty]
         private double activeVisualHeight = 1080;
-
-        /// <summary>
-        /// All active text overlays from active text tracks, ordered by Track.Order (front first).
-        /// </summary>
-        public ObservableCollection<string> ActiveTextOverlays { get; } = new();
 
         /// <summary>
         /// Bitmap for visualizer elements on canvas. Updates ~30fps when audio is playing.
@@ -178,7 +169,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>Wire undo/redo. Called from MainViewModel after construction.</summary>
-        public void SetUndoRedoService(UndoRedoService service) => _undoRedo = service;
+        public void SetUndoRedoService(UndoRedoService service)
+        {
+            _undoRedo = service;
+            PropertyEditor.SetUndoRedoService(service);
+        }
 
         /// <summary>Expose so CanvasView can record element-move actions.</summary>
         public UndoRedoService? UndoRedoService => _undoRedo;
@@ -191,13 +186,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
+            // Skip auto-creation when an Add*Element method is already in progress.
+            // The calling method will add the element itself after segment creation.
+            if (_isCreatingElement)
+                return;
+
             // Highlight linked canvas element regardless of playhead position.
             var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
 
             // If no linked element exists, auto-create one for image or text segments
             if (linked == null)
                 linked = (CanvasElement?)TryCreateImageElementForSegment(segmentId)
-                      ?? TryCreateTextElementForSegment(segmentId);
+                      ?? GetOrCreateTextElement(segmentId);
 
             SelectElement(linked);
         }
@@ -297,59 +297,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Called from UpdateActivePreview: proactively creates an interactive TextElement
-        /// for a segment that has no linked canvas element yet, so text always renders
-        /// as a draggable element instead of the read-only overlay.
+        /// Returns an existing TextOverlayElement for the given segment, or creates one if none exists.
+        /// Used both by preview pipeline and timeline-segment-selection to ensure a single
+        /// code path for text element creation, eliminating duplication.
         /// </summary>
-        private void EnsureTextElementForSegment(Segment segment)
+        private TextOverlayElement? GetOrCreateTextElement(string segmentId)
         {
-            if (string.IsNullOrWhiteSpace(segment.Id) || string.IsNullOrWhiteSpace(segment.Text))
-                return;
-
-            // Double-check no element exists (race guard)
-            if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
-                return;
-
-            var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
-            var element = new TextElement
-            {
-                Name = label,
-                Content = segment.Text,
-                X = Math.Max(0, (CanvasWidth - 600) / 2),
-                Y = Math.Max(0, CanvasHeight - 160),
-                Width = 600,
-                Height = 80,
-                ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id)),
-                SegmentId = segment.Id
-            };
-
-            Elements.Add(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            Log.Information("Auto-created TextElement for text segment {SegmentId} during preview", segment.Id);
-        }
-
-        /// <summary>
-        /// When the user selects a text-track segment that has no linked CanvasElement,
-        /// create a TextElement so the user can drag/resize it on the preview canvas.
-        /// </summary>
-        private TextElement? TryCreateTextElementForSegment(string segmentId)
-        {
-            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
+            if (string.IsNullOrWhiteSpace(segmentId))
                 return null;
 
+            // Fast lookup: existing element?
+            var existing = Elements.FirstOrDefault(e =>
+                string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
+            if (existing is TextOverlayElement tov)
+                return tov;
+            if (existing != null)
+                return null; // Non-text element linked — don't create a text overlay
+
             // Find the segment and verify it's on a text track
-            Track? ownerTrack = null;
             Segment? segment = null;
-            foreach (var track in _timelineViewModel.Tracks)
+            Track? ownerTrack = null;
+            if (_timelineViewModel != null)
             {
-                if (!string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
-                    continue;
-                var seg = track.Segments.FirstOrDefault(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal));
-                if (seg != null)
+                foreach (var track in _timelineViewModel.Tracks)
                 {
-                    ownerTrack = track;
-                    segment = seg;
-                    break;
+                    if (!string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    var seg = track.Segments.FirstOrDefault(s => string.Equals(s.Id, segmentId, StringComparison.Ordinal));
+                    if (seg != null)
+                    {
+                        segment = seg;
+                        ownerTrack = track;
+                        break;
+                    }
                 }
             }
 
@@ -357,7 +337,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return null;
 
             var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
-            var element = new TextElement
+            var element = new TextOverlayElement
             {
                 Name = label,
                 Content = segment.Text,
@@ -371,8 +351,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            Log.Information("Auto-created TextElement for text segment {SegmentId}", segmentId);
+            Log.Information("Auto-created TextOverlayElement for text segment {SegmentId}", segmentId);
             return element;
+        }
+
+        /// <summary>
+        /// Called from UpdateActivePreview: proactively creates an interactive TextOverlayElement
+        /// for a segment that has no linked canvas element yet.
+        /// </summary>
+        private void EnsureTextElementForSegment(Segment segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment.Id))
+                return;
+            GetOrCreateTextElement(segment.Id);
         }
 
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
@@ -459,12 +450,42 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Shared logic for all Add*Element commands. Creates the timeline segment (with
+        /// selection-sync suppressed to avoid auto-creating a duplicate element), links
+        /// the element, adds it to the canvas, selects it, and records an undo action.
+        /// </summary>
+        private Segment? AddElementToCanvas(CanvasElement element, string trackType, double? duration = null, bool newTrack = false)
+        {
+            _isCreatingElement = true;
+            try
+            {
+                Segment? segment = newTrack
+                    ? _timelineViewModel?.CreateSegmentOnNewTrack(trackType, element.Name, duration ?? 5.0)
+                    : _timelineViewModel?.CreateSegmentForElement(trackType, element.Name, duration ?? 5.0);
+
+                if (segment != null)
+                    element.SegmentId = segment.Id;
+                element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
+
+                Elements.Add(element);
+                SelectElement(element);
+                _undoRedo?.Record(new ElementAddedAction(Elements, element));
+                LogMessage($"Added {element.Type} element{(segment != null ? " + timeline segment" : "")}");
+                return segment;
+            }
+            finally
+            {
+                _isCreatingElement = false;
+            }
+        }
+
+        /// <summary>
         /// Add a new title element to canvas.
         /// </summary>
         [RelayCommand]
         public void AddTitleElement()
         {
-            var element = new TitleElement
+            var element = new TextOverlayElement
             {
                 Name = $"Title {Elements.Count + 1}",
                 X = Math.Max(0, (CanvasWidth - 400) / 2),
@@ -472,17 +493,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Width = 400,
                 Height = 100
             };
-
-            // Link to timeline segment so user can control visibility time range
-            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
-            if (segment != null)
-                element.SegmentId = segment.Id;
-            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
-
-            Elements.Add(element);
-            SelectElement(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            LogMessage($"Added Title element{(segment != null ? " + timeline segment" : "")}");
+            element.ApplyPreset(TextStyle.Title);
+            AddElementToCanvas(element, TrackTypes.Text);
         }
 
         /// <summary>
@@ -499,16 +511,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Width = 200,
                 Height = 200
             };
-
-            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
-            if (segment != null)
-                element.SegmentId = segment.Id;
-            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
-
-            Elements.Add(element);
-            SelectElement(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            LogMessage($"Added Logo element{(segment != null ? " + timeline segment" : "")}");
+            AddElementToCanvas(element, TrackTypes.Visual);
         }
 
         /// <summary>
@@ -526,23 +529,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Height = 400
             };
 
-            // Always create a dedicated new track so the visualizer segment never
-            // collides with image/video segments that share the first visual track.
             // Use the full project duration so the baked visualizer covers the whole
             // project, not just the 5-second default stub.
             var projectEnd       = _timelineViewModel?.GetProjectDuration() ?? 30.0;
             var playhead         = _timelineViewModel?.PlayheadPosition ?? 0.0;
             var segmentDuration  = Math.Max(10.0, projectEnd - playhead);
-            var segment = _timelineViewModel?.CreateSegmentOnNewTrack(TrackTypes.Effect, element.Name, segmentDuration);
-            if (segment != null)
-                element.SegmentId = segment.Id;
-            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
-
-            Elements.Add(element);
-            SelectElement(element);
+            AddElementToCanvas(element, TrackTypes.Effect, segmentDuration, newTrack: true);
             EnsureVisualizerTimer();
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            LogMessage($"Added Visualizer element{(segment != null ? " + timeline segment" : "")}");
         }
 
         /// <summary>
@@ -559,16 +552,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Width = 300,
                 Height = 300
             };
-
-            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Visual, element.Name);
-            if (segment != null)
-                element.SegmentId = segment.Id;
-            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
-
-            Elements.Add(element);
-            SelectElement(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            LogMessage($"Added Image element{(segment != null ? " + timeline segment" : "")}");
+            AddElementToCanvas(element, TrackTypes.Visual);
         }
 
         /// <summary>
@@ -577,7 +561,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [RelayCommand]
         public void AddTextElement()
         {
-            var element = new TextElement
+            var element = new TextOverlayElement
             {
                 Name = $"Text {Elements.Count + 1}",
                 X = Math.Max(0, (CanvasWidth - 600) / 2),
@@ -585,16 +569,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Width = 600,
                 Height = 80
             };
-
-            var segment = _timelineViewModel?.CreateSegmentForElement(TrackTypes.Text, element.Name);
-            if (segment != null)
-                element.SegmentId = segment.Id;
-            element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment?.Id));
-
-            Elements.Add(element);
-            SelectElement(element);
-            _undoRedo?.Record(new ElementAddedAction(Elements, element));
-            LogMessage($"Added Text element{(segment != null ? " + timeline segment" : "")}");
+            AddElementToCanvas(element, TrackTypes.Text);
         }
 
         /// <summary>
@@ -638,7 +613,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             foreach (var segment in e.NewSegments)
             {
                 var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
-                var element = new TextElement
+                var element = new TextOverlayElement
                 {
                     Name = label,
                     Content = segment.Text,

@@ -204,25 +204,40 @@ public class CompositionBuilder : ICompositionBuilder
                     overlayX = Math.Max(0, Math.Min(overlayX, ctx.RenderWidth - 1));
                     overlayY = Math.Max(0, Math.Min(overlayY, ctx.RenderHeight - 1));
 
-                    if (linkedElement is TitleElement title)
+                    if (linkedElement is TextOverlayElement overlay)
                     {
-                        options.FontSize = (float)CoordinateMapper.ScaleFontSize(title.FontSize, ctx.CanvasHeight, ctx.RenderHeight);
-                        options.ColorHex = title.ColorHex;
-                        options.FontFamily = title.FontFamily;
-                        options.IsBold = title.IsBold;
-                        options.IsItalic = title.IsItalic;
-                        options.Alignment = title.Alignment switch
+                        options.FontSize = (float)CoordinateMapper.ScaleFontSize(overlay.FontSize, ctx.CanvasHeight, ctx.RenderHeight);
+                        options.ColorHex = overlay.ColorHex;
+                        options.FontFamily = overlay.FontFamily;
+                        options.IsBold = overlay.IsBold;
+                        options.IsItalic = overlay.IsItalic;
+                        options.Alignment = overlay.Alignment switch
                         {
                             TextAlignment.Left => TextRasterizeAlignment.Left,
                             TextAlignment.Right => TextRasterizeAlignment.Right,
                             _ => TextRasterizeAlignment.Center
                         };
-                    }
-                    else if (linkedElement is TextElement text)
-                    {
-                        options.FontSize = (float)CoordinateMapper.ScaleFontSize(text.FontSize, ctx.CanvasHeight, ctx.RenderHeight);
-                        options.ColorHex = text.ColorHex;
-                        options.Alignment = TextRasterizeAlignment.Center;
+                        options.LineHeightMultiplier = (float)overlay.LineHeight;
+                        options.LetterSpacing = (float)overlay.LetterSpacing;
+                        options.HasShadow = overlay.HasShadow;
+                        options.ShadowColorHex = overlay.ShadowColorHex;
+                        options.ShadowOffsetX = overlay.ShadowOffsetX;
+                        options.ShadowOffsetY = overlay.ShadowOffsetY;
+                        options.ShadowBlur = overlay.ShadowBlur;
+                        options.HasOutline = overlay.HasOutline;
+                        options.OutlineColorHex = overlay.OutlineColorHex;
+                        options.OutlineThickness = overlay.OutlineThickness;
+                        if (overlay.HasBackground)
+                        {
+                            options.DrawBox = true;
+                            options.BoxColor = overlay.BackgroundColorHex;
+                            options.BoxAlpha = (float)overlay.BackgroundOpacity;
+                            options.BackgroundCornerRadius = (float)overlay.BackgroundCornerRadius;
+                        }
+                        else
+                        {
+                            options.DrawBox = false;
+                        }
                     }
                 }
                 else

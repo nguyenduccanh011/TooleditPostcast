@@ -27,6 +27,7 @@ public static class TextRasterizer
 
     /// <summary>
     /// Render a text element to an SKBitmap with word-wrap support.
+    /// Supports shadow, outline stroke, background corner radius, line height, and letter spacing.
     /// </summary>
     public static SKBitmap RenderToBitmap(TextRasterizeOptions options)
     {
@@ -46,17 +47,23 @@ public static class TextRasterizer
                 Style = SKPaintStyle.Fill,
                 IsAntialias = true
             };
-            canvas.DrawRect(0, 0, width, height, boxPaint);
+            var boxRect = new SKRect(0, 0, width, height);
+            if (options.BackgroundCornerRadius > 0)
+                canvas.DrawRoundRect(boxRect, options.BackgroundCornerRadius, options.BackgroundCornerRadius, boxPaint);
+            else
+                canvas.DrawRect(boxRect, boxPaint);
         }
 
-        // Configure text paint
+        var typeface = ResolveTypeface(options.FontFamily, options.IsBold, options.IsItalic);
+
+        // Configure fill paint
         using var paint = new SKPaint
         {
             Color = ParseColor(options.ColorHex, 1.0f),
             IsAntialias = true,
             SubpixelText = true,
             TextSize = options.FontSize,
-            Typeface = ResolveTypeface(options.FontFamily, options.IsBold, options.IsItalic)
+            Typeface = typeface
         };
 
         // Calculate padding (matches WPF Padding="8,4")
@@ -69,11 +76,11 @@ public static class TextRasterizer
         if (textAreaWidth <= 0)
             return bitmap;
 
-        // Word-wrap the text
-        var lines = WrapText(options.Text, paint, textAreaWidth);
+        // Word-wrap the text (letter spacing affects effective width)
+        var lines = WrapText(options.Text, paint, textAreaWidth, options.LetterSpacing);
 
-        // Measure total text height
-        var lineHeight = paint.FontSpacing;
+        // Line height with multiplier
+        var lineHeight = paint.FontSpacing * options.LineHeightMultiplier;
         var totalTextHeight = lines.Count * lineHeight;
 
         // Vertical centering (matches WPF VerticalAlignment="Center")
@@ -81,35 +88,95 @@ public static class TextRasterizer
         if (startY < padY + (-paint.FontMetrics.Ascent))
             startY = padY + (-paint.FontMetrics.Ascent);
 
-        // Draw each line
         for (int i = 0; i < lines.Count; i++)
         {
             var line = lines[i];
-            var lineWidth = paint.MeasureText(line);
+            var lineWidth = MeasureLineWidth(line, paint, options.LetterSpacing);
 
-            // Horizontal alignment
             float x = options.Alignment switch
             {
                 TextRasterizeAlignment.Left => padX,
                 TextRasterizeAlignment.Right => width - padX - lineWidth,
-                _ => padX + (textAreaWidth - lineWidth) / 2f // Center
+                _ => padX + (textAreaWidth - lineWidth) / 2f
             };
 
             var y = startY + i * lineHeight;
-            if (y > height)
-                break; // Clip text that overflows vertically
+            if (y > height) break;
 
-            canvas.DrawText(line, x, y, paint);
+            // 1. Shadow pass
+            if (options.HasShadow)
+            {
+                using var shadowPaint = new SKPaint
+                {
+                    Color = ParseColor(options.ShadowColorHex, 1.0f),
+                    IsAntialias = true,
+                    SubpixelText = true,
+                    TextSize = options.FontSize,
+                    Typeface = typeface
+                };
+                if (options.ShadowBlur > 0)
+                    shadowPaint.MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, options.ShadowBlur);
+                DrawLine(canvas, line, x + options.ShadowOffsetX, y + options.ShadowOffsetY, shadowPaint, options.LetterSpacing);
+            }
+
+            // 2. Outline stroke pass (drawn before fill so fill sits on top)
+            if (options.HasOutline && options.OutlineThickness > 0)
+            {
+                using var outlinePaint = new SKPaint
+                {
+                    Color = ParseColor(options.OutlineColorHex, 1.0f),
+                    IsAntialias = true,
+                    SubpixelText = true,
+                    TextSize = options.FontSize,
+                    Typeface = typeface,
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = options.OutlineThickness,
+                    StrokeJoin = SKStrokeJoin.Round
+                };
+                DrawLine(canvas, line, x, y, outlinePaint, options.LetterSpacing);
+            }
+
+            // 3. Fill pass
+            DrawLine(canvas, line, x, y, paint, options.LetterSpacing);
         }
 
         return bitmap;
+    }
+
+    /// <summary>Draw a single line with optional per-character letter spacing.</summary>
+    private static void DrawLine(SKCanvas canvas, string line, float x, float y, SKPaint paint, float letterSpacing)
+    {
+        if (letterSpacing == 0)
+        {
+            canvas.DrawText(line, x, y, paint);
+            return;
+        }
+        float cx = x;
+        foreach (var ch in line)
+        {
+            var s = ch.ToString();
+            canvas.DrawText(s, cx, y, paint);
+            cx += paint.MeasureText(s) + letterSpacing;
+        }
+    }
+
+    /// <summary>Measure the rendered width of a line, accounting for letter spacing.</summary>
+    private static float MeasureLineWidth(string line, SKPaint paint, float letterSpacing)
+    {
+        if (letterSpacing == 0 || line.Length == 0)
+            return paint.MeasureText(line);
+        float total = 0;
+        foreach (var ch in line)
+            total += paint.MeasureText(ch.ToString()) + letterSpacing;
+        // Remove trailing spacing from last char
+        return total - letterSpacing;
     }
 
     /// <summary>
     /// Break text into lines that fit within the given pixel width.
     /// Handles explicit newlines (\n) and word-wrap boundaries.
     /// </summary>
-    private static System.Collections.Generic.List<string> WrapText(string text, SKPaint paint, float maxWidth)
+    private static System.Collections.Generic.List<string> WrapText(string text, SKPaint paint, float maxWidth, float letterSpacing = 0)
     {
         var result = new System.Collections.Generic.List<string>();
         if (string.IsNullOrEmpty(text))
@@ -128,7 +195,7 @@ public static class TextRasterizer
                 continue;
             }
 
-            WrapParagraph(paragraph, paint, maxWidth, result);
+            WrapParagraph(paragraph, paint, maxWidth, result, letterSpacing);
         }
 
         return result;
@@ -140,7 +207,7 @@ public static class TextRasterizer
     /// Falls back to character-level breaking for very long words.
     /// </summary>
     private static void WrapParagraph(string paragraph, SKPaint paint, float maxWidth,
-        System.Collections.Generic.List<string> result)
+        System.Collections.Generic.List<string> result, float letterSpacing = 0)
     {
         var words = paragraph.Split(' ');
         var currentLine = string.Empty;
@@ -150,20 +217,20 @@ public static class TextRasterizer
             if (string.IsNullOrEmpty(currentLine))
             {
                 // First word on line — check if it fits
-                if (paint.MeasureText(word) <= maxWidth)
+                if (MeasureLineWidth(word, paint, letterSpacing) <= maxWidth)
                 {
                     currentLine = word;
                 }
                 else
                 {
                     // Word is wider than maxWidth — break by character
-                    BreakLongWord(word, paint, maxWidth, result);
+                    BreakLongWord(word, paint, maxWidth, result, letterSpacing);
                 }
             }
             else
             {
                 var candidate = currentLine + " " + word;
-                if (paint.MeasureText(candidate) <= maxWidth)
+                if (MeasureLineWidth(candidate, paint, letterSpacing) <= maxWidth)
                 {
                     currentLine = candidate;
                 }
@@ -171,14 +238,14 @@ public static class TextRasterizer
                 {
                     // Current line is full — flush it
                     result.Add(currentLine);
-                    if (paint.MeasureText(word) <= maxWidth)
+                    if (MeasureLineWidth(word, paint, letterSpacing) <= maxWidth)
                     {
                         currentLine = word;
                     }
                     else
                     {
                         currentLine = string.Empty;
-                        BreakLongWord(word, paint, maxWidth, result);
+                        BreakLongWord(word, paint, maxWidth, result, letterSpacing);
                     }
                 }
             }
@@ -194,13 +261,13 @@ public static class TextRasterizer
     /// Break a single word that exceeds maxWidth into multiple character-level lines.
     /// </summary>
     private static void BreakLongWord(string word, SKPaint paint, float maxWidth,
-        System.Collections.Generic.List<string> result)
+        System.Collections.Generic.List<string> result, float letterSpacing = 0)
     {
         var current = string.Empty;
         foreach (var ch in word)
         {
             var candidate = current + ch;
-            if (paint.MeasureText(candidate) > maxWidth && current.Length > 0)
+            if (MeasureLineWidth(candidate, paint, letterSpacing) > maxWidth && current.Length > 0)
             {
                 result.Add(current);
                 current = ch.ToString();
@@ -319,6 +386,45 @@ public class TextRasterizeOptions
 
     /// <summary>Box alpha (0.0 transparent – 1.0 opaque).</summary>
     public float BoxAlpha { get; set; } = 0.5f;
+
+    /// <summary>Corner radius for the background box in pixels.</summary>
+    public float BackgroundCornerRadius { get; set; }
+
+    // -- Shadow -------------------------------------------------------------------
+
+    /// <summary>Enable drop shadow.</summary>
+    public bool HasShadow { get; set; }
+
+    /// <summary>Shadow color hex.</summary>
+    public string ShadowColorHex { get; set; } = "#000000";
+
+    /// <summary>Horizontal shadow offset in pixels.</summary>
+    public float ShadowOffsetX { get; set; } = 2f;
+
+    /// <summary>Vertical shadow offset in pixels.</summary>
+    public float ShadowOffsetY { get; set; } = 2f;
+
+    /// <summary>Shadow blur sigma (0 = sharp).</summary>
+    public float ShadowBlur { get; set; } = 3f;
+
+    // -- Outline ------------------------------------------------------------------
+
+    /// <summary>Enable text outline/stroke.</summary>
+    public bool HasOutline { get; set; }
+
+    /// <summary>Outline color hex.</summary>
+    public string OutlineColorHex { get; set; } = "#000000";
+
+    /// <summary>Outline stroke thickness in pixels.</summary>
+    public float OutlineThickness { get; set; } = 2f;
+
+    // -- Spacing ------------------------------------------------------------------
+
+    /// <summary>Line height multiplier (1.0 = normal, 1.2 = default).</summary>
+    public float LineHeightMultiplier { get; set; } = 1.2f;
+
+    /// <summary>Extra space between characters in pixels (negative = tighter).</summary>
+    public float LetterSpacing { get; set; }
 
     /// <summary>Canvas width for padding ratio calculation (0 = use Width).</summary>
     public double CanvasWidth { get; set; }

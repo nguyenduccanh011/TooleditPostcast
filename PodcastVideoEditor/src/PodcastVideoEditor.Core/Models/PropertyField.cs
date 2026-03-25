@@ -27,6 +27,30 @@ namespace PodcastVideoEditor.Core.Models
         public PropertyFieldType FieldType { get; set; }
 
         /// <summary>
+        /// Logical group this property belongs to (Content, Font, Effects, Transform, etc.).
+        /// </summary>
+        public string Group { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Sort order within the group (lower = first).
+        /// </summary>
+        public int SortOrder { get; set; }
+
+        /// <summary>
+        /// Name of a boolean property that controls visibility of this field.
+        /// When set, this field is shown only when the named bool property is true.
+        /// E.g. "HasShadow" hides ShadowColorHex when shadow is disabled.
+        /// </summary>
+        public string? VisibilityToggle { get; set; }
+
+        /// <summary>
+        /// Whether this field should be visible in the UI.
+        /// Controlled by VisibilityToggle logic in PropertyEditorViewModel.
+        /// </summary>
+        [ObservableProperty]
+        private bool isFieldVisible = true;
+
+        /// <summary>
         /// Underlying property info for two-way binding.
         /// </summary>
         public System.Reflection.PropertyInfo? PropertyInfo { get; set; }
@@ -55,6 +79,23 @@ namespace PodcastVideoEditor.Core.Models
         /// Whether this property is read-only.
         /// </summary>
         public bool IsReadOnly { get; set; }
+    }
+
+    /// <summary>
+    /// Represents a group of property fields, displayed as a collapsible section.
+    /// </summary>
+    public partial class PropertyGroupViewModel : ObservableObject
+    {
+        [ObservableProperty]
+        private string name = string.Empty;
+
+        [ObservableProperty]
+        private bool isExpanded = true;
+
+        [ObservableProperty]
+        private int sortOrder;
+
+        public System.Collections.ObjectModel.ObservableCollection<PropertyField> Fields { get; } = new();
     }
 
     /// <summary>

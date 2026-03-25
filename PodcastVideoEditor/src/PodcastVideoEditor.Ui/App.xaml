@@ -21,6 +21,7 @@
         <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <converters:NullOrEmptyToCollapsedConverter x:Key="NullOrEmptyToCollapsedConverter"/>
         <converters:IsEqualConverter x:Key="IsEqualConverter"/>
+        <converters:BoolToUnderlineConverter x:Key="BoolToUnderlineConverter"/>
 
         <!--
         ══════════════════════════════════════════════════════════════

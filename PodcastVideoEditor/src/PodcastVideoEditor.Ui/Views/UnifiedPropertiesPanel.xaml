@@ -6,30 +6,32 @@
              Foreground="#e0e0e0"
              MinWidth="220">
 
-    <Grid>
-        <!-- No selection message (visibility set in code-behind) -->
-        <TextBlock x:Name="NoSelectionText"
-                   Text="Chọn segment trên timeline hoặc element trên preview để chỉnh thuộc tính"
-                   Foreground="#7a8a96"
-                   FontStyle="Italic"
-                   TextWrapping="Wrap"
-                   Margin="15,15,15,0"
-                   VerticalAlignment="Top"
-                   Visibility="Visible"/>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <!-- No selection message (visibility set in code-behind) -->
+            <TextBlock x:Name="NoSelectionText"
+                       Text="Chọn segment trên timeline hoặc element trên preview để chỉnh thuộc tính"
+                       Foreground="#7a8a96"
+                       FontStyle="Italic"
+                       TextWrapping="Wrap"
+                       Margin="15,15,15,0"
+                       VerticalAlignment="Top"
+                       Visibility="Visible"/>
 
-        <!-- Element properties (PropertyEditorView) -->
-        <views:PropertyEditorView x:Name="ElementPanel"
-                                  DataContext="{Binding CanvasViewModel.PropertyEditor}"
-                                  Visibility="Collapsed"/>
+            <!-- Segment properties (SegmentEditorPanel) — shown at the top when a segment is selected -->
+            <views:SegmentEditorPanel x:Name="SegmentPanel"
+                                     DataContext="{Binding TimelineViewModel}"
+                                     Visibility="Collapsed"/>
 
-        <!-- Segment properties (SegmentEditorPanel) -->
-        <views:SegmentEditorPanel x:Name="SegmentPanel"
-                                 DataContext="{Binding TimelineViewModel}"
-                                 Visibility="Collapsed"/>
+            <!-- Element properties (PropertyEditorView) — shown below segment props when linked element exists -->
+            <views:PropertyEditorView x:Name="ElementPanel"
+                                      DataContext="{Binding CanvasViewModel.PropertyEditor}"
+                                      Visibility="Collapsed"/>
 
-        <!-- Track properties (TrackEditorPanel) — shown when a track header is clicked -->
-        <views:TrackEditorPanel x:Name="TrackPanel"
-                                DataContext="{Binding TimelineViewModel}"
-                                Visibility="Collapsed"/>
-    </Grid>
+            <!-- Track properties (TrackEditorPanel) — shown when a track header is clicked -->
+            <views:TrackEditorPanel x:Name="TrackPanel"
+                                    DataContext="{Binding TimelineViewModel}"
+                                    Visibility="Collapsed"/>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

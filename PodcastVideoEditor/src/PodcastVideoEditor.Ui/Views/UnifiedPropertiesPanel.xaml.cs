@@ -68,13 +68,15 @@ public partial class UnifiedPropertiesPanel : UserControl
         var hasTrack   = _mainViewModel.TimelineViewModel.SelectedTrack != null && !hasSegment;
         var hasElement = _mainViewModel.CanvasViewModel.SelectedElement != null;
 
-        // Priority: segment > track > element > none
         if (hasSegment)
         {
             NoSelectionText.Visibility = Visibility.Collapsed;
             TrackPanel.Visibility      = Visibility.Collapsed;
-            ElementPanel.Visibility    = Visibility.Collapsed;
             SegmentPanel.Visibility    = Visibility.Visible;
+
+            // If the selected segment has a linked canvas element (e.g. TextOverlay),
+            // show its properties directly below the segment properties.
+            ElementPanel.Visibility = hasElement ? Visibility.Visible : Visibility.Collapsed;
         }
         else if (hasTrack)
         {
@@ -87,8 +89,8 @@ public partial class UnifiedPropertiesPanel : UserControl
         {
             NoSelectionText.Visibility = Visibility.Collapsed;
             TrackPanel.Visibility      = Visibility.Collapsed;
-            ElementPanel.Visibility    = Visibility.Visible;
             SegmentPanel.Visibility    = Visibility.Collapsed;
+            ElementPanel.Visibility    = Visibility.Visible;
         }
         else
         {
