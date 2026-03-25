@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Win32;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Services;
+using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Ui.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using PodcastVideoEditor.Ui.Views;
@@ -39,7 +40,8 @@ public partial class MainWindow : Window
         AudioPlayerViewModel audioPlayerViewModel,
         TimelineViewModel timelineViewModel,
         SettingsViewModel settingsViewModel,
-        AutosaveService autosaveService)
+        AutosaveService autosaveService,
+        IAIAnalysisOrchestrator aiOrchestrator)
     {
         try
         {
@@ -56,6 +58,9 @@ public partial class MainWindow : Window
             _timelineViewModel = timelineViewModel;
             _settingsViewModel = settingsViewModel;
             _autosaveService = autosaveService;
+
+            // Wire up AI orchestrator for script analysis
+            _timelineViewModel.SetOrchestrator(aiOrchestrator);
 
             DataContext = _mainViewModel;
             SettingsPanel.DataContext = _settingsViewModel;
