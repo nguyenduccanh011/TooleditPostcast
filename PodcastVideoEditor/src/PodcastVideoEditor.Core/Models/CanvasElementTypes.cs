@@ -3,124 +3,7 @@ using System;
 
 namespace PodcastVideoEditor.Core.Models
 {
-    /// <summary>
-    /// Title element for text display with formatting options.
-    /// </summary>
-    public class TitleElement : CanvasElement
-    {
-        private string _text = "Title";
-        private string _fontFamily = "Arial";
-        private double _fontSize = 48;
-        private string _colorHex = "#FFFFFF"; // White
-        private bool _isBold;
-        private bool _isItalic;
-        private TextAlignment _alignment = TextAlignment.Center;
 
-        public override ElementType Type => ElementType.Title;
-
-        /// <summary>
-        /// The text content to display.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 100, IsTextArea = true)]
-        public string Text
-        {
-            get => _text;
-            set => SetProperty(ref _text, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Font family name (Arial, Verdana, etc.).
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 101)]
-        public string FontFamily
-        {
-            get => _fontFamily;
-            set => SetProperty(ref _fontFamily, value ?? "Arial");
-        }
-
-        /// <summary>
-        /// Font size in points.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 102, IsSlider = true, MinValue = 8, MaxValue = 200)]
-        public double FontSize
-        {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 200));
-        }
-
-        /// <summary>
-        /// Text color as hex string (#FFFFFF).
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 103, IsColor = true)]
-        public string ColorHex
-        {
-            get => _colorHex;
-            set => SetProperty(ref _colorHex, value ?? "#FFFFFF");
-        }
-
-        /// <summary>
-        /// Whether text is bold.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 104)]
-        public bool IsBold
-        {
-            get => _isBold;
-            set => SetProperty(ref _isBold, value);
-        }
-
-        /// <summary>
-        /// Whether text is italic.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 105)]
-        public bool IsItalic
-        {
-            get => _isItalic;
-            set => SetProperty(ref _isItalic, value);
-        }
-
-        /// <summary>
-        /// Text alignment (Left, Center, Right).
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 106)]
-        public TextAlignment Alignment
-        {
-            get => _alignment;
-            set => SetProperty(ref _alignment, value);
-        }
-
-        public override void ResetToDefault()
-        {
-            base.ResetToDefault();
-            Text = "Title";
-            FontFamily = "Arial";
-            FontSize = 48;
-            ColorHex = "#FFFFFF";
-            IsBold = false;
-            IsItalic = false;
-            Alignment = TextAlignment.Center;
-        }
-
-        public override CanvasElement Clone() =>
-            new TitleElement
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = Name + " (Copy)",
-                X = X,
-                Y = Y,
-                Width = Width,
-                Height = Height,
-                ZIndex = ZIndex,
-                IsVisible = IsVisible,
-                SegmentId = null, // Clone is independent — not bound to original segment
-                Text = Text,
-                FontFamily = FontFamily,
-                FontSize = FontSize,
-                ColorHex = ColorHex,
-                IsBold = IsBold,
-                IsItalic = IsItalic,
-                Alignment = Alignment
-            };
-    }
 
     /// <summary>
     /// Logo element for image display with opacity and scaling.
@@ -509,126 +392,6 @@ namespace PodcastVideoEditor.Core.Models
             };
     }
 
-    /// <summary>
-    /// Generic text element with formatting.
-    /// </summary>
-    public class TextElement : CanvasElement
-    {
-        private string _content = "Text";
-        private string _fontFamily = "Arial";
-        private double _fontSize = 24;
-        private string _colorHex = "#FFFFFF"; // White
-        private bool _isBold;
-        private bool _isItalic;
-        private TextAlignment _alignment = TextAlignment.Center;
-
-        public override ElementType Type => ElementType.Text;
-
-        /// <summary>
-        /// Text content.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 100, IsTextArea = true)]
-        public string Content
-        {
-            get => _content;
-            set => SetProperty(ref _content, value ?? string.Empty);
-        }
-
-        /// <summary>
-        /// Font family name (Arial, Verdana, etc.).
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 101)]
-        public string FontFamily
-        {
-            get => _fontFamily;
-            set => SetProperty(ref _fontFamily, value ?? "Arial");
-        }
-
-        /// <summary>
-        /// Font size in points.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 102, IsSlider = true, MinValue = 8, MaxValue = 200)]
-        public double FontSize
-        {
-            get => _fontSize;
-            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 200));
-        }
-
-        /// <summary>
-        /// Text color as hex string.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 103, IsColor = true)]
-        public string ColorHex
-        {
-            get => _colorHex;
-            set => SetProperty(ref _colorHex, value ?? "#FFFFFF");
-        }
-
-        /// <summary>
-        /// Whether text is bold.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 104)]
-        public bool IsBold
-        {
-            get => _isBold;
-            set => SetProperty(ref _isBold, value);
-        }
-
-        /// <summary>
-        /// Whether text is italic.
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 105)]
-        public bool IsItalic
-        {
-            get => _isItalic;
-            set => SetProperty(ref _isItalic, value);
-        }
-
-        /// <summary>
-        /// Text alignment (Left, Center, Right).
-        /// </summary>
-        [PropertyMetadata(Group = "✍ Text", Order = 106)]
-        public TextAlignment Alignment
-        {
-            get => _alignment;
-            set => SetProperty(ref _alignment, value);
-        }
-
-        public override void ResetToDefault()
-        {
-            base.ResetToDefault();
-            Content = "Text";
-            FontFamily = "Arial";
-            FontSize = 24;
-            ColorHex = "#FFFFFF";
-            IsBold = false;
-            IsItalic = false;
-            Alignment = TextAlignment.Center;
-        }
-
-        public override CanvasElement Clone() =>
-            new TextElement
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = Name + " (Copy)",
-                X = X,
-                Y = Y,
-                Width = Width,
-                Height = Height,
-                ZIndex = ZIndex,
-                IsVisible = IsVisible,
-                SegmentId = null, // Clone is independent — not bound to original segment
-                Content = Content,
-                FontFamily = FontFamily,
-                FontSize = FontSize,
-                ColorHex = ColorHex,
-                IsBold = IsBold,
-                IsItalic = IsItalic,
-                Alignment = Alignment
-            };
-    }
-
-    /// <summary>
     /// Image scaling modes.
     /// </summary>
     public enum ScaleMode
@@ -683,5 +446,334 @@ namespace PodcastVideoEditor.Core.Models
         Left,
         Center,
         Right
+    }
+
+    // -------------------------------------------------------------------------
+    // Unified text overlay
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Style preset for <see cref="TextOverlayElement"/>.
+    /// Calling <see cref="TextOverlayElement.ApplyPreset"/> with one of these values
+    /// populates sensible defaults. Change individual properties afterwards to customise.
+    /// </summary>
+    public enum TextStyle
+    {
+        Custom,
+        Title,
+        Subtitle,
+        Caption,
+        LowerThird
+    }
+
+    /// <summary>
+    /// Unified, feature-rich text overlay element.
+    /// Supports shadow, outline, background box, line-height, and letter-spacing.
+    /// </summary>
+    public class TextOverlayElement : CanvasElement
+    {
+        // ── Content ──────────────────────────────────────────────────────────
+        private string _content = "Text";
+        private TextStyle _style = TextStyle.Custom;
+
+        // ── Font ─────────────────────────────────────────────────────────────
+        private string _fontFamily = "Arial";
+        private double _fontSize = 32;
+        private string _colorHex = "#FFFFFF";
+        private bool _isBold;
+        private bool _isItalic;
+        private bool _isUnderline;
+        private TextAlignment _alignment = TextAlignment.Center;
+        private double _lineHeight = 1.2;
+        private double _letterSpacing;
+
+        // ── Shadow ───────────────────────────────────────────────────────────
+        private bool _hasShadow;
+        private string _shadowColorHex = "#000000";
+        private float _shadowOffsetX = 2f;
+        private float _shadowOffsetY = 2f;
+        private float _shadowBlur = 3f;
+
+        // ── Outline ──────────────────────────────────────────────────────────
+        private bool _hasOutline;
+        private string _outlineColorHex = "#000000";
+        private float _outlineThickness = 2f;
+
+        // ── Background ───────────────────────────────────────────────────────
+        private bool _hasBackground;
+        private string _backgroundColorHex = "#000000";
+        private double _backgroundOpacity = 0.5;
+        private double _backgroundPadding = 8;
+        private double _backgroundCornerRadius = 4;
+
+        public override ElementType Type => ElementType.TextOverlay;
+
+        // ── Content ──────────────────────────────────────────────────────────
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 100, IsTextArea = true)]
+        public string Content
+        {
+            get => _content;
+            set => SetProperty(ref _content, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Current style preset label. Does NOT auto-apply defaults on assignment.
+        /// Call <see cref="ApplyPreset"/> to apply preset defaults.
+        /// </summary>
+        [PropertyMetadata(Group = "✍️ Text", Order = 107)]
+        public TextStyle Style
+        {
+            get => _style;
+            set => SetProperty(ref _style, value);
+        }
+
+        // ── Font ─────────────────────────────────────────────────────────────
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 101)]
+        public string FontFamily
+        {
+            get => _fontFamily;
+            set => SetProperty(ref _fontFamily, value ?? "Arial");
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 102, IsSlider = true, MinValue = 8, MaxValue = 200)]
+        public double FontSize
+        {
+            get => _fontSize;
+            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 200));
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 103, IsColor = true)]
+        public string ColorHex
+        {
+            get => _colorHex;
+            set => SetProperty(ref _colorHex, value ?? "#FFFFFF");
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 104)]
+        public bool IsBold
+        {
+            get => _isBold;
+            set => SetProperty(ref _isBold, value);
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 105)]
+        public bool IsItalic
+        {
+            get => _isItalic;
+            set => SetProperty(ref _isItalic, value);
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 106)]
+        public bool IsUnderline
+        {
+            get => _isUnderline;
+            set => SetProperty(ref _isUnderline, value);
+        }
+
+        [PropertyMetadata(Group = "✍️ Text", Order = 108)]
+        public TextAlignment Alignment
+        {
+            get => _alignment;
+            set => SetProperty(ref _alignment, value);
+        }
+
+        /// <summary>Line height multiplier (1.0 = normal, 1.2 = default).</summary>
+        [PropertyMetadata(Group = "✍️ Text", Order = 109, IsSlider = true, MinValue = 0.5, MaxValue = 5)]
+        public double LineHeight
+        {
+            get => _lineHeight;
+            set => SetProperty(ref _lineHeight, Math.Clamp(value, 0.5, 5.0));
+        }
+
+        /// <summary>Extra spacing between characters in pixels (negative = tighter).</summary>
+        [PropertyMetadata(Group = "✍️ Text", Order = 110, IsSlider = true, MinValue = -20, MaxValue = 100)]
+        public double LetterSpacing
+        {
+            get => _letterSpacing;
+            set => SetProperty(ref _letterSpacing, Math.Clamp(value, -20, 100));
+        }
+
+        // ── Shadow ───────────────────────────────────────────────────────────
+
+        [PropertyMetadata(Group = "👤 Shadow", Order = 200)]
+        public bool HasShadow
+        {
+            get => _hasShadow;
+            set => SetProperty(ref _hasShadow, value);
+        }
+
+        [PropertyMetadata(Group = "👤 Shadow", Order = 201, IsColor = true)]
+        public string ShadowColorHex
+        {
+            get => _shadowColorHex;
+            set => SetProperty(ref _shadowColorHex, value ?? "#000000");
+        }
+
+        [PropertyMetadata(Group = "👤 Shadow", Order = 202, IsSlider = true, MinValue = -20, MaxValue = 20)]
+        public float ShadowOffsetX
+        {
+            get => _shadowOffsetX;
+            set => SetProperty(ref _shadowOffsetX, value);
+        }
+
+        [PropertyMetadata(Group = "👤 Shadow", Order = 203, IsSlider = true, MinValue = -20, MaxValue = 20)]
+        public float ShadowOffsetY
+        {
+            get => _shadowOffsetY;
+            set => SetProperty(ref _shadowOffsetY, value);
+        }
+
+        /// <summary>Shadow blur sigma (0 = sharp, higher = softer).</summary>
+        [PropertyMetadata(Group = "👤 Shadow", Order = 204, IsSlider = true, MinValue = 0, MaxValue = 25)]
+        public float ShadowBlur
+        {
+            get => _shadowBlur;
+            set => SetProperty(ref _shadowBlur, Math.Clamp(value, 0f, 25f));
+        }
+
+        // ── Outline ──────────────────────────────────────────────────────────
+
+        [PropertyMetadata(Group = "□ Outline", Order = 300)]
+        public bool HasOutline
+        {
+            get => _hasOutline;
+            set => SetProperty(ref _hasOutline, value);
+        }
+
+        [PropertyMetadata(Group = "□ Outline", Order = 301, IsColor = true)]
+        public string OutlineColorHex
+        {
+            get => _outlineColorHex;
+            set => SetProperty(ref _outlineColorHex, value ?? "#000000");
+        }
+
+        [PropertyMetadata(Group = "□ Outline", Order = 302, IsSlider = true, MinValue = 0.5, MaxValue = 20)]
+        public float OutlineThickness
+        {
+            get => _outlineThickness;
+            set => SetProperty(ref _outlineThickness, Math.Clamp(value, 0.5f, 20f));
+        }
+
+        // ── Background ───────────────────────────────────────────────────────
+
+        [PropertyMetadata(Group = "🟦 Background", Order = 400)]
+        public bool HasBackground
+        {
+            get => _hasBackground;
+            set => SetProperty(ref _hasBackground, value);
+        }
+
+        [PropertyMetadata(Group = "🟦 Background", Order = 401, IsColor = true)]
+        public string BackgroundColorHex
+        {
+            get => _backgroundColorHex;
+            set => SetProperty(ref _backgroundColorHex, value ?? "#000000");
+        }
+
+        [PropertyMetadata(Group = "🟦 Background", Order = 402, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        public double BackgroundOpacity
+        {
+            get => _backgroundOpacity;
+            set => SetProperty(ref _backgroundOpacity, Math.Clamp(value, 0.0, 1.0));
+        }
+
+        [PropertyMetadata(Group = "🟦 Background", Order = 403, IsSlider = true, MinValue = 0, MaxValue = 100)]
+        public double BackgroundPadding
+        {
+            get => _backgroundPadding;
+            set => SetProperty(ref _backgroundPadding, Math.Clamp(value, 0, 100));
+        }
+
+        [PropertyMetadata(Group = "🟦 Background", Order = 404, IsSlider = true, MinValue = 0, MaxValue = 50)]
+        public double BackgroundCornerRadius
+        {
+            get => _backgroundCornerRadius;
+            set => SetProperty(ref _backgroundCornerRadius, Math.Clamp(value, 0, 50));
+        }
+
+        // ── Preset ───────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Applies default property values for the given style preset.
+        /// Individual properties can be customised afterwards.
+        /// </summary>
+        public void ApplyPreset(TextStyle preset)
+        {
+            Style = preset;
+            switch (preset)
+            {
+                case TextStyle.Title:
+                    FontSize = 48; IsBold = true; ColorHex = "#FFFFFF";
+                    Alignment = TextAlignment.Center;
+                    HasShadow = true; ShadowOffsetX = 2; ShadowOffsetY = 2; ShadowBlur = 4;
+                    HasOutline = false;
+                    HasBackground = false;
+                    break;
+
+                case TextStyle.Subtitle:
+                    FontSize = 28; IsBold = false; ColorHex = "#EEEEEE";
+                    Alignment = TextAlignment.Center;
+                    HasShadow = true; ShadowOffsetX = 1; ShadowOffsetY = 1; ShadowBlur = 2;
+                    HasOutline = false;
+                    HasBackground = false;
+                    break;
+
+                case TextStyle.Caption:
+                    FontSize = 18; IsBold = false; ColorHex = "#FFFFFF";
+                    Alignment = TextAlignment.Center;
+                    HasShadow = false;
+                    HasOutline = false;
+                    HasBackground = true; BackgroundColorHex = "#000000";
+                    BackgroundOpacity = 0.6; BackgroundPadding = 8; BackgroundCornerRadius = 0;
+                    break;
+
+                case TextStyle.LowerThird:
+                    FontSize = 24; IsBold = true; ColorHex = "#FFFFFF";
+                    Alignment = TextAlignment.Left;
+                    HasShadow = false;
+                    HasOutline = false;
+                    HasBackground = true; BackgroundColorHex = "#003366";
+                    BackgroundOpacity = 0.85; BackgroundPadding = 12; BackgroundCornerRadius = 4;
+                    break;
+            }
+        }
+
+        // ── CanvasElement overrides ───────────────────────────────────────────
+
+        public override void ResetToDefault()
+        {
+            base.ResetToDefault();
+            Content = "Text"; Style = TextStyle.Custom;
+            FontFamily = "Arial"; FontSize = 32; ColorHex = "#FFFFFF";
+            IsBold = false; IsItalic = false; IsUnderline = false;
+            Alignment = TextAlignment.Center; LineHeight = 1.2; LetterSpacing = 0;
+            HasShadow = false; ShadowColorHex = "#000000";
+            ShadowOffsetX = 2; ShadowOffsetY = 2; ShadowBlur = 3;
+            HasOutline = false; OutlineColorHex = "#000000"; OutlineThickness = 2;
+            HasBackground = false; BackgroundColorHex = "#000000";
+            BackgroundOpacity = 0.5; BackgroundPadding = 8; BackgroundCornerRadius = 4;
+        }
+
+        public override CanvasElement Clone() =>
+            new TextOverlayElement
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = Name + " (Copy)",
+                X = X, Y = Y, Width = Width, Height = Height,
+                ZIndex = ZIndex, IsVisible = IsVisible,
+                SegmentId = null,
+                Content = Content, Style = TextStyle.Custom,
+                FontFamily = FontFamily, FontSize = FontSize, ColorHex = ColorHex,
+                IsBold = IsBold, IsItalic = IsItalic, IsUnderline = IsUnderline,
+                Alignment = Alignment, LineHeight = LineHeight, LetterSpacing = LetterSpacing,
+                HasShadow = HasShadow, ShadowColorHex = ShadowColorHex,
+                ShadowOffsetX = ShadowOffsetX, ShadowOffsetY = ShadowOffsetY, ShadowBlur = ShadowBlur,
+                HasOutline = HasOutline, OutlineColorHex = OutlineColorHex, OutlineThickness = OutlineThickness,
+                HasBackground = HasBackground, BackgroundColorHex = BackgroundColorHex,
+                BackgroundOpacity = BackgroundOpacity, BackgroundPadding = BackgroundPadding,
+                BackgroundCornerRadius = BackgroundCornerRadius
+            };
     }
 }

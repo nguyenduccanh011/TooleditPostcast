@@ -370,4 +370,22 @@ namespace PodcastVideoEditor.Ui.Converters
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Convert bool to TextDecorationCollection: true → Underline, false → null (no decoration).
+    /// </summary>
+    public class BoolToUnderlineConverter : IValueConverter
+    {
+        public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool b && b)
+                return TextDecorations.Underline;
+            return null;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is TextDecorationCollection col && col.Count > 0;
+        }
+    }
 }

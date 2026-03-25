@@ -273,6 +273,27 @@ public sealed class ElementDeletedAction : IUndoableAction
     public void Redo() => _elements.Remove(_el);
 }
 
+/// <summary>A single property was changed on a canvas element via PropertyEditor.</summary>
+public sealed class ElementPropertyChangedAction : IUndoableAction
+{
+    private readonly CanvasElement _element;
+    private readonly System.Reflection.PropertyInfo _property;
+    private readonly object? _oldValue;
+    private readonly object? _newValue;
+
+    public ElementPropertyChangedAction(CanvasElement element, System.Reflection.PropertyInfo property, object? oldValue, object? newValue)
+    {
+        _element = element;
+        _property = property;
+        _oldValue = oldValue;
+        _newValue = newValue;
+    }
+
+    public string Description => $"Change '{_property.Name}' on '{_element.Name}'";
+    public void Undo() => _property.SetValue(_element, _oldValue);
+    public void Redo() => _property.SetValue(_element, _newValue);
+}
+
 /// <summary>Groups multiple actions into a single undoable/redoable unit (e.g., bulk delete).</summary>
 public sealed class CompoundAction : IUndoableAction
 {

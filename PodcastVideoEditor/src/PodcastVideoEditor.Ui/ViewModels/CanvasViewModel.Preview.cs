@@ -218,21 +218,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             if (e.PropertyName == nameof(Segment.Text))
             {
-                // Sync linked canvas TextElement content when segment text is edited on timeline
+                // Sync linked canvas TextOverlayElement content when segment text is edited on timeline
                 if (sender is Segment editedSeg)
                 {
                     var linkedEl = Elements.FirstOrDefault(el =>
                         string.Equals(el.SegmentId, editedSeg.Id, StringComparison.Ordinal));
-                    if (linkedEl is TextElement te)
+                    if (linkedEl is TextOverlayElement tov)
                     {
-                        te.Content = editedSeg.Text ?? string.Empty;
-                        te.Name = editedSeg.Text?.Length > 20
+                        tov.Content = editedSeg.Text ?? string.Empty;
+                        tov.Name = editedSeg.Text?.Length > 20
                             ? editedSeg.Text[..20] + "…"
                             : editedSeg.Text ?? "Text";
-                    }
-                    else if (linkedEl is TitleElement ti)
-                    {
-                        ti.Text = editedSeg.Text ?? string.Empty;
                     }
                 }
                 ScheduleDebouncedPreviewUpdate();
@@ -430,7 +426,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // (VisualizerElement etc.) are managed via UpdateElementVisibility below.
             }
 
-            // --- Auto-create TextElements for text segments ---
+            // --- Multi-text composite ---
+            // Auto-create interactive TextOverlayElement for any text segment that doesn't have one yet.
+            // This ensures text always renders as a draggable/resizable canvas element.
             foreach (var tp in textPairs)
             {
                 if (string.IsNullOrWhiteSpace(tp.segment.Text))
@@ -442,10 +440,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     EnsureTextElementForSegment(tp.segment);
             }
 
-            // --- Unified visual composite: auto-create ImageElements for ALL visual segments ---
-            // This replaces the old BackgroundLayers + ActiveVisualImage dual-path rendering.
-            // All images now live in the Elements collection, sharing a single z-order space
-            // with VisualizerElements, TextElements, etc. Track.Order controls stacking.
+            // --- Multi-visual composite: iterate visual tracks by z-order ---
+            // All images are auto-created as ImageElements for unified z-order with other elements.
             foreach (var vp in visualPairs)
             {
                 EnsureImageElementForVisualSegment(vp.track, vp.segment);

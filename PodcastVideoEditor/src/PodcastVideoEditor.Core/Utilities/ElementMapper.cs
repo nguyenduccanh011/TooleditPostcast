@@ -96,11 +96,10 @@ public static class ElementMapper
     {
         return type switch
         {
-            "Title" => new TitleElement(),
+            "Title" or "Text" or "TextOverlay" => new TextOverlayElement(),
             "Logo" => new LogoElement(),
             "Visualizer" => new VisualizerElement(),
             "Image" => new ImageElement(),
-            "Text" => new TextElement(),
             _ => null
         };
     }
@@ -112,15 +111,6 @@ public static class ElementMapper
 
         switch (canvas)
         {
-            case TitleElement t:
-                dict["Text"] = t.Text;
-                dict["FontFamily"] = t.FontFamily;
-                dict["FontSize"] = t.FontSize;
-                dict["ColorHex"] = t.ColorHex;
-                dict["IsBold"] = t.IsBold;
-                dict["IsItalic"] = t.IsItalic;
-                dict["Alignment"] = t.Alignment.ToString();
-                break;
             case LogoElement l:
                 dict["ImagePath"] = l.ImagePath;
                 dict["Opacity"] = l.Opacity;
@@ -136,14 +126,31 @@ public static class ElementMapper
                 dict["Opacity"] = i.Opacity;
                 dict["ScaleMode"] = i.ScaleMode.ToString();
                 break;
-            case TextElement te:
-                dict["Content"] = te.Content;
-                dict["FontFamily"] = te.FontFamily;
-                dict["FontSize"] = te.FontSize;
-                dict["ColorHex"] = te.ColorHex;
-                dict["IsBold"] = te.IsBold;
-                dict["IsItalic"] = te.IsItalic;
-                dict["Alignment"] = te.Alignment.ToString();
+            case TextOverlayElement to:
+                dict["Content"] = to.Content;
+                dict["FontFamily"] = to.FontFamily;
+                dict["FontSize"] = to.FontSize;
+                dict["ColorHex"] = to.ColorHex;
+                dict["IsBold"] = to.IsBold;
+                dict["IsItalic"] = to.IsItalic;
+                dict["IsUnderline"] = to.IsUnderline;
+                dict["Alignment"] = to.Alignment.ToString();
+                dict["Style"] = to.Style.ToString();
+                dict["LineHeight"] = to.LineHeight;
+                dict["LetterSpacing"] = to.LetterSpacing;
+                dict["HasShadow"] = to.HasShadow;
+                dict["ShadowColorHex"] = to.ShadowColorHex;
+                dict["ShadowOffsetX"] = to.ShadowOffsetX;
+                dict["ShadowOffsetY"] = to.ShadowOffsetY;
+                dict["ShadowBlur"] = to.ShadowBlur;
+                dict["HasOutline"] = to.HasOutline;
+                dict["OutlineColorHex"] = to.OutlineColorHex;
+                dict["OutlineThickness"] = to.OutlineThickness;
+                dict["HasBackground"] = to.HasBackground;
+                dict["BackgroundColorHex"] = to.BackgroundColorHex;
+                dict["BackgroundOpacity"] = to.BackgroundOpacity;
+                dict["BackgroundPadding"] = to.BackgroundPadding;
+                dict["BackgroundCornerRadius"] = to.BackgroundCornerRadius;
                 break;
         }
 
@@ -173,16 +180,6 @@ public static class ElementMapper
 
         switch (canvas)
         {
-            case TitleElement t:
-                if (dict.TryGetValue("Text", out var text)) t.Text = text.GetString() ?? "Title";
-                if (dict.TryGetValue("FontFamily", out var ff)) t.FontFamily = ff.GetString() ?? "Arial";
-                if (dict.TryGetValue("FontSize", out var fs)) t.FontSize = fs.GetDouble();
-                if (dict.TryGetValue("ColorHex", out var ch)) t.ColorHex = ch.GetString() ?? "#FFFFFF";
-                if (dict.TryGetValue("IsBold", out var ib)) t.IsBold = ib.GetBoolean();
-                if (dict.TryGetValue("IsItalic", out var ii)) t.IsItalic = ii.GetBoolean();
-                if (dict.TryGetValue("Alignment", out var al))
-                    t.Alignment = Enum.TryParse<TextAlignment>(al.GetString(), out var alignVal) ? alignVal : TextAlignment.Center;
-                break;
             case LogoElement l:
                 if (dict.TryGetValue("ImagePath", out var ip)) l.ImagePath = ip.GetString() ?? string.Empty;
                 if (dict.TryGetValue("Opacity", out var lo)) l.Opacity = lo.GetDouble();
@@ -202,15 +199,35 @@ public static class ElementMapper
                 if (dict.TryGetValue("ScaleMode", out var ism))
                     i.ScaleMode = Enum.TryParse<ScaleMode>(ism.GetString(), out var ismVal) ? ismVal : ScaleMode.Fill;
                 break;
-            case TextElement te:
-                if (dict.TryGetValue("Content", out var tc)) te.Content = tc.GetString() ?? "Text";
-                if (dict.TryGetValue("FontFamily", out var tff)) te.FontFamily = tff.GetString() ?? "Arial";
-                if (dict.TryGetValue("FontSize", out var tfs)) te.FontSize = tfs.GetDouble();
-                if (dict.TryGetValue("ColorHex", out var tch)) te.ColorHex = tch.GetString() ?? "#FFFFFF";
-                if (dict.TryGetValue("IsBold", out var tib)) te.IsBold = tib.GetBoolean();
-                if (dict.TryGetValue("IsItalic", out var tii)) te.IsItalic = tii.GetBoolean();
+            case TextOverlayElement to:
+                // Support loading legacy TitleElement (has "Text" key) and TextElement (has "Content" key)
+                if (dict.TryGetValue("Content", out var tc)) to.Content = tc.GetString() ?? "Text";
+                else if (dict.TryGetValue("Text", out var tt)) to.Content = tt.GetString() ?? "Title";
+                if (dict.TryGetValue("FontFamily", out var tff)) to.FontFamily = tff.GetString() ?? "Arial";
+                if (dict.TryGetValue("FontSize", out var tfs)) to.FontSize = tfs.GetDouble();
+                if (dict.TryGetValue("ColorHex", out var tch)) to.ColorHex = tch.GetString() ?? "#FFFFFF";
+                if (dict.TryGetValue("IsBold", out var tib)) to.IsBold = tib.GetBoolean();
+                if (dict.TryGetValue("IsItalic", out var tii)) to.IsItalic = tii.GetBoolean();
+                if (dict.TryGetValue("IsUnderline", out var tiu)) to.IsUnderline = tiu.GetBoolean();
                 if (dict.TryGetValue("Alignment", out var tal))
-                    te.Alignment = Enum.TryParse<TextAlignment>(tal.GetString(), out var talVal) ? talVal : TextAlignment.Center;
+                    to.Alignment = Enum.TryParse<TextAlignment>(tal.GetString(), out var talVal) ? talVal : TextAlignment.Center;
+                if (dict.TryGetValue("Style", out var tst))
+                    to.Style = Enum.TryParse<TextStyle>(tst.GetString(), out var tstVal) ? tstVal : TextStyle.Custom;
+                if (dict.TryGetValue("LineHeight", out var tlh)) to.LineHeight = tlh.GetDouble();
+                if (dict.TryGetValue("LetterSpacing", out var tls)) to.LetterSpacing = tls.GetDouble();
+                if (dict.TryGetValue("HasShadow", out var ths)) to.HasShadow = ths.GetBoolean();
+                if (dict.TryGetValue("ShadowColorHex", out var tsc)) to.ShadowColorHex = tsc.GetString() ?? "#000000";
+                if (dict.TryGetValue("ShadowOffsetX", out var tsx)) to.ShadowOffsetX = (float)tsx.GetDouble();
+                if (dict.TryGetValue("ShadowOffsetY", out var tsy)) to.ShadowOffsetY = (float)tsy.GetDouble();
+                if (dict.TryGetValue("ShadowBlur", out var tsb)) to.ShadowBlur = (float)tsb.GetDouble();
+                if (dict.TryGetValue("HasOutline", out var tho)) to.HasOutline = tho.GetBoolean();
+                if (dict.TryGetValue("OutlineColorHex", out var toc)) to.OutlineColorHex = toc.GetString() ?? "#000000";
+                if (dict.TryGetValue("OutlineThickness", out var tot)) to.OutlineThickness = (float)tot.GetDouble();
+                if (dict.TryGetValue("HasBackground", out var thb)) to.HasBackground = thb.GetBoolean();
+                if (dict.TryGetValue("BackgroundColorHex", out var tbc)) to.BackgroundColorHex = tbc.GetString() ?? "#000000";
+                if (dict.TryGetValue("BackgroundOpacity", out var tbo)) to.BackgroundOpacity = tbo.GetDouble();
+                if (dict.TryGetValue("BackgroundPadding", out var tbp)) to.BackgroundPadding = tbp.GetDouble();
+                if (dict.TryGetValue("BackgroundCornerRadius", out var tbcr)) to.BackgroundCornerRadius = tbcr.GetDouble();
                 break;
         }
     }

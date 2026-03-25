@@ -74,16 +74,16 @@ public partial class UnifiedPropertiesPanel : UserControl
         SegmentPanel.Visibility    = Visibility.Collapsed;
         ElementPanel.Visibility    = Visibility.Collapsed;
 
-        if (hasElement)
+        if (hasSegment)
         {
-            // Element selected → show only element properties (commercial NLE pattern: CapCut, Premiere, DaVinci).
-            // Segment timing is already visible in the timeline; no need to duplicate here.
-            ElementPanel.Visibility = Visibility.Visible;
-        }
-        else if (hasSegment)
-        {
-            // Segment only (no linked element)
+            // Segment selected → show segment props, and if it has a linked element show element props below
             SegmentPanel.Visibility = Visibility.Visible;
+            ElementPanel.Visibility = hasElement ? Visibility.Visible : Visibility.Collapsed;
+        }
+        else if (hasElement)
+        {
+            // Element selected standalone (no segment) → show only element properties
+            ElementPanel.Visibility = Visibility.Visible;
         }
         else if (hasTrack)
         {

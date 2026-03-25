@@ -197,10 +197,16 @@ namespace PodcastVideoEditor.Core.Models
     /// </summary>
     public enum ElementType
     {
+        /// <summary>Legacy — mapped to TextOverlay on load.</summary>
+        [Obsolete("Use TextOverlay instead.")]
         Title,
         Logo,
         Visualizer,
         Image,
-        Text
+        /// <summary>Legacy — mapped to TextOverlay on load.</summary>
+        [Obsolete("Use TextOverlay instead.")]
+        Text,
+        /// <summary>Unified text overlay — the single text element type.</summary>
+        TextOverlay
     }
 }

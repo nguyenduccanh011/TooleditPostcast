@@ -145,62 +145,30 @@
             </Grid>
         </DataTemplate>
 
-        <!-- TitleElement: displays Text with FontSize, FontFamily, ColorHex, etc. + 4 corner handles -->
-        <DataTemplate x:Key="TitleElementTemplate">
+        <!-- TextOverlayElement: unified text element with shadow/outline/background support -->
+        <DataTemplate x:Key="TextOverlayElementTemplate">
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
-                <Border Background="#333333"
-                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                        BorderThickness="2">
-                    <TextBlock Text="{Binding Text}"
-                               Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
-                               FontFamily="{Binding FontFamily}"
-                               FontSize="{Binding FontSize}"
-                               FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
-                               FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
-                               TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
-                               TextWrapping="Wrap"
-                               Padding="8,4"/>
-                </Border>
-                <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
-                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
-                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
-                <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
-                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
-                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
-                <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
-                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
-                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
-                <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
-                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
-                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
-            </Grid>
-        </DataTemplate>
-
-        <!-- TextElement: displays Content + 4 corners + 2 horizontal handles for width adjustment -->
-        <DataTemplate x:Key="TextElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
-                <Border Background="#333333"
-                        BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                        BorderThickness="2">
+                <!-- Background layer (only rendered when HasBackground=true) -->
+                <Border Background="{Binding BackgroundColorHex, Converter={StaticResource HexToBrushConverter}}"
+                        Opacity="{Binding BackgroundOpacity}"
+                        CornerRadius="4"
+                        Visibility="{Binding HasBackground, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                <Border BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
+                        BorderThickness="2"
+                        Background="Transparent">
                     <TextBlock Text="{Binding Content}"
                                Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
                                FontFamily="{Binding FontFamily}"
                                FontSize="{Binding FontSize}"
                                FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
                                FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
+                               TextDecorations="{Binding IsUnderline, Converter={StaticResource BoolToUnderlineConverter}}"
                                TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
                                VerticalAlignment="Center"
                                HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
                                TextWrapping="Wrap"
                                Padding="8,4"/>
                 </Border>
-                <!-- Corner resize handles (proportional) -->
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
                        HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
@@ -217,7 +185,6 @@
                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
-                <!-- Horizontal-only resize handles (text width adjustment) -->
                 <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
                        HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-4,0,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
@@ -261,8 +228,7 @@
         <views:ElementTemplateSelector x:Key="ElementTemplateSelector"
                                        DefaultTemplate="{StaticResource DefaultElementTemplate}"
                                        VisualizerTemplate="{StaticResource VisualizerElementTemplate}"
-                                       TitleTemplate="{StaticResource TitleElementTemplate}"
-                                       TextTemplate="{StaticResource TextElementTemplate}"
+                                       TextOverlayTemplate="{StaticResource TextOverlayElementTemplate}"
                                        ImageTemplate="{StaticResource ImageElementTemplate}"
                                        LogoTemplate="{StaticResource LogoElementTemplate}"/>
         <!-- Compact outline ratio button for status bar -->
@@ -415,6 +381,7 @@
                                               IsHitTestVisible="False"
                                               RenderOptions.BitmapScalingMode="HighQuality"/>
                             </Border>
+
                             <!-- All other elements: images, visualizers, text, logos -->
                             <ItemsControl ItemsSource="{Binding Elements}"
                                          ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
