@@ -465,7 +465,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Error adding asset: {ex.Message}";
+                var innerMsg = ex.InnerException?.Message;
+                StatusMessage = innerMsg != null
+                    ? $"Error adding asset: {innerMsg}"
+                    : $"Error adding asset: {ex.Message}";
                 Log.Error(ex, "Error adding asset to project {ProjectId}", CurrentProject.Id);
                 return null;
             }
