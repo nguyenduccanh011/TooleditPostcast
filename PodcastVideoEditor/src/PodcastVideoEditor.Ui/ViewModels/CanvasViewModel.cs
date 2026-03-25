@@ -546,7 +546,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var projectEnd       = _timelineViewModel?.GetProjectDuration() ?? 30.0;
             var playhead         = _timelineViewModel?.PlayheadPosition ?? 0.0;
             var segmentDuration  = Math.Max(10.0, projectEnd - playhead);
-            AddElementToCanvas(element, TrackTypes.Effect, segmentDuration, newTrack: true);
+            AddElementToCanvas(element, TrackTypes.Effect, segmentDuration);
             EnsureVisualizerTimer();
         }
 
