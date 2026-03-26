@@ -1,6 +1,7 @@
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.Converters;
+using PodcastVideoEditor.Ui.Helpers;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -47,20 +48,7 @@ namespace PodcastVideoEditor.Ui.Views
     {
         private TimelineViewModel? _viewModel;
         private bool _isDraggingPlayhead;
-        private bool _isResizingSegment;
-        private bool _isResizingLeft;
-        private bool _isDraggingSegment;
-        private double _segmentOriginalEndTime;
-        private double _segmentOriginalStartTime;
-        private double _resizeDeltaX;
-        private double _resizeLeftDeltaX;
-        private double _resizeLeftOriginalStartTime;
-        private double _moveDeltaX;
-        private double _dragPixelsPerSecond; // Frozen at drag start to avoid jitter from TotalDuration changes
-        // Pre-drag snapshots used for undo recording (never reset mid-drag unlike _segmentOriginal*).
-        private double _dragUndoOriginalStart;
-        private double _dragUndoOriginalEnd;
-        private double _dragUndoOriginalSourceOffset;
+        private SegmentDragOperation? _dragOp;
         private EventHandler? _undoRedoStateChangedHandler;
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
@@ -528,16 +516,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid && 
                 grid.DataContext is Segment segment)
             {
-                // Block drag on locked track
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _isResizingLeft = false;
-                _isResizingSegment = true;
-                _segmentOriginalEndTime = segment.EndTime;
-                _dragUndoOriginalEnd = segment.EndTime; // Stable snapshot for undo
-                _resizeDeltaX = 0;
-                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze PPS during resize
+                _dragOp = SegmentDragOperation.BeginResizeRight(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
                 _viewModel.IsDeferringThumbnailUpdate = true;
             }
@@ -552,17 +534,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid &&
                 grid.DataContext is Segment segment)
             {
-                // Block drag on locked track
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _isResizingSegment = false;
-                _isResizingLeft = true;
-                _resizeLeftOriginalStartTime = segment.StartTime;
-                _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
-                _dragUndoOriginalSourceOffset = segment.SourceStartOffset; // Snapshot for undo
-                _resizeLeftDeltaX = 0;
-                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze PPS during resize
+                _dragOp = SegmentDragOperation.BeginResizeLeft(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
                 _viewModel.IsDeferringThumbnailUpdate = true;
             }
@@ -574,56 +549,35 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (!_isResizingSegment || _viewModel == null)
+            if (_dragOp?.Kind != DragKind.ResizeRight || _viewModel == null)
                 return;
 
-            if (sender is Thumb thumb && 
-                thumb.Parent is Grid grid && 
-                grid.DataContext is Segment segment)
+            var segment = _dragOp.Segment;
+            double newEndTime = _dragOp.UpdateResizeRight(e.HorizontalChange, _viewModel.GridSize);
+
+            // For audio segments: clamp to source file duration
+            if (string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase))
             {
-                // Calculate new end time
-                _resizeDeltaX += e.HorizontalChange;
-                double pixelDelta = _resizeDeltaX;
-                double timeDelta = _viewModel.PixelsToTime(pixelDelta);
-                double newEndTime = _segmentOriginalEndTime + timeDelta;
-
-                // Let UpdateSegmentTiming auto-expand the timeline when resizing past current end
-                if (newEndTime <= segment.StartTime)
-                    newEndTime = segment.StartTime + _viewModel.GridSize;
-
-                // For audio segments: clamp to source file duration
-                if (string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase))
+                double? sourceDuration = _viewModel.GetSourceDurationForSegment(segment);
+                if (sourceDuration.HasValue && sourceDuration.Value > 0)
                 {
-                    double? sourceDuration = _viewModel.GetSourceDurationForSegment(segment);
-                    if (sourceDuration.HasValue && sourceDuration.Value > 0)
-                    {
-                        double maxSegDuration = sourceDuration.Value - segment.SourceStartOffset;
-                        double maxEndTime = segment.StartTime + maxSegDuration;
-                        if (newEndTime > maxEndTime)
-                            newEndTime = maxEndTime;
-                    }
+                    double maxSegDuration = sourceDuration.Value - segment.SourceStartOffset;
+                    double maxEndTime = segment.StartTime + maxSegDuration;
+                    if (newEndTime > maxEndTime)
+                        newEndTime = maxEndTime;
                 }
+            }
 
-                // Magnetic snap to nearest segment edge
-                double snapThresholdR = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
-                newEndTime = _viewModel.SnapToSegmentEdge(newEndTime, segment.TrackId, segment.Id, snapThresholdR);
+            // Magnetic snap to nearest segment edge
+            newEndTime = _viewModel.SnapToSegmentEdge(newEndTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
 
-                // Update segment via ViewModel
-                bool updated = _viewModel.UpdateSegmentTiming(segment, segment.StartTime, newEndTime);
+            bool updated = _viewModel.UpdateSegmentTiming(segment, segment.StartTime, newEndTime);
 
-                // If snapped to boundary (e.g. hit next segment), reset baseline to prevent jitter
-                const double tolerance = 0.01;
-                if (updated && Math.Abs(segment.EndTime - newEndTime) > tolerance)
-                {
-                    _segmentOriginalEndTime = segment.EndTime;
-                    _resizeDeltaX = 0;
-                }
-
-                if (updated)
-                {
-                    EnsureSegmentVisibleInScroll(segment);
-                    UpdateSegmentLayout(segment);
-                }
+            if (updated)
+            {
+                _dragOp.HandleSnapCorrection(segment.StartTime, newEndTime);
+                EnsureSegmentVisibleInScroll(segment);
+                UpdateSegmentLayout(segment);
             }
         }
 
@@ -633,57 +587,31 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeLeftThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (!_isResizingLeft || _viewModel == null)
+            if (_dragOp?.Kind != DragKind.ResizeLeft || _viewModel == null)
                 return;
 
-            if (sender is Thumb thumb &&
-                thumb.Parent is Grid grid &&
-                grid.DataContext is Segment segment)
+            var segment = _dragOp.Segment;
+            double newStartTime = _dragOp.UpdateResizeLeft(e.HorizontalChange, _viewModel.GridSize);
+
+            // For audio segments: clamp so SourceStartOffset cannot go negative
+            bool isAudio = string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase);
+            if (isAudio)
+                newStartTime = _dragOp.ClampForAudioLeft(newStartTime);
+
+            // Magnetic snap to nearest segment edge
+            newStartTime = _viewModel.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
+
+            bool updated = _viewModel.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
+
+            // For audio segments: update SourceStartOffset to match the left-trim delta
+            if (updated && isAudio)
+                _dragOp.UpdateAudioSourceOffset();
+
+            if (updated)
             {
-                _resizeLeftDeltaX += e.HorizontalChange;
-                double timeDelta = _viewModel.PixelsToTime(_resizeLeftDeltaX);
-                double newStartTime = _resizeLeftOriginalStartTime + timeDelta;
-
-                if (newStartTime < 0)
-                    newStartTime = 0;
-                if (newStartTime >= segment.EndTime)
-                    newStartTime = segment.EndTime - _viewModel.GridSize;
-
-                // For audio segments: clamp so SourceStartOffset cannot go negative
-                bool isAudio = string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase);
-                if (isAudio)
-                {
-                    double proposedOffsetDelta = newStartTime - _dragUndoOriginalStart;
-                    double proposedOffset = _dragUndoOriginalSourceOffset + proposedOffsetDelta;
-                    if (proposedOffset < 0)
-                        newStartTime = _dragUndoOriginalStart - _dragUndoOriginalSourceOffset;
-                }
-
-                // Magnetic snap to nearest segment edge
-                double snapThresholdL = _viewModel.PixelsPerSecond > 0 ? 15.0 / _viewModel.PixelsPerSecond : 0.1;
-                newStartTime = _viewModel.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, snapThresholdL);
-
-                bool updated = _viewModel.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
-
-                // For audio segments: update SourceStartOffset to match the left-trim delta
-                if (updated && isAudio)
-                {
-                    double offsetDelta = segment.StartTime - _dragUndoOriginalStart;
-                    segment.SourceStartOffset = Math.Max(0, _dragUndoOriginalSourceOffset + offsetDelta);
-                }
-
-                const double tolerance = 0.01;
-                if (updated && Math.Abs(segment.StartTime - newStartTime) > tolerance)
-                {
-                    _resizeLeftOriginalStartTime = segment.StartTime;
-                    _resizeLeftDeltaX = 0;
-                }
-
-                if (updated)
-                {
-                    EnsureSegmentVisibleInScroll(segment);
-                    UpdateSegmentLayout(segment);
-                }
+                _dragOp.HandleSnapCorrection(newStartTime, segment.EndTime);
+                EnsureSegmentVisibleInScroll(segment);
+                UpdateSegmentLayout(segment);
             }
         }
 
@@ -692,16 +620,15 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            _isResizingSegment = false;
-            _resizeDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
-            {
                 grid.Cursor = Cursors.Arrow;
-                if (grid.DataContext is Segment seg && Math.Abs(seg.EndTime - _dragUndoOriginalEnd) > 0.001)
-                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
-                        seg, seg.StartTime, _dragUndoOriginalEnd, seg.StartTime, seg.EndTime,
-                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+
+            if (_dragOp?.Kind == DragKind.ResizeRight)
+            {
+                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
+                if (action != null) _viewModel?.UndoRedoService?.Record(action);
             }
+            _dragOp = null;
             _viewModel!.IsDeferringThumbnailUpdate = false;
             _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
@@ -712,17 +639,15 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeLeftThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            _isResizingLeft = false;
-            _resizeLeftDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
-            {
                 grid.Cursor = Cursors.Arrow;
-                if (grid.DataContext is Segment seg && Math.Abs(seg.StartTime - _dragUndoOriginalStart) > 0.001)
-                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
-                        seg, _dragUndoOriginalStart, seg.EndTime, seg.StartTime, seg.EndTime,
-                        _dragUndoOriginalSourceOffset, seg.SourceStartOffset,
-                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+
+            if (_dragOp?.Kind == DragKind.ResizeLeft)
+            {
+                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
+                if (action != null) _viewModel?.UndoRedoService?.Record(action);
             }
+            _dragOp = null;
             _viewModel!.IsDeferringThumbnailUpdate = false;
             _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
@@ -737,17 +662,10 @@ namespace PodcastVideoEditor.Ui.Views
                 thumb.Parent is Grid grid &&
                 grid.DataContext is Segment segment)
             {
-                // Block drag on locked track
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _isDraggingSegment = true;
-                _segmentOriginalStartTime = segment.StartTime;
-                _segmentOriginalEndTime = segment.EndTime;
-                _dragUndoOriginalStart = segment.StartTime; // Stable snapshot for undo
-                _dragUndoOriginalEnd = segment.EndTime;     // Stable snapshot for undo
-                _moveDeltaX = 0;
-                _dragPixelsPerSecond = _viewModel!.PixelsPerSecond; // Freeze conversion rate
+                _dragOp = SegmentDragOperation.BeginMove(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeAll;
                 _viewModel.SelectSegment(segment);
                 _viewModel.IsDeferringThumbnailUpdate = true;
@@ -759,69 +677,20 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void MoveThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (!_isDraggingSegment || _viewModel == null)
+            if (_dragOp?.Kind != DragKind.Move || _viewModel == null)
                 return;
 
-            if (sender is Thumb thumb &&
-                thumb.Parent is Grid grid &&
-                grid.DataContext is Segment segment)
+            var segment = _dragOp.Segment;
+            var (newStart, newEnd) = _dragOp.UpdateMove(e.HorizontalChange);
+            (newStart, newEnd) = _dragOp.ApplyMoveSnap(newStart, newEnd, _viewModel);
+
+            bool updated = _viewModel.UpdateSegmentTiming(segment, newStart, newEnd);
+
+            if (updated)
             {
-                _moveDeltaX += e.HorizontalChange;
-                double pixelDelta = _moveDeltaX;
-                // Use the frozen PixelsPerSecond captured at drag start so that
-                // TotalDuration / TimelineWidth changes mid-drag don't shift the
-                // pixel↔time mapping and cause oscillation.
-                double pps = _dragPixelsPerSecond > 0 ? _dragPixelsPerSecond : _viewModel.PixelsPerSecond;
-                double timeDelta = pixelDelta / pps;
-
-                double duration = _segmentOriginalEndTime - _segmentOriginalStartTime;
-                double newStart = _segmentOriginalStartTime + timeDelta;
-                double newEnd = newStart + duration;
-
-                // Clamp left boundary (always)
-                if (newStart < 0)
-                {
-                    newStart = 0;
-                    newEnd = duration;
-                    // Cap accumulator so reversing direction is immediately responsive
-                    _moveDeltaX = (newStart - _segmentOriginalStartTime) * pps;
-                }
-                // No right-boundary clamp: timeline expands automatically via ExpandTimelineToFit.
-
-                // Magnetic snap: check both edges, pick the closest snap while preserving duration
-                double snapThresholdM = pps > 0 ? 15.0 / pps : 0.1;
-                double snappedByStart = _viewModel.SnapToSegmentEdge(newStart, segment.TrackId, segment.Id, snapThresholdM);
-                double snappedByEnd   = _viewModel.SnapToSegmentEdge(newEnd,   segment.TrackId, segment.Id, snapThresholdM);
-                double distS = Math.Abs(snappedByStart - newStart);
-                double distE = Math.Abs(snappedByEnd   - newEnd);
-                if (distS <= distE && distS < snapThresholdM)
-                {
-                    newStart = snappedByStart;
-                    newEnd   = newStart + duration;
-                }
-                else if (distE < snapThresholdM)
-                {
-                    newEnd   = snappedByEnd;
-                    newStart = newEnd - duration;
-                }
-
-                bool updated = _viewModel.UpdateSegmentTiming(segment, newStart, newEnd);
-
-                // If we snapped to boundary (applied position differs from requested), reset drag
-                // origin to prevent oscillation when crossing segment boundaries
-                const double tolerance = 0.01;
-                if (updated && (Math.Abs(segment.StartTime - newStart) > tolerance || Math.Abs(segment.EndTime - newEnd) > tolerance))
-                {
-                    _segmentOriginalStartTime = segment.StartTime;
-                    _segmentOriginalEndTime = segment.EndTime;
-                    _moveDeltaX = 0;
-                }
-
-                if (updated)
-                {
-                    EnsureSegmentVisibleInScroll(segment);
-                    UpdateSegmentLayout(segment);
-                }
+                _dragOp.HandleSnapCorrection(newStart, newEnd);
+                EnsureSegmentVisibleInScroll(segment);
+                UpdateSegmentLayout(segment);
             }
         }
 
@@ -830,20 +699,16 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void MoveThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         {
-            _isDraggingSegment = false;
-            _moveDeltaX = 0;
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
-            {
                 grid.Cursor = Cursors.Arrow;
-                if (grid.DataContext is Segment seg &&
-                    (Math.Abs(seg.StartTime - _dragUndoOriginalStart) > 0.001 || Math.Abs(seg.EndTime - _dragUndoOriginalEnd) > 0.001))
-                    _viewModel?.UndoRedoService?.Record(new SegmentTimingChangedAction(
-                        seg, _dragUndoOriginalStart, _dragUndoOriginalEnd, seg.StartTime, seg.EndTime,
-                        () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+
+            if (_dragOp?.Kind == DragKind.Move)
+            {
+                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
+                if (action != null) _viewModel?.UndoRedoService?.Record(action);
             }
-            // End the deferred mode FIRST so recalculations below are not suppressed.
+            _dragOp = null;
             _viewModel!.IsDeferringThumbnailUpdate = false;
-            // Recalculate timeline length and PixelsPerSecond now that the drag is done.
             _viewModel.RecalculateDurationFromSegments();
             UpdateSegmentLayout();
         }

@@ -481,7 +481,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 Elements.Add(element);
                 SelectElement(element);
-                _undoRedo?.Record(new ElementAddedAction(Elements, element));
+
+                // Compound undo: pop the SegmentAddedAction that CommitSegmentToTrack just recorded,
+                // then wrap it with ElementAddedAction so both are undone/redone atomically.
+                var segAction = _undoRedo?.PopLast();
+                var elAction = new ElementAddedAction(Elements, element);
+                if (segAction != null)
+                    _undoRedo?.Record(new CompoundAction($"Add {element.Type}", new[] { segAction, elAction }));
+                else
+                    _undoRedo?.Record(elAction);
+
                 LogMessage($"Added {element.Type} element + timeline segment");
                 return segment;
             }
@@ -695,11 +704,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             var elementToDelete = SelectedElement;
-            _undoRedo?.Record(new ElementDeletedAction(Elements, elementToDelete));
+            var elAction = new ElementDeletedAction(Elements, elementToDelete);
+
+            // Cascade-delete the linked timeline segment (if any) and record as compound undo
+            IUndoableAction? segAction = null;
+            if (!string.IsNullOrEmpty(elementToDelete.SegmentId) && _timelineViewModel != null)
+                segAction = _timelineViewModel.RemoveSegmentById(elementToDelete.SegmentId);
+
             Elements.Remove(elementToDelete);
             SelectedElement = null;
             PropertyEditor.SetSelectedElement(null);
             EnsureVisualizerTimer();
+
+            if (segAction != null)
+                _undoRedo?.Record(new CompoundAction($"Delete {elementToDelete.Name}", new[] { elAction, segAction }));
+            else
+                _undoRedo?.Record(elAction);
+
             LogMessage($"Deleted: {elementToDelete.Name}");
         }
 

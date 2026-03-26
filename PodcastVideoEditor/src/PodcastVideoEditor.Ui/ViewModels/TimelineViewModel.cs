@@ -96,6 +96,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private Dictionary<string, SegmentIntervalIndex>? _segmentIndexMap;
         private bool _segmentIndexDirty = true;
 
+        // Extracted services — pure-logic, no UI dependencies.
+        private readonly SegmentSnapService _snapService = new();
+        private readonly TimelineLayoutService _layoutService = new();
+
         // Undo/redo (optional — set via SetUndoRedoService from MainViewModel).
         private UndoRedoService? _undoRedo;
 
@@ -325,12 +329,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (TotalDuration <= 0)
                 TotalDuration = TimelineConstants.DefaultEmptyDuration;
 
-            // Ensure minimum timeline duration so we don't get zero/extreme values
-            double displayDuration = Math.Max(TotalDuration + TimelineConstants.DisplayDurationBuffer, TimelineConstants.DefaultEmptyDuration);
-            PixelsPerSecond = TimelineWidth / displayDuration;
-
-            if (PixelsPerSecond < TimelineConstants.MinPixelsPerSecond)
-                PixelsPerSecond = TimelineConstants.MinPixelsPerSecond;
+            PixelsPerSecond = _layoutService.CalculatePixelsPerSecond(TimelineWidth, TotalDuration);
         }
 
         /// <summary>
@@ -344,12 +343,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public double ComputeMaxSegmentEndTime()
         {
-            double max = 0;
-            foreach (var track in Tracks)
-                foreach (var seg in track.Segments)
-                    if (seg.EndTime > max)
-                        max = seg.EndTime;
-            return max;
+            return _layoutService.ComputeMaxSegmentEndTime(Tracks);
         }
 
         /// <summary>
@@ -358,12 +352,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public void RecalculateDurationFromSegments()
         {
-            var segEnd = ComputeMaxSegmentEndTime();
-            var audioDuration = _audioService.GetDuration();
-            double computed = segEnd > 0 ? segEnd + TimelineConstants.SegmentEndBuffer : TimelineConstants.DefaultEmptyDuration;
-            TotalDuration = Math.Max(computed, audioDuration);
-            RecalculatePixelsPerSecond();
-            TimelineWidth = Math.Max(TimelineConstants.MinTimelineWidth, TotalDuration * 10);
+            var result = _layoutService.RecalculateDuration(Tracks, _audioService.GetDuration(), TimelineWidth);
+            TotalDuration = result.totalDuration;
+            PixelsPerSecond = result.pixelsPerSecond;
+            TimelineWidth = result.timelineWidth;
         }
 
         /// <summary>
@@ -421,8 +413,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private bool HasOverlap(Segment s1, Segment s2)
         {
-            // No overlap if s1 ends before s2 starts OR s2 ends before s1 starts
-            return !(s1.EndTime <= s2.StartTime || s2.EndTime <= s1.StartTime);
+            return _snapService.HasOverlap(s1.StartTime, s1.EndTime, s2.StartTime, s2.EndTime);
         }
 
         /// <summary>
@@ -430,6 +421,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private bool CheckCollisionInTrack(Segment segment, string trackId, Segment? excludeSegment = null)
         {
+            // Fast path: use binary-search index when available and clean
+            if (!_segmentIndexDirty && _segmentIndexMap != null
+                && _segmentIndexMap.TryGetValue(trackId, out var index))
+            {
+                return index.HasOverlap(segment.StartTime, segment.EndTime, excludeSegment?.Id);
+            }
+
+            // Fallback: linear scan
             var track = Tracks.FirstOrDefault(t => t.Id == trackId);
             if (track == null)
                 return false;
@@ -466,7 +465,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private double SnapToGrid(double timeSeconds)
         {
-            return Math.Round(Math.Round(timeSeconds / GridSize) * GridSize, 2);
+            return _snapService.SnapToGrid(timeSeconds, GridSize);
         }
 
         /// <summary>
@@ -956,6 +955,33 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Remove a segment by its ID without recording an undo action.
+        /// Returns the <see cref="SegmentDeletedAction"/> so the caller can compound it.
+        /// Returns null if the segment was not found.
+        /// </summary>
+        public IUndoableAction? RemoveSegmentById(string segmentId)
+        {
+            foreach (var track in Tracks)
+            {
+                var segs = track.Segments as ObservableCollection<Segment>;
+                if (segs == null) continue;
+                var seg = segs.FirstOrDefault(s => s.Id == segmentId);
+                if (seg == null) continue;
+
+                int idx = segs.IndexOf(seg);
+                segs.Remove(seg);
+                InvalidateActiveSegmentsCache();
+                if (SelectedSegment == seg) SelectedSegment = null;
+
+                return new SegmentDeletedAction(
+                    segs, seg, idx,
+                    InvalidateActiveSegmentsCache,
+                    s => { if (s != null) SelectSegment(s); else SelectedSegment = null; });
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Select all segments across all tracks (Ctrl+A).
         /// </summary>
         [RelayCommand]
@@ -1208,17 +1234,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (trackId == null) return proposedTime;
             var track = Tracks.FirstOrDefault(t => t.Id == trackId);
             if (track == null) return proposedTime;
-            double best = proposedTime;
-            double bestDist = thresholdSeconds;
-            foreach (var seg in track.Segments)
-            {
-                if (seg.Id == excludeSegmentId) continue;
-                double dStart = Math.Abs(proposedTime - seg.StartTime);
-                double dEnd   = Math.Abs(proposedTime - seg.EndTime);
-                if (dStart < bestDist) { bestDist = dStart; best = seg.StartTime; }
-                if (dEnd   < bestDist) { bestDist = dEnd;   best = seg.EndTime; }
-            }
-            return best;
+            return _snapService.SnapToSegmentEdge(proposedTime, track.Segments, excludeSegmentId, thresholdSeconds);
         }
 
         /// <summary>
@@ -1369,109 +1385,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return false;
                 }
 
-                double duration = newEndTime - newStartTime;
-                if (duration <= 0)
+                var resolved = _snapService.ResolveTiming(
+                    segment, newStartTime, newEndTime,
+                    track.Segments, TotalDuration, GridSize,
+                    ExpandTimelineToFit);
+
+                if (!resolved.HasValue)
                 {
-                    StatusMessage = "Invalid segment timing";
+                    StatusMessage = "Cannot move: overlaps with other segment in track";
                     return false;
                 }
 
-                const double timeTolerance = 0.001;
-                bool resizeRightOnly = Math.Abs(newStartTime - segment.StartTime) < timeTolerance && newEndTime > segment.EndTime;
-                bool resizeLeftOnly = Math.Abs(newEndTime - segment.EndTime) < timeTolerance;
-
-                if (resizeRightOnly)
-                {
-                    newStartTime = segment.StartTime;
-                    if (newEndTime > TotalDuration)
-                        ExpandTimelineToFit(newEndTime);
-                    newEndTime = SnapToGrid(newEndTime);
-                }
-                else if (resizeLeftOnly)
-                {
-                    newEndTime = segment.EndTime;
-                    if (newStartTime < 0)
-                        newStartTime = 0;
-                    newStartTime = SnapToGrid(newStartTime);
-                }
-                else
-                {
-                    if (newEndTime > TotalDuration)
-                    {
-                        // Always expand the timeline so the segment can move freely
-                        ExpandTimelineToFit(newEndTime);
-                    }
-                    if (newStartTime < 0)
-                    {
-                        newStartTime = 0;
-                        newEndTime = duration;
-                    }
-                    newStartTime = SnapToGrid(newStartTime);
-                    newEndTime = SnapToGrid(newEndTime);
-                }
-
-                var testSegment = new Segment
-                {
-                    Id = segment.Id,
-                    StartTime = newStartTime,
-                    EndTime = newEndTime
-                };
-
-                if (CheckCollisionInTrack(testSegment, track.Id, segment))
-                {
-                    if (resizeRightOnly)
-                    {
-                        double capAt = newEndTime;
-                        foreach (var other in track.Segments)
-                        {
-                            if (other.Id == segment.Id) continue;
-                            if (other.StartTime > segment.StartTime)
-                                capAt = Math.Min(capAt, other.StartTime);
-                        }
-                        newStartTime = segment.StartTime;
-                        newEndTime = Math.Min(SnapToGrid(newEndTime), capAt);
-                        if (newEndTime <= newStartTime)
-                        {
-                            StatusMessage = "Cannot extend: blocked by next segment";
-                            return false;
-                        }
-                    }
-                    else if (resizeLeftOnly)
-                    {
-                        double floorAt = newStartTime;
-                        foreach (var other in track.Segments)
-                        {
-                            if (other.Id == segment.Id) continue;
-                            if (other.EndTime < segment.EndTime)
-                                floorAt = Math.Max(floorAt, other.EndTime);
-                        }
-                        newEndTime = segment.EndTime;
-                        newStartTime = Math.Max(SnapToGrid(newStartTime), floorAt);
-                        if (newEndTime <= newStartTime)
-                        {
-                            StatusMessage = "Cannot extend: blocked by previous segment";
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        var snapped = TrySnapToBoundary(segment, newStartTime, newEndTime, track);
-                        if (snapped.HasValue)
-                        {
-                            newStartTime = snapped.Value.start;
-                            newEndTime = snapped.Value.end;
-                        }
-                        else
-                        {
-                            StatusMessage = "Cannot move: overlaps with other segment in track";
-                            return false;
-                        }
-                    }
-                }
-
-                // Apply changes
-                segment.StartTime = newStartTime;
-                segment.EndTime = newEndTime;
+                segment.StartTime = resolved.Value.start;
+                segment.EndTime = resolved.Value.end;
 
                 StatusMessage = "Segment updated";
                 return true;
@@ -1489,61 +1415,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private (double start, double end)? TrySnapToBoundary(Segment segment, double requestedStart, double requestedEnd, Track track)
         {
-            double duration = requestedEnd - requestedStart;
-            double currentStart = segment.StartTime;
-            (double start, double end)? best = null;
-            double bestDistance = double.MaxValue;
-
-            foreach (var other in track.Segments)
-            {
-                if (other.Id == segment.Id) continue;
-
-                // Option A: Place after other segment (allow clamp to end of timeline)
-                double startA = SnapToGrid(other.EndTime);
-                double endA = startA + duration;
-                if (endA > TotalDuration && TotalDuration > 0)
-                {
-                    endA = TotalDuration;
-                    startA = SnapToGrid(endA - duration);
-                }
-                if (startA >= 0 && endA <= TotalDuration + 0.001)
-                {
-                    var testA = new Segment { Id = segment.Id, StartTime = startA, EndTime = endA };
-                    if (!CheckCollisionInTrack(testA, track.Id, segment))
-                    {
-                        double dist = Math.Abs(startA - currentStart);
-                        if (dist < bestDistance)
-                        {
-                            bestDistance = dist;
-                            best = (startA, endA);
-                        }
-                    }
-                }
-
-                // Option B: Place before other segment (allow clamp to start of timeline)
-                double endB = SnapToGrid(other.StartTime);
-                double startB = endB - duration;
-                if (startB < 0)
-                {
-                    startB = 0;
-                    endB = SnapToGrid(duration);
-                }
-                if (startB >= 0 && endB <= TotalDuration + 0.001)
-                {
-                    var testB = new Segment { Id = segment.Id, StartTime = startB, EndTime = endB };
-                    if (!CheckCollisionInTrack(testB, track.Id, segment))
-                    {
-                        double dist = Math.Abs(startB - currentStart);
-                        if (dist < bestDistance)
-                        {
-                            bestDistance = dist;
-                            best = (startB, endB);
-                        }
-                    }
-                }
-            }
-
-            return best;
+            return _snapService.TrySnapToBoundary(segment, requestedStart, requestedEnd, track.Segments, TotalDuration, GridSize);
         }
 
         /// <summary>

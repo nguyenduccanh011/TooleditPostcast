@@ -75,6 +75,19 @@ public sealed class UndoRedoService
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Pop the most-recently recorded action WITHOUT executing its Undo.
+    /// Used to re-wrap a just-recorded action into a <see cref="CompoundAction"/>.
+    /// Returns null if undo stack is empty.
+    /// </summary>
+    public IUndoableAction? PopLast()
+    {
+        if (_undoStack.Count == 0) return null;
+        var action = _undoStack.Pop();
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        return action;
+    }
+
     // Keep only the MaxHistory most recent actions.
     // Stack.ToArray(): [0]=most recently pushed (top), [n-1]=oldest (bottom).
     private void Trim()
