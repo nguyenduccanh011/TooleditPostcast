@@ -153,7 +153,18 @@ public static class FFmpegCommandComposer
             }
             else
             {
-                filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                // Check for Ken Burns motion effect (zoom/pan)
+                var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
+                    config.ResolutionWidth, config.ResolutionHeight);
+                if (zoompanFilter != null)
+                {
+                    // zoompan produces the final sized output, so we skip the separate scale
+                    filter.Append($"[{inputIdx}:v]format={pixFmt},{zoompanFilter},setsar=1[{scaledLabel}];");
+                }
+                else
+                {
+                    filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                }
             }
         }
 

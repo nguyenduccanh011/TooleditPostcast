@@ -96,6 +96,26 @@ public partial class Segment : ObservableObject
     private double sourceStartOffset;
 
     /// <summary>
+    /// Ken Burns motion effect preset for this image segment.
+    /// Valid values defined in <see cref="MotionPresets"/>.
+    /// "None" = static (default). Other values: ZoomIn, ZoomOut, PanLeft, PanRight, etc.
+    /// When set to "None" and the parent track has AutoMotionEnabled, a random preset is
+    /// assigned at render time (deterministic based on segment Id).
+    /// Only applies to still images; video segments ignore this property.
+    /// </summary>
+    [ObservableProperty]
+    private string motionPreset = MotionPresets.None;
+
+    /// <summary>
+    /// Intensity of the motion effect (0.0 = subtle, 1.0 = dramatic).
+    /// Controls the magnitude of zoom factor or pan distance.
+    /// Default 0.3 provides a gentle, professional Ken Burns effect.
+    /// When null, falls back to the parent track's MotionIntensity.
+    /// </summary>
+    [ObservableProperty]
+    private double? motionIntensity;
+
+    /// <summary>
     /// UI-only: waveform peak data for audio segments (not persisted to DB).
     /// Loaded asynchronously by TimelineViewModel after segment is added/loaded.
     /// </summary>
@@ -152,5 +172,7 @@ public partial class Segment : ObservableObject
         SourceStartOffset  = SourceStartOffset,
         TransitionType     = TransitionType,
         TransitionDuration = TransitionDuration,
+        MotionPreset       = MotionPreset,
+        MotionIntensity    = MotionIntensity,
     };
 }

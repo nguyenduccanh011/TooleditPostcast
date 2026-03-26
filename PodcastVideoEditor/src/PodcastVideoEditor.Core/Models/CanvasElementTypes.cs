@@ -334,6 +334,12 @@ namespace PodcastVideoEditor.Core.Models
         private double _opacity = 1.0;
         private ScaleMode _scaleMode = ScaleMode.Fill;
 
+        // Motion preview transforms (set by CanvasViewModel preview pipeline each frame)
+        private double _motionScaleX = 1.0;
+        private double _motionScaleY = 1.0;
+        private double _motionTranslateX;
+        private double _motionTranslateY;
+
         public override ElementType Type => ElementType.Image;
 
         /// <summary>
@@ -364,6 +370,34 @@ namespace PodcastVideoEditor.Core.Models
         {
             get => _scaleMode;
             set => SetProperty(ref _scaleMode, value);
+        }
+
+        /// <summary>Motion preview: current scale X (driven by playhead, not user-editable).</summary>
+        public double MotionScaleX
+        {
+            get => _motionScaleX;
+            set => SetProperty(ref _motionScaleX, value);
+        }
+
+        /// <summary>Motion preview: current scale Y (driven by playhead, not user-editable).</summary>
+        public double MotionScaleY
+        {
+            get => _motionScaleY;
+            set => SetProperty(ref _motionScaleY, value);
+        }
+
+        /// <summary>Motion preview: current translate X in pixels (driven by playhead).</summary>
+        public double MotionTranslateX
+        {
+            get => _motionTranslateX;
+            set => SetProperty(ref _motionTranslateX, value);
+        }
+
+        /// <summary>Motion preview: current translate Y in pixels (driven by playhead).</summary>
+        public double MotionTranslateY
+        {
+            get => _motionTranslateY;
+            set => SetProperty(ref _motionTranslateY, value);
         }
 
         public override void ResetToDefault()

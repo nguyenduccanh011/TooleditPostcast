@@ -170,6 +170,25 @@ public class RenderVisualSegment
     /// Default 0 = use list insertion order.
     /// </summary>
     public int ZOrder { get; set; }
+
+    /// <summary>
+    /// Ken Burns motion preset to apply during render (e.g. "ZoomIn", "PanLeft").
+    /// Values from <see cref="MotionPresets"/>. "None" = no motion (static image).
+    /// Only applies to still images; ignored for video sources.
+    /// </summary>
+    public string MotionPreset { get; set; } = MotionPresets.None;
+
+    /// <summary>
+    /// Intensity of the motion effect (0.0 = subtle, 1.0 = dramatic).
+    /// Controls the zoom factor or pan distance for the Ken Burns effect.
+    /// </summary>
+    public double MotionIntensity { get; set; } = 0.3;
+
+    /// <summary>
+    /// Duration of the segment in seconds (EndTime - StartTime).
+    /// Pre-computed for convenience in FFmpeg filter generation.
+    /// </summary>
+    public double Duration => Math.Max(0, EndTime - StartTime);
 }
 
 /// <summary>

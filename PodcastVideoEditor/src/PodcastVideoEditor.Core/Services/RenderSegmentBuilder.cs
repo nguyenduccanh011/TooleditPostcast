@@ -190,6 +190,26 @@ public static class RenderSegmentBuilder
                     renderSeg.ScaleHeight = (int)Math.Round(rh);
                 }
 
+                // Resolve motion preset: segment-level override > track auto-random > None.
+                // Only applies to still images; video segments keep MotionPreset = None.
+                if (!renderSeg.IsVideo)
+                {
+                    var segPreset = segment.MotionPreset;
+                    if (string.IsNullOrWhiteSpace(segPreset) || segPreset == Models.MotionPresets.None)
+                    {
+                        // Segment has no explicit preset — check track auto-motion
+                        if (track.AutoMotionEnabled)
+                            segPreset = Models.MotionPresets.GetRandomPreset(segment.Id);
+                        else
+                            segPreset = Models.MotionPresets.None;
+                    }
+
+                    renderSeg.MotionPreset = segPreset;
+
+                    // Resolve intensity: segment-level > track-level fallback
+                    renderSeg.MotionIntensity = segment.MotionIntensity ?? track.MotionIntensity;
+                }
+
                 segments.Add(renderSeg);
             }
         }
