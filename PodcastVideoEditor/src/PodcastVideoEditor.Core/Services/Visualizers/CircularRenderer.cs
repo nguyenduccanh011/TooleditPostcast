@@ -24,7 +24,7 @@ public sealed class CircularRenderer : IVisualizerRenderer
         var maxRadiusExtent = Math.Min(width, height) * 0.35f;
         var bandCount = Math.Min(config.BandCount, spectrum.Length);
 
-        var gradient = VisualizerColorHelper.GetColorGradient(config.ColorPalette);
+        var gradient = VisualizerColorHelper.GetColorGradient(config.ColorPalette, config.CustomGradientColors);
 
         for (int i = 0; i < bandCount; i++)
         {

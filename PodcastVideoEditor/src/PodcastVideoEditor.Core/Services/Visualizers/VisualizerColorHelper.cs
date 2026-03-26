@@ -1,6 +1,7 @@
 using PodcastVideoEditor.Core.Models;
 using SkiaSharp;
 using System;
+using System.Linq;
 
 namespace PodcastVideoEditor.Core.Services.Visualizers;
 
@@ -10,8 +11,14 @@ namespace PodcastVideoEditor.Core.Services.Visualizers;
 /// </summary>
 public static class VisualizerColorHelper
 {
-    public static SKColor GetNeonColor(int index, int total, double colorTick, ColorPalette palette)
+    public static SKColor GetNeonColor(int index, int total, double colorTick, ColorPalette palette,
+        string? primaryColorHex = null)
     {
+        if (palette == ColorPalette.Custom && !string.IsNullOrEmpty(primaryColorHex))
+        {
+            return TryParseSKColor(primaryColorHex, SKColors.Green);
+        }
+
         var hue = (index * 3.0) + colorTick;
         return palette switch
         {
@@ -47,8 +54,13 @@ public static class VisualizerColorHelper
         return new SKColor(r, g, b);
     }
 
-    public static SKColor[] GetColorGradient(ColorPalette palette)
+    public static SKColor[] GetColorGradient(ColorPalette palette, string? customGradientColors = null)
     {
+        if (palette == ColorPalette.Custom && !string.IsNullOrEmpty(customGradientColors))
+        {
+            return ParseGradientColors(customGradientColors);
+        }
+
         return palette switch
         {
             ColorPalette.Rainbow => new[]
@@ -113,5 +125,29 @@ public static class VisualizerColorHelper
             (byte)(gradient[lo].Green + (gradient[hi].Green - gradient[lo].Green) * frac),
             (byte)(gradient[lo].Blue + (gradient[hi].Blue - gradient[lo].Blue) * frac),
             255);
+    }
+
+    /// <summary>
+    /// Parse comma-separated hex colors into an SKColor array.
+    /// </summary>
+    public static SKColor[] ParseGradientColors(string csv)
+    {
+        if (string.IsNullOrWhiteSpace(csv))
+            return new[] { SKColors.White };
+
+        var colors = csv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(h => TryParseSKColor(h, SKColors.White))
+            .ToArray();
+
+        return colors.Length > 0 ? colors : new[] { SKColors.White };
+    }
+
+    /// <summary>
+    /// Safely parse a hex color string to SKColor with a fallback.
+    /// </summary>
+    public static SKColor TryParseSKColor(string hex, SKColor fallback)
+    {
+        if (string.IsNullOrEmpty(hex)) return fallback;
+        return SKColor.TryParse(hex, out var color) ? color : fallback;
     }
 }

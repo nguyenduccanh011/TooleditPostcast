@@ -122,6 +122,11 @@ public static class ElementMapper
                 dict["ColorPalette"] = v.ColorPalette.ToString();
                 dict["BandCount"] = v.BandCount;
                 dict["Style"] = v.Style.ToString();
+                if (!string.IsNullOrEmpty(v.PrimaryColorHex)) dict["PrimaryColorHex"] = v.PrimaryColorHex;
+                if (!string.IsNullOrEmpty(v.CustomGradientColors)) dict["CustomGradientColors"] = v.CustomGradientColors;
+                dict["BarGradientDarkness"] = v.BarGradientDarkness;
+                dict["BarGradientEnabled"] = v.BarGradientEnabled;
+                if (!string.IsNullOrEmpty(v.BarGradientBaseColorHex)) dict["BarGradientBaseColorHex"] = v.BarGradientBaseColorHex;
                 break;
             case ImageElement i:
                 dict["FilePath"] = i.FilePath;
@@ -194,6 +199,11 @@ public static class ElementMapper
                 if (dict.TryGetValue("BandCount", out var bc)) v.BandCount = bc.GetInt32();
                 if (dict.TryGetValue("Style", out var vs))
                     v.Style = Enum.TryParse<VisualizerStyle>(vs.GetString(), out var vsVal) ? vsVal : VisualizerStyle.Bars;
+                if (dict.TryGetValue("PrimaryColorHex", out var pch)) v.PrimaryColorHex = pch.GetString() ?? "#00FF00";
+                if (dict.TryGetValue("CustomGradientColors", out var cgc)) v.CustomGradientColors = cgc.GetString() ?? "";
+                if (dict.TryGetValue("BarGradientDarkness", out var bgd)) v.BarGradientDarkness = (float)bgd.GetDouble();
+                if (dict.TryGetValue("BarGradientEnabled", out var bge)) v.BarGradientEnabled = bge.GetBoolean();
+                if (dict.TryGetValue("BarGradientBaseColorHex", out var bgbc)) v.BarGradientBaseColorHex = bgbc.GetString();
                 break;
             case ImageElement i:
                 if (dict.TryGetValue("FilePath", out var fp)) i.FilePath = fp.GetString() ?? string.Empty;

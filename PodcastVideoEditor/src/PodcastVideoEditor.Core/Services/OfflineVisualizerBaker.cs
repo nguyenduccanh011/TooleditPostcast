@@ -95,13 +95,18 @@ public static class OfflineVisualizerBaker
         // ── Build VisualizerConfig from element ─────────────────────────────
         var config = new VisualizerConfig
         {
-            BandCount        = element.BandCount,
-            Style            = element.Style,
-            ColorPalette     = element.ColorPalette,
-            SmoothingFactor  = element.SmoothingFactor,
-            ShowPeaks        = element.ShowPeaks,
-            PeakHoldTime     = 300,
-            SymmetricMode    = element.SymmetricMode
+            BandCount             = element.BandCount,
+            Style                 = element.Style,
+            ColorPalette          = element.ColorPalette,
+            SmoothingFactor       = element.SmoothingFactor,
+            ShowPeaks             = element.ShowPeaks,
+            PeakHoldTime          = 300,
+            SymmetricMode         = element.SymmetricMode,
+            PrimaryColorHex       = element.PrimaryColorHex,
+            CustomGradientColors  = element.CustomGradientColors,
+            BarGradientDarkness   = element.BarGradientDarkness,
+            BarGradientEnabled    = element.BarGradientEnabled,
+            BarGradientBaseColorHex = element.BarGradientBaseColorHex
         };
 
         // ── Prepare temp output file ────────────────────────────────────────

@@ -82,6 +82,23 @@ public partial class Track : ObservableObject
     [ObservableProperty]
     private string imageLayoutPreset = ImageLayoutPresets.FullFrame;
 
+    /// <summary>
+    /// When enabled, all image segments in this track that have MotionPreset == "None"
+    /// will automatically receive a random Ken Burns motion effect at render time.
+    /// The random selection is deterministic (based on segment Id) so re-renders produce
+    /// identical results. Only applies to visual tracks with still image segments.
+    /// </summary>
+    [ObservableProperty]
+    private bool autoMotionEnabled;
+
+    /// <summary>
+    /// Default motion intensity for auto-assigned effects on this track (0.0–1.0).
+    /// Used as fallback when a segment's MotionIntensity is null.
+    /// Default 0.3 provides a gentle, professional Ken Burns effect.
+    /// </summary>
+    [ObservableProperty]
+    private double motionIntensity = 0.3;
+
     // Navigation properties
 
     /// <summary>
@@ -110,5 +127,7 @@ public partial class Track : ObservableObject
         IsVisible          = IsVisible,
         IsLocked           = IsLocked,
         ImageLayoutPreset  = ImageLayoutPreset,
+        AutoMotionEnabled  = AutoMotionEnabled,
+        MotionIntensity    = MotionIntensity,
     };
 }

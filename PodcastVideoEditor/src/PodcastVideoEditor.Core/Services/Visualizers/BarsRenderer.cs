@@ -37,12 +37,31 @@ public sealed class BarsRenderer : IVisualizerRenderer
             if (barHeight < 1f) barHeight = 1f; // minimum visible bar
 
             var x = i * (barWidth + config.BarSpacing);
-            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette);
+            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette,
+                config.PrimaryColorHex);
 
-            // Gradient fill: base color at bottom, brighter at top
+            // Gradient fill: configurable darkening at bar center
             var topColor = color.WithAlpha(255);
-            var bottomColor = new SKColor(
-                (byte)(color.Red * 0.4f), (byte)(color.Green * 0.4f), (byte)(color.Blue * 0.4f), 255);
+            SKColor bottomColor;
+
+            if (!config.BarGradientEnabled)
+            {
+                // No gradient — solid color bars
+                bottomColor = topColor;
+            }
+            else if (!string.IsNullOrEmpty(config.BarGradientBaseColorHex))
+            {
+                // User-specified base color override
+                bottomColor = VisualizerColorHelper.TryParseSKColor(config.BarGradientBaseColorHex,
+                    new SKColor((byte)(color.Red * 0.4f), (byte)(color.Green * 0.4f), (byte)(color.Blue * 0.4f), 255));
+            }
+            else
+            {
+                // Darken by configurable amount (default 0.4 = 60% darker)
+                var factor = 1f - config.BarGradientDarkness;
+                bottomColor = new SKColor(
+                    (byte)(color.Red * factor), (byte)(color.Green * factor), (byte)(color.Blue * factor), 255);
+            }
 
             // Upper bar (above center)
             var rectTop = new SKRect(x, centerY - barHeight, x + barWidth, centerY);

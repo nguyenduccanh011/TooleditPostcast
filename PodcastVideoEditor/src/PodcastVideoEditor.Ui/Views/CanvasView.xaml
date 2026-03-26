@@ -79,12 +79,21 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
                 <Border Background="#222222"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
-                        BorderThickness="2">
-                    <Grid>
+                        BorderThickness="2"
+                        ClipToBounds="True">
+                    <Grid ClipToBounds="True">
                         <Image Source="{Binding FilePath, Converter={StaticResource FilePathToImageConverter}}"
                                Stretch="{Binding ScaleMode, Converter={StaticResource ScaleModeConverter}}"
                                Opacity="{Binding Opacity}"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               RenderTransformOrigin="0.5,0.5">
+                            <Image.RenderTransform>
+                                <TransformGroup>
+                                    <ScaleTransform ScaleX="{Binding MotionScaleX}" ScaleY="{Binding MotionScaleY}"/>
+                                    <TranslateTransform X="{Binding MotionTranslateX}" Y="{Binding MotionTranslateY}"/>
+                                </TransformGroup>
+                            </Image.RenderTransform>
+                        </Image>
                         <!-- Fallback label when no image loaded -->
                         <TextBlock Text="{Binding Name}" Foreground="#888888" FontSize="11"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"

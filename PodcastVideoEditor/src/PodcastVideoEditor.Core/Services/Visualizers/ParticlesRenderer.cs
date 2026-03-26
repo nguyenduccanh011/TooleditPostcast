@@ -51,7 +51,7 @@ public sealed class ParticlesRenderer : IVisualizerRenderer
             if (_particles.Count >= MaxParticles) break;
 
             var bandX = (i + 0.5f) / bandCount * width;
-            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette);
+            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
             _particles.Add(new Particle
             {

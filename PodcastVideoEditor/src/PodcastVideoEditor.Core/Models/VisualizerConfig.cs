@@ -81,6 +81,31 @@ namespace PodcastVideoEditor.Core.Models
         public bool SymmetricMode { get; set; } = true;
 
         /// <summary>
+        /// Custom primary color hex for Custom/Mono palette (#RRGGBB).
+        /// </summary>
+        public string PrimaryColorHex { get; set; } = "#00FF00";
+
+        /// <summary>
+        /// Comma-separated hex colors for Custom palette gradient.
+        /// </summary>
+        public string CustomGradientColors { get; set; } = "#FF0000,#00FF00,#0000FF";
+
+        /// <summary>
+        /// Darkness multiplier for bar gradient base (0 = no darkening, 1 = fully dark).
+        /// </summary>
+        public float BarGradientDarkness { get; set; } = 0.4f;
+
+        /// <summary>
+        /// Whether to enable gradient darkening on bar bases.
+        /// </summary>
+        public bool BarGradientEnabled { get; set; } = true;
+
+        /// <summary>
+        /// Override color for bar gradient base (#RRGGBB). Null/empty = use darkened version of bar color.
+        /// </summary>
+        public string? BarGradientBaseColorHex { get; set; }
+
+        /// <summary>
         /// Validates configuration values.
         /// </summary>
         public bool Validate()
@@ -129,7 +154,12 @@ namespace PodcastVideoEditor.Core.Models
                 UseLogarithmicScale = UseLogarithmicScale,
                 PeakHoldTime = PeakHoldTime,
                 ShowPeaks = ShowPeaks,
-                SymmetricMode = SymmetricMode
+                SymmetricMode = SymmetricMode,
+                PrimaryColorHex = PrimaryColorHex,
+                CustomGradientColors = CustomGradientColors,
+                BarGradientDarkness = BarGradientDarkness,
+                BarGradientEnabled = BarGradientEnabled,
+                BarGradientBaseColorHex = BarGradientBaseColorHex
             };
         }
     }

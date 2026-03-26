@@ -1,5 +1,6 @@
 // CanvasViewModel.Preview.cs — Preview pipeline: attach wiring, change reactions, composition.
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Ui.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -160,6 +161,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_timelineViewModel == null)
                 return;
 
+            // Motion-related properties: trigger preview update for transform recalculation
+            if (e.PropertyName == nameof(Track.AutoMotionEnabled)
+                || e.PropertyName == nameof(Track.MotionIntensity))
+            {
+                ScheduleDebouncedPreviewUpdate();
+                return;
+            }
+
             if (e.PropertyName != nameof(Track.ImageLayoutPreset)
                 && e.PropertyName != nameof(Track.IsVisible)
                 && e.PropertyName != nameof(Track.Order))
@@ -241,6 +250,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 || e.PropertyName == nameof(Segment.TrackId))
             {
                 _timelineViewModel.InvalidateActiveSegmentsCachePublic();
+                ScheduleDebouncedPreviewUpdate();
+            }
+
+            // Motion preset or intensity changes: refresh transforms
+            if (e.PropertyName == nameof(Segment.MotionPreset)
+                || e.PropertyName == nameof(Segment.MotionIntensity))
+            {
                 ScheduleDebouncedPreviewUpdate();
             }
         }
@@ -495,7 +511,76 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Elements.Any(e => e is ImageElement || e is VisualizerElement);
             IsVisualPlaceholderVisible = !hasAnyVisual;
 
+            // --- Ken Burns motion transforms for image segments ---
+            UpdateMotionTransforms(playheadSeconds, visualPairs);
+
             UpdateElementVisibility(active);
+        }
+
+        /// <summary>
+        /// Update Ken Burns motion transforms for active image segments.
+        /// Resolves the effective MotionPreset (segment > track auto-random > None),
+        /// computes progress from playhead position, and sets transform properties
+        /// on the linked ImageElement for XAML binding.
+        /// </summary>
+        private void UpdateMotionTransforms(double playheadSeconds, List<(Track track, Segment segment)> visualPairs)
+        {
+            foreach (var (track, segment) in visualPairs)
+            {
+                if (segment == null) continue;
+
+                // Find linked ImageElement
+                var imgEl = Elements.FirstOrDefault(e =>
+                    e is ImageElement && string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)) as ImageElement;
+                if (imgEl == null) continue;
+
+                // Resolve effective motion preset (same priority as RenderSegmentBuilder)
+                var preset = segment.MotionPreset;
+                double intensity;
+
+                if (string.IsNullOrWhiteSpace(preset) || preset == MotionPresets.None)
+                {
+                    if (track.AutoMotionEnabled)
+                    {
+                        preset = MotionPresets.GetRandomPreset(segment.Id);
+                        intensity = segment.MotionIntensity ?? track.MotionIntensity;
+                    }
+                    else
+                    {
+                        // No motion — reset to identity
+                        imgEl.MotionScaleX = 1.0;
+                        imgEl.MotionScaleY = 1.0;
+                        imgEl.MotionTranslateX = 0;
+                        imgEl.MotionTranslateY = 0;
+                        continue;
+                    }
+                }
+                else
+                {
+                    intensity = segment.MotionIntensity ?? track.MotionIntensity;
+                }
+
+                // Compute progress within segment (0.0–1.0)
+                var duration = segment.EndTime - segment.StartTime;
+                if (duration <= 0)
+                {
+                    imgEl.MotionScaleX = 1.0;
+                    imgEl.MotionScaleY = 1.0;
+                    imgEl.MotionTranslateX = 0;
+                    imgEl.MotionTranslateY = 0;
+                    continue;
+                }
+
+                var elapsed = playheadSeconds - segment.StartTime;
+                var progress = Math.Clamp(elapsed / duration, 0.0, 1.0);
+
+                // Compute and apply transform
+                var transform = MotionAnimator.Compute(preset, intensity, progress, imgEl.Width, imgEl.Height);
+                imgEl.MotionScaleX = transform.ScaleX;
+                imgEl.MotionScaleY = transform.ScaleY;
+                imgEl.MotionTranslateX = transform.TranslateX;
+                imgEl.MotionTranslateY = transform.TranslateY;
+            }
         }
 
         /// <summary>

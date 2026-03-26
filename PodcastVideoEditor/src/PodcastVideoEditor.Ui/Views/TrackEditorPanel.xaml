@@ -81,6 +81,37 @@
                                    TextWrapping="Wrap"
                                    FontSize="11"/>
                     </Border>
+
+                    <!-- Auto-motion (Ken Burns) -->
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="🎬  Hiệu ứng chuyển động (Ken Burns):" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <CheckBox x:Name="AutoMotionCheckBox"
+                              Content="Tự động áp dụng hiệu ứng ngẫu nhiên cho ảnh"
+                              Foreground="#e0e0e0" Margin="0,0,0,8"
+                              Checked="AutoMotionCheckBox_Changed"
+                              Unchecked="AutoMotionCheckBox_Changed"/>
+
+                    <StackPanel x:Name="MotionIntensityPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                        <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
+                            <Run Text="Cường độ: "/><Run x:Name="MotionIntensityValueText" Text="30%"/>
+                        </TextBlock>
+                        <Slider x:Name="MotionIntensitySlider"
+                                Minimum="0" Maximum="100" Value="30"
+                                TickFrequency="10" IsSnapToTickEnabled="False"
+                                ValueChanged="MotionIntensitySlider_ValueChanged"/>
+                    </StackPanel>
+
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                        <TextBlock x:Name="MotionHintText"
+                                   Text="Khi bật, mỗi ảnh tĩnh sẽ tự động có hiệu ứng zoom/pan ngẫu nhiên. Hiệu ứng cố định theo segment (render lại cho kết quả giống nhau)."
+                                   Foreground="#7a8a96"
+                                   FontStyle="Italic"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"/>
+                    </Border>
                 </StackPanel>
 
                 <!-- Lock / Visibility -->

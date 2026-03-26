@@ -94,6 +94,10 @@ namespace PodcastVideoEditor.Core.Models
         private string _primaryColorHex = "#00FF00";
         private float _glowIntensity = 0.5f;
         private float _animationSpeed = 1.0f;
+        private string _customGradientColors = "#FF0000,#00FF00,#0000FF";
+        private float _barGradientDarkness = 0.4f;
+        private bool _barGradientEnabled = true;
+        private string _barGradientBaseColorHex = "#000000";
 
         public override ElementType Type => ElementType.Visualizer;
 
@@ -104,7 +108,11 @@ namespace PodcastVideoEditor.Core.Models
         public ColorPalette ColorPalette
         {
             get => _colorPalette;
-            set => SetProperty(ref _colorPalette, value);
+            set
+            {
+                if (SetProperty(ref _colorPalette, value))
+                    OnPropertyChanged(nameof(IsCustomPalette));
+            }
         }
 
         /// <summary>
@@ -271,6 +279,52 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _animationSpeed, Math.Clamp(value, 0.1f, 3.0f));
         }
 
+        /// <summary>
+        /// Comma-separated hex colors for Custom palette gradient (e.g. "#FF0000,#00FF00,#0000FF").
+        /// </summary>
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 105, VisibilityToggle = "IsCustomPalette")]
+        public string CustomGradientColors
+        {
+            get => _customGradientColors;
+            set => SetProperty(ref _customGradientColors, value ?? "#FF0000,#00FF00,#0000FF");
+        }
+
+        /// <summary>
+        /// Darkness multiplier for bar gradient base (0 = no darkening, 1 = fully dark).
+        /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 210, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        public float BarGradientDarkness
+        {
+            get => _barGradientDarkness;
+            set => SetProperty(ref _barGradientDarkness, Math.Clamp(value, 0f, 1f));
+        }
+
+        /// <summary>
+        /// Whether to enable gradient darkening on bar bases.
+        /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 209)]
+        public bool BarGradientEnabled
+        {
+            get => _barGradientEnabled;
+            set => SetProperty(ref _barGradientEnabled, value);
+        }
+
+        /// <summary>
+        /// Override color for bar gradient base. Used when BarGradientEnabled is true.
+        /// </summary>
+        [PropertyMetadata(Group = "📊 Frequency Bars", Order = 211, IsColor = true, VisibilityToggle = "BarGradientEnabled")]
+        public string BarGradientBaseColorHex
+        {
+            get => _barGradientBaseColorHex;
+            set => SetProperty(ref _barGradientBaseColorHex, value ?? "#000000");
+        }
+
+        /// <summary>
+        /// Helper for visibility toggle — true when ColorPalette is Custom.
+        /// </summary>
+        [EditorHidden]
+        public bool IsCustomPalette => ColorPalette == ColorPalette.Custom;
+
         public override void ResetToDefault()
         {
             base.ResetToDefault();
@@ -291,6 +345,10 @@ namespace PodcastVideoEditor.Core.Models
             PrimaryColorHex = "#00FF00";
             GlowIntensity = 0.5f;
             AnimationSpeed = 1.0f;
+            CustomGradientColors = "#FF0000,#00FF00,#0000FF";
+            BarGradientDarkness = 0.4f;
+            BarGradientEnabled = true;
+            BarGradientBaseColorHex = "#000000";
         }
 
         public override CanvasElement Clone() =>
@@ -321,7 +379,11 @@ namespace PodcastVideoEditor.Core.Models
                 BarCornerRadius = BarCornerRadius,
                 PrimaryColorHex = PrimaryColorHex,
                 GlowIntensity = GlowIntensity,
-                AnimationSpeed = AnimationSpeed
+                AnimationSpeed = AnimationSpeed,
+                CustomGradientColors = CustomGradientColors,
+                BarGradientDarkness = BarGradientDarkness,
+                BarGradientEnabled = BarGradientEnabled,
+                BarGradientBaseColorHex = BarGradientBaseColorHex
             };
     }
 
@@ -333,6 +395,12 @@ namespace PodcastVideoEditor.Core.Models
         private string _filePath = "";
         private double _opacity = 1.0;
         private ScaleMode _scaleMode = ScaleMode.Fill;
+
+        // Motion preview transforms (set by CanvasViewModel preview pipeline each frame)
+        private double _motionScaleX = 1.0;
+        private double _motionScaleY = 1.0;
+        private double _motionTranslateX;
+        private double _motionTranslateY;
 
         public override ElementType Type => ElementType.Image;
 
@@ -364,6 +432,34 @@ namespace PodcastVideoEditor.Core.Models
         {
             get => _scaleMode;
             set => SetProperty(ref _scaleMode, value);
+        }
+
+        /// <summary>Motion preview: current scale X (driven by playhead, not user-editable).</summary>
+        public double MotionScaleX
+        {
+            get => _motionScaleX;
+            set => SetProperty(ref _motionScaleX, value);
+        }
+
+        /// <summary>Motion preview: current scale Y (driven by playhead, not user-editable).</summary>
+        public double MotionScaleY
+        {
+            get => _motionScaleY;
+            set => SetProperty(ref _motionScaleY, value);
+        }
+
+        /// <summary>Motion preview: current translate X in pixels (driven by playhead).</summary>
+        public double MotionTranslateX
+        {
+            get => _motionTranslateX;
+            set => SetProperty(ref _motionTranslateX, value);
+        }
+
+        /// <summary>Motion preview: current translate Y in pixels (driven by playhead).</summary>
+        public double MotionTranslateY
+        {
+            get => _motionTranslateY;
+            set => SetProperty(ref _motionTranslateY, value);
         }
 
         public override void ResetToDefault()
@@ -421,7 +517,8 @@ namespace PodcastVideoEditor.Core.Models
         Fire,
         Ocean,
         Mono,
-        Purple
+        Purple,
+        Custom
     }
 
     /// <summary>

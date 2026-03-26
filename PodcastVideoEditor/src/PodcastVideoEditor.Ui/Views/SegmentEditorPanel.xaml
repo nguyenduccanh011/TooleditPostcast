@@ -211,6 +211,69 @@
                                Foreground="#546e7a" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
                 </StackPanel>
 
+                <!-- Motion Preset (visual segments only) -->
+                <StackPanel Margin="0,0,0,15">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedSegment.Kind}" Value="visual">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="🎬  Hiệu ứng chuyển động:" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <ComboBox x:Name="MotionPresetComboBox"
+                              SelectedItem="{Binding SelectedSegment.MotionPreset, UpdateSourceTrigger=PropertyChanged}"
+                              Background="#2d2d2d" Foreground="#e0e0e0"
+                              BorderBrush="#546e7a" BorderThickness="1" Padding="8,5" Margin="0,0,0,8">
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">None</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">ZoomIn</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">ZoomOut</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">PanLeft</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">PanRight</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">PanUp</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">PanDown</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">ZoomInPanLeft</System:String>
+                        <System:String xmlns:System="clr-namespace:System;assembly=System.Runtime">ZoomInPanRight</System:String>
+                    </ComboBox>
+
+                    <TextBlock Text="Cường độ hiệu ứng:" Foreground="#b0bec5" Margin="0,0,0,5" FontSize="12"/>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="70"/>
+                        </Grid.ColumnDefinitions>
+                        <Slider Grid.Column="0"
+                                x:Name="SegMotionIntensitySlider"
+                                Value="{Binding SelectedSegment.MotionIntensity, UpdateSourceTrigger=PropertyChanged, TargetNullValue=0.3}"
+                                Minimum="0.0" Maximum="1.0"
+                                SmallChange="0.05" LargeChange="0.1"
+                                IsMoveToPointEnabled="True"
+                                Height="20" Background="#37474f" Foreground="#ff9800" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Column="1"
+                                   Foreground="#ff9800" FontFamily="Courier New" FontWeight="Bold"
+                                   TextAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0:P0}">
+                                    <Binding Path="SelectedSegment.MotionIntensity" TargetNullValue="0.3"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </Grid>
+
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8">
+                        <TextBlock Text="Chọn None để dùng hiệu ứng tự động từ Track (nếu Track bật auto-motion). Chọn preset cụ thể để ghi đè."
+                                   Foreground="#546e7a" FontSize="10" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+
                 <!-- Action Buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Split (Ctrl+B)" Command="{Binding SplitSelectedSegmentAtPlayheadCommand}"

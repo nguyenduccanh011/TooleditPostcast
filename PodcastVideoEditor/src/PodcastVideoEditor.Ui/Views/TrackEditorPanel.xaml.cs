@@ -16,6 +16,7 @@ public partial class TrackEditorPanel : UserControl
     private TimelineViewModel? _viewModel;
     private Track? _subscribedTrack;
     private bool _suppressRadioChecked;
+    private bool _suppressMotionChanged;
 
     public TrackEditorPanel()
     {
@@ -87,6 +88,9 @@ public partial class TrackEditorPanel : UserControl
         if (isVisual)
             SyncRadioButtons(track.ImageLayoutPreset);
 
+        if (isVisual)
+            SyncAutoMotionControls(track);
+
         UpdateLockVisibilityButtons(track);
 
         Log.Debug("TrackEditorPanel: showing track '{Name}' ({Type})", track.Name, track.TrackType);
@@ -99,6 +103,8 @@ public partial class TrackEditorPanel : UserControl
             UpdateLockVisibilityButtons(track);
         if (e.PropertyName == nameof(Track.ImageLayoutPreset))
             SyncRadioButtons(track.ImageLayoutPreset);
+        if (e.PropertyName == nameof(Track.AutoMotionEnabled) || e.PropertyName == nameof(Track.MotionIntensity))
+            SyncAutoMotionControls(track);
     }
 
     private void SyncRadioButtons(string preset)
@@ -147,5 +153,41 @@ public partial class TrackEditorPanel : UserControl
     {
         if (_viewModel?.SelectedTrack != null)
             _viewModel.ToggleTrackVisibility(_viewModel.SelectedTrack);
+    }
+
+    // ── Auto-motion (Ken Burns) ─────────────────────────────
+
+    private void SyncAutoMotionControls(Track track)
+    {
+        _suppressMotionChanged = true;
+        AutoMotionCheckBox.IsChecked = track.AutoMotionEnabled;
+        MotionIntensitySlider.Value = track.MotionIntensity * 100;
+        MotionIntensityValueText.Text = $"{(int)(track.MotionIntensity * 100)}%";
+        MotionIntensityPanel.Visibility = track.AutoMotionEnabled ? Visibility.Visible : Visibility.Collapsed;
+        _suppressMotionChanged = false;
+    }
+
+    private void AutoMotionCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressMotionChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+
+        _viewModel.SelectedTrack.AutoMotionEnabled = AutoMotionCheckBox.IsChecked == true;
+        MotionIntensityPanel.Visibility = _viewModel.SelectedTrack.AutoMotionEnabled
+            ? Visibility.Visible : Visibility.Collapsed;
+        _viewModel.RequestProjectSave();
+        Log.Information("Track '{Name}' AutoMotionEnabled changed to {Enabled}",
+            _viewModel.SelectedTrack.Name, _viewModel.SelectedTrack.AutoMotionEnabled);
+    }
+
+    private void MotionIntensitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressMotionChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+
+        var intensity = MotionIntensitySlider.Value / 100.0;
+        _viewModel.SelectedTrack.MotionIntensity = intensity;
+        MotionIntensityValueText.Text = $"{(int)(intensity * 100)}%";
+        _viewModel.RequestProjectSave();
     }
 }

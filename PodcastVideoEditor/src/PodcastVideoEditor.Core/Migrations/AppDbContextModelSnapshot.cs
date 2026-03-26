@@ -252,6 +252,13 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.Property<double>("SourceStartOffset")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("MotionPreset")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("MotionIntensity")
+                        .HasColumnType("REAL");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId")
@@ -322,6 +329,12 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.Property<string>("TrackType")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("AutoMotionEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("MotionIntensity")
+                        .HasColumnType("REAL");
 
                     b.HasKey("Id");
 
