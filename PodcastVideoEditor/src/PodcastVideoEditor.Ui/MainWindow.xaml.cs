@@ -209,8 +209,16 @@ public partial class MainWindow : Window
 
     private async void MainTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
-        // Show render toolbar only when Editor tab (index 1) is active
-        RenderToolbar.Visibility = MainTabControl.SelectedIndex == 1
+        // Sync title bar tab buttons with current tab
+        switch (MainTabControl.SelectedIndex)
+        {
+            case 0: TabBtnHome.IsChecked = true; break;
+            case 1: TabBtnEditor.IsChecked = true; break;
+            case 2: TabBtnSettings.IsChecked = true; break;
+        }
+
+        // Show render button only on Editor tab
+        TitleBarRenderBtn.Visibility = MainTabControl.SelectedIndex == 1
             ? System.Windows.Visibility.Visible
             : System.Windows.Visibility.Collapsed;
 
@@ -218,15 +226,46 @@ public partial class MainWindow : Window
             await LoadProjectsSafeAsync();
     }
 
-    /// <summary>Generic handler that opens a button's ContextMenu as a dropdown.</summary>
-    private void RenderTB_DropdownClick(object sender, System.Windows.RoutedEventArgs e)
+    // ── Title bar button handlers ──
+
+    private void TabButton_Click(object sender, System.Windows.RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button btn && btn.ContextMenu != null)
+        if (sender is System.Windows.Controls.RadioButton rb
+            && int.TryParse(rb.Tag?.ToString(), out int index))
         {
-            btn.ContextMenu.PlacementTarget = btn;
-            btn.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
-            btn.ContextMenu.IsOpen = true;
+            MainTabControl.SelectedIndex = index;
         }
+    }
+
+    private void OpenRenderDialog_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        var dialog = new Views.RenderDialog
+        {
+            Owner = this,
+            DataContext = _mainViewModel.RenderViewModel,
+            Project = _projectViewModel.CurrentProject
+        };
+        dialog.ShowDialog();
+    }
+
+    private void MinimizeButton_Click(object sender, System.Windows.RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object sender, System.Windows.RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void CloseButton_Click(object sender, System.Windows.RoutedEventArgs e)
+        => Close();
+
+    private void MainWindow_StateChanged(object? sender, EventArgs e)
+    {
+        // Compensate for WPF maximized overshoot with WindowStyle=None
+        if (WindowState == WindowState.Maximized)
+            WindowBorder.Padding = new Thickness(7);
+        else
+            WindowBorder.Padding = new Thickness(0);
+
+        MaximizeBtn.Content = WindowState == WindowState.Maximized ? "❐" : "□";
     }
 
     private async Task LoadProjectsSafeAsync()
@@ -366,40 +405,26 @@ public partial class MainWindow : Window
 
     private async void OpenSelectedMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (_projectViewModel.CurrentProject != null)
-        {
-            await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
-            await LoadProjectAudioAsync();
-            MainTabControl.SelectedIndex = 1;
-        }
-    }
-
-    private void ProjectsListBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        var listBox = sender as System.Windows.Controls.ListBox;
-        if (listBox == null) return;
-        
-        // Manually sync selection if binding failed (belt-and-suspenders approach)
-        if (listBox.SelectedItem is Core.Models.Project selectedProject)
-        {
-            if (_projectViewModel.CurrentProject?.Id != selectedProject.Id)
-                _projectViewModel.CurrentProject = selectedProject;
-        }
+        await OpenCurrentProjectAsync();
     }
 
     private async void ProjectsList_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        // Double-click to open project from the list
-        if (_projectViewModel.CurrentProject != null)
-        {
-            await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
-            await LoadProjectAudioAsync();
-            MainTabControl.SelectedIndex = 1;
-        }
-        else
+        await OpenCurrentProjectAsync();
+    }
+
+    /// <summary>Opens the currently selected project and switches to the Editor tab.</summary>
+    private async Task OpenCurrentProjectAsync()
+    {
+        if (_projectViewModel.CurrentProject == null)
         {
             MessageBox.Show("Please select a project first.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
+
+        await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
+        await LoadProjectAudioAsync();
+        MainTabControl.SelectedIndex = 1;
     }
 
     private void ExitMenu_Click(object sender, RoutedEventArgs e)

@@ -6,204 +6,193 @@
         xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
         Title="Podcast Video Editor" Height="820" MinHeight="680" Width="1100"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
         Background="#1E1E1E"
         Foreground="#FFFFFF"
         Loaded="MainWindow_Loaded"
-        Closing="MainWindow_Closing">
+        Closing="MainWindow_Closing"
+        StateChanged="MainWindow_StateChanged">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38" ResizeBorderThickness="5"
+                      GlassFrameThickness="0" CornerRadius="0"
+                      NonClientFrameEdges="None"/>
+    </WindowChrome.WindowChrome>
     <Window.InputBindings>
         <KeyBinding Key="B" Modifiers="Control"
                     Command="{Binding TimelineViewModel.SplitSelectedSegmentAtPlayheadCommand}"/>
         <KeyBinding Key="S" Modifiers="Control"
                     Command="{Binding ProjectViewModel.SaveProjectCommand}"/>
     </Window.InputBindings>
-    <DockPanel>
-        <Menu DockPanel.Dock="Top" Background="#252526" Foreground="#FFFFFF">
-            <MenuItem Header="File">
-                <MenuItem Header="New Project" Click="NewProjectButton_Click" />
-                <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click" />
-                <Separator />
-                <MenuItem Header="Exit" Click="ExitMenu_Click" />
-            </MenuItem>
-            <MenuItem Header="Edit">
-                <MenuItem Header="Settings" Click="SettingsMenu_Click" />
-            </MenuItem>
-            <MenuItem Header="Help">
-                <MenuItem Header="About" Click="AboutMenu_Click" />
-            </MenuItem>
-        </Menu>
+    <Border x:Name="WindowBorder" BorderBrush="#3E3E42" BorderThickness="1">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="38"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <!--
-            Render toolbar – docked below the menu, visible only when Editor tab is active.
-            DataContext is RenderViewModel (set via code-behind on tab switch).
-        -->
-        <Border x:Name="RenderToolbar"
-                DockPanel.Dock="Top"
-                Background="#2D2D30"
-                BorderBrush="#3E3E42" BorderThickness="0,1,0,1"
-                Padding="8,3"
-                Visibility="Collapsed"
-                DataContext="{Binding DataContext.RenderViewModel, RelativeSource={RelativeSource AncestorType=Window}}">
-            <Border.Resources>
-                <!-- Compact outline dropdown button -->
-                <Style x:Key="DropBtn" TargetType="Button">
-                    <Setter Property="Background"     Value="Transparent"/>
-                    <Setter Property="Foreground"     Value="#CCCCCC"/>
-                    <Setter Property="BorderBrush"    Value="#3E3E42"/>
-                    <Setter Property="BorderThickness" Value="1"/>
-                    <Setter Property="Padding"        Value="7,3"/>
-                    <Setter Property="FontSize"       Value="12"/>
-                    <Setter Property="Height"         Value="26"/>
-                    <Setter Property="Cursor"         Value="Hand"/>
+        <!-- ═══════════ Custom Title Bar ═══════════ -->
+        <Grid Grid.Row="0" Background="#252526">
+            <Grid.Resources>
+                <!-- Title bar tab button (RadioButton styled as flat tab) -->
+                <Style x:Key="TitleBarTab" TargetType="RadioButton">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="#888888"/>
+                    <Setter Property="FontSize" Value="12"/>
+                    <Setter Property="Padding" Value="14,0"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="RadioButton">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                        Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+                                    <Grid>
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                          Margin="0,2,0,4"/>
+                                        <Rectangle x:Name="Line" Height="2" VerticalAlignment="Bottom" Fill="Transparent"/>
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Line" Property="Fill" Value="#0E639C"/>
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Trigger>
+                                    <MultiTrigger>
+                                        <MultiTrigger.Conditions>
+                                            <Condition Property="IsMouseOver" Value="True"/>
+                                            <Condition Property="IsChecked" Value="False"/>
+                                        </MultiTrigger.Conditions>
+                                        <Setter TargetName="Bd" Property="Background" Value="#2A2D2E"/>
+                                        <Setter Property="Foreground" Value="#CCCCCC"/>
+                                    </MultiTrigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+                <!-- Window control button -->
+                <Style x:Key="WinBtn" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="#CCCCCC"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Width" Value="46"/>
+                    <Setter Property="Height" Value="38"/>
+                    <Setter Property="FontSize" Value="10"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                    <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="Button">
-                                <Border x:Name="bd"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
                                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="bd" Property="Background" Value="#3A3D3F"/>
-                                        <Setter Property="Foreground"               Value="#FFFFFF"/>
+                                        <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#555555"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </Setter.Value>
                     </Setter>
                 </Style>
-            </Border.Resources>
+                <!-- Close button with red hover -->
+                <Style x:Key="CloseBtn" TargetType="Button" BasedOn="{StaticResource WinBtn}">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#E81123"/>
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="#F1707A"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Grid.Resources>
 
-            <DockPanel LastChildFill="True">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-                <!-- Left: option dropdowns (Resolution / Quality / Scale) -->
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
-                            VerticalAlignment="Center" Margin="0,0,8,0">
+            <!-- Icon + Title -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,8,0">
+                <TextBlock Text="🎙" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock Text="Podcast Video Editor" FontSize="12" Foreground="#CCCCCC"
+                           VerticalAlignment="Center" FontWeight="SemiBold"/>
+            </StackPanel>
 
-                    <!-- Resolution -->
-                    <Button x:Name="TB_ResolutionButton"
-                            Style="{StaticResource DropBtn}"
-                            Content="{Binding SelectedResolution}"
-                            ToolTip="Resolution"
-                            Margin="0,0,4,0"
-                            Click="RenderTB_DropdownClick">
-                        <Button.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="480p"  Command="{Binding SetResolutionCommand}" CommandParameter="480p"/>
-                                <MenuItem Header="720p"  Command="{Binding SetResolutionCommand}" CommandParameter="720p"/>
-                                <MenuItem Header="1080p" Command="{Binding SetResolutionCommand}" CommandParameter="1080p"/>
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
+            <!-- Menu -->
+            <Menu Grid.Column="1" Background="Transparent" VerticalAlignment="Center"
+                  WindowChrome.IsHitTestVisibleInChrome="True">
+                <MenuItem Header="File">
+                    <MenuItem Header="New Project" Click="NewProjectButton_Click"/>
+                    <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click"/>
+                    <Separator/>
+                    <MenuItem Header="Exit" Click="ExitMenu_Click"/>
+                </MenuItem>
+                <MenuItem Header="Edit">
+                    <MenuItem Header="Settings" Click="SettingsMenu_Click"/>
+                </MenuItem>
+                <MenuItem Header="Help">
+                    <MenuItem Header="About" Click="AboutMenu_Click"/>
+                </MenuItem>
+            </Menu>
 
-                    <!-- Quality -->
-                    <Button x:Name="TB_QualityButton"
-                            Style="{StaticResource DropBtn}"
-                            Content="{Binding SelectedQuality}"
-                            ToolTip="Quality"
-                            Margin="0,0,4,0"
-                            Click="RenderTB_DropdownClick">
-                        <Button.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="Low"    Command="{Binding SetQualityCommand}" CommandParameter="Low"/>
-                                <MenuItem Header="Medium" Command="{Binding SetQualityCommand}" CommandParameter="Medium"/>
-                                <MenuItem Header="High"   Command="{Binding SetQualityCommand}" CommandParameter="High"/>
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
+            <!-- Tab Buttons (center) -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal"
+                        HorizontalAlignment="Center" VerticalAlignment="Stretch">
+                <RadioButton x:Name="TabBtnHome" Content="Home" GroupName="MainTabs"
+                             IsChecked="True" Click="TabButton_Click" Tag="0"
+                             Style="{StaticResource TitleBarTab}"/>
+                <RadioButton x:Name="TabBtnEditor" Content="Editor" GroupName="MainTabs"
+                             Click="TabButton_Click" Tag="1"
+                             Style="{StaticResource TitleBarTab}"/>
+                <RadioButton x:Name="TabBtnSettings" Content="Settings" GroupName="MainTabs"
+                             Click="TabButton_Click" Tag="2"
+                             Style="{StaticResource TitleBarTab}"/>
+            </StackPanel>
 
-                    <!-- Scale -->
-                    <Button x:Name="TB_ScaleButton"
-                            Style="{StaticResource DropBtn}"
-                            Content="{Binding SelectedScaleMode}"
-                            ToolTip="Scale mode"
-                            Margin="0,0,8,0"
-                            Click="RenderTB_DropdownClick">
-                        <Button.ContextMenu>
-                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                                <MenuItem Header="Fill"    Command="{Binding SetScaleModeCommand}" CommandParameter="Fill"/>
-                                <MenuItem Header="Fit"     Command="{Binding SetScaleModeCommand}" CommandParameter="Fit"/>
-                                <MenuItem Header="Stretch" Command="{Binding SetScaleModeCommand}" CommandParameter="Stretch"/>
-                            </ContextMenu>
-                        </Button.ContextMenu>
-                    </Button>
+            <!-- Render button (visible only on Editor tab) -->
+            <Button x:Name="TitleBarRenderBtn" Grid.Column="3"
+                    Content="▶ Render" Background="#007ACC" Foreground="White"
+                    FontSize="12" Padding="14,5" Height="26" Margin="0,0,8,0"
+                    WindowChrome.IsHitTestVisibleInChrome="True"
+                    Visibility="Collapsed"
+                    Click="OpenRenderDialog_Click"/>
 
-                    <!-- Separator -->
-                    <Rectangle Width="1" Fill="#3E3E42" Margin="0,4,8,4"/>
+            <!-- Window control buttons -->
+            <StackPanel Grid.Column="4" Orientation="Horizontal">
+                <Button Content="─" Click="MinimizeButton_Click" Style="{StaticResource WinBtn}"/>
+                <Button x:Name="MaximizeBtn" Content="□" Click="MaximizeButton_Click" Style="{StaticResource WinBtn}"/>
+                <Button Content="✕" Click="CloseButton_Click" Style="{StaticResource CloseBtn}"/>
+            </StackPanel>
+        </Grid>
 
-                    <!-- Output folder -->
-                    <Button Style="{StaticResource DropBtn}"
-                            ToolTip="{Binding OutputFolder, StringFormat='Output: {0}'}"
-                            Command="{Binding BrowseOutputFolderCommand}"
-                            Margin="0,0,4,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="📁" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <TextBlock Text="{Binding OutputFolder}" FontSize="11" Foreground="#AAAAAA"
-                                       VerticalAlignment="Center" MaxWidth="160"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-                    </Button>
-                </StackPanel>
-
-                <!-- Right: Render / Cancel buttons -->
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-                            VerticalAlignment="Center" Margin="8,0,0,0">
-
-                    <!-- Cancel -->
-                    <Button Content="Cancel"
-                            Width="70" Height="26" Margin="4,0,0,0"
-                            Background="#C0392B" Foreground="White" BorderThickness="0"
-                            IsEnabled="{Binding CanCancel}"
-                            Visibility="{Binding IsRendering, Converter={StaticResource BoolToVisibilityConverter}}"
-                            Command="{Binding CancelRenderCommand}"
-                            Cursor="Hand"/>
-
-                    <!-- Start Render -->
-                    <Button Width="100" Height="26" Margin="4,0,0,0"
-                            Background="#007ACC" Foreground="White" BorderThickness="0"
-                            Cursor="Hand"
-                            ToolTip="{Binding StatusMessage}"
-                            Command="{Binding StartRenderCommand}"
-                            CommandParameter="{Binding DataContext.ProjectViewModel.CurrentProject, RelativeSource={RelativeSource AncestorType=Window}}">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Content" Value="▶ Render"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsRendering}" Value="True">
-                                        <Setter Property="Content"     Value="Rendering…"/>
-                                        <Setter Property="Background"  Value="#555555"/>
-                                        <Setter Property="IsEnabled"   Value="False"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                </StackPanel>
-
-                <!-- Middle: slim progress + error notification (fills remaining space) -->
-                <Grid VerticalAlignment="Center" Margin="8,0">
-                    <!-- Progress bar (visible while rendering) -->
-                    <ProgressBar Value="{Binding RenderProgress}" Maximum="100"
-                                 Height="6" Background="#3E3E42" Foreground="#28A745"
-                                 Visibility="{Binding IsRendering, Converter={StaticResource BoolToVisibilityConverter}}"/>
-
-                    <!-- Error notification (visible on HasError) -->
-                    <Border Background="#3A1010" BorderBrush="#C0392B" BorderThickness="1"
-                            CornerRadius="3" Padding="8,2"
-                            Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}">
-                        <TextBlock Text="{Binding StatusMessage}" Foreground="#FF6B6B"
-                                   FontSize="11" TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-                </Grid>
-
-            </DockPanel>
-        </Border>
-
-        <TabControl x:Name="MainTabControl" Background="#1E1E1E" Foreground="#FFFFFF" SelectionChanged="MainTabControl_SelectionChanged"
+        <!-- ═══════════ Content: Tab pages (headers hidden) ═══════════ -->
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Background="#1E1E1E" Foreground="#FFFFFF"
+                    SelectionChanged="MainTabControl_SelectionChanged"
                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
+            <TabControl.Template>
+                <ControlTemplate TargetType="TabControl">
+                    <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent"
+                                      SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                </ControlTemplate>
+            </TabControl.Template>
             <TabItem Header="Home" DataContext="{Binding ProjectViewModel}">
                 <ScrollViewer>
                     <StackPanel Margin="20">
@@ -237,7 +226,6 @@
                                          IsSynchronizedWithCurrentItem="True"
                                          Height="240"
                                          Background="#1E1E1E" Foreground="#FFFFFF" BorderThickness="0"
-                                         SelectionChanged="ProjectsListBox_SelectionChanged"
                                          MouseDoubleClick="ProjectsList_MouseDoubleClick">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
@@ -471,5 +459,6 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
-    </DockPanel>
+    </Grid>
+    </Border>
 </Window>
