@@ -261,12 +261,10 @@ namespace PodcastVideoEditor.Ui.Views
             _pendingZoomFactor = 1.0;
         }
 
-        private void ZoomInButton_Click(object sender, RoutedEventArgs e) => _viewModel?.ZoomBy(1.5);
-        private void ZoomOutButton_Click(object sender, RoutedEventArgs e) => _viewModel?.ZoomBy(1.0 / 1.5);
-        private void ZoomResetButton_Click(object sender, RoutedEventArgs e)
+        private void ZoomSlider_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel == null) return;
-            // Reset to fit the entire timeline in the visible area
+            // Reset zoom to fit the entire timeline in the visible area
             if (TimelineScroller.ActualWidth > 0)
                 _viewModel.TimelineWidth = TimelineScroller.ActualWidth - 56;
             else
@@ -276,11 +274,6 @@ namespace PodcastVideoEditor.Ui.Views
         private void InvalidateRuler()
         {
             RulerControl?.InvalidateVisual();
-        }
-
-        private void InvalidateWaveform()
-        {
-            // Waveform segments refresh via their WaveformPeaks binding; no direct control reference needed.
         }
 
         /// <summary>
@@ -729,12 +722,13 @@ namespace PodcastVideoEditor.Ui.Views
                 var splitItem = new MenuItem
                 {
                     Header = "Split at Playhead",
+                    InputGestureText = "Ctrl+B",
                     IsEnabled = _viewModel.SplitSelectedSegmentAtPlayheadCommand.CanExecute(null)
                 };
                 splitItem.Click += (_, _) => _viewModel.SplitSelectedSegmentAtPlayheadCommand.Execute(null);
                 menu.Items.Add(splitItem);
 
-                var dupItem = new MenuItem { Header = "Duplicate" };
+                var dupItem = new MenuItem { Header = "Duplicate", InputGestureText = "Ctrl+D" };
                 dupItem.Click += (_, _) => _viewModel.DuplicateSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(dupItem);
 
@@ -759,9 +753,19 @@ namespace PodcastVideoEditor.Ui.Views
 
                 menu.Items.Add(new Separator());
 
-                var deleteItem = new MenuItem { Header = "Delete" };
+                var deleteItem = new MenuItem { Header = "Delete", InputGestureText = "Del" };
                 deleteItem.Click += (_, _) => _viewModel.DeleteSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(deleteItem);
+
+                menu.Items.Add(new Separator());
+
+                var selectAllItem = new MenuItem { Header = "Select All", InputGestureText = "Ctrl+A" };
+                selectAllItem.Click += (_, _) => _viewModel.SelectAllSegmentsCommand.Execute(null);
+                menu.Items.Add(selectAllItem);
+
+                var clearAllItem = new MenuItem { Header = "Clear All" };
+                clearAllItem.Click += (_, _) => _viewModel.ClearAllSegmentsCommand.Execute(null);
+                menu.Items.Add(clearAllItem);
 
                 menu.PlacementTarget = thumb;
                 menu.IsOpen = true;

@@ -1618,10 +1618,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         // The coordinator calls _audioPreviewService.SyncPreviewAudio() each frame.
 
         /// <summary>
-        /// Min/max timeline width for zoom (Ctrl+wheel).
+        /// Min/max timeline width for zoom (Ctrl+wheel and slider).
         /// </summary>
         public const double MinTimelineWidth = 400;
         public const double MaxTimelineWidth = 20000;
+
+        /// <summary>Bindable min zoom width for slider.</summary>
+        public double MinZoomWidth => MinTimelineWidth;
+        /// <summary>Bindable max zoom width for slider.</summary>
+        public double MaxZoomWidth => MaxTimelineWidth;
 
         /// <summary>
         /// Zoom timeline by factor (e.g. 1.15 = zoom in, 1/1.15 = zoom out). Call from Ctrl+MouseWheel.

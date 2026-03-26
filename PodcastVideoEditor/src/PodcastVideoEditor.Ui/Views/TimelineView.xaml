@@ -10,6 +10,7 @@
     <UserControl.InputBindings>
         <KeyBinding Key="Delete" Command="{Binding DeleteSelectedSegmentCommand}"/>
         <KeyBinding Modifiers="Ctrl" Key="A" Command="{Binding SelectAllSegmentsCommand}"/>
+        <KeyBinding Modifiers="Ctrl" Key="D" Command="{Binding DuplicateSelectedSegmentCommand}"/>
         <!-- Space bar for playback control is now handled by CanvasView to avoid conflicts -->
     </UserControl.InputBindings>
 
@@ -48,70 +49,59 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Compact zoom slider style for ruler header -->
+        <Style x:Key="ZoomSliderStyle" TargetType="Slider">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid>
+                            <Border Height="3" VerticalAlignment="Center" Background="#37474f" CornerRadius="1.5"/>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="3" Background="#4fc3f7" CornerRadius="1.5"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="12" Height="12" Fill="#64b5f6"
+                                                         Stroke="#1e1e1e" StrokeThickness="1"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Status Bar: MinHeight so buttons and text are not clipped -->
-        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Timeline:" Margin="0,0,10,0" VerticalAlignment="Center" FontWeight="Bold"/>
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="#a0a0a0" VerticalAlignment="Center" Margin="0,0,20,0"/>
-                    <TextBlock Text="Playhead:" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding PlayheadPosition, Converter={StaticResource SecondsToTimecodeConverter}}" 
-                               Foreground="#4fc3f7" VerticalAlignment="Center" FontFamily="Courier New" FontWeight="Bold"/>
-                    <TextBlock Text=" / " VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding TotalDuration, Converter={StaticResource SecondsToTimecodeConverter}}" VerticalAlignment="Center" FontFamily="Courier New"/>
-                    <TextBlock Text=" (" Margin="5,0,0,0" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding PixelsPerSecond, Converter={StaticResource PixelsPerSecondConverter}}" 
-                               Foreground="#81c784" VerticalAlignment="Center" FontFamily="Courier New"/>
-                    <TextBlock Text=")" VerticalAlignment="Center"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <!-- Zoom controls -->
-                    <Button Content="−" x:Name="ZoomOutButton" ToolTip="Zoom Out (Ctrl+ScrollDown)"
-                            Background="#37474f" Foreground="White" Padding="8,8" MinHeight="32" MinWidth="32" Margin="0,0,2,0"
-                            FontSize="14" FontWeight="Bold" VerticalContentAlignment="Center"
-                            Click="ZoomOutButton_Click"/>
-                    <Button Content="1x" x:Name="ZoomResetButton" ToolTip="Reset Zoom (fit all)"
-                            Background="#37474f" Foreground="#81c784" Padding="8,8" MinHeight="32" Margin="0,0,2,0"
-                            FontFamily="Courier New" FontWeight="Bold" VerticalContentAlignment="Center"
-                            Click="ZoomResetButton_Click"/>
-                    <Button Content="+" x:Name="ZoomInButton" ToolTip="Zoom In (Ctrl+ScrollUp)"
-                            Background="#37474f" Foreground="White" Padding="8,8" MinHeight="32" MinWidth="32" Margin="0,0,16,0"
-                            FontSize="14" FontWeight="Bold" VerticalContentAlignment="Center"
-                            Click="ZoomInButton_Click"/>
-                    <!-- Segment controls only - Playback controls moved to CanvasView -->
-                    <Button Content="Add" Command="{Binding AddSegmentAtPlayheadCommand}"
-                            Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
-                    <Button Content="Duplicate" Command="{Binding DuplicateSelectedSegmentCommand}"
-                            Background="#1e88e5" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
-                    <Button Content="Delete" Command="{Binding DeleteSelectedSegmentCommand}"
-                            ToolTip="Delete selected (or all Ctrl+A selected) segments"
-                            Background="#e53935" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
-                    <Button Content="Sel All" Command="{Binding SelectAllSegmentsCommand}"
-                            ToolTip="Select all segments (Ctrl+A)"
-                            Background="#6d4c41" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,6,0" VerticalContentAlignment="Center"/>
-                    <Button Content="Clear All" Command="{Binding ClearAllSegmentsCommand}"
-                            Background="#6d4c41" Foreground="White" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
         <!-- Timeline Content: Fixed headers + scrollable content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" 
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" 
                      HorizontalScrollBarVisibility="Disabled"
                      x:Name="OuterScroller"
                      Background="#252525">
@@ -129,10 +119,23 @@
                         <RowDefinition Height="26"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Row 0: Ruler header -->
+                    <!-- Row 0: Ruler header with zoom slider -->
                     <Border Grid.Row="0" Height="40" Background="#1a1a1a" BorderBrush="#37474f" BorderThickness="0,0,1,0">
-                        <TextBlock Text="Timeline" VerticalAlignment="Center" Margin="8,0"
-                                   Foreground="#81c784" FontWeight="SemiBold" FontSize="11"/>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <!-- Zoom slider: compact horizontal, CapCut-style bottom-aligned -->
+                            <Slider x:Name="ZoomSlider" Grid.Row="0"
+                                    Minimum="{Binding MinZoomWidth}" Maximum="{Binding MaxZoomWidth}"
+                                    Value="{Binding TimelineWidth, Mode=TwoWay}"
+                                    VerticalAlignment="Center" Margin="4,0"
+                                    ToolTip="Zoom (Ctrl+Scroll)"
+                                    MouseDoubleClick="ZoomSlider_MouseDoubleClick"
+                                    SmallChange="50" LargeChange="200"
+                                    Style="{StaticResource ZoomSliderStyle}"/>
+                        </Grid>
                     </Border>
 
                     <!-- Row 1: Track headers (generated from Tracks collection) -->
