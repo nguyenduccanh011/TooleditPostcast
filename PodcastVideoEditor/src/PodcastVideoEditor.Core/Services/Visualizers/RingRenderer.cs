@@ -65,8 +65,8 @@ public sealed class RingRenderer : IVisualizerRenderer
         _path.Close();
 
         // Fill with radial gradient
-        var color1 = VisualizerColorHelper.GetNeonColor(0, bandCount, colorTick, config.ColorPalette);
-        var color2 = VisualizerColorHelper.GetNeonColor(bandCount / 2, bandCount, colorTick, config.ColorPalette);
+        var color1 = VisualizerColorHelper.GetNeonColor(0, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
+        var color2 = VisualizerColorHelper.GetNeonColor(bandCount / 2, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
         _fillPaint.Shader = SKShader.CreateRadialGradient(
             new SKPoint(centerX, centerY), baseRadius + maxRadiusExtent,

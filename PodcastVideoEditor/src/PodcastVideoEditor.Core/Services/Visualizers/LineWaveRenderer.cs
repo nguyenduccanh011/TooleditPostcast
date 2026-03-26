@@ -52,7 +52,7 @@ public sealed class LineWaveRenderer : IVisualizerRenderer
         var pointSpacing = width / (float)(bandCount - 1);
 
         var color = VisualizerColorHelper.GetNeonColor(
-            (int)(phaseOffset * bandCount), bandCount, colorTick, config.ColorPalette);
+            (int)(phaseOffset * bandCount), bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
         // Build smooth cubic path
         _path.Reset();

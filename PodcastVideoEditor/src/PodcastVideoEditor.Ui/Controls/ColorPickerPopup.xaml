@@ -1,0 +1,157 @@
+<UserControl x:Class="PodcastVideoEditor.Ui.Controls.ColorPickerPopup"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="280" MinHeight="320"
+             Background="#252530" Foreground="#e0e0e0">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- SV canvas + Hue slider -->
+            <RowDefinition Height="Auto"/>  <!-- Preview + Hex input -->
+            <RowDefinition Height="Auto"/>  <!-- Preset swatches -->
+            <RowDefinition Height="Auto"/>  <!-- Recent colors -->
+        </Grid.RowDefinitions>
+
+        <!-- Row 0: SV Canvas + Hue Bar -->
+        <Grid Grid.Row="0" Height="180">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="28"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Saturation-Value Canvas -->
+            <Border Grid.Column="0" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="2" Margin="0,0,8,0"
+                    ClipToBounds="True">
+                <Canvas x:Name="SvCanvas" Background="Red"
+                        MouseLeftButtonDown="SvCanvas_MouseDown"
+                        MouseMove="SvCanvas_MouseMove"
+                        MouseLeftButtonUp="SvCanvas_MouseUp">
+                    <!-- White gradient left to right -->
+                    <Canvas.OpacityMask>
+                        <DrawingBrush>
+                            <DrawingBrush.Drawing>
+                                <DrawingGroup>
+                                    <GeometryDrawing>
+                                        <GeometryDrawing.Geometry>
+                                            <RectangleGeometry Rect="0,0,1,1"/>
+                                        </GeometryDrawing.Geometry>
+                                        <GeometryDrawing.Brush>
+                                            <SolidColorBrush Color="White"/>
+                                        </GeometryDrawing.Brush>
+                                    </GeometryDrawing>
+                                </DrawingGroup>
+                            </DrawingBrush.Drawing>
+                        </DrawingBrush>
+                    </Canvas.OpacityMask>
+
+                    <!-- White-to-transparent horizontal gradient -->
+                    <Rectangle x:Name="WhiteGradientRect" Canvas.Left="0" Canvas.Top="0">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="White" Offset="0"/>
+                                <GradientStop Color="Transparent" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+
+                    <!-- Black-to-transparent vertical gradient -->
+                    <Rectangle x:Name="BlackGradientRect" Canvas.Left="0" Canvas.Top="0">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="Transparent" Offset="0"/>
+                                <GradientStop Color="Black" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+
+                    <!-- Selector circle -->
+                    <Ellipse x:Name="SvSelector" Width="14" Height="14"
+                             Stroke="White" StrokeThickness="2" Fill="Transparent"
+                             IsHitTestVisible="False">
+                        <Ellipse.Effect>
+                            <DropShadowEffect ShadowDepth="0" BlurRadius="3" Color="Black" Opacity="0.6"/>
+                        </Ellipse.Effect>
+                    </Ellipse>
+                </Canvas>
+            </Border>
+
+            <!-- Hue Slider (vertical rainbow bar) -->
+            <Border Grid.Column="1" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="2"
+                    ClipToBounds="True">
+                <Canvas x:Name="HueCanvas"
+                        MouseLeftButtonDown="HueCanvas_MouseDown"
+                        MouseMove="HueCanvas_MouseMove"
+                        MouseLeftButtonUp="HueCanvas_MouseUp">
+                    <Canvas.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FFFF0000" Offset="0.000"/>
+                            <GradientStop Color="#FFFFFF00" Offset="0.167"/>
+                            <GradientStop Color="#FF00FF00" Offset="0.333"/>
+                            <GradientStop Color="#FF00FFFF" Offset="0.500"/>
+                            <GradientStop Color="#FF0000FF" Offset="0.667"/>
+                            <GradientStop Color="#FFFF00FF" Offset="0.833"/>
+                            <GradientStop Color="#FFFF0000" Offset="1.000"/>
+                        </LinearGradientBrush>
+                    </Canvas.Background>
+
+                    <!-- Hue selector arrow -->
+                    <Border x:Name="HueSelector" Height="4" Background="White"
+                            BorderBrush="#333" BorderThickness="1"
+                            IsHitTestVisible="False" Canvas.Left="0">
+                        <Border.Effect>
+                            <DropShadowEffect ShadowDepth="0" BlurRadius="2" Color="Black" Opacity="0.5"/>
+                        </Border.Effect>
+                    </Border>
+                </Canvas>
+            </Border>
+        </Grid>
+
+        <!-- Row 1: Preview + Hex -->
+        <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Old/New color preview -->
+            <Grid Grid.Column="0" Width="56" Margin="0,0,10,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" x:Name="NewColorPreview" Height="20"
+                        CornerRadius="2,2,0,0" BorderBrush="#546e7a" BorderThickness="1,1,1,0"/>
+                <Border Grid.Row="1" x:Name="OldColorPreview" Height="20"
+                        CornerRadius="0,0,2,2" BorderBrush="#546e7a" BorderThickness="1"/>
+            </Grid>
+
+            <!-- Hex input -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Text="Hex" Foreground="#b0bec5" FontSize="10" Margin="0,0,0,2"/>
+                <TextBox Grid.Row="1" x:Name="HexInput" MaxLength="7"
+                         Background="#2d2d2d" Foreground="#e0e0e0" Padding="6,4"
+                         BorderBrush="#546e7a" BorderThickness="1" FontFamily="Consolas" FontSize="13"
+                         KeyDown="HexInput_KeyDown" LostFocus="HexInput_LostFocus"/>
+            </Grid>
+        </Grid>
+
+        <!-- Row 2: Preset swatches -->
+        <StackPanel Grid.Row="2" Margin="0,10,0,0">
+            <TextBlock Text="Presets" Foreground="#b0bec5" FontSize="10" Margin="0,0,0,4"/>
+            <WrapPanel x:Name="PresetPanel">
+                <!-- Filled programmatically -->
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- Row 3: Recent colors -->
+        <StackPanel Grid.Row="3" Margin="0,8,0,0">
+            <TextBlock Text="Recent" Foreground="#b0bec5" FontSize="10" Margin="0,0,0,4"/>
+            <WrapPanel x:Name="RecentPanel">
+                <!-- Filled programmatically -->
+            </WrapPanel>
+        </StackPanel>
+    </Grid>
+</UserControl>

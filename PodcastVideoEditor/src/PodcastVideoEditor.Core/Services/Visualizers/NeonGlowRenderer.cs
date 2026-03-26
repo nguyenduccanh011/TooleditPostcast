@@ -42,7 +42,7 @@ public sealed class NeonGlowRenderer : IVisualizerRenderer
             var value = Math.Clamp(spectrum[i], 0f, 1f);
             var barHeight = Math.Max(2f, value * maxBarHeight);
             var x = i * (barWidth + config.BarSpacing);
-            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette);
+            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
             _glowPaint.Color = color.WithAlpha((byte)(100 * value + 30));
 
@@ -62,7 +62,7 @@ public sealed class NeonGlowRenderer : IVisualizerRenderer
             var value = Math.Clamp(spectrum[i], 0f, 1f);
             var barHeight = Math.Max(2f, value * maxBarHeight);
             var x = i * (barWidth + config.BarSpacing);
-            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette);
+            var color = VisualizerColorHelper.GetNeonColor(i, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
             _barPaint.Color = color;
 

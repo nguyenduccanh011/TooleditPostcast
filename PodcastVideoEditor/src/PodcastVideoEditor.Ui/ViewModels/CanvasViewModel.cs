@@ -396,6 +396,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerViewModel.PeakHoldTime = element.PeakHoldTime;
             _visualizerViewModel.BarWidth = element.BarWidth;
             _visualizerViewModel.BarSpacing = element.BarSpacing;
+            _visualizerViewModel.PrimaryColorHex = element.PrimaryColorHex;
+            _visualizerViewModel.CustomGradientColors = element.CustomGradientColors;
+            _visualizerViewModel.BarGradientDarkness = element.BarGradientDarkness;
+            _visualizerViewModel.BarGradientEnabled = element.BarGradientEnabled;
+            _visualizerViewModel.BarGradientBaseColorHex = element.BarGradientBaseColorHex;
         }
 
         private void OnVisualizerTimerTick(object? sender, EventArgs e)

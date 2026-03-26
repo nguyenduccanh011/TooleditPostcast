@@ -53,6 +53,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private float barSpacing = 2f;
 
         [ObservableProperty]
+        private string primaryColorHex = "#00FF00";
+
+        [ObservableProperty]
+        private string customGradientColors = "#FF0000,#00FF00,#0000FF";
+
+        [ObservableProperty]
+        private float barGradientDarkness = 0.4f;
+
+        [ObservableProperty]
+        private bool barGradientEnabled = true;
+
+        [ObservableProperty]
+        private string? barGradientBaseColorHex;
+
+        [ObservableProperty]
         private float currentBitmap;
 
         [ObservableProperty]
@@ -96,7 +111,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ColorPalette.Fire,
                 ColorPalette.Ocean,
                 ColorPalette.Mono,
-                ColorPalette.Purple
+                ColorPalette.Purple,
+                ColorPalette.Custom
             };
 
             AvailableBandCounts = new ObservableCollection<int>
@@ -188,7 +204,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     SymmetricMode = SymmetricMode,
                     PeakHoldTime = PeakHoldTime,
                     BarWidth = BarWidth,
-                    BarSpacing = BarSpacing
+                    BarSpacing = BarSpacing,
+                    PrimaryColorHex = PrimaryColorHex,
+                    CustomGradientColors = CustomGradientColors,
+                    BarGradientDarkness = BarGradientDarkness,
+                    BarGradientEnabled = BarGradientEnabled,
+                    BarGradientBaseColorHex = BarGradientBaseColorHex
                 };
 
                 if (!newConfig.Validate())
@@ -230,6 +251,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 case nameof(PeakHoldTime):
                 case nameof(BarWidth):
                 case nameof(BarSpacing):
+                case nameof(PrimaryColorHex):
+                case nameof(CustomGradientColors):
+                case nameof(BarGradientDarkness):
+                case nameof(BarGradientEnabled):
+                case nameof(BarGradientBaseColorHex):
                     UpdateVisualizerConfig();
                     break;
 

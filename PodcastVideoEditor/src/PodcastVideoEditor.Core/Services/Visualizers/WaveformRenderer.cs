@@ -37,7 +37,7 @@ public sealed class WaveformRenderer : IVisualizerRenderer
         var pointsPerBand = width / (float)bandCount;
         var maxAmplitude = height * 0.42f;
 
-        var color = VisualizerColorHelper.GetNeonColor(0, bandCount, colorTick, config.ColorPalette);
+        var color = VisualizerColorHelper.GetNeonColor(0, bandCount, colorTick, config.ColorPalette, config.PrimaryColorHex);
 
         // Build smooth cubic path
         _path.Reset();
