@@ -91,8 +91,30 @@ namespace PodcastVideoEditor.Core.Services
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.Assets.Add(asset);
-            await _context.SaveChangesAsync();
+            // Detach other dirty tracked entities so SaveChangesAsync only persists
+            // the new asset. A singleton DbContext may accumulate in-memory changes
+            // from other operations that are not ready to be saved yet.
+            var dirtyEntries = _context.ChangeTracker.Entries()
+                .Where(e => e.State != EntityState.Unchanged && e.State != EntityState.Detached && e.Entity is not Asset)
+                .ToList();
+            var savedStates = dirtyEntries.Select(e => (Entry: e, OriginalState: e.State)).ToList();
+            foreach (var e in dirtyEntries)
+                e.State = EntityState.Unchanged;
+
+            try
+            {
+                _context.Assets.Add(asset);
+                await _context.SaveChangesAsync();
+            }
+            finally
+            {
+                // Restore previous states so other code paths are unaffected
+                foreach (var (entry, originalState) in savedStates)
+                {
+                    if (entry.State == EntityState.Unchanged)
+                        entry.State = originalState;
+                }
+            }
 
             Log.Information("Asset added to project {ProjectId}: {AssetId} ({Name})", projectId, asset.Id, asset.Name);
             return asset;
