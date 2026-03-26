@@ -172,23 +172,91 @@
                 </ScrollViewer>
             </TabItem>
 
-            <!-- Tab 3: Visual (All overlay elements) -->
-            <TabItem Header="Visual">
+            <!-- Tab 3: Text (draggable text presets) -->
+            <TabItem Header="Text">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
-                        <TextBlock Text="Text Elements" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
-                        <Button Content="+ Title" Command="{Binding CanvasViewModel.AddTitleElementCommand}"
-                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
-                        <Button Content="+ Text" Command="{Binding CanvasViewModel.AddTextElementCommand}"
-                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Kéo thả vào timeline hoặc nhấn để thêm tại playhead"
+                                   Foreground="#546e7a" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
 
-                        <TextBlock Text="Visual Elements" Foreground="#b0bec5" FontSize="11" Margin="0,10,0,6"/>
-                        <Button Content="+ Logo" Command="{Binding CanvasViewModel.AddLogoElementCommand}"
-                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
-                        <Button Content="+ Image" Command="{Binding CanvasViewModel.AddImageElementCommand}"
-                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
-                        <Button Content="+ Visualizer" Command="{Binding CanvasViewModel.AddVisualizerElementCommand}"
-                                Background="#6F42C1" Foreground="White" Padding="10,6" Margin="0,0,0,6" HorizontalAlignment="Stretch"/>
+                        <TextBlock Text="Text Presets" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+
+                        <!-- Draggable: Title -->
+                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                                Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                                Tag="Title"
+                                MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
+                                MouseMove="ElementItem_MouseMove"
+                                MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
+                            <StackPanel>
+                                <TextBlock Text="Aa Title" FontSize="16" FontWeight="Bold" Foreground="#64b5f6"/>
+                                <TextBlock Text="Tiêu đề lớn, đậm" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Draggable: Subtitle -->
+                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                                Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                                Tag="Subtitle"
+                                MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
+                                MouseMove="ElementItem_MouseMove"
+                                MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
+                            <StackPanel>
+                                <TextBlock Text="Aa Subtitle" FontSize="13" FontWeight="SemiBold" Foreground="#b0bec5"/>
+                                <TextBlock Text="Phụ đề, chữ vừa" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Draggable: Lower Third -->
+                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                                Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                                Tag="LowerThird"
+                                MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
+                                MouseMove="ElementItem_MouseMove"
+                                MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
+                            <StackPanel>
+                                <TextBlock Text="▬ Lower Third" FontSize="12" Foreground="#81c784"/>
+                                <TextBlock Text="Thanh chữ phía dưới" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Draggable: Body Text -->
+                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                                Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                                Tag="Caption"
+                                MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
+                                MouseMove="ElementItem_MouseMove"
+                                MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
+                            <StackPanel>
+                                <TextBlock Text="Aa Body Text" FontSize="12" Foreground="#e0e0e0"/>
+                                <TextBlock Text="Nội dung, caption" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 4: Effects (Visualizer and overlays) -->
+            <TabItem Header="Effects">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="8,8,8,0">
+                        <TextBlock Text="Kéo thả vào timeline hoặc nhấn để thêm tại playhead"
+                                   Foreground="#546e7a" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
+
+                        <TextBlock Text="Audio Effects" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+
+                        <!-- Draggable: Visualizer -->
+                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                                Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
+                                Tag="Visualizer"
+                                MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
+                                MouseMove="ElementItem_MouseMove"
+                                MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
+                            <StackPanel>
+                                <TextBlock Text="🎵 Audio Visualizer" FontSize="13" FontWeight="SemiBold" Foreground="#ce93d8"/>
+                                <TextBlock Text="Spectrum, bars, waveform" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

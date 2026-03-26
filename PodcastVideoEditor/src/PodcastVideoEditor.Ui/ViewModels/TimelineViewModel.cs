@@ -746,6 +746,51 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Create a segment at a specific time position (for drag-drop from element panel).
+        /// When <paramref name="trackId"/> is specified the segment is placed on that exact track;
+        /// otherwise the first matching track type is used (or a new one is created).
+        /// </summary>
+        public Segment? CreateSegmentForElementAtTime(string trackType, string text, double startTime, double duration = 5.0, string? trackId = null)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return null;
+
+            Track? targetTrack = null;
+            if (!string.IsNullOrEmpty(trackId))
+                targetTrack = Tracks.FirstOrDefault(t => t.Id == trackId);
+
+            if (targetTrack == null)
+            {
+                targetTrack = Tracks.FirstOrDefault(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase));
+                if (targetTrack == null)
+                {
+                    AddTrack(trackType);
+                    targetTrack = Tracks.LastOrDefault(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase));
+                    if (targetTrack == null)
+                        return null;
+                }
+            }
+
+            double snappedStart = SnapToGrid(Math.Max(0, startTime));
+            double snappedEnd = SnapToGrid(snappedStart + duration);
+
+            string kind = trackType.ToLowerInvariant() switch
+            {
+                TrackTypes.Audio  => SegmentKinds.Audio,
+                TrackTypes.Effect => SegmentKinds.Effect,
+                TrackTypes.Text   => SegmentKinds.Text,
+                _                 => SegmentKinds.Visual
+            };
+            var newSegment = BuildSegment(targetTrack, snappedStart, snappedEnd, kind, text);
+
+            if (!CommitSegmentToTrack(targetTrack, newSegment, $"Dropped element at {snappedStart:F2}s"))
+                return null;
+
+            Log.Information("Created element segment '{Text}' on {TrackType} track at {Start}s-{End}s (drag-drop)", text, trackType, snappedStart, snappedEnd);
+            return newSegment;
+        }
+
+        /// <summary>
         /// Create a segment on a BRAND-NEW dedicated track of the given type.
         /// Used by VisualizerElement (and similar overlays) so they never conflict
         /// with existing segments on shared visual tracks.

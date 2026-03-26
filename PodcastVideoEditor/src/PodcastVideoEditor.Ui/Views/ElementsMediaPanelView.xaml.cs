@@ -133,6 +133,70 @@ public partial class ElementsMediaPanelView : UserControl
         _isDragging = false;
     }
 
+    // ─── Element Drag-and-Drop (Text presets, Visualizer → Timeline) ───
+
+    private void ElementItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStartPoint = e.GetPosition(null);
+        _isDragging = false;
+    }
+
+    private void ElementItem_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        var currentPos = e.GetPosition(null);
+        var diff = currentPos - _dragStartPoint;
+
+        if (System.Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            System.Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        if (_isDragging)
+            return;
+
+        if (sender is not FrameworkElement element)
+            return;
+
+        var tag = element.Tag as string;
+        if (string.IsNullOrEmpty(tag))
+            return;
+
+        _isDragging = true;
+
+        var data = new DataObject("PVE_ElementType", tag);
+        DragDrop.DoDragDrop(element, data, DragDropEffects.Copy);
+
+        _isDragging = false;
+    }
+
+    /// <summary>
+    /// If user clicks without dragging, create element at playhead (fallback).
+    /// </summary>
+    private void ElementItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_isDragging)
+            return;
+
+        if (sender is not FrameworkElement element)
+            return;
+
+        var tag = element.Tag as string;
+        if (string.IsNullOrEmpty(tag))
+            return;
+
+        var mainVm = DataContext as MainViewModel;
+        var canvasVm = mainVm?.CanvasViewModel;
+        if (canvasVm == null)
+            return;
+
+        if (tag == "Visualizer")
+            canvasVm.AddVisualizerElementAt();
+        else if (System.Enum.TryParse<PodcastVideoEditor.Core.Models.TextStyle>(tag, out var preset))
+            canvasVm.AddTextElementWithPreset(preset);
+    }
+
     private async void ImportMediaButton_Click(object sender, RoutedEventArgs e)
     {
         var mainVm = DataContext as MainViewModel;

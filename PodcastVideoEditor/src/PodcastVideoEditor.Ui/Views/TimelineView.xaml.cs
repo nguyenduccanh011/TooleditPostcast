@@ -898,24 +898,39 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Validate drag-over on a track canvas. Shows visual feedback for compatible/incompatible drops.
+        /// Supports both asset drag (PVE_Asset) and element drag (PVE_ElementType).
         /// </summary>
         private void TrackCanvas_DragOver(object sender, DragEventArgs e)
         {
             e.Effects = DragDropEffects.None;
 
-            if (!e.Data.GetDataPresent("PVE_Asset"))
-                return;
-
             if (sender is not Canvas canvas)
                 return;
 
             var track = canvas.DataContext as PodcastVideoEditor.Core.Models.Track;
-            var asset = e.Data.GetData("PVE_Asset") as Asset;
-
-            if (track == null || asset == null)
+            if (track == null)
                 return;
 
-            if (TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
+            bool compatible = false;
+
+            if (e.Data.GetDataPresent("PVE_Asset"))
+            {
+                var asset = e.Data.GetData("PVE_Asset") as Asset;
+                if (asset != null)
+                    compatible = TimelineViewModel.IsAssetCompatibleWithTrack(asset, track);
+            }
+            else if (e.Data.GetDataPresent("PVE_ElementType"))
+            {
+                var elementType = e.Data.GetData("PVE_ElementType") as string;
+                if (!string.IsNullOrEmpty(elementType))
+                    compatible = IsElementCompatibleWithTrack(elementType, track);
+            }
+            else
+            {
+                return;
+            }
+
+            if (compatible)
             {
                 e.Effects = DragDropEffects.Copy;
                 canvas.Background = _dropHighlightBrush;
@@ -929,6 +944,21 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
+        /// Check if an element type tag is compatible with a track type.
+        /// Text presets → text tracks, Visualizer → effect tracks.
+        /// </summary>
+        private static bool IsElementCompatibleWithTrack(string elementType, PodcastVideoEditor.Core.Models.Track track)
+        {
+            var trackType = track.TrackType?.ToLowerInvariant() ?? "";
+            return elementType switch
+            {
+                "Visualizer" => trackType == TrackTypes.Effect,
+                // All text presets (Title, Subtitle, LowerThird, Caption) → text tracks
+                _ => trackType == TrackTypes.Text
+            };
+        }
+
+        /// <summary>
         /// Reset visual highlight when drag leaves the track.
         /// </summary>
         private void TrackCanvas_DragLeave(object sender, DragEventArgs e)
@@ -938,7 +968,8 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Handle drop of an asset onto a track canvas. Creates a new segment at the drop position.
+        /// Handle drop of an asset or element onto a track canvas.
+        /// Asset drops create media segments; element drops create text/visualizer elements.
         /// </summary>
         private void TrackCanvas_Drop(object sender, DragEventArgs e)
         {
@@ -948,23 +979,29 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel == null)
                 return;
 
-            if (!e.Data.GetDataPresent("PVE_Asset"))
-                return;
-
             var track = (sender as Canvas)?.DataContext as PodcastVideoEditor.Core.Models.Track;
-            var asset = e.Data.GetData("PVE_Asset") as Asset;
-
-            if (track == null || asset == null)
-                return;
-
-            if (!TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
+            if (track == null)
                 return;
 
             // Calculate drop time from pixel position
             var dropPoint = e.GetPosition(sender as IInputElement);
             double dropTimeSeconds = _viewModel.PixelsToTime(Math.Max(0, dropPoint.X));
 
-            bool added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, asset);
+            bool added = false;
+
+            if (e.Data.GetDataPresent("PVE_Asset"))
+            {
+                var asset = e.Data.GetData("PVE_Asset") as Asset;
+                if (asset != null && TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
+                    added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, asset);
+            }
+            else if (e.Data.GetDataPresent("PVE_ElementType"))
+            {
+                var elementType = e.Data.GetData("PVE_ElementType") as string;
+                if (!string.IsNullOrEmpty(elementType) && IsElementCompatibleWithTrack(elementType, track))
+                    added = HandleElementDrop(elementType, dropTimeSeconds, track.Id);
+            }
+
             if (added)
             {
                 UpdateSegmentLayout();
@@ -972,6 +1009,32 @@ namespace PodcastVideoEditor.Ui.Views
             }
 
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// Create a canvas element + timeline segment at the drop position.
+        /// Routes through CanvasViewModel found via Window's MainViewModel.
+        /// </summary>
+        private bool HandleElementDrop(string elementType, double startTime, string trackId)
+        {
+            var mainVm = Window.GetWindow(this)?.DataContext as MainViewModel;
+            var canvasVm = mainVm?.CanvasViewModel;
+            if (canvasVm == null)
+                return false;
+
+            if (elementType == "Visualizer")
+            {
+                canvasVm.AddVisualizerElementAt(startTime, trackId);
+                return true;
+            }
+
+            if (System.Enum.TryParse<PodcastVideoEditor.Core.Models.TextStyle>(elementType, out var preset))
+            {
+                canvasVm.AddTextElementWithPreset(preset, startTime, trackId);
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

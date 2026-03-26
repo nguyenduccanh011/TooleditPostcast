@@ -506,45 +506,47 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
-        /// Add a new title element to canvas.
+        /// Add a text element with the given style preset to canvas.
+        /// When <paramref name="startTime"/> is provided the segment is placed at that
+        /// position (drag-drop); otherwise it uses the playhead (button-click fallback).
         /// </summary>
-        [RelayCommand]
-        public void AddTitleElement()
+        public void AddTextElementWithPreset(TextStyle preset, double? startTime = null, string? trackId = null)
         {
+            bool isTitle = preset == TextStyle.Title;
             var element = new TextOverlayElement
             {
-                Name = $"Title {Elements.Count + 1}",
-                X = Math.Max(0, (CanvasWidth - 400) / 2),
-                Y = Math.Max(0, CanvasHeight * 0.08),
-                Width = 400,
-                Height = 100
+                Name = $"{preset} {Elements.Count + 1}",
+                X = Math.Max(0, (CanvasWidth - (isTitle ? 400 : 600)) / 2),
+                Y = isTitle ? Math.Max(0, CanvasHeight * 0.08) : Math.Max(0, CanvasHeight - 160),
+                Width = isTitle ? 400 : 600,
+                Height = isTitle ? 100 : 80
             };
-            element.ApplyPreset(TextStyle.Title);
-            AddElementToCanvas(element, TrackTypes.Text);
+            element.ApplyPreset(preset);
+
+            if (startTime.HasValue)
+                AddElementAtTime(element, TrackTypes.Text, startTime.Value, 5.0, trackId);
+            else
+                AddElementToCanvas(element, TrackTypes.Text);
         }
 
         /// <summary>
-        /// Add a new logo element to canvas.
+        /// Add a new title element to canvas (button-click fallback at playhead).
         /// </summary>
         [RelayCommand]
-        public void AddLogoElement()
-        {
-            var element = new LogoElement
-            {
-                Name = $"Logo {Elements.Count + 1}",
-                X = Math.Max(0, CanvasWidth - 220),
-                Y = 20,
-                Width = 200,
-                Height = 200
-            };
-            AddElementToCanvas(element, TrackTypes.Visual);
-        }
+        public void AddTitleElement() => AddTextElementWithPreset(TextStyle.Title);
+
+        /// <summary>
+        /// Add a new text element to canvas (button-click fallback at playhead).
+        /// </summary>
+        [RelayCommand]
+        public void AddTextElement() => AddTextElementWithPreset(TextStyle.Caption);
 
         /// <summary>
         /// Add a new visualizer element to canvas.
+        /// When <paramref name="startTime"/> is provided the segment is placed at that
+        /// position (drag-drop); otherwise it uses the playhead.
         /// </summary>
-        [RelayCommand]
-        public void AddVisualizerElement()
+        public void AddVisualizerElementAt(double? startTime = null, string? trackId = null)
         {
             var element = new VisualizerElement
             {
@@ -558,44 +560,64 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // Use the full project duration so the baked visualizer covers the whole
             // project, not just the 5-second default stub.
             var projectEnd       = _timelineViewModel?.GetProjectDuration() ?? 30.0;
-            var playhead         = _timelineViewModel?.PlayheadPosition ?? 0.0;
+            var playhead         = startTime ?? _timelineViewModel?.PlayheadPosition ?? 0.0;
             var segmentDuration  = Math.Max(10.0, projectEnd - playhead);
-            AddElementToCanvas(element, TrackTypes.Effect, segmentDuration);
+
+            if (startTime.HasValue)
+                AddElementAtTime(element, TrackTypes.Effect, startTime.Value, segmentDuration, trackId);
+            else
+                AddElementToCanvas(element, TrackTypes.Effect, segmentDuration);
+
             EnsureVisualizerTimer();
         }
 
         /// <summary>
-        /// Add a new image element to canvas.
+        /// Add a new visualizer element to canvas (button-click fallback at playhead).
         /// </summary>
         [RelayCommand]
-        public void AddImageElement()
-        {
-            var element = new ImageElement
-            {
-                Name = $"Image {Elements.Count + 1}",
-                X = Math.Max(0, (CanvasWidth - 300) / 2),
-                Y = Math.Max(0, (CanvasHeight - 300) / 2),
-                Width = 300,
-                Height = 300
-            };
-            AddElementToCanvas(element, TrackTypes.Visual);
-        }
+        public void AddVisualizerElement() => AddVisualizerElementAt();
 
         /// <summary>
-        /// Add a new text element to canvas.
+        /// Add an element at a specific time position on the timeline (for drag-drop).
+        /// Creates a segment at the given startTime instead of the playhead position.
         /// </summary>
-        [RelayCommand]
-        public void AddTextElement()
+        private Segment? AddElementAtTime(CanvasElement element, string trackType, double startTime, double duration, string? trackId = null)
         {
-            var element = new TextOverlayElement
+            _isCreatingElement = true;
+            try
             {
-                Name = $"Text {Elements.Count + 1}",
-                X = Math.Max(0, (CanvasWidth - 600) / 2),
-                Y = Math.Max(0, CanvasHeight - 160),
-                Width = 600,
-                Height = 80
-            };
-            AddElementToCanvas(element, TrackTypes.Text);
+                if (_timelineViewModel == null)
+                {
+                    LogMessage("Cannot add element: no project loaded");
+                    return null;
+                }
+
+                Segment? segment = _timelineViewModel.CreateSegmentForElementAtTime(
+                    trackType, element.Name, startTime, duration, trackId);
+
+                if (segment == null)
+                    return null;
+
+                element.SegmentId = segment.Id;
+                element.ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id));
+
+                Elements.Add(element);
+                SelectElement(element);
+
+                var segAction = _undoRedo?.PopLast();
+                var elAction = new ElementAddedAction(Elements, element);
+                if (segAction != null)
+                    _undoRedo?.Record(new CompoundAction($"Add {element.Type}", new[] { segAction, elAction }));
+                else
+                    _undoRedo?.Record(elAction);
+
+                LogMessage($"Added {element.Type} element at {startTime:F2}s");
+                return segment;
+            }
+            finally
+            {
+                _isCreatingElement = false;
+            }
         }
 
         /// <summary>

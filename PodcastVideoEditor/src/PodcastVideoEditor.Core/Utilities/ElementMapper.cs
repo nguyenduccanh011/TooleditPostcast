@@ -94,16 +94,15 @@ public static class ElementMapper
 
     private static CanvasElement? CreateCanvasElementByType(string type)
     {
-#pragma warning disable CS0618 // Legacy ElementType values needed for deserializing older project files
         return type switch
         {
-            nameof(ElementType.Title) or nameof(ElementType.Text) or nameof(ElementType.TextOverlay) => new TextOverlayElement(),
+            // Legacy "Title" and "Text" type strings from older project files → map to unified TextOverlay
+            "Title" or "Text" or nameof(ElementType.TextOverlay) => new TextOverlayElement(),
             nameof(ElementType.Logo) => new LogoElement(),
             nameof(ElementType.Visualizer) => new VisualizerElement(),
             nameof(ElementType.Image) => new ImageElement(),
             _ => null
         };
-#pragma warning restore CS0618
     }
 
     private static string SerializeTypeProperties(CanvasElement canvas)
