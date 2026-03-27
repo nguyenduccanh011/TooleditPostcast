@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Utilities;
+using PodcastVideoEditor.Ui.Services;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui;
@@ -69,7 +70,7 @@ public partial class App : Application
             // Apply pending EF Core migrations before the UI opens.
             using (var dbContext = _serviceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext())
             {
-                Ui.MainWindow.InitializeDatabase(dbContext);
+                DatabaseMigrationService.InitializeDatabase(dbContext);
             }
 
             // Resolve and show the main window.
