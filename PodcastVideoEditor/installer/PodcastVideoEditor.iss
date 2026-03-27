@@ -33,6 +33,7 @@ SolidCompression=yes
 WizardStyle=modern
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseFilename}
+SetupIconFile={#SourcePath}\..\assets\branding\PodcastVideoEditor.ico
 UninstallDisplayIcon={app}\PodcastVideoEditor.Ui.exe
 CloseApplications=yes
 RestartApplications=no

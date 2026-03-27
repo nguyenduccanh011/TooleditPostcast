@@ -5,6 +5,7 @@
         xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
         xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
         Title="Podcast Video Editor" Height="820" MinHeight="680" Width="1100"
+        Icon="Assets/PodcastVideoEditor.ico"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         Background="#1E1E1E"

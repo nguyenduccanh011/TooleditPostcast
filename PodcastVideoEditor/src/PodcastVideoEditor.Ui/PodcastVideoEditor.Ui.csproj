@@ -5,6 +5,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="..\..\assets\branding\PodcastVideoEditor.ico">
+      <Link>Assets\PodcastVideoEditor.ico</Link>
+    </Resource>
     <Content Include="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
@@ -34,6 +37,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\..\assets\branding\PodcastVideoEditor.ico</ApplicationIcon>
   </PropertyGroup>
 
 </Project>
