@@ -26,6 +26,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly ImageAssetIngestService _imageAssetIngestService;
         private readonly PropertyChangedEventHandler _canvasPropertyChangedHandler;
 
+        /// <summary>
+        /// Expose project service for ViewModels that need direct DB operations
+        /// (e.g. track deletion that must persist immediately).
+        /// </summary>
+        public IProjectService ProjectService => _projectService;
+
         [ObservableProperty]
         private Project? currentProject;
 
@@ -112,7 +118,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             IsLoading = true;
             StatusMessage = "Loading projects...";
 
-            var currentProjectId = CurrentProject?.Id;
+            // Capture the LIVE reference before Projects.Clear() triggers the
+            // ListBox two-way binding which would set CurrentProject = null.
+            var savedProject = CurrentProject;
+            var savedProjectId = savedProject?.Id;
             try
             {
                 // Use recent-first list to mirror commercial UX of "Recent Projects" and keep the list lean.
@@ -127,19 +136,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         Projects.Add(project);
                 }
 
-                // Restore list selection if the project still exists.
-                // IMPORTANT: Do NOT replace CurrentProject when it is already the
-                // fully-loaded instance (with Assets, Elements, etc.).  The list
-                // query (GetRecentProjectsAsync) returns a *partial* entity that
-                // lacks Assets/Elements/BgmTracks — replacing unconditionally would
-                // trigger a full track reload that destroys UI-only state such as
-                // WaveformPeaks, and subsequent peak loads would fail because
-                // Assets is null on the shallow copy.
-                if (!string.IsNullOrEmpty(currentProjectId))
+                // Restore the fully-loaded in-memory project reference.
+                // IMPORTANT: Do NOT replace with the shallow DB copy from
+                // GetRecentProjectsAsync (which lacks Assets/Elements/BgmTracks).
+                // The saved instance has all in-memory edits (track deletions,
+                // segment changes, WaveformPeaks, etc.) — replacing it would
+                // reload stale data from the DB and undo unsaved changes.
+                if (savedProject != null && !string.IsNullOrEmpty(savedProjectId))
                 {
-                    var restoredProject = Projects.FirstOrDefault(p => p.Id == currentProjectId);
-                    if (restoredProject != null && CurrentProject?.Id != currentProjectId)
-                        CurrentProject = restoredProject;
+                    // Only restore if the project still exists in the DB list
+                    var stillExists = Projects.Any(p => p.Id == savedProjectId);
+                    if (stillExists)
+                        CurrentProject = savedProject;
                 }
 
                 StatusMessage = $"Loaded {projectList.Count} project(s)";

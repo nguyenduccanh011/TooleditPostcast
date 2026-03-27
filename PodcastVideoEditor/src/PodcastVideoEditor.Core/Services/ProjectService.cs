@@ -17,11 +17,11 @@ namespace PodcastVideoEditor.Core.Services
     /// </summary>
     public class ProjectService : IProjectService
     {
-        private readonly AppDbContext _context;
+        private readonly IDbContextFactory<AppDbContext> _contextFactory;
 
-        public ProjectService(AppDbContext context)
+        public ProjectService(IDbContextFactory<AppDbContext> contextFactory)
         {
-            _context = context;
+            _contextFactory = contextFactory;
         }
 
         /// <summary>
@@ -91,30 +91,9 @@ namespace PodcastVideoEditor.Core.Services
                 CreatedAt = DateTime.UtcNow
             };
 
-            // Detach other dirty tracked entities so SaveChangesAsync only persists
-            // the new asset. A singleton DbContext may accumulate in-memory changes
-            // from other operations that are not ready to be saved yet.
-            var dirtyEntries = _context.ChangeTracker.Entries()
-                .Where(e => e.State != EntityState.Unchanged && e.State != EntityState.Detached && e.Entity is not Asset)
-                .ToList();
-            var savedStates = dirtyEntries.Select(e => (Entry: e, OriginalState: e.State)).ToList();
-            foreach (var e in dirtyEntries)
-                e.State = EntityState.Unchanged;
-
-            try
-            {
-                _context.Assets.Add(asset);
-                await _context.SaveChangesAsync();
-            }
-            finally
-            {
-                // Restore previous states so other code paths are unaffected
-                foreach (var (entry, originalState) in savedStates)
-                {
-                    if (entry.State == EntityState.Unchanged)
-                        entry.State = originalState;
-                }
-            }
+            using var context = _contextFactory.CreateDbContext();
+            context.Assets.Add(asset);
+            await context.SaveChangesAsync();
 
             Log.Information("Asset added to project {ProjectId}: {AssetId} ({Name})", projectId, asset.Id, asset.Name);
             return asset;
@@ -123,12 +102,13 @@ namespace PodcastVideoEditor.Core.Services
         /// <summary>
         /// Retrieve an asset by ID.
         /// </summary>
-        public Task<Asset?> GetAssetByIdAsync(string assetId)
+        public async Task<Asset?> GetAssetByIdAsync(string assetId)
         {
             if (string.IsNullOrWhiteSpace(assetId))
                 throw new ArgumentException("Asset ID cannot be empty", nameof(assetId));
 
-            return _context.Assets.FirstOrDefaultAsync(a => a.Id == assetId);
+            using var context = _contextFactory.CreateDbContext();
+            return await context.Assets.FirstOrDefaultAsync(a => a.Id == assetId);
         }
 
         /// <summary>
@@ -143,6 +123,8 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
+                using var context = _contextFactory.CreateDbContext();
+
                 var project = new Project
                 {
                     Name = name,
@@ -174,8 +156,8 @@ namespace PodcastVideoEditor.Core.Services
                     }
                 };
 
-                _context.Projects.Add(project);
-                await _context.SaveChangesAsync();
+                context.Projects.Add(project);
+                await context.SaveChangesAsync();
 
                 // If an audio file was provided, create a dedicated Audio track,
                 // import it as an Asset and place a full-duration audio segment on it.
@@ -193,8 +175,8 @@ namespace PodcastVideoEditor.Core.Services
                             IsVisible = true
                         };
                         project.Tracks.Add(audioTrack);
-                        _context.Tracks.Add(audioTrack);
-                        await _context.SaveChangesAsync();
+                        context.Tracks.Add(audioTrack);
+                        await context.SaveChangesAsync();
 
                         var asset = await AddAssetAsync(project.Id, audioPath, "Audio");
                         var duration = asset.Duration ?? 0;
@@ -213,8 +195,8 @@ namespace PodcastVideoEditor.Core.Services
                         };
 
                         audioTrack.Segments.Add(segment);
-                        _context.Segments.Add(segment);
-                        await _context.SaveChangesAsync();
+                        context.Segments.Add(segment);
+                        await context.SaveChangesAsync();
 
                         Log.Information("Audio segment created from project audio: {AssetId}, duration {Duration}s", asset.Id, duration);
                     }
@@ -243,7 +225,8 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                return await _context.Projects
+                using var context = _contextFactory.CreateDbContext();
+                return await context.Projects
                     .AsNoTracking()
                     .AsSplitQuery()
                     .Include(p => p.Tracks)
@@ -285,8 +268,9 @@ namespace PodcastVideoEditor.Core.Services
 
                 if (!hasAudioSegments)
                 {
-                    // Need to use a tracked context for writes
-                    var trackedProject = await _context.Projects
+                    // Use a scoped context for migration writes
+                    using var migContext = _contextFactory.CreateDbContext();
+                    var trackedProject = await migContext.Projects
                         .Include(p => p.Tracks).ThenInclude(t => t.Segments)
                         .Include(p => p.Assets)
                         .FirstOrDefaultAsync(p => p.Id == project.Id);
@@ -312,8 +296,8 @@ namespace PodcastVideoEditor.Core.Services
                             };
                             trackedProject.Tracks ??= new List<Track>();
                             trackedProject.Tracks.Add(trackedAudioTrack);
-                            _context.Tracks.Add(trackedAudioTrack);
-                            await _context.SaveChangesAsync();
+                            migContext.Tracks.Add(trackedAudioTrack);
+                            await migContext.SaveChangesAsync();
                             Log.Information("Created missing audio track for migration in project {ProjectId}", trackedProject.Id);
                         }
 
@@ -353,7 +337,7 @@ namespace PodcastVideoEditor.Core.Services
 
                                 trackedAudioTrack.Segments ??= new List<Segment>();
                                 trackedAudioTrack.Segments.Add(segment);
-                                _context.Segments.Add(segment);
+                                migContext.Segments.Add(segment);
 
                                 migrated = true;
                                 Log.Information("Migrated AudioPath → audio segment for project {ProjectId}", project.Id);
@@ -364,13 +348,17 @@ namespace PodcastVideoEditor.Core.Services
                             }
                         }
                     }
+
+                    if (migrated)
+                        await migContext.SaveChangesAsync();
                 }
             }
 
             // ── 2. Migrate BgmTracks → audio segments ───────────────────────
             if (project.BgmTracks?.Count > 0)
             {
-                var trackedProject = await _context.Projects
+                using var bgmContext = _contextFactory.CreateDbContext();
+                var trackedProject = await bgmContext.Projects
                     .Include(p => p.Tracks).ThenInclude(t => t.Segments)
                     .Include(p => p.Assets)
                     .Include(p => p.BgmTracks)
@@ -402,8 +390,8 @@ namespace PodcastVideoEditor.Core.Services
                             };
                             trackedProject.Tracks ??= new List<Track>();
                             trackedProject.Tracks.Add(bgmTrack);
-                            _context.Tracks.Add(bgmTrack);
-                            await _context.SaveChangesAsync(); // need ID for segment FK
+                            bgmContext.Tracks.Add(bgmTrack);
+                            await bgmContext.SaveChangesAsync(); // need ID for segment FK
                         }
 
                         // Check not already migrated
@@ -442,10 +430,10 @@ namespace PodcastVideoEditor.Core.Services
 
                                 bgmTrack.Segments ??= new List<Segment>();
                                 bgmTrack.Segments.Add(segment);
-                                _context.Segments.Add(segment);
+                                bgmContext.Segments.Add(segment);
 
                                 // Remove old BgmTrack record
-                                _context.BgmTracks.Remove(bgm);
+                                bgmContext.BgmTracks.Remove(bgm);
 
                                 migrated = true;
                                 Log.Information("Migrated BgmTrack → audio segment for project {ProjectId}", trackedProject.Id);
@@ -457,15 +445,9 @@ namespace PodcastVideoEditor.Core.Services
                         }
                     }
                 }
-            }
 
-            if (migrated)
-            {
-                await _context.SaveChangesAsync();
-
-                // Detach all tracked entities left by the migration queries so they
-                // don't conflict with subsequent load/update operations (Singleton DbContext).
-                _context.ChangeTracker.Clear();
+                if (migrated)
+                    await bgmContext.SaveChangesAsync();
             }
 
             return migrated;
@@ -485,7 +467,8 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                var track = await _context.Tracks.FindAsync(trackId);
+                using var context = _contextFactory.CreateDbContext();
+                var track = await context.Tracks.FindAsync(trackId);
                 if (track == null)
                     throw new KeyNotFoundException($"Track {trackId} not found");
 
@@ -502,16 +485,16 @@ namespace PodcastVideoEditor.Core.Services
                 }
 
                 // Remove old segments from this track
-                var oldSegments = _context.Segments.Where(s => s.TrackId == trackId).ToList();
+                var oldSegments = context.Segments.Where(s => s.TrackId == trackId).ToList();
                 foreach (var s in oldSegments)
-                    _context.Segments.Remove(s);
+                    context.Segments.Remove(s);
 
                 // Add new segments
                 foreach (var s in list)
-                    _context.Segments.Add(s);
+                    context.Segments.Add(s);
 
                 project.UpdatedAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 Log.Information("Replaced segments for track {TrackId}: {Count} segments", trackId, list.Count);
             }
@@ -529,7 +512,8 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                return await _context.Tracks
+                using var context = _contextFactory.CreateDbContext();
+                return await context.Tracks
                     .Where(t => t.ProjectId == projectId)
                     .Include(t => t.Segments)
                     .OrderBy(t => t.Order)
@@ -549,7 +533,8 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                return await _context.Tracks
+                using var context = _contextFactory.CreateDbContext();
+                return await context.Tracks
                     .Include(t => t.Segments)
                     .FirstOrDefaultAsync(t => t.Id == trackId);
             }
@@ -570,8 +555,9 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                _context.Tracks.Update(track);
-                await _context.SaveChangesAsync();
+                using var context = _contextFactory.CreateDbContext();
+                context.Tracks.Update(track);
+                await context.SaveChangesAsync();
 
                 Log.Information("Track updated: {TrackId}", track.Id);
                 return track;
@@ -594,8 +580,9 @@ namespace PodcastVideoEditor.Core.Services
                 throw new ArgumentNullException(nameof(element));
 
             element.ProjectId = projectId;
-            _context.Elements.Add(element);
-            await _context.SaveChangesAsync();
+            using var context = _contextFactory.CreateDbContext();
+            context.Elements.Add(element);
+            await context.SaveChangesAsync();
             Log.Information("Element added to project {ProjectId}: {ElementId} (SegmentId: {SegmentId})", projectId, element.Id, element.SegmentId ?? "null");
             return element;
         }
@@ -608,8 +595,9 @@ namespace PodcastVideoEditor.Core.Services
             if (element == null)
                 throw new ArgumentNullException(nameof(element));
 
-            _context.Elements.Update(element);
-            await _context.SaveChangesAsync();
+            using var context = _contextFactory.CreateDbContext();
+            context.Elements.Update(element);
+            await context.SaveChangesAsync();
             Log.Information("Element updated: {ElementId}", element.Id);
             return element;
         }
@@ -621,14 +609,15 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                var track = await _context.Tracks.FindAsync(trackId);
-                if (track == null)
-                    throw new KeyNotFoundException($"Track {trackId} not found");
+                using var context = _contextFactory.CreateDbContext();
+                var deleted = await context.Tracks
+                    .Where(t => t.Id == trackId)
+                    .ExecuteDeleteAsync();
 
-                _context.Tracks.Remove(track);
-                await _context.SaveChangesAsync();
-
-                Log.Information("Track deleted: {TrackId}", trackId);
+                if (deleted == 0)
+                    Log.Warning("DeleteTrackAsync: Track {TrackId} not found in database (may have been deleted already)", trackId);
+                else
+                    Log.Information("Track deleted: {TrackId}", trackId);
             }
             catch (Exception ex)
             {
@@ -649,18 +638,10 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                // Detach any stale tracked elements for this project that may have been
-                // left behind by a previous failed UpdateProjectAsync. Without this,
-                // Remove(tracked)+Add(new-same-Id) causes EF to revert the tracked entity
-                // back to Added state, which then fails SaveChanges with UNIQUE constraint.
-                var staleEntries = _context.ChangeTracker.Entries<Element>()
-                    .Where(e => e.Entity.ProjectId == projectId)
-                    .ToList();
-                foreach (var entry in staleEntries)
-                    entry.State = EntityState.Detached;
+                using var context = _contextFactory.CreateDbContext();
 
-                // Delete existing elements via direct SQL — no tracking conflict possible.
-                await _context.Elements
+                // Delete existing elements via direct SQL.
+                await context.Elements
                     .Where(e => e.ProjectId == projectId)
                     .ExecuteDeleteAsync();
 
@@ -668,10 +649,10 @@ namespace PodcastVideoEditor.Core.Services
                 foreach (var el in elementList)
                 {
                     el.ProjectId = projectId;
-                    _context.Elements.Add(el);
+                    context.Elements.Add(el);
                 }
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 Log.Information("Replaced elements for project {ProjectId}: {Count} elements", projectId, elementList.Count);
             }
             catch (Exception ex)
@@ -693,29 +674,22 @@ namespace PodcastVideoEditor.Core.Services
             {
                 project.UpdatedAt = DateTime.UtcNow;
 
-                // Clear the change tracker to prevent "already tracked" conflicts.
-                // With a Singleton DbContext, previous operations (e.g. migration,
-                // prior saves) may leave tracked entities that clash with the
-                // incoming object graph.  All state decisions below are based on
-                // explicit DB queries, so a clean tracker is safe.
-                _context.ChangeTracker.Clear();
+                using var context = _contextFactory.CreateDbContext();
 
-                // Determine which BgmTracks already exist in DB BEFORE attaching the
+                // Determine which entities already exist in DB BEFORE attaching the
                 // object graph. Projects.Update() marks every reachable entity as
-                // Modified; new BgmTrack rows (not yet in DB) must be re-marked as
-                // Added so EF emits INSERT instead of a silent no-op UPDATE.
+                // Modified; new rows (not yet in DB) must be re-marked as Added.
                 var existingBgmIds = project.BgmTracks?.Count > 0
                     ? new HashSet<string>(
-                          await _context.BgmTracks
+                          await context.BgmTracks
                               .Where(b => b.ProjectId == project.Id)
                               .Select(b => b.Id)
                               .ToListAsync())
                     : new HashSet<string>();
 
-                // Same for Tracks and Segments — newly added tracks/segments need Added state.
                 var existingTrackIds = project.Tracks?.Count > 0
                     ? new HashSet<string>(
-                          await _context.Tracks
+                          await context.Tracks
                               .Where(t => t.ProjectId == project.Id)
                               .Select(t => t.Id)
                               .ToListAsync())
@@ -723,57 +697,49 @@ namespace PodcastVideoEditor.Core.Services
 
                 var existingSegmentIds = project.Tracks?.Any(t => t.Segments?.Count > 0) == true
                     ? new HashSet<string>(
-                          await _context.Segments
+                          await context.Segments
                               .Where(s => s.ProjectId == project.Id)
                               .Select(s => s.Id)
                               .ToListAsync())
                     : new HashSet<string>();
 
                 // Elements are fully managed by ReplaceElementsAsync / SaveElementsAsync.
-                // Do NOT query, orphan-delete, or FixNew for elements here — doing so
-                // causes tracking conflicts (InvalidOperationException) and UNIQUE constraint
-                // failures because project.Elements holds stale AsNoTracking instances that
-                // clash with the freshly-tracked instances saved by ReplaceElementsAsync.
+                // Do NOT query, orphan-delete, or FixNew for elements here.
 
                 // --- Delete orphaned entities (removed from in-memory but still in DB) ---
                 DeleteOrphanedEntities(
                     existingBgmIds,
                     project.BgmTracks?.Select(b => b.Id),
-                    _context.BgmTracks);
+                    context.BgmTracks);
 
                 DeleteOrphanedEntities(
                     existingTrackIds,
                     project.Tracks?.Select(t => t.Id),
-                    _context.Tracks);
+                    context.Tracks);
 
                 DeleteOrphanedEntities(
                     existingSegmentIds,
                     project.Tracks?.SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>()).Select(s => s.Id),
-                    _context.Segments);
+                    context.Segments);
 
                 // Exclude project.Elements from the Update() graph walk.
-                // Elements are owned exclusively by ReplaceElementsAsync; including them
-                // in the graph walk causes tracking conflicts with the AsNoTracking objects
-                // stored in project.Elements when elements already exist in the context.
                 ICollection<Element> elementsSnapshot = project.Elements;
                 project.Elements = [];
 
-                _context.Projects.Update(project);
+                context.Projects.Update(project);
 
                 // Restore the in-memory collection so callers still see the full project.
                 project.Elements = elementsSnapshot;
 
-                // Fix up any brand-new BgmTrack entities that were incorrectly
+                // Fix up any brand-new entities that were incorrectly
                 // stamped Modified by the graph walk above.
-                FixNewEntities(project.BgmTracks, existingBgmIds, b => b.Id);
-
-                // Fix up new Track and Segment entities.
-                FixNewEntities(project.Tracks, existingTrackIds, t => t.Id);
+                FixNewEntities(context, project.BgmTracks, existingBgmIds, b => b.Id);
+                FixNewEntities(context, project.Tracks, existingTrackIds, t => t.Id);
                 if (project.Tracks != null)
                     foreach (var track in project.Tracks)
-                        FixNewEntities(track.Segments, existingSegmentIds, s => s.Id);
+                        FixNewEntities(context, track.Segments, existingSegmentIds, s => s.Id);
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
 
                 Log.Information("Project updated: {ProjectId}", project.Id);
                 return project;
@@ -813,12 +779,12 @@ namespace PodcastVideoEditor.Core.Services
         /// <summary>
         /// Mark entities as <see cref="EntityState.Added"/> if their ID is not in <paramref name="existingDbIds"/>.
         /// </summary>
-        private void FixNewEntities<T>(IEnumerable<T>? entities, HashSet<string> existingDbIds, Func<T, string> idSelector) where T : class
+        private static void FixNewEntities<T>(DbContext context, IEnumerable<T>? entities, HashSet<string> existingDbIds, Func<T, string> idSelector) where T : class
         {
             if (entities == null) return;
             foreach (var entity in entities)
                 if (!existingDbIds.Contains(idSelector(entity)))
-                    _context.Entry(entity).State = EntityState.Added;
+                    context.Entry(entity).State = EntityState.Added;
         }
 
         /// <summary>
@@ -837,12 +803,13 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                var project = await _context.Projects.FindAsync(projectId);
+                using var context = _contextFactory.CreateDbContext();
+                var project = await context.Projects.FindAsync(projectId);
                 if (project == null)
                     throw new KeyNotFoundException($"Project {projectId} not found");
 
-                _context.Projects.Remove(project);
-                await _context.SaveChangesAsync();
+                context.Projects.Remove(project);
+                await context.SaveChangesAsync();
 
                 Log.Information("Project deleted: {ProjectId}", projectId);
             }
@@ -862,7 +829,8 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                return await _context.Projects
+                using var context = _contextFactory.CreateDbContext();
+                return await context.Projects
                     .AsNoTracking()
                     .AsSplitQuery()
                     .Include(p => p.Tracks)
@@ -887,7 +855,8 @@ namespace PodcastVideoEditor.Core.Services
         {
             try
             {
-                return await _context.Projects
+                using var context = _contextFactory.CreateDbContext();
+                return await context.Projects
                     .AsNoTracking()
                     .AsSplitQuery()
                     .Include(p => p.Tracks)

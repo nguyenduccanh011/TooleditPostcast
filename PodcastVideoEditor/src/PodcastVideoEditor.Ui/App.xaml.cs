@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.IO;
 using System.Windows;
@@ -66,8 +67,10 @@ public partial class App : Application
             _serviceProvider = AppBootstrapper.Build(appDataPath);
 
             // Apply pending EF Core migrations before the UI opens.
-            var dbContext = _serviceProvider.GetRequiredService<AppDbContext>();
-            Ui.MainWindow.InitializeDatabase(dbContext);
+            using (var dbContext = _serviceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext())
+            {
+                Ui.MainWindow.InitializeDatabase(dbContext);
+            }
 
             // Resolve and show the main window.
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();

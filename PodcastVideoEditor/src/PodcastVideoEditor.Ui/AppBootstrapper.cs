@@ -47,9 +47,8 @@ public static class AppBootstrapper
         var dbPath = Path.Combine(appDataPath, "app.db");
         services.AddSingleton<UserSettingsStore>(_ => UserSettingsStore.Load(appDataPath));
         services.AddSingleton<IRuntimeApiSettings>(sp => sp.GetRequiredService<UserSettingsStore>());
-        services.AddDbContext<AppDbContext>(opts =>
-            opts.UseSqlite($"Data Source={dbPath}"),
-            ServiceLifetime.Singleton);
+        services.AddDbContextFactory<AppDbContext>(opts =>
+            opts.UseSqlite($"Data Source={dbPath}"));
     }
 
     private static void RegisterCoreServices(IServiceCollection services)

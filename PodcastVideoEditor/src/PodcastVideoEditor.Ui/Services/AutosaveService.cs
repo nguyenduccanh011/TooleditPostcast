@@ -16,6 +16,7 @@ public sealed class AutosaveService : IDisposable
     private readonly int _delayMs;
     private CancellationTokenSource? _cts;
     private readonly object _lock = new();
+    private readonly SemaphoreSlim _saveSemaphore = new(1, 1);
     private bool _disposed;
 
     /// <summary>
@@ -55,8 +56,29 @@ public sealed class AutosaveService : IDisposable
         {
             await Task.Delay(_delayMs, token);
             if (token.IsCancellationRequested) return;
-            await _saveAction();
-            Log.Debug("Autosave completed");
+
+            // Prevent concurrent save executions (FlushAsync may also call _saveAction)
+            await _saveSemaphore.WaitAsync(token);
+            try
+            {
+                if (token.IsCancellationRequested) return;
+                await _saveAction();
+                Log.Debug("Autosave completed");
+            }
+            finally
+            {
+                _saveSemaphore.Release();
+            }
+
+            // Clear the CTS so HasPendingSave returns false after a successful save
+            lock (_lock)
+            {
+                if (_cts != null && _cts.Token == token)
+                {
+                    _cts.Dispose();
+                    _cts = null;
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -69,19 +91,35 @@ public sealed class AutosaveService : IDisposable
     }
 
     /// <summary>
-    /// Force an immediate save (e.g. on app close), bypassing debounce.
+    /// True when a debounced save is pending (RequestSave was called but save hasn't fired yet).
     /// </summary>
-    public async Task FlushAsync()
+    public bool HasPendingSave
+    {
+        get { lock (_lock) { return _cts != null; } }
+    }
+
+    /// <summary>
+    /// Force an immediate save (e.g. on app close), bypassing debounce.
+    /// Only runs the save action if there is a pending debounce timer;
+    /// use <paramref name="force"/> to save unconditionally.
+    /// </summary>
+    public async Task FlushAsync(bool force = false)
     {
         if (_disposed) return;
 
+        bool wasPending;
         lock (_lock)
         {
+            wasPending = _cts != null;
             _cts?.Cancel();
             _cts?.Dispose();
             _cts = null;
         }
 
+        if (!wasPending && !force) return;
+
+        // Prevent concurrent save executions
+        await _saveSemaphore.WaitAsync();
         try
         {
             await _saveAction();
@@ -90,6 +128,10 @@ public sealed class AutosaveService : IDisposable
         catch (Exception ex)
         {
             Log.Warning(ex, "Autosave flush failed");
+        }
+        finally
+        {
+            _saveSemaphore.Release();
         }
     }
 
@@ -103,5 +145,6 @@ public sealed class AutosaveService : IDisposable
             _cts?.Dispose();
             _cts = null;
         }
+        _saveSemaphore.Dispose();
     }
 }

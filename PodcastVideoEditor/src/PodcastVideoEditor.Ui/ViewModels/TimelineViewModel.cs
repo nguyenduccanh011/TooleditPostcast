@@ -287,13 +287,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var path = asset.FilePath;
             _ = Task.Run(() =>
             {
-                var (peaks, actualDuration) = AudioService.GetPeakSamplesFromFile(path);
-                Application.Current?.Dispatcher.InvokeAsync(() =>
+                try
                 {
-                    segment.WaveformPeaks = peaks;
-                    // Use sample-accurate duration (not metadata) for correct waveform slicing
-                    segment.SourceFileDuration = actualDuration > 0 ? actualDuration : (asset.Duration ?? 0);
-                });
+                    var (peaks, actualDuration) = AudioService.GetPeakSamplesFromFile(path);
+                    Application.Current?.Dispatcher.InvokeAsync(() =>
+                    {
+                        segment.WaveformPeaks = peaks;
+                        // Use sample-accurate duration (not metadata) for correct waveform slicing
+                        segment.SourceFileDuration = actualDuration > 0 ? actualDuration : (asset.Duration ?? 0);
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to load waveform peaks for segment {SegmentId}, file: {FilePath}",
+                        segment.Id, path);
+                }
             });
         }
 
@@ -1284,8 +1292,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Remove a track (must be empty — no segments). Audio tracks with waveform-only are removable.
+        /// Awaits DB deletion to prevent race conditions with autosave/navigation reload.
+        /// Rolls back in-memory removal on DB failure so UI stays consistent with DB.
         /// </summary>
-        public bool RemoveTrack(Track track)
+        public async Task<bool> RemoveTrackAsync(Track track)
         {
             if (track == null)
                 return false;
@@ -1296,12 +1306,53 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return false;
             }
 
+            var trackId = track.Id;
+            var trackOrder = track.Order;
+
+            // Remove from the ViewModel collection
             Tracks.Remove(track);
 
-            // Re-index remaining track orders
+            // Also remove from the project model by ID (handles any collection type
+            // that EF Core may use, e.g. HashSet<Track> for ICollection<T>).
+            var projectTracks = _projectViewModel.CurrentProject?.Tracks;
+            Track? removedModelTrack = null;
+            if (projectTracks != null)
+            {
+                removedModelTrack = projectTracks.FirstOrDefault(t => t.Id == trackId);
+                if (removedModelTrack != null)
+                    projectTracks.Remove(removedModelTrack);
+            }
+
+            // Re-index remaining track orders (both collections share the same Track instances)
             int order = 0;
             foreach (var t in Tracks.OrderBy(t => t.Order))
                 t.Order = order++;
+
+            // Await DB deletion so it completes before any subsequent autosave
+            // or project reload can query the database.
+            try
+            {
+                await _projectViewModel.ProjectService.DeleteTrackAsync(trackId);
+                Log.Information("Track {TrackId} deleted from database", trackId);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to delete track {TrackId} from database — rolling back", trackId);
+
+                // Rollback: re-add to both collections so UI stays consistent with DB
+                track.Order = trackOrder;
+                Tracks.Add(track);
+                if (removedModelTrack != null)
+                    projectTracks?.Add(removedModelTrack);
+
+                // Re-index after rollback
+                order = 0;
+                foreach (var t in Tracks.OrderBy(t => t.Order))
+                    t.Order = order++;
+
+                StatusMessage = $"Failed to remove track: {ex.Message}";
+                return false;
+            }
 
             StatusMessage = $"Removed track: {track.Name}";
             Log.Information("Track removed: {Name} ({Type})", track.Name, track.TrackType);

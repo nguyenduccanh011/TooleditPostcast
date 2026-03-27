@@ -93,6 +93,8 @@ public sealed class MainViewModel : IDisposable
             }
 
             CanvasViewModel?.Dispose();
+            TimelineViewModel?.Dispose();
+            ProjectViewModel?.Dispose();
         }
         catch
         {

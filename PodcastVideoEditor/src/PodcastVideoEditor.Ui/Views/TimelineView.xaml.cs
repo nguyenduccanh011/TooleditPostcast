@@ -1206,10 +1206,10 @@ namespace PodcastVideoEditor.Ui.Views
                 _viewModel?.MoveTrackDown(track);
         }
 
-        private void TrackRemove_Click(object sender, RoutedEventArgs e)
+        private async void TrackRemove_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement el && el.Tag is PodcastVideoEditor.Core.Models.Track track)
-                _viewModel?.RemoveTrack(track);
+                await (_viewModel?.RemoveTrackAsync(track) ?? Task.CompletedTask);
         }
     }
 }

@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private readonly IAppInfoService _appInfoService;
     private readonly string _appDataPath;
     private bool _initialLoadDone;
+    private bool _isClosing;
 
     /// <summary>
     /// Constructor receives all dependencies from the DI container (composition root in App.xaml.cs).
@@ -109,6 +110,11 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        // Force the initial tab selection so the Home content renders immediately
+        // (WPF TabControl with a stripped-down ControlTemplate may not display
+        // the first tab's content until a SelectionChanged event fires).
+        MainTabControl.SelectedIndex = 0;
+
         AppDataPathText.Text = _appDataPath;
         PopulateBuildInfo();
         await LoadProjectsSafeAsync();
@@ -310,6 +316,12 @@ public partial class MainWindow : Window
         TitleBarRenderBtn.Visibility = MainTabControl.SelectedIndex == 1
             ? System.Windows.Visibility.Visible
             : System.Windows.Visibility.Collapsed;
+
+        // Flush pending autosave when leaving the Editor tab so changes
+        // (e.g. property edits) are persisted before navigating away.
+        // Only flushes when there's actually a pending debounced save.
+        if (_initialLoadDone && MainTabControl.SelectedIndex != 1 && _autosaveService.HasPendingSave)
+            await _autosaveService.FlushAsync();
 
         if (_initialLoadDone && MainTabControl.SelectedIndex == 0)
             await LoadProjectsSafeAsync();
@@ -571,15 +583,26 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Closing(object sender, CancelEventArgs e)
     {
+        // Guard: if we're already in the closing sequence (after flush), let it close.
+        if (_isClosing)
+            return;
+
+        // Cancel the close, perform async cleanup, then close again.
+        e.Cancel = true;
+        _isClosing = true;
+
         _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
         _timelineViewModel.PropertyChanged -= OnTimelinePropertyChanged;
         _timelineViewModel.Tracks.CollectionChanged -= OnTimelineTracksChanged;
 
         // Flush any pending autosave before disposing
-        await _autosaveService.FlushAsync();
+        await _autosaveService.FlushAsync(force: true);
         _autosaveService.Dispose();
 
         _mainViewModel?.Dispose();
+
+        // Now actually close the window
+        Close();
     }
 
     private async Task LoadProjectAudioAsync()
