@@ -184,8 +184,18 @@ public static class OfflineVisualizerBaker
         using var ffmpegProcess = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start FFmpeg for visualizer bake");
 
-        // Capture stderr asynchronously (must drain to prevent deadlock)
-        var stderrTask = ffmpegProcess.StandardError.ReadToEndAsync();
+        // Capture stderr asynchronously — limit to last 100 lines to prevent unbounded memory
+        var stderrLines = new System.Collections.Generic.List<string>();
+        var stderrTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await ffmpegProcess.StandardError.ReadLineAsync()) != null)
+            {
+                if (stderrLines.Count >= 100)
+                    stderrLines.RemoveAt(0);
+                stderrLines.Add(line);
+            }
+        });
 
         try
         {
@@ -200,7 +210,8 @@ public static class OfflineVisualizerBaker
         }
 
         await ffmpegProcess.WaitForExitAsync(ct);
-        var stderrOutput = await stderrTask;
+        await stderrTask;
+        var stderrOutput = string.Join("\n", stderrLines);
 
         if (ffmpegProcess.ExitCode != 0)
         {
@@ -210,10 +221,9 @@ public static class OfflineVisualizerBaker
         }
 
         // Log last few lines of stderr at Debug level for diagnosis even on success
-        if (!string.IsNullOrWhiteSpace(stderrOutput))
+        if (stderrLines.Count > 0)
         {
-            var lastLines = stderrOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-            var summary = string.Join("\n", lastLines.TakeLast(5));
+            var summary = string.Join("\n", stderrLines.TakeLast(5));
             Log.Debug("OfflineVisualizerBaker: FFmpeg completed (last lines):\n{Summary}", summary);
         }
     }
@@ -242,6 +252,8 @@ public static class OfflineVisualizerBaker
 
         int sampleRate = audioReader.WaveFormat.SampleRate;
         int channels   = audioReader.WaveFormat.Channels;
+        if (channels <= 0)
+            throw new InvalidOperationException($"Audio file has invalid channel count: {channels}");
         int samplesPerFrame = Math.Max(1, sampleRate / fps); // mono samples per frame
 
         // Seek to startTime

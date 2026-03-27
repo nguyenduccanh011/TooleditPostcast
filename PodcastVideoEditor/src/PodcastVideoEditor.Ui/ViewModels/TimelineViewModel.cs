@@ -98,6 +98,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         // Extracted services — pure-logic, no UI dependencies.
         private readonly SegmentSnapService _snapService = new();
+
+        /// <summary>Limits concurrent waveform peak-loading tasks to avoid thread pool starvation.</summary>
+        private static readonly SemaphoreSlim _peakLoadThrottle = new(3, 3);
         private readonly TimelineLayoutService _layoutService = new();
 
         // Undo/redo (optional — set via SetUndoRedoService from MainViewModel).
@@ -285,8 +288,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             var path = asset.FilePath;
-            _ = Task.Run(() =>
+            _ = Task.Run(async () =>
             {
+                await _peakLoadThrottle.WaitAsync();
                 try
                 {
                     var (peaks, actualDuration) = AudioService.GetPeakSamplesFromFile(path);
@@ -301,6 +305,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     Log.Warning(ex, "Failed to load waveform peaks for segment {SegmentId}, file: {FilePath}",
                         segment.Id, path);
+                }
+                finally
+                {
+                    _peakLoadThrottle.Release();
                 }
             });
         }
@@ -565,6 +573,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 segment.StartTime = resolved.Value.start;
                 segment.EndTime = resolved.Value.end;
 
+                InvalidateActiveSegmentsCache();
+
                 StatusMessage = "Segment updated";
                 return true;
             }
@@ -613,7 +623,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public List<(Track track, Segment segment)> GetActiveSegmentsAtTime(double timeSeconds)
         {
             // Return cached result when called multiple times for the same position (e.g. canvas + audio per frame)
-            if (_cachedActiveSegments != null && timeSeconds == _cachedActiveSegmentsTime)
+            if (_cachedActiveSegments != null && Math.Abs(timeSeconds - _cachedActiveSegmentsTime) < 0.0005)
                 return _cachedActiveSegments;
 
             // Rebuild per-track interval index if dirty

@@ -87,6 +87,10 @@ public class CompositionBuilder : ICompositionBuilder
         // Pre-resolve audio path for visualizer baking (shared across all visualizers)
         var resolvedAudioPath = RenderSegmentBuilder.ResolveProjectAudioPath(ctx.Project) ?? string.Empty;
 
+        // Build O(1) asset lookup to avoid repeated linear scans
+        var assetMap = (ctx.Project.Assets ?? []).Where(a => a.Id != null)
+            .ToDictionary(a => a.Id!, StringComparer.Ordinal);
+
         foreach (var track in allVisibleTracks)
         {
             if (track.Segments == null) continue;
@@ -100,7 +104,7 @@ public class CompositionBuilder : ICompositionBuilder
                 switch (trackType)
                 {
                     case TrackTypes.Visual:
-                        var visualLayer = BuildSingleVisualLayer(ctx, segment, zOrder, registry);
+                        var visualLayer = BuildSingleVisualLayer(ctx, segment, zOrder, registry, assetMap);
                         if (visualLayer != null) layers.Add(visualLayer);
                         break;
 
@@ -155,7 +159,7 @@ public class CompositionBuilder : ICompositionBuilder
             PrimaryAudioPath = resolvedAudioPath,
             PrimaryAudioVolume = ctx.PrimaryAudioVolume,
             Layers = layers,
-            AudioLayers = BuildAudioLayers(ctx.Project),
+            AudioLayers = BuildAudioLayers(ctx.Project, assetMap),
             TotalDuration = totalDuration,
             OutputPath = ctx.OutputPath,
             VideoCodec = ctx.VideoCodec,
@@ -169,13 +173,14 @@ public class CompositionBuilder : ICompositionBuilder
     // ── Single-segment layer builders (called from unified loop) ──────
 
     private static CompositionLayer? BuildSingleVisualLayer(
-        CompositionBuildContext ctx, Segment segment, ZOrderCounter zOrder, ElementSegmentRegistry registry)
+        CompositionBuildContext ctx, Segment segment, ZOrderCounter zOrder,
+        ElementSegmentRegistry registry, Dictionary<string, Asset> assetMap)
     {
         if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
             return null;
 
-        var asset = ctx.Project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-        if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+        if (!assetMap.TryGetValue(segment.BackgroundAssetId, out var asset)
+            || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
         {
             Log.Warning("CompositionBuilder: skipping segment {SegId} — asset missing (AssetId={AssetId})",
                 segment.Id, segment.BackgroundAssetId);
@@ -343,7 +348,12 @@ public class CompositionBuilder : ICompositionBuilder
             (int)ctx.CanvasWidth, (int)ctx.CanvasHeight,
             vizStart, vizEnd, ctx.FrameRate, ffmpegPath, ct);
 
-        if (string.IsNullOrEmpty(bakedPath)) return null;
+        if (string.IsNullOrEmpty(bakedPath))
+        {
+            Log.Warning("CompositionBuilder: visualizer bake returned empty path for element {Id} ({Style}) — skipping layer",
+                element.Id, element.Style);
+            return null;
+        }
 
         var scaleX = ctx.RenderWidth / ctx.CanvasWidth;
         var scaleY = ctx.RenderHeight / ctx.CanvasHeight;
@@ -368,7 +378,7 @@ public class CompositionBuilder : ICompositionBuilder
         };
     }
 
-    private static List<CompositionAudioLayer> BuildAudioLayers(Project project)
+    private static List<CompositionAudioLayer> BuildAudioLayers(Project project, Dictionary<string, Asset> assetMap)
     {
         var audioTracks = project.Tracks?
             .Where(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase) && t.IsVisible)
@@ -387,8 +397,8 @@ public class CompositionBuilder : ICompositionBuilder
                 if (segment.EndTime <= segment.StartTime || string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
                     continue;
 
-                var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
-                if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
+                if (!assetMap.TryGetValue(segment.BackgroundAssetId, out var asset)
+                    || string.IsNullOrWhiteSpace(asset.FilePath) || !System.IO.File.Exists(asset.FilePath))
                     continue;
 
                 layers.Add(new CompositionAudioLayer

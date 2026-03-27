@@ -61,6 +61,7 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public void SetConfig(VisualizerConfig config)
         {
+            if (_disposed) return;
             if (!config.Validate())
                 throw new ArgumentException("Invalid visualizer configuration", nameof(config));
 
@@ -182,7 +183,9 @@ namespace PodcastVideoEditor.Core.Services
             var scaledHeight = Math.Max(64, (int)(height * RenderScale));
 
             EnsureBackBitmap(scaledWidth, scaledHeight);
-            if (_backBitmap == null) return;
+            SKBitmap? backRef;
+            lock (_bitmapLock) { backRef = _backBitmap; }
+            if (backRef == null) return;
 
             _frameWatch.Restart();
 
@@ -197,7 +200,7 @@ namespace PodcastVideoEditor.Core.Services
                 peaksToRender = _specProcessor.PeakBars;
             }
 
-            using (var canvas = new SKCanvas(_backBitmap))
+            using (var canvas = new SKCanvas(backRef))
             {
                 canvas.DrawColor(SKColors.Transparent, SKBlendMode.Src);
 
@@ -226,6 +229,7 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         public SKBitmap? GetCurrentBitmap()
         {
+            if (_disposed) return null;
             lock (_bitmapLock)
             {
                 return _frontBitmap;
@@ -239,14 +243,13 @@ namespace PodcastVideoEditor.Core.Services
 
         private void EnsureBackBitmap(int width, int height)
         {
-            if (_backBitmap == null || _backBitmap.Width != width || _backBitmap.Height != height)
-            {
-                _backBitmap?.Dispose();
-                _backBitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
-            }
-            // Also ensure front bitmap matches
             lock (_bitmapLock)
             {
+                if (_backBitmap == null || _backBitmap.Width != width || _backBitmap.Height != height)
+                {
+                    _backBitmap?.Dispose();
+                    _backBitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+                }
                 if (_frontBitmap == null || _frontBitmap.Width != width || _frontBitmap.Height != height)
                 {
                     _frontBitmap?.Dispose();
@@ -273,9 +276,9 @@ namespace PodcastVideoEditor.Core.Services
             {
                 _frontBitmap?.Dispose();
                 _frontBitmap = null;
+                _backBitmap?.Dispose();
+                _backBitmap = null;
             }
-            _backBitmap?.Dispose();
-            _backBitmap = null;
             _registry.Dispose();
             Log.Information("VisualizerService disposed");
         }

@@ -97,8 +97,15 @@ public static class FFmpegCommandComposer
 
         var args = new StringBuilder();
 
-        // ── Input 0: black background canvas
-        args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d=86400\" ");
+        // ── Input 0: black background canvas (duration = max segment end + 1s safety margin)
+        var maxEndTime = new[]
+        {
+            visualSegments.Count > 0 ? visualSegments.Max(s => s.EndTime) : 0,
+            audioSegments.Count > 0 ? audioSegments.Max(s => s.EndTime) : 0,
+        }.Max();
+        if (maxEndTime <= 0) maxEndTime = 10;
+        var canvasDuration = (int)Math.Ceiling(maxEndTime) + 1;
+        args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
         // ── Inputs 1..N : visual sources
         foreach (var seg in visualSegments)

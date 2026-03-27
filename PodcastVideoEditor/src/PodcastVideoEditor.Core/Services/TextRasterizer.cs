@@ -74,7 +74,14 @@ public static class TextRasterizer
 
         var textAreaWidth = width - 2 * padX;
         if (textAreaWidth <= 0)
-            return bitmap;
+        {
+            // Return transparent bitmap — no room to render text
+            bitmap.Dispose();
+            var emptyBitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var c = new SKCanvas(emptyBitmap);
+            c.Clear(SKColors.Transparent);
+            return emptyBitmap;
+        }
 
         // Word-wrap the text (letter spacing affects effective width)
         var lines = WrapText(options.Text, paint, textAreaWidth, options.LetterSpacing);
@@ -88,25 +95,14 @@ public static class TextRasterizer
         if (startY < padY + (-paint.FontMetrics.Ascent))
             startY = padY + (-paint.FontMetrics.Ascent);
 
-        for (int i = 0; i < lines.Count; i++)
+        // Pre-allocate shadow & outline paints once (reused across all lines)
+        SKPaint? shadowPaint = null;
+        SKPaint? outlinePaint = null;
+        try
         {
-            var line = lines[i];
-            var lineWidth = MeasureLineWidth(line, paint, options.LetterSpacing);
-
-            float x = options.Alignment switch
-            {
-                TextRasterizeAlignment.Left => padX,
-                TextRasterizeAlignment.Right => width - padX - lineWidth,
-                _ => padX + (textAreaWidth - lineWidth) / 2f
-            };
-
-            var y = startY + i * lineHeight;
-            if (y > height) break;
-
-            // 1. Shadow pass
             if (options.HasShadow)
             {
-                using var shadowPaint = new SKPaint
+                shadowPaint = new SKPaint
                 {
                     Color = ParseColor(options.ShadowColorHex, 1.0f),
                     IsAntialias = true,
@@ -116,13 +112,11 @@ public static class TextRasterizer
                 };
                 if (options.ShadowBlur > 0)
                     shadowPaint.MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, options.ShadowBlur);
-                DrawLine(canvas, line, x + options.ShadowOffsetX, y + options.ShadowOffsetY, shadowPaint, options.LetterSpacing);
             }
 
-            // 2. Outline stroke pass (drawn before fill so fill sits on top)
             if (options.HasOutline && options.OutlineThickness > 0)
             {
-                using var outlinePaint = new SKPaint
+                outlinePaint = new SKPaint
                 {
                     Color = ParseColor(options.OutlineColorHex, 1.0f),
                     IsAntialias = true,
@@ -133,11 +127,39 @@ public static class TextRasterizer
                     StrokeWidth = options.OutlineThickness,
                     StrokeJoin = SKStrokeJoin.Round
                 };
-                DrawLine(canvas, line, x, y, outlinePaint, options.LetterSpacing);
             }
 
-            // 3. Fill pass
-            DrawLine(canvas, line, x, y, paint, options.LetterSpacing);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                var lineWidth = MeasureLineWidth(line, paint, options.LetterSpacing);
+
+                float x = options.Alignment switch
+                {
+                    TextRasterizeAlignment.Left => padX,
+                    TextRasterizeAlignment.Right => width - padX - lineWidth,
+                    _ => padX + (textAreaWidth - lineWidth) / 2f
+                };
+
+                var y = startY + i * lineHeight;
+                if (y > height) break;
+
+                // 1. Shadow pass
+                if (shadowPaint != null)
+                    DrawLine(canvas, line, x + options.ShadowOffsetX, y + options.ShadowOffsetY, shadowPaint, options.LetterSpacing);
+
+                // 2. Outline stroke pass (drawn before fill so fill sits on top)
+                if (outlinePaint != null)
+                    DrawLine(canvas, line, x, y, outlinePaint, options.LetterSpacing);
+
+                // 3. Fill pass
+                DrawLine(canvas, line, x, y, paint, options.LetterSpacing);
+            }
+        }
+        finally
+        {
+            shadowPaint?.Dispose();
+            outlinePaint?.Dispose();
         }
 
         return bitmap;
