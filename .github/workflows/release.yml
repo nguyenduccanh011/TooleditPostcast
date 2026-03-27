@@ -5,12 +5,20 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-release:
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
@@ -32,34 +40,59 @@ jobs:
           choco install innosetup --yes --no-progress
           choco install ffmpeg --yes --no-progress
 
+      - name: Resolve FFmpeg bundle directory
+        run: |
+          $ffmpegBinDir = "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin"
+          if (-not (Test-Path (Join-Path $ffmpegBinDir "ffmpeg.exe"))) {
+            throw "Expected ffmpeg.exe at $ffmpegBinDir"
+          }
+
+          if (-not (Test-Path (Join-Path $ffmpegBinDir "ffprobe.exe"))) {
+            throw "Expected ffprobe.exe at $ffmpegBinDir"
+          }
+
+          "FFMPEG_BIN_DIR=$ffmpegBinDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Resolve release version
         run: |
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build release artifacts
-        run: .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION
+        timeout-minutes: 30
+        run: .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION -FfmpegBinDir $env:FFMPEG_BIN_DIR
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PodcastVideoEditor-release-${{ env.RELEASE_VERSION }}
           path: |
-            PodcastVideoEditor/artifacts/release/packages/*
+            PodcastVideoEditor/artifacts/release/packages/PodcastVideoEditor-Setup-v${{ env.RELEASE_VERSION }}.exe
+            PodcastVideoEditor/artifacts/release/packages/PodcastVideoEditor-win-x64-v${{ env.RELEASE_VERSION }}.zip
+            PodcastVideoEditor/artifacts/release/packages/SHA256SUMS.txt
 
       - name: Verify GitHub CLI
         run: gh --version
 
       - name: Publish GitHub release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
           $tag = $env:GITHUB_REF_NAME
           $repo = $env:GITHUB_REPOSITORY
-          gh release view $tag --repo $repo *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --repo $repo --title "Podcast Video Editor $tag" --generate-notes
+          $version = $env:RELEASE_VERSION
+          $assets = @(
+            (Resolve-Path ".\artifacts\release\packages\PodcastVideoEditor-Setup-v$version.exe").Path,
+            (Resolve-Path ".\artifacts\release\packages\PodcastVideoEditor-win-x64-v$version.zip").Path,
+            (Resolve-Path ".\artifacts\release\packages\SHA256SUMS.txt").Path
+          )
+
+          & gh release view $tag --repo $repo 1>$null 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            & gh release upload $tag $assets --repo $repo --clobber
+            exit $LASTEXITCODE
           }
 
-          $assets = Get-ChildItem ".\artifacts\release\packages" -File | Select-Object -ExpandProperty FullName
-          gh release upload $tag $assets --repo $repo --clobber
+          & gh release create $tag $assets --repo $repo --title "Podcast Video Editor $tag" --generate-notes

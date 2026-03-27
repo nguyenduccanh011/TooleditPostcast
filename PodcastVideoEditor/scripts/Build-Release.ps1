@@ -21,9 +21,17 @@ function Get-AssemblyVersion([string]$semanticVersion) {
 
 function Invoke-Step([string]$filePath, [string[]]$arguments, [string]$workingDirectory) {
     Write-Host ">> $filePath $($arguments -join ' ')"
-    $process = Start-Process -FilePath $filePath -ArgumentList $arguments -WorkingDirectory $workingDirectory -NoNewWindow -Wait -PassThru
-    if ($process.ExitCode -ne 0) {
-        throw "Command failed with exit code $($process.ExitCode): $filePath $($arguments -join ' ')"
+    Push-Location $workingDirectory
+    try {
+        & $filePath @arguments
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+
+    if ($exitCode -ne 0) {
+        throw "Command failed with exit code ${exitCode}: $filePath $($arguments -join ' ')"
     }
 }
 
@@ -131,6 +139,7 @@ Invoke-Step "dotnet" @(
 ) $repoRoot
 
 $resolvedFfmpegDir = Resolve-FFmpegDirectory -repoRoot $repoRoot -requestedDirectory $FfmpegBinDir
+Write-Host "Using FFmpeg bundle from $resolvedFfmpegDir"
 $ffmpegOutputDir = Join-Path $publishDir "tools\ffmpeg"
 New-Item -ItemType Directory -Force -Path $ffmpegOutputDir | Out-Null
 Copy-Item (Join-Path $resolvedFfmpegDir "ffmpeg.exe") $ffmpegOutputDir -Force
@@ -143,6 +152,7 @@ Copy-Item $installGuidePath (Join-Path $publishDir "docs\INSTALL-UPDATE-GUIDE.md
 if (Test-Path $portableZipPath) {
     Remove-Item -LiteralPath $portableZipPath -Force
 }
+Write-Host "Creating portable archive $portableZipPath"
 Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $portableZipPath -Force
 
 $generatedFiles = [System.Collections.Generic.List[string]]::new()
@@ -150,6 +160,7 @@ $generatedFiles.Add($portableZipPath)
 
 if (-not $SkipInstaller) {
     $isccPath = Resolve-IsccPath
+    Write-Host "Building installer with $isccPath"
     Invoke-Step $isccPath @(
         "/Qp",
         "/DAppVersion=$Version",
@@ -167,6 +178,7 @@ $hashLines = foreach ($file in $generatedFiles) {
     "{0} *{1}" -f $hash.Hash, (Split-Path -Leaf $file)
 }
 $hashLines | Set-Content -Path $checksumPath -Encoding ASCII
+Write-Host "Wrote checksums to $checksumPath"
 
 Write-Host ""
 Write-Host "Release artifacts are ready:"
