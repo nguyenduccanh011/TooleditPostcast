@@ -1,42 +1,61 @@
-﻿# Podcast Video Editor
+# Podcast Video Editor
 
-Windows WPF app to edit podcast audio and render videos with visualizers, images, and timelines.
+Windows WPF app for editing podcast timelines and rendering video outputs with visualizers, images, and FFmpeg.
 
-## Status
-- ✅ Phase 1 (Core Engine & Audio) - COMPLETE
-- 🚀 Phase 2 (Canvas Editor & Visualizer) - IN PROGRESS (ST-7, ST-8 done)
-- Planning and design docs are in `docs/`
+## Release Status
+- Windows x64 release packaging is based on `dotnet publish` plus Inno Setup.
+- Installer distribution targets GitHub Releases.
+- App updates are notification-only in V1. The app opens the download page for a newer installer instead of patching itself.
 
-## Tech stack
+## System Requirements
+- Windows 10 or Windows 11, 64-bit
+- .NET runtime is bundled in release builds
+- FFmpeg is bundled in release builds
+
+## Download And Install
+- End users should install from the latest `PodcastVideoEditor-Setup-vX.Y.Z.exe` asset in GitHub Releases.
+- See [docs/INSTALL-UPDATE-GUIDE.md](docs/INSTALL-UPDATE-GUIDE.md) for install, upgrade, uninstall, and troubleshooting details.
+
+## Development Build
+Prereqs: Windows and .NET 8 SDK.
+
+```powershell
+dotnet build src/PodcastVideoEditor.sln -c Release
+dotnet test src/PodcastVideoEditor.Core.Tests/PodcastVideoEditor.Core.Tests.csproj -c Release
+dotnet test src/PodcastVideoEditor.Ui.Tests/PodcastVideoEditor.Ui.Tests.csproj -c Release
+```
+
+## Build A Release Package
+Local release packaging expects `ffmpeg.exe` and `ffprobe.exe` to be available either:
+- under `third_party/ffmpeg/bin`
+- via `-FfmpegBinDir`
+- or on the machine `PATH`
+
+Run:
+
+```powershell
+.\scripts\Build-Release.ps1 -Version 1.0.0
+```
+
+Artifacts are written to `artifacts/release/packages`.
+
+## Tech Stack
 - .NET 8
 - WPF (MVVM)
-- SkiaSharp (visualizer rendering)
-- FFmpeg (render pipeline)
-- SQLite + EF Core (project storage)
+- SkiaSharp
+- FFmpeg
+- SQLite + EF Core
 
-## Repo layout
-- `docs/` architecture, decisions, and issues
+## Repo Layout
+- `docs/` architecture, operations, and release documentation
+- `installer/` Inno Setup installer script
+- `scripts/` release automation
 - `src/` application source code
+- `third_party/ffmpeg/` local staging location for FFmpeg binaries during release packaging
 
-## Build
-Prereqs: Windows, .NET 8 SDK, FFmpeg in PATH.
-
-```
-dotnet build src/PodcastVideoEditor.slnx
-```
-
-## Getting Started
-- **Phase 1 Complete:** See [docs/QUICK-START-PHASE2.md](docs/QUICK-START-PHASE2.md) for next steps
-- **Phase 2 Planning:** See [docs/phase2-plan.md](docs/phase2-plan.md) for detailed requirements
-
-## Docs
-- `docs/arch.md` - Architecture design
-- `docs/decisions.md` - Architecture decision records
-- `docs/code_rules.md` - Coding standards
-- `docs/issues.md` - Known issues and blockers
-- `docs/reference-sources.md` - Reference links
-- **`docs/phase2-plan.md`** - Phase 2 detailed planning (Canvas, Visualizer, Timeline)
-- **`docs/QUICK-START-PHASE2.md`** - Phase 2 quick start guide
-- `docs/active.md` - Current task pack status
-- `docs/state.md` - Project state and timeline
-- `docs/worklog.md` - Session history
+## Key Docs
+- [docs/INSTALL-UPDATE-GUIDE.md](docs/INSTALL-UPDATE-GUIDE.md)
+- [docs/RELEASE-PLAYBOOK.md](docs/RELEASE-PLAYBOOK.md)
+- [docs/arch.md](docs/arch.md)
+- [docs/decisions.md](docs/decisions.md)
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)

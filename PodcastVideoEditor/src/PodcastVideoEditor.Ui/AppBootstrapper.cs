@@ -4,10 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
+using PodcastVideoEditor.Ui.Configuration;
 using PodcastVideoEditor.Ui.Services;
+using PodcastVideoEditor.Ui.Services.Update;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.IO;
+using System.Net.Http;
 
 namespace PodcastVideoEditor.Ui;
 
@@ -24,14 +27,20 @@ public static class AppBootstrapper
     public static IServiceProvider Build(string appDataPath)
     {
         var services = new ServiceCollection();
+        RegisterConfiguration(services);
         RegisterInfrastructure(services, appDataPath);
         RegisterCoreServices(services);
         RegisterViewModels(services, appDataPath);
-        RegisterUiServices(services);
-        return services.BuildServiceProvider(new Microsoft.Extensions.DependencyInjection.ServiceProviderOptions { ValidateOnBuild = true });
+        RegisterUiServices(services, appDataPath);
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
     }
 
-    // ── Infrastructure ────────────────────────────────────────────────────────────
+    private static void RegisterConfiguration(IServiceCollection services)
+    {
+        services.AddSingleton(_ => AppConfiguration.Load(AppContext.BaseDirectory));
+        services.AddSingleton<IAppInfoService, AppInfoService>();
+        services.AddSingleton(_ => new HttpClient());
+    }
 
     private static void RegisterInfrastructure(IServiceCollection services, string appDataPath)
     {
@@ -43,15 +52,10 @@ public static class AppBootstrapper
             ServiceLifetime.Singleton);
     }
 
-    // ── Core services ─────────────────────────────────────────────────────────────
-
     private static void RegisterCoreServices(IServiceCollection services)
     {
-        // ProjectService: single instance wrapping the shared DbContext.
         services.AddSingleton<ProjectService>();
         services.AddSingleton<IProjectService>(sp => sp.GetRequiredService<ProjectService>());
-
-        // ImageAssetIngestService: stateless, default HTTP client.
         services.AddSingleton<ImageAssetIngestService>();
 
         services.AddSingleton<IAIProvider, YesScaleProvider>();
@@ -61,14 +65,10 @@ public static class AppBootstrapper
         services.AddSingleton<IAIImageSelectionService, AIImageSelectionService>();
         services.AddSingleton<IAIAnalysisOrchestrator, AIAnalysisOrchestrator>();
 
-        // AudioService: single instance because it holds the WaveOut device.
-        // Register as concrete type first so it can be resolved as either interface.
         services.AddSingleton<AudioService>();
         services.AddSingleton<IAudioPlaybackService>(sp => sp.GetRequiredService<AudioService>());
         services.AddSingleton<IAudioTimelinePreviewService>(sp => sp.GetRequiredService<AudioService>());
     }
-
-    // ── ViewModels ────────────────────────────────────────────────────────────────
 
     private static void RegisterViewModels(IServiceCollection services, string appDataPath)
     {
@@ -94,7 +94,6 @@ public static class AppBootstrapper
                 sp.GetRequiredService<VisualizerViewModel>(),
                 sp.GetRequiredService<TimelineViewModel>());
 
-            // Wire cross-ViewModel attachments that require both sides to exist.
             var canvas = sp.GetRequiredService<CanvasViewModel>();
             var project = sp.GetRequiredService<ProjectViewModel>();
             var timeline = sp.GetRequiredService<TimelineViewModel>();
@@ -108,10 +107,16 @@ public static class AppBootstrapper
         });
     }
 
-    // ── UI services ───────────────────────────────────────────────────────────────
-
-    private static void RegisterUiServices(IServiceCollection services)
+    private static void RegisterUiServices(IServiceCollection services, string appDataPath)
     {
+        services.AddSingleton<IUpdateService>(sp =>
+            new GitHubReleaseUpdateService(
+                sp.GetRequiredService<AppConfiguration>(),
+                sp.GetRequiredService<IAppInfoService>(),
+                sp.GetRequiredService<UserSettingsStore>(),
+                appDataPath,
+                sp.GetRequiredService<HttpClient>()));
+
         services.AddSingleton<AutosaveService>(sp =>
             new AutosaveService(
                 () => sp.GetRequiredService<ProjectViewModel>().SaveProjectAsync(),

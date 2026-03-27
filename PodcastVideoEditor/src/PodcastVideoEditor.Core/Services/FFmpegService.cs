@@ -50,7 +50,21 @@ public static class FFmpegService
                 }
             }
 
-            // 2. Try system PATH
+            // 2. Prefer a bundled FFmpeg sidecar when the app was published with one.
+            if (TryFindBundledLocation())
+            {
+                await DetectVersionAsync();
+                Log.Information("FFmpeg initialized from bundled tools: {Path}", _ffmpegPath);
+                return new FFmpegValidationResult
+                {
+                    IsValid = true,
+                    Message = $"FFmpeg {_ffmpegVersion} found in bundled tools",
+                    FFmpegPath = _ffmpegPath,
+                    Version = _ffmpegVersion
+                };
+            }
+
+            // 3. Try system PATH
             if (TryFindInSystemPath())
             {
                 await DetectVersionAsync();
@@ -64,7 +78,7 @@ public static class FFmpegService
                 };
             }
 
-            // 3. Try common installation paths
+            // 4. Try common installation paths
             if (TryFindCommonLocations())
             {
                 await DetectVersionAsync();
@@ -138,6 +152,20 @@ public static class FFmpegService
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Try to find FFmpeg in the application's bundled tools directory.
+    /// </summary>
+    private static bool TryFindBundledLocation()
+    {
+        var bundledFfmpegPath = GetBundledFfmpegPath();
+        if (string.IsNullOrWhiteSpace(bundledFfmpegPath) || !File.Exists(bundledFfmpegPath))
+            return false;
+
+        _ffmpegPath = bundledFfmpegPath;
+        _ffprobePath = GetBundledFfprobePath();
+        return true;
     }
 
     /// <summary>
@@ -222,6 +250,24 @@ public static class FFmpegService
     public static string? GetFFmpegPath()
     {
         return _ffmpegPath;
+    }
+
+    /// <summary>
+    /// Get the FFmpeg executable path from the bundled tools directory.
+    /// </summary>
+    public static string? GetBundledFfmpegPath()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "tools", "ffmpeg", "ffmpeg.exe");
+        return File.Exists(path) ? path : null;
+    }
+
+    /// <summary>
+    /// Get the ffprobe executable path from the bundled tools directory.
+    /// </summary>
+    public static string? GetBundledFfprobePath()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "tools", "ffmpeg", "ffprobe.exe");
+        return File.Exists(path) ? path : null;
     }
 
     /// <summary>

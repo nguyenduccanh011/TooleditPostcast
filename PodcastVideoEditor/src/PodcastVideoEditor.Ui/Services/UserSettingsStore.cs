@@ -23,9 +23,11 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     };
 
     // ── AI Analysis ──────────────────────────────────────────────────────────
-    public string YesScaleApiKey   { get; set; } = string.Empty;
-    public string YesScaleBaseUrl  { get; set; } = "https://api.yescale.vip/v1";
-    public string YesScaleModel    { get; set; } = "gpt-4o-mini";
+    public string YesScaleApiKey      { get; set; } = string.Empty;
+    public string YesScaleBaseUrl     { get; set; } = "https://api.yescale.vip/v1";
+    public string YesScaleModel       { get; set; } = "gpt-4o-mini";
+    public string FFmpegPath          { get; set; } = string.Empty;
+    public DateTime? LastUpdateCheckUtc { get; set; }
 
     // ── Image Search ─────────────────────────────────────────────────────────
     public string PexelsApiKey   { get; set; } = string.Empty;

@@ -149,6 +149,8 @@
                     <MenuItem Header="Settings" Click="SettingsMenu_Click"/>
                 </MenuItem>
                 <MenuItem Header="Help">
+                    <MenuItem Header="Check for Updates" Click="CheckForUpdatesMenu_Click"/>
+                    <Separator/>
                     <MenuItem Header="About" Click="AboutMenu_Click"/>
                 </MenuItem>
             </Menu>
@@ -361,6 +363,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="FFmpegPathTextBox" Grid.Column="0" Height="32" Padding="8"
+                                     Text="{Binding FfmpegPath, UpdateSourceTrigger=PropertyChanged}"
                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
                             <Button Grid.Column="1" Width="90" Height="32" Margin="10,0,0,0" Content="Browse"
                                     Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" Click="BrowseFFmpeg_Click" />
@@ -373,6 +376,27 @@
                         <TextBlock Text="App Data Path" Margin="0,0,0,6" />
                         <TextBox x:Name="AppDataPathText" Height="32" Padding="8" IsReadOnly="True"
                                  Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+
+                        <Border Margin="0,16,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Text="Updates And Build Info" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock x:Name="InstalledVersionText" Margin="0,8,0,0" Foreground="#CCCCCC" />
+                                <TextBlock x:Name="InstallDirectoryText" Margin="0,4,0,0" Foreground="#BBBBBB" TextWrapping="Wrap" />
+                                <TextBlock x:Name="BundledFfmpegText" Margin="0,4,0,0" Foreground="#BBBBBB" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Width="150" Height="32"
+                                            Content="Check For Updates"
+                                            Background="#0E639C"
+                                            Foreground="#FFFFFF"
+                                            BorderThickness="0"
+                                            Click="CheckForUpdatesButton_Click" />
+                                    <TextBlock x:Name="UpdateStatusText"
+                                               Margin="12,8,0,0"
+                                               Foreground="#CCCCCC"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
                         <Border Margin="0,24,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
@@ -452,7 +476,8 @@
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
-                            <TextBlock Text="Podcast Video Editor - Phase 1" Foreground="#CCCCCC" />
+                            <TextBlock x:Name="AboutProductText" Foreground="#CCCCCC" />
+                            <TextBlock x:Name="AboutVersionText" Foreground="#AAAAAA" />
                             <TextBlock Text="Built with .NET 8 WPF" Foreground="#AAAAAA" />
                         </StackPanel>
                     </StackPanel>

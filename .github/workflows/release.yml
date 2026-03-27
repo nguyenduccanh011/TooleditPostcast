@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: PodcastVideoEditor
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install packaging dependencies
+        run: |
+          choco install innosetup --yes --no-progress
+          choco install ffmpeg --yes --no-progress
+
+      - name: Resolve release version
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          "RELEASE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build release artifacts
+        run: .\scripts\Build-Release.ps1 -Version $env:RELEASE_VERSION
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PodcastVideoEditor-release-${{ env.RELEASE_VERSION }}
+          path: |
+            PodcastVideoEditor/artifacts/release/packages/*
+
+      - name: Verify GitHub CLI
+        run: gh --version
+
+      - name: Publish GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $repo = $env:GITHUB_REPOSITORY
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --repo $repo --title "Podcast Video Editor $tag" --generate-notes
+          }
+
+          $assets = Get-ChildItem ".\artifacts\release\packages" -File | Select-Object -ExpandProperty FullName
+          gh release upload $tag $assets --repo $repo --clobber

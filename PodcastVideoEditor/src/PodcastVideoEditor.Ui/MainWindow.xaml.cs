@@ -5,11 +5,13 @@ using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Ui.Services;
+using PodcastVideoEditor.Ui.Services.Update;
 using PodcastVideoEditor.Ui.ViewModels;
 using PodcastVideoEditor.Ui.Views;
 using Serilog;
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,6 +29,8 @@ public partial class MainWindow : Window
     private readonly MainViewModel _mainViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly AutosaveService _autosaveService;
+    private readonly IUpdateService _updateService;
+    private readonly IAppInfoService _appInfoService;
     private readonly string _appDataPath;
     private bool _initialLoadDone;
 
@@ -41,7 +45,9 @@ public partial class MainWindow : Window
         TimelineViewModel timelineViewModel,
         SettingsViewModel settingsViewModel,
         AutosaveService autosaveService,
-        IAIAnalysisOrchestrator aiOrchestrator)
+        IAIAnalysisOrchestrator aiOrchestrator,
+        IUpdateService updateService,
+        IAppInfoService appInfoService)
     {
         try
         {
@@ -58,6 +64,8 @@ public partial class MainWindow : Window
             _timelineViewModel = timelineViewModel;
             _settingsViewModel = settingsViewModel;
             _autosaveService = autosaveService;
+            _updateService = updateService;
+            _appInfoService = appInfoService;
 
             // Wire up AI orchestrator for script analysis
             _timelineViewModel.SetOrchestrator(aiOrchestrator);
@@ -102,9 +110,90 @@ public partial class MainWindow : Window
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         AppDataPathText.Text = _appDataPath;
+        PopulateBuildInfo();
         await LoadProjectsSafeAsync();
         await InitializeFfmpegStatusAsync();
+        await CheckForUpdatesOnStartupAsync();
         _initialLoadDone = true;
+    }
+
+    private void PopulateBuildInfo()
+    {
+        AboutProductText.Text = _appInfoService.ProductName;
+        AboutVersionText.Text = $"Version {_appInfoService.DisplayVersion}";
+        InstalledVersionText.Text = $"Installed version: {_appInfoService.DisplayVersion}";
+        InstallDirectoryText.Text = $"Install directory: {_appInfoService.InstallDirectory}";
+        BundledFfmpegText.Text = _appInfoService.BundledFfmpegPath is null
+            ? "Bundled FFmpeg: not found in this build."
+            : $"Bundled FFmpeg: {_appInfoService.BundledFfmpegPath}";
+        UpdateStatusText.Text = "Checks GitHub Releases for the latest stable installer.";
+    }
+
+    private async Task CheckForUpdatesOnStartupAsync()
+    {
+        if (!_updateService.ShouldCheckForUpdates())
+            return;
+
+        var result = await _updateService.CheckForUpdatesAsync(ignoreSchedule: false);
+        if (result.IsUpdateAvailable)
+        {
+            UpdateStatusText.Text = result.Message;
+            ShowUpdateResult(result, isInteractive: false);
+            return;
+        }
+
+        if (!result.WasSkipped)
+            UpdateStatusText.Text = result.Message;
+
+        if (!result.IsSuccessful && !result.WasSkipped)
+            Log.Warning("Startup update check failed: {Message}", result.Message);
+    }
+
+    private async Task CheckForUpdatesInteractiveAsync()
+    {
+        UpdateStatusText.Text = "Checking GitHub Releases...";
+        var result = await _updateService.CheckForUpdatesAsync(ignoreSchedule: true);
+        UpdateStatusText.Text = result.Message;
+        ShowUpdateResult(result, isInteractive: true);
+    }
+
+    private void ShowUpdateResult(UpdateCheckResult result, bool isInteractive)
+    {
+        if (result.IsUpdateAvailable)
+        {
+            var latestVersion = result.LatestVersion is null
+                ? "new version"
+                : VersionParser.ToDisplayString(result.LatestVersion);
+            var downloadUrl = result.DownloadUrl ?? result.ReleasePageUrl;
+            var message =
+                $"{result.ReleaseTitle ?? "A new release"} is available.{Environment.NewLine}{Environment.NewLine}" +
+                $"Current version: {_appInfoService.DisplayVersion}{Environment.NewLine}" +
+                $"Latest version: {latestVersion}{Environment.NewLine}{Environment.NewLine}" +
+                "Open the download page now?";
+
+            if (MessageBox.Show(message, "Update Available", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes
+                && !string.IsNullOrWhiteSpace(downloadUrl))
+            {
+                OpenExternalUrl(downloadUrl);
+            }
+
+            return;
+        }
+
+        if (isInteractive)
+        {
+            var icon = result.IsSuccessful ? MessageBoxImage.Information : MessageBoxImage.Warning;
+            MessageBox.Show(result.Message, "Check for Updates", MessageBoxButton.OK, icon);
+        }
+    }
+
+    private static void OpenExternalUrl(string url)
+    {
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = url,
+            UseShellExecute = true
+        });
     }
 
     /// <summary>
@@ -370,15 +459,15 @@ public partial class MainWindow : Window
         var path = FFmpegService.GetFFmpegPath();
         if (!string.IsNullOrWhiteSpace(path))
         {
-            FFmpegPathTextBox.Text = path;
+            _settingsViewModel.FfmpegPath = path;
             FFmpegStatusText.Text = $"FFmpeg ready: {path}";
             return;
         }
 
-        var result = await FFmpegService.InitializeAsync();
+        var result = await FFmpegService.InitializeAsync(_settingsViewModel.FfmpegPath);
         if (result.IsValid)
         {
-            FFmpegPathTextBox.Text = result.FFmpegPath ?? string.Empty;
+            _settingsViewModel.FfmpegPath = result.FFmpegPath ?? string.Empty;
             FFmpegStatusText.Text = result.Message;
         }
         else
@@ -439,7 +528,21 @@ public partial class MainWindow : Window
 
     private void AboutMenu_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Podcast Video Editor - Phase 1", "About");
+        MessageBox.Show(
+            $"{_appInfoService.ProductName}{Environment.NewLine}" +
+            $"Version {_appInfoService.DisplayVersion}{Environment.NewLine}" +
+            $"Install directory: {_appInfoService.InstallDirectory}",
+            "About");
+    }
+
+    private async void CheckForUpdatesMenu_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesInteractiveAsync();
+    }
+
+    private async void CheckForUpdatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesInteractiveAsync();
     }
 
     private void BrowseFFmpeg_Click(object sender, RoutedEventArgs e)
@@ -453,14 +556,16 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog() == true)
         {
-            FFmpegPathTextBox.Text = dialog.FileName;
+            _settingsViewModel.FfmpegPath = dialog.FileName;
         }
     }
 
     private async void ValidateFFmpeg_Click(object sender, RoutedEventArgs e)
     {
         FFmpegStatusText.Text = "Validating FFmpeg...";
-        var result = await FFmpegService.InitializeAsync(FFmpegPathTextBox.Text);
+        var result = await FFmpegService.InitializeAsync(_settingsViewModel.FfmpegPath);
+        if (result.IsValid && !string.IsNullOrWhiteSpace(result.FFmpegPath))
+            _settingsViewModel.FfmpegPath = result.FFmpegPath;
         FFmpegStatusText.Text = result.Message;
     }
 

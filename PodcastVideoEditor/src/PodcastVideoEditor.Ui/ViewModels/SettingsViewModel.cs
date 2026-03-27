@@ -22,6 +22,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private string yesScaleApiKey   = string.Empty;
     [ObservableProperty] private string yesScaleBaseUrl  = string.Empty;
     [ObservableProperty] private string yesScaleModel    = string.Empty;
+    [ObservableProperty] private string ffmpegPath       = string.Empty;
     [ObservableProperty] private bool isLoadingYesScaleModels;
     [ObservableProperty] private string yesScaleModelStatus = "Enter a YesScale API key to load models.";
 
@@ -70,6 +71,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             _store.YesScaleModel   = string.IsNullOrWhiteSpace(YesScaleModel)
                 ? "gpt-4o-mini"
                 : YesScaleModel.Trim();
+            _store.FFmpegPath      = FfmpegPath.Trim();
             _store.PexelsApiKey    = PexelsApiKey.Trim();
             _store.PixabayApiKey   = PixabayApiKey.Trim();
             _store.UnsplashApiKey  = UnsplashApiKey.Trim();
@@ -90,6 +92,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         YesScaleApiKey  = _store.YesScaleApiKey;
         YesScaleBaseUrl = _store.YesScaleBaseUrl;
         YesScaleModel   = _store.YesScaleModel;
+        FfmpegPath      = _store.FFmpegPath;
         PexelsApiKey    = _store.PexelsApiKey;
         PixabayApiKey   = _store.PixabayApiKey;
         UnsplashApiKey  = _store.UnsplashApiKey;
