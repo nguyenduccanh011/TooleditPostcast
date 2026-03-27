@@ -34,7 +34,8 @@ public class DatabaseService
             return await _context.Projects
                 .AsNoTracking()
                 .AsSplitQuery()
-                .Include(p => p.Segments)
+                .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
                 .Include(p => p.Elements)
                 .Include(p => p.Assets)
                 .Include(p => p.BgmTracks)
@@ -58,7 +59,8 @@ public class DatabaseService
             return await _context.Projects
                 .AsNoTracking()
                 .AsSplitQuery()
-                .Include(p => p.Segments)
+                .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
                 .Include(p => p.Elements)
                 .Include(p => p.Assets)
                 .Include(p => p.BgmTracks)

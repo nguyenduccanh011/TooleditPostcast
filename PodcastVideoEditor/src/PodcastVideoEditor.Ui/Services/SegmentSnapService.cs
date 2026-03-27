@@ -69,6 +69,8 @@ internal sealed class SegmentSnapService
     /// <summary>
     /// When a move causes collision, try to snap the segment to the nearest valid boundary
     /// (before or after each segment in the track). Returns null if no valid position found.
+    /// Distance is measured from <paramref name="requestedStart"/> (user intent) to prevent
+    /// progressive drift when repeated snaps compound.
     /// </summary>
     public (double start, double end)? TrySnapToBoundary(
         Segment segment,
@@ -79,9 +81,12 @@ internal sealed class SegmentSnapService
         double gridSize)
     {
         double duration = requestedEnd - requestedStart;
-        double currentStart = segment.StartTime;
         (double start, double end)? best = null;
         double bestDistance = double.MaxValue;
+
+        // Maximum snap distance: don't jump farther than 2× the segment duration
+        // from the user's cursor position. Beyond that, block the move instead.
+        double maxSnapDistance = duration * 2;
 
         foreach (var other in trackSegments)
         {
@@ -99,8 +104,9 @@ internal sealed class SegmentSnapService
             {
                 if (!CheckCollision(startA, endA, segment.Id, trackSegments, segment.Id))
                 {
-                    double dist = Math.Abs(startA - currentStart);
-                    if (dist < bestDistance) { bestDistance = dist; best = (startA, endA); }
+                    double dist = Math.Abs(startA - requestedStart);
+                    if (dist < bestDistance && dist <= maxSnapDistance)
+                    { bestDistance = dist; best = (startA, endA); }
                 }
             }
 
@@ -116,12 +122,73 @@ internal sealed class SegmentSnapService
             {
                 if (!CheckCollision(startB, endB, segment.Id, trackSegments, segment.Id))
                 {
-                    double dist = Math.Abs(startB - currentStart);
-                    if (dist < bestDistance) { bestDistance = dist; best = (startB, endB); }
+                    double dist = Math.Abs(startB - requestedStart);
+                    if (dist < bestDistance && dist <= maxSnapDistance)
+                    { bestDistance = dist; best = (startB, endB); }
                 }
             }
         }
         return best;
+    }
+
+    /// <summary>
+    /// Clamp a move at the nearest collision boundary (commercial editor pattern).
+    /// Instead of jumping to a distant valid slot, the segment stops at the colliding
+    /// segment's edge — matching Premiere Pro / DaVinci / CapCut behavior.
+    /// Returns null if no simple clamp is possible (e.g., stuck between two segments).
+    /// </summary>
+    public (double start, double end)? TryClampAtCollision(
+        Segment segment,
+        double requestedStart,
+        double requestedEnd,
+        IEnumerable<Segment> trackSegments,
+        double gridSize)
+    {
+        double duration = requestedEnd - requestedStart;
+        bool movingRight = requestedStart >= segment.StartTime;
+
+        // Find the first colliding segment in the direction of movement
+        Segment? blocker = null;
+        double blockerDist = double.MaxValue;
+
+        foreach (var other in trackSegments)
+        {
+            if (other.Id == segment.Id) continue;
+            if (!HasOverlap(requestedStart, requestedEnd, other.StartTime, other.EndTime))
+                continue;
+
+            double dist = movingRight
+                ? Math.Abs(other.StartTime - requestedEnd)
+                : Math.Abs(other.EndTime - requestedStart);
+
+            if (dist < blockerDist)
+            {
+                blockerDist = dist;
+                blocker = other;
+            }
+        }
+
+        if (blocker == null) return null;
+
+        double clampedStart, clampedEnd;
+        if (movingRight)
+        {
+            // Clamp so segment.End touches blocker.Start
+            clampedEnd = SnapToGrid(blocker.StartTime, gridSize);
+            clampedStart = clampedEnd - duration;
+        }
+        else
+        {
+            // Clamp so segment.Start touches blocker.End
+            clampedStart = SnapToGrid(blocker.EndTime, gridSize);
+            clampedEnd = clampedStart + duration;
+        }
+
+        if (clampedStart < 0) return null;
+        if (CheckCollision(clampedStart, clampedEnd, segment.Id, trackSegments, segment.Id))
+            return null;
+
+        return (clampedStart, clampedEnd);
     }
 
     /// <summary>
@@ -203,15 +270,27 @@ internal sealed class SegmentSnapService
             }
             else
             {
-                var snapped = TrySnapToBoundary(segment, newStartTime, newEndTime, trackSegments, totalDuration, gridSize);
-                if (snapped.HasValue)
+                // Move collision: first try clamping at the collision boundary
+                // (commercial editor pattern — segment stops at the blocker's edge).
+                var clamped = TryClampAtCollision(segment, newStartTime, newEndTime, trackSegments, gridSize);
+                if (clamped.HasValue)
                 {
-                    newStartTime = snapped.Value.start;
-                    newEndTime = snapped.Value.end;
+                    newStartTime = clamped.Value.start;
+                    newEndTime = clamped.Value.end;
                 }
                 else
                 {
-                    return null;
+                    // Fallback: snap to nearest valid boundary slot (with distance limit)
+                    var snapped = TrySnapToBoundary(segment, newStartTime, newEndTime, trackSegments, totalDuration, gridSize);
+                    if (snapped.HasValue)
+                    {
+                        newStartTime = snapped.Value.start;
+                        newEndTime = snapped.Value.end;
+                    }
+                    else
+                    {
+                        return null;
+                    }
                 }
             }
         }

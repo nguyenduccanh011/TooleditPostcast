@@ -80,11 +80,10 @@ public class AppDbContext : DbContext
             .HasForeignKey(t => t.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.Entity<Project>()
-            .HasMany(p => p.Segments)
-            .WithOne(s => s.Project)
-            .HasForeignKey(s => s.ProjectId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // Note: Project→Segment flat navigation removed (legacy dual-nav caused EF Core
+        // tracking conflicts during autosave — segments reappeared after deletion).
+        // Segments are now accessed exclusively via Track→Segments.
+        // The Segment.ProjectId FK column remains for indexing and cascade delete via DB.
 
         // Configure Track-Segment relationship (multi-track support)
         builder.Entity<Track>()

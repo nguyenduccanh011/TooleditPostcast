@@ -383,15 +383,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Expand the timeline when a segment is moved/resized past the current right edge.
         /// Does NOT recalculate PixelsPerSecond so active drags remain stable.
+        /// Capped to prevent runaway expansion during drag interactions.
         /// </summary>
         public void ExpandTimelineToFit(double segmentEndTime)
         {
             if (segmentEndTime > TotalDuration)
             {
-                // Set backing field directly via property — OnTotalDurationChanged will
-                // skip RecalculatePixelsPerSecond when IsDeferringThumbnailUpdate is true
-                // (i.e. during an active drag) so the conversion rate stays stable.
-                TotalDuration = segmentEndTime + TimelineConstants.SegmentEndBuffer;
+                // Cap: don't expand more than 4× the buffer per call.
+                // This prevents infinite timeline growth if collision resolution
+                // repeatedly pushes segments rightward.
+                double maxExpansion = TotalDuration + TimelineConstants.SegmentEndBuffer * 4;
+                double proposed = segmentEndTime + TimelineConstants.SegmentEndBuffer;
+                TotalDuration = Math.Min(proposed, maxExpansion);
             }
         }
 

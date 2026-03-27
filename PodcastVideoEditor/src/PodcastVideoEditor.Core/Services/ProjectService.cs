@@ -706,21 +706,12 @@ namespace PodcastVideoEditor.Core.Services
                 // Elements are fully managed by ReplaceElementsAsync / SaveElementsAsync.
                 // Do NOT query, orphan-delete, or FixNew for elements here.
 
-                // --- Delete orphaned entities (removed from in-memory but still in DB) ---
-                DeleteOrphanedEntities(
-                    existingBgmIds,
-                    project.BgmTracks?.Select(b => b.Id),
-                    context.BgmTracks);
-
-                DeleteOrphanedEntities(
-                    existingTrackIds,
-                    project.Tracks?.Select(t => t.Id),
-                    context.Tracks);
-
-                DeleteOrphanedEntities(
-                    existingSegmentIds,
-                    project.Tracks?.SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>()).Select(s => s.Id),
-                    context.Segments);
+                // Compute orphan IDs BEFORE attaching the graph — orphans are entities
+                // that exist in the DB but were removed from the in-memory collections.
+                var orphanBgmIds = ComputeOrphanIds(existingBgmIds, project.BgmTracks?.Select(b => b.Id));
+                var orphanTrackIds = ComputeOrphanIds(existingTrackIds, project.Tracks?.Select(t => t.Id));
+                var orphanSegmentIds = ComputeOrphanIds(existingSegmentIds,
+                    project.Tracks?.SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>()).Select(s => s.Id));
 
                 // Exclude project.Elements from the Update() graph walk.
                 ICollection<Element> elementsSnapshot = project.Elements;
@@ -741,6 +732,32 @@ namespace PodcastVideoEditor.Core.Services
 
                 await context.SaveChangesAsync();
 
+                // Delete orphaned entities AFTER SaveChangesAsync via direct SQL.
+                // This avoids EF Core relationship-fixup side-effects (Find()-loaded
+                // orphan entities could be re-added to tracked ObservableCollections
+                // by the change tracker, causing deleted segments to reappear in the UI).
+                if (orphanSegmentIds.Count > 0)
+                {
+                    await context.Segments
+                        .Where(s => orphanSegmentIds.Contains(s.Id))
+                        .ExecuteDeleteAsync();
+                    Log.Debug("Deleted {Count} orphaned segment(s)", orphanSegmentIds.Count);
+                }
+                if (orphanTrackIds.Count > 0)
+                {
+                    await context.Tracks
+                        .Where(t => orphanTrackIds.Contains(t.Id))
+                        .ExecuteDeleteAsync();
+                    Log.Debug("Deleted {Count} orphaned track(s)", orphanTrackIds.Count);
+                }
+                if (orphanBgmIds.Count > 0)
+                {
+                    await context.BgmTracks
+                        .Where(b => orphanBgmIds.Contains(b.Id))
+                        .ExecuteDeleteAsync();
+                    Log.Debug("Deleted {Count} orphaned BGM track(s)", orphanBgmIds.Count);
+                }
+
                 Log.Information("Project updated: {ProjectId}", project.Id);
                 return project;
             }
@@ -752,28 +769,23 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
-        /// Delete entities from <paramref name="dbSet"/> whose IDs exist in <paramref name="existingDbIds"/>
-        /// but are no longer present in the in-memory <paramref name="currentIds"/> collection.
+        /// Compute the set of IDs that exist in the DB but are no longer in the in-memory collection.
         /// </summary>
-        private static void DeleteOrphanedEntities<T>(
+        private static List<string> ComputeOrphanIds(
             HashSet<string> existingDbIds,
-            IEnumerable<string>? currentIds,
-            DbSet<T> dbSet) where T : class
+            IEnumerable<string>? currentIds)
         {
             var keepIds = currentIds != null
                 ? new HashSet<string>(currentIds, StringComparer.Ordinal)
                 : new HashSet<string>(StringComparer.Ordinal);
 
+            var orphans = new List<string>();
             foreach (var id in existingDbIds)
             {
                 if (!keepIds.Contains(id))
-                {
-                    var entity = dbSet.Local.FirstOrDefault(e => GetEntityId(e) == id)
-                                 ?? dbSet.Find(id);
-                    if (entity != null)
-                        dbSet.Remove(entity);
-                }
+                    orphans.Add(id);
             }
+            return orphans;
         }
 
         /// <summary>
@@ -785,15 +797,6 @@ namespace PodcastVideoEditor.Core.Services
             foreach (var entity in entities)
                 if (!existingDbIds.Contains(idSelector(entity)))
                     context.Entry(entity).State = EntityState.Added;
-        }
-
-        /// <summary>
-        /// Get the Id property value from an entity using convention (all domain entities have string Id).
-        /// </summary>
-        private static string GetEntityId<T>(T entity) where T : class
-        {
-            var prop = typeof(T).GetProperty("Id");
-            return prop?.GetValue(entity) as string ?? string.Empty;
         }
 
         /// <summary>

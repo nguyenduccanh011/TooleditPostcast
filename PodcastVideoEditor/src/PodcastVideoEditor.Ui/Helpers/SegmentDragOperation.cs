@@ -191,14 +191,25 @@ internal sealed class SegmentDragOperation
 
     /// <summary>
     /// Call after UpdateSegmentTiming succeeds. If the applied position differs from
-    /// requested (collision snap occurred), resets the baseline to prevent oscillation.
+    /// requested by a small amount (magnetic snap correction), resets the baseline to
+    /// prevent oscillation. Large differences (collision clamp/resolution) do NOT reset
+    /// the baseline — this lets the user continue dragging past the obstruction.
     /// </summary>
     public void HandleSnapCorrection(double requestedStart, double requestedEnd)
     {
-        bool startDiffers = Math.Abs(Segment.StartTime - requestedStart) > BaselineTolerance;
-        bool endDiffers = Math.Abs(Segment.EndTime - requestedEnd) > BaselineTolerance;
+        double startDiff = Math.Abs(Segment.StartTime - requestedStart);
+        double endDiff = Math.Abs(Segment.EndTime - requestedEnd);
+        bool startDiffers = startDiff > BaselineTolerance;
+        bool endDiffers = endDiff > BaselineTolerance;
 
-        if (startDiffers || endDiffers)
+        if (!startDiffers && !endDiffers)
+            return;
+
+        // Only reset baseline for small corrections (magnetic snap).
+        // Large jumps indicate collision resolution — don't reset, so the user
+        // can keep dragging and naturally move past the obstruction.
+        double maxSnapCorrection = SnapThreshold * 2;
+        if (startDiff <= maxSnapCorrection && endDiff <= maxSnapCorrection)
         {
             _baselineStartTime = Segment.StartTime;
             _baselineEndTime = Segment.EndTime;

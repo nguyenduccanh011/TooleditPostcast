@@ -50,11 +50,6 @@ public class Project
     /// </summary>
     public ICollection<Track> Tracks { get; set; } = [];
 
-    /// <summary>
-    /// Flat collection of all segments belonging to this project (across all tracks).
-    /// </summary>
-    public ICollection<Segment> Segments { get; set; } = [];
-
     public ICollection<Element> Elements { get; set; } = [];
     public ICollection<Asset> Assets { get; set; } = [];
 

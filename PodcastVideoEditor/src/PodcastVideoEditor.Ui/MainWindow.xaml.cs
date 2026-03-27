@@ -94,6 +94,7 @@ public partial class MainWindow : Window
     private void OnTimelinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (_projectViewModel.CurrentProject != null
+            && !_timelineViewModel.IsDeferringThumbnailUpdate
             && e.PropertyName is not (nameof(TimelineViewModel.PlayheadPosition)
                 or nameof(TimelineViewModel.IsPlaying)
                 or nameof(TimelineViewModel.StatusMessage)))
