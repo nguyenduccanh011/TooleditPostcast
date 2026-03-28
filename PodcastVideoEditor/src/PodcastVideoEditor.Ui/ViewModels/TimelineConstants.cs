@@ -41,4 +41,10 @@ internal static class TimelineConstants
 
     /// <summary>Tolerance (seconds) for undo action change detection.</summary>
     public const double UndoTolerance = 0.001;
+
+    /// <summary>General floating-point tolerance for time comparisons (seconds).</summary>
+    public const double TimeTolerance = 0.001;
+
+    /// <summary>Epsilon for distinguishing "snapped" from "no change" in magnetic snap.</summary>
+    public const double SnapEpsilon = 0.0005;
 }

@@ -94,9 +94,6 @@ internal sealed class SegmentDragOperation
     /// <summary>Whether the segment is currently held by magnetic snap.</summary>
     private bool _isSnapped;
 
-    /// <summary>The edge time we are currently snapped to (for hysteresis release check).</summary>
-    private double _snappedEdgeTime;
-
     /// <summary>Whether a resize edge is currently held by cross-track magnetic snap.</summary>
     private bool _resizeIsSnapped;
 
@@ -166,7 +163,6 @@ internal sealed class SegmentDragOperation
     public (double newStart, double newEnd, double? snapEdgeTime) ApplyMoveSnap(
         double newStart, double newEnd, TimelineViewModel vm)
     {
-        const double epsilon = 0.0005;
         double duration = _baselineEndTime - _baselineStartTime;
 
         // Use wider threshold when already snapped (hysteresis prevents jitter at boundary)
@@ -177,8 +173,8 @@ internal sealed class SegmentDragOperation
         double distS = Math.Abs(snappedByStart - newStart);
         double distE = Math.Abs(snappedByEnd - newEnd);
 
-        bool startSnapped = distS > epsilon && distS < threshold;
-        bool endSnapped = distE > epsilon && distE < threshold;
+        bool startSnapped = distS > TimelineConstants.SnapEpsilon && distS < threshold;
+        bool endSnapped = distE > TimelineConstants.SnapEpsilon && distE < threshold;
 
         if (startSnapped && endSnapped)
         {
@@ -187,7 +183,6 @@ internal sealed class SegmentDragOperation
                 newStart = snappedByStart;
                 newEnd = newStart + duration;
                 _isSnapped = true;
-                _snappedEdgeTime = snappedByStart;
                 return (newStart, newEnd, snappedByStart);
             }
             else
@@ -195,7 +190,6 @@ internal sealed class SegmentDragOperation
                 newEnd = snappedByEnd;
                 newStart = newEnd - duration;
                 _isSnapped = true;
-                _snappedEdgeTime = snappedByEnd;
                 return (newStart, newEnd, snappedByEnd);
             }
         }
@@ -204,7 +198,6 @@ internal sealed class SegmentDragOperation
             newStart = snappedByStart;
             newEnd = newStart + duration;
             _isSnapped = true;
-            _snappedEdgeTime = snappedByStart;
             return (newStart, newEnd, snappedByStart);
         }
         else if (endSnapped)
@@ -212,7 +205,6 @@ internal sealed class SegmentDragOperation
             newEnd = snappedByEnd;
             newStart = newEnd - duration;
             _isSnapped = true;
-            _snappedEdgeTime = snappedByEnd;
             return (newStart, newEnd, snappedByEnd);
         }
 

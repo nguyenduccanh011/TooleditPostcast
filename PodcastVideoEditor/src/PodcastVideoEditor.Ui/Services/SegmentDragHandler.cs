@@ -84,7 +84,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         }
 
         // Handle ripple shift undo: reverse the accumulated shift on neighbor segments
-        if (Math.Abs(_rippleDeltaAccumulator) > 0.001)
+        if (Math.Abs(_rippleDeltaAccumulator) > TimelineConstants.TimeTolerance)
         {
             var trackId = _dragOp.Segment.TrackId ?? _dragOp.UndoOriginalTrackId;
             var segId = _dragOp.Segment.Id;
@@ -115,14 +115,14 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         if (_dragOp == null) return;
 
         // Undo ripple shift
-        if (Math.Abs(_rippleDeltaAccumulator) > 0.001)
+        if (Math.Abs(_rippleDeltaAccumulator) > TimelineConstants.TimeTolerance)
         {
             var trackId = _dragOp.Segment.TrackId ?? _dragOp.UndoOriginalTrackId;
             var trackSegments = _vm.GetSegmentsForTrack(trackId);
             foreach (var seg in trackSegments)
             {
                 if (seg.Id == _dragOp.Segment.Id) continue;
-                if (seg.StartTime >= _dragOp.Segment.StartTime - _rippleDeltaAccumulator + 0.001)
+                if (seg.StartTime >= _dragOp.Segment.StartTime - _rippleDeltaAccumulator + TimelineConstants.TimeTolerance)
                 {
                     seg.StartTime -= _rippleDeltaAccumulator;
                     seg.EndTime -= _rippleDeltaAccumulator;
@@ -187,7 +187,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
             {
                 double distToStart = Math.Abs(segment.StartTime - magneticSnapEdge.Value);
                 double distToEnd = Math.Abs(segment.EndTime - magneticSnapEdge.Value);
-                double tolerance = _vm.GridSize + 0.001;
+                double tolerance = _vm.GridSize + TimelineConstants.TimeTolerance;
                 if (distToStart < tolerance || distToEnd < tolerance)
                     snapTime = magneticSnapEdge.Value;
             }
@@ -197,7 +197,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         if (updated && ripple)
         {
             double rippleDelta = segment.StartTime - oldStart;
-            if (Math.Abs(rippleDelta) > 0.001)
+            if (Math.Abs(rippleDelta) > TimelineConstants.TimeTolerance)
                 ApplyRippleShift(segment, rippleDelta);
         }
 
@@ -216,7 +216,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         {
             if (seg.Id == draggedSegment.Id) continue;
             // Only shift segments that were originally after the dragged segment
-            if (seg.StartTime >= draggedSegment.StartTime - delta + 0.001)
+            if (seg.StartTime >= draggedSegment.StartTime - delta + TimelineConstants.TimeTolerance)
             {
                 double newStart = Math.Max(0, seg.StartTime + delta);
                 double newEnd = seg.EndTime + delta;
@@ -238,8 +238,8 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
     /// </summary>
     private double? FindAdjacentBoundary(Segment segment)
     {
-        double tolerance = _vm.GridSize + 0.001;
-        var trackSegments = _vm.GetSegmentsForTrack(segment.TrackId ?? string.Empty);
+        double tolerance = _vm.GridSize + TimelineConstants.TimeTolerance;
+        var trackSegments = _vm.GetTrackSegmentsDirect(segment.TrackId ?? string.Empty);
 
         foreach (var other in trackSegments)
         {
@@ -277,7 +277,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         // Cross-track magnetic snap only (same-track handled by collision resolution).
         double preSnapEnd = newEndTime;
         newEndTime = _vm.SnapToCrossTrackEdge(newEndTime, segment.TrackId, segment.Id, _dragOp.ResizeSnapThreshold);
-        bool didSnap = Math.Abs(newEndTime - preSnapEnd) > 0.001;
+        bool didSnap = Math.Abs(newEndTime - preSnapEnd) > TimelineConstants.TimeTolerance;
         _dragOp.UpdateResizeSnapState(didSnap);
         double? snapTime = didSnap ? newEndTime : null;
 
@@ -303,7 +303,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         // Cross-track magnetic snap only (same-track handled by collision resolution).
         double preSnapStart = newStartTime;
         newStartTime = _vm.SnapToCrossTrackEdge(newStartTime, segment.TrackId, segment.Id, _dragOp.ResizeSnapThreshold);
-        bool didSnap = Math.Abs(newStartTime - preSnapStart) > 0.001;
+        bool didSnap = Math.Abs(newStartTime - preSnapStart) > TimelineConstants.TimeTolerance;
         _dragOp.UpdateResizeSnapState(didSnap);
         double? snapTime = didSnap ? newStartTime : null;
 
@@ -408,7 +408,7 @@ internal sealed class RippleShiftUndoAction : IUndoableAction
         foreach (var seg in segments)
         {
             if (seg.Id == _excludeSegmentId) continue;
-            if (seg.StartTime >= threshold - 0.001)
+            if (seg.StartTime >= threshold - TimelineConstants.TimeTolerance)
             {
                 seg.StartTime = Math.Max(0, seg.StartTime + delta);
                 seg.EndTime += delta;

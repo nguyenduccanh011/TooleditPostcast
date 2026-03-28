@@ -501,6 +501,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Get segments for a track without allocating a new list. For read-only iteration.
+        /// </summary>
+        public IEnumerable<Segment> GetTrackSegmentsDirect(string trackId)
+        {
+            return Tracks.FirstOrDefault(t => t.Id == trackId)?.Segments
+                ?? Enumerable.Empty<Segment>();
+        }
+
+        /// <summary>
         /// Snap time value to grid (2 decimal places to match script format).
         /// </summary>
         private double SnapToGrid(double timeSeconds)
@@ -547,19 +556,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         // Use TogglePlayPauseCommand instead via the CanvasView playback control
 
 
-
-        /// <summary>
-        /// Magnetic snap: if <paramref name="proposedTime"/> is within <paramref name="thresholdSeconds"/>
-        /// of any segment edge in the same track (excluding <paramref name="excludeSegmentId"/>),
-        /// return the snapped edge time; otherwise return <paramref name="proposedTime"/>.
-        /// </summary>
-        public double SnapToSegmentEdge(double proposedTime, string? trackId, string? excludeSegmentId, double thresholdSeconds)
-        {
-            if (trackId == null) return proposedTime;
-            var track = Tracks.FirstOrDefault(t => t.Id == trackId);
-            if (track == null) return proposedTime;
-            return _snapService.SnapToSegmentEdge(proposedTime, track.Segments, excludeSegmentId, thresholdSeconds);
-        }
 
         /// <summary>
         /// Cross-track magnetic snap: snap to nearest segment edge across ALL tracks
