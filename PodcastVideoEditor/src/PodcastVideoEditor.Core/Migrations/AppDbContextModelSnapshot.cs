@@ -256,7 +256,13 @@ namespace PodcastVideoEditor.Core.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<double?>("MotionIntensity")
+                    b.Property<double>("MotionIntensity")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("OverlayColorHex")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("OverlayOpacity")
                         .HasColumnType("REAL");
 
                     b.HasKey("Id");
@@ -334,6 +340,13 @@ namespace PodcastVideoEditor.Core.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<double>("MotionIntensity")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("OverlayColorHex")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("OverlayOpacity")
                         .HasColumnType("REAL");
 
                     b.HasKey("Id");

@@ -169,12 +169,22 @@ public static class FFmpegFilterGraphBuilder
             if (seg.IsVideo)
             {
                 filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                filter.Append($"format={pixFmt},{scaleFilter},setsar=1");
             }
             else
             {
-                filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1");
             }
+
+            // Apply color overlay tint (darken/tint effect) when opacity > 0
+            if (seg.OverlayOpacity > 0 && !string.IsNullOrWhiteSpace(seg.OverlayColorHex))
+            {
+                var hex = seg.OverlayColorHex.TrimStart('#');
+                var alpha = seg.OverlayOpacity.ToString("F2", Inv);
+                filter.Append($",drawbox=x=0:y=0:w=iw:h=ih:color=0x{hex}@{alpha}:t=fill");
+            }
+
+            filter.Append($"[{scaledLabel}];");
         }
     }
 

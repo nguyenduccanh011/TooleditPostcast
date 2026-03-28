@@ -94,6 +94,10 @@
                                 </TransformGroup>
                             </Image.RenderTransform>
                         </Image>
+                        <!-- Color overlay tint (darken/tint effect) -->
+                        <Rectangle Fill="{Binding OverlayColorHex, Converter={StaticResource HexToBrushConverter}}"
+                                   Opacity="{Binding OverlayOpacity}"
+                                   IsHitTestVisible="False"/>
                         <!-- Fallback label when no image loaded -->
                         <TextBlock Text="{Binding Name}" Foreground="#888888" FontSize="11"
                                    VerticalAlignment="Center" HorizontalAlignment="Center"

@@ -104,7 +104,7 @@ public class CompositionBuilder : ICompositionBuilder
                 switch (trackType)
                 {
                     case TrackTypes.Visual:
-                        var visualLayer = BuildSingleVisualLayer(ctx, segment, zOrder, registry, assetMap);
+                        var visualLayer = BuildSingleVisualLayer(ctx, segment, track, zOrder, registry, assetMap);
                         if (visualLayer != null) layers.Add(visualLayer);
                         break;
 
@@ -173,7 +173,7 @@ public class CompositionBuilder : ICompositionBuilder
     // ── Single-segment layer builders (called from unified loop) ──────
 
     private static CompositionLayer? BuildSingleVisualLayer(
-        CompositionBuildContext ctx, Segment segment, ZOrderCounter zOrder,
+        CompositionBuildContext ctx, Segment segment, Track track, ZOrderCounter zOrder,
         ElementSegmentRegistry registry, Dictionary<string, Asset> assetMap)
     {
         if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
@@ -194,6 +194,10 @@ public class CompositionBuilder : ICompositionBuilder
         var (overlayX, overlayY, scaleW, scaleH) = MapElementToRenderCoords(
             linkedElement, ctx.CanvasWidth, ctx.CanvasHeight, ctx.RenderWidth, ctx.RenderHeight);
 
+        // Resolve effective overlay: segment override ?? track default
+        var effectiveOverlayColor = segment.OverlayColorHex ?? track.OverlayColorHex;
+        var effectiveOverlayOpacity = segment.OverlayOpacity ?? track.OverlayOpacity;
+
         return new CompositionLayer
         {
             ZOrder = zOrder.Next(),
@@ -204,7 +208,9 @@ public class CompositionBuilder : ICompositionBuilder
             OverlayX = overlayX,
             OverlayY = overlayY,
             ScaleWidth = scaleW,
-            ScaleHeight = scaleH
+            ScaleHeight = scaleH,
+            OverlayColorHex = effectiveOverlayOpacity > 0 ? effectiveOverlayColor : null,
+            OverlayOpacity = effectiveOverlayOpacity
         };
     }
 

@@ -163,7 +163,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             // Motion-related properties: trigger preview update for transform recalculation
             if (e.PropertyName == nameof(Track.AutoMotionEnabled)
-                || e.PropertyName == nameof(Track.MotionIntensity))
+                || e.PropertyName == nameof(Track.MotionIntensity)
+                || e.PropertyName == nameof(Track.OverlayColorHex)
+                || e.PropertyName == nameof(Track.OverlayOpacity))
             {
                 ScheduleDebouncedPreviewUpdate();
                 return;
@@ -255,7 +257,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             // Motion preset or intensity changes: refresh transforms
             if (e.PropertyName == nameof(Segment.MotionPreset)
-                || e.PropertyName == nameof(Segment.MotionIntensity))
+                || e.PropertyName == nameof(Segment.MotionIntensity)
+                || e.PropertyName == nameof(Segment.OverlayColorHex)
+                || e.PropertyName == nameof(Segment.OverlayOpacity))
             {
                 ScheduleDebouncedPreviewUpdate();
             }
@@ -514,6 +518,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // --- Ken Burns motion transforms for image segments ---
             UpdateMotionTransforms(playheadSeconds, visualPairs);
 
+            // --- Color overlay tint for image segments ---
+            UpdateOverlayProperties(visualPairs);
+
             UpdateElementVisibility(active);
         }
 
@@ -580,6 +587,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 imgEl.MotionScaleY = transform.ScaleY;
                 imgEl.MotionTranslateX = transform.TranslateX;
                 imgEl.MotionTranslateY = transform.TranslateY;
+            }
+        }
+
+        /// <summary>
+        /// Sync resolved overlay color/opacity from segment (override) or track (default)
+        /// into each active ImageElement for canvas preview binding.
+        /// </summary>
+        private void UpdateOverlayProperties(List<(Track track, Segment segment)> visualPairs)
+        {
+            foreach (var (track, segment) in visualPairs)
+            {
+                if (segment == null) continue;
+
+                var imgEl = Elements.FirstOrDefault(e =>
+                    e is ImageElement && string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)) as ImageElement;
+                if (imgEl == null) continue;
+
+                var effectiveColor = segment.OverlayColorHex ?? track.OverlayColorHex;
+                var effectiveOpacity = segment.OverlayOpacity ?? track.OverlayOpacity;
+
+                imgEl.OverlayColorHex = effectiveColor;
+                imgEl.OverlayOpacity = effectiveOpacity;
             }
         }
 

@@ -402,6 +402,10 @@ namespace PodcastVideoEditor.Core.Models
         private double _motionTranslateX;
         private double _motionTranslateY;
 
+        // Overlay preview (resolved from segment/track, not persisted)
+        private string _overlayColorHex = "#000000";
+        private double _overlayOpacity;
+
         public override ElementType Type => ElementType.Image;
 
         /// <summary>
@@ -460,6 +464,20 @@ namespace PodcastVideoEditor.Core.Models
         {
             get => _motionTranslateY;
             set => SetProperty(ref _motionTranslateY, value);
+        }
+
+        /// <summary>UI-only: resolved overlay color hex from segment/track (not persisted).</summary>
+        public string OverlayColorHex
+        {
+            get => _overlayColorHex;
+            set => SetProperty(ref _overlayColorHex, value ?? "#000000");
+        }
+
+        /// <summary>UI-only: resolved overlay opacity from segment/track (0.0–1.0, not persisted).</summary>
+        public double OverlayOpacity
+        {
+            get => _overlayOpacity;
+            set => SetProperty(ref _overlayOpacity, Math.Clamp(value, 0.0, 1.0));
         }
 
         public override void ResetToDefault()

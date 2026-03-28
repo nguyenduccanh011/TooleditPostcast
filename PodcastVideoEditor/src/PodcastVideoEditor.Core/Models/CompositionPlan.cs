@@ -57,6 +57,12 @@ public class CompositionLayer
     /// <summary>Scaling behavior (Fill, Fit, Stretch).</summary>
     public string ScaleMode { get; init; } = "Fill";
 
+    /// <summary>Overlay color hex (e.g. "#000000") to tint this layer. Null = no overlay.</summary>
+    public string? OverlayColorHex { get; init; }
+
+    /// <summary>Overlay opacity (0.0–1.0). 0.0 = disabled. Applied as a color tint on top of the image.</summary>
+    public double OverlayOpacity { get; init; }
+
     /// <summary>Duration of the layer in seconds.</summary>
     public double Duration => EndTime - StartTime;
 
@@ -187,7 +193,9 @@ public class CompositionPlan
                 ScaleWidth = layer.ScaleWidth > 0 ? layer.ScaleWidth : null,
                 ScaleHeight = layer.ScaleHeight > 0 ? layer.ScaleHeight : null,
                 ScaleMode = layer.ScaleMode,
-                ZOrder = layer.ZOrder
+                ZOrder = layer.ZOrder,
+                OverlayColorHex = layer.OverlayColorHex,
+                OverlayOpacity = layer.OverlayOpacity
             });
         }
 

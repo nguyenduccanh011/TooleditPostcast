@@ -185,6 +185,18 @@ public class RenderVisualSegment
     public double MotionIntensity { get; set; } = 0.3;
 
     /// <summary>
+    /// Overlay color hex (e.g. "#000000") for a color tint on top of the image.
+    /// Null = no overlay.
+    /// </summary>
+    public string? OverlayColorHex { get; set; }
+
+    /// <summary>
+    /// Overlay opacity (0.0–1.0). 0.0 = disabled. Applied as a solid color rectangle
+    /// on top of the image with the given opacity.
+    /// </summary>
+    public double OverlayOpacity { get; set; }
+
+    /// <summary>
     /// Duration of the segment in seconds (EndTime - StartTime).
     /// Pre-computed for convenience in FFmpeg filter generation.
     /// </summary>

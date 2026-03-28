@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.ViewModels;
 using Serilog;
 using System;
@@ -7,6 +8,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace PodcastVideoEditor.Ui.Views
 {
@@ -19,6 +22,7 @@ namespace PodcastVideoEditor.Ui.Views
     {
         private TimelineViewModel? _viewModel;
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
+        private bool _suppressOverlayChanged;
 
         public SegmentEditorPanel()
         {
@@ -73,6 +77,7 @@ namespace PodcastVideoEditor.Ui.Views
                 NoSelectionText.Visibility = Visibility.Collapsed;
                 PropertiesPanel.Visibility = Visibility.Visible;
                 RefreshBackgroundInfo();
+                SyncSegmentOverlayControls();
             }
         }
 
@@ -138,6 +143,118 @@ namespace PodcastVideoEditor.Ui.Views
 
             await _viewModel.ClearSegmentBackgroundAsync();
             RefreshBackgroundInfo();
+        }
+
+        // ── Overlay override ────────────────────────────────────────
+
+        private void SyncSegmentOverlayControls()
+        {
+            var segment = _viewModel?.SelectedSegment;
+            if (segment == null) return;
+
+            _suppressOverlayChanged = true;
+
+            bool hasOverride = segment.OverlayOpacity.HasValue || segment.OverlayColorHex != null;
+            OverlayOverrideCheckBox.IsChecked = hasOverride;
+            SegOverlayControlsPanel.Visibility = hasOverride ? Visibility.Visible : Visibility.Collapsed;
+
+            if (hasOverride)
+            {
+                var opacity = segment.OverlayOpacity ?? 0;
+                var color = segment.OverlayColorHex ?? "#000000";
+                SegOverlayOpacitySlider.Value = opacity * 100;
+                SegOverlayOpacityValueText.Text = $"{(int)(opacity * 100)}%";
+                SegOverlayColorHexText.Text = color;
+                SegOverlayColorPicker.SelectedColor = color;
+                try
+                {
+                    SegOverlayColorSwatch.Background = new SolidColorBrush(
+                        (Color)ColorConverter.ConvertFromString(color));
+                }
+                catch
+                {
+                    SegOverlayColorSwatch.Background = Brushes.Black;
+                }
+            }
+
+            _suppressOverlayChanged = false;
+        }
+
+        private void OverlayOverrideCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressOverlayChanged) return;
+            var segment = _viewModel?.SelectedSegment;
+            if (segment == null) return;
+
+            if (OverlayOverrideCheckBox.IsChecked == true)
+            {
+                // Enable override — initialize from track defaults or sensible defaults
+                var track = segment.Track;
+                segment.OverlayOpacity = track?.OverlayOpacity ?? 0.0;
+                segment.OverlayColorHex = track?.OverlayColorHex ?? "#000000";
+                SegOverlayControlsPanel.Visibility = Visibility.Visible;
+                SyncSegmentOverlayControls();
+            }
+            else
+            {
+                // Disable override — clear to null (use track defaults)
+                segment.OverlayOpacity = null;
+                segment.OverlayColorHex = null;
+                SegOverlayControlsPanel.Visibility = Visibility.Collapsed;
+            }
+            _viewModel?.RequestProjectSave();
+        }
+
+        private void SegOverlayOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_suppressOverlayChanged) return;
+            var segment = _viewModel?.SelectedSegment;
+            if (segment == null) return;
+
+            var opacity = SegOverlayOpacitySlider.Value / 100.0;
+            segment.OverlayOpacity = opacity;
+            SegOverlayOpacityValueText.Text = $"{(int)(opacity * 100)}%";
+            _viewModel?.RequestProjectSave();
+        }
+
+        private void SegOverlayColorSwatch_Click(object sender, MouseButtonEventArgs e)
+        {
+            var segment = _viewModel?.SelectedSegment;
+            if (segment == null) return;
+
+            _suppressOverlayChanged = true;
+            SegOverlayColorPicker.SelectedColor = segment.OverlayColorHex ?? "#000000";
+            _suppressOverlayChanged = false;
+
+            SegOverlayColorPicker.ColorChanged -= OnSegOverlayColorChanged;
+            SegOverlayColorPicker.ColorChanged += OnSegOverlayColorChanged;
+            SegOverlayColorPopup.Closed -= OnSegOverlayPopupClosed;
+            SegOverlayColorPopup.Closed += OnSegOverlayPopupClosed;
+
+            SegOverlayColorPopup.IsOpen = true;
+        }
+
+        private void OnSegOverlayColorChanged(string hex)
+        {
+            if (_suppressOverlayChanged) return;
+            var segment = _viewModel?.SelectedSegment;
+            if (segment == null) return;
+
+            segment.OverlayColorHex = hex;
+            SegOverlayColorHexText.Text = hex;
+            try
+            {
+                SegOverlayColorSwatch.Background = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString(hex));
+            }
+            catch { }
+            _viewModel?.RequestProjectSave();
+        }
+
+        private void OnSegOverlayPopupClosed(object? sender, EventArgs e)
+        {
+            SegOverlayColorPicker.ColorChanged -= OnSegOverlayColorChanged;
+            SegOverlayColorPopup.Closed -= OnSegOverlayPopupClosed;
         }
 
     }

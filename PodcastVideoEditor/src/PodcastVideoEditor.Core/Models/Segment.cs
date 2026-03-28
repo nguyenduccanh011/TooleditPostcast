@@ -119,6 +119,20 @@ public partial class Segment : ObservableObject
     private double? motionIntensity;
 
     /// <summary>
+    /// Per-segment overlay color override (hex). When null, uses the track's OverlayColorHex.
+    /// Set a value to override the track default for this specific segment.
+    /// </summary>
+    [ObservableProperty]
+    private string? overlayColorHex;
+
+    /// <summary>
+    /// Per-segment overlay opacity override (0.0–1.0). When null, uses the track's OverlayOpacity.
+    /// Set a value to override the track default for this specific segment.
+    /// </summary>
+    [ObservableProperty]
+    private double? overlayOpacity;
+
+    /// <summary>
     /// UI-only: waveform peak data for audio segments (not persisted to DB).
     /// Loaded asynchronously by TimelineViewModel after segment is added/loaded.
     /// </summary>
@@ -210,5 +224,7 @@ public partial class Segment : ObservableObject
         TransitionDuration = TransitionDuration,
         MotionPreset       = MotionPreset,
         MotionIntensity    = MotionIntensity,
+        OverlayColorHex    = OverlayColorHex,
+        OverlayOpacity     = OverlayOpacity,
     };
 }

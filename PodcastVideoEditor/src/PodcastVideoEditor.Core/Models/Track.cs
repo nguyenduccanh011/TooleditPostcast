@@ -99,6 +99,22 @@ public partial class Track : ObservableObject
     [ObservableProperty]
     private double motionIntensity = 0.3;
 
+    /// <summary>
+    /// Default overlay color (hex) applied on top of images in this track.
+    /// Used as fallback when a segment's OverlayColorHex is null.
+    /// Typical use: "#000000" (black) to darken images for text readability.
+    /// </summary>
+    [ObservableProperty]
+    private string overlayColorHex = "#000000";
+
+    /// <summary>
+    /// Default overlay opacity for all segments in this track (0.0–1.0).
+    /// 0.0 = no overlay (disabled), 1.0 = fully opaque overlay.
+    /// Used as fallback when a segment's OverlayOpacity is null.
+    /// </summary>
+    [ObservableProperty]
+    private double overlayOpacity;
+
     // Navigation properties
 
     /// <summary>
@@ -129,5 +145,7 @@ public partial class Track : ObservableObject
         ImageLayoutPreset  = ImageLayoutPreset,
         AutoMotionEnabled  = AutoMotionEnabled,
         MotionIntensity    = MotionIntensity,
+        OverlayColorHex    = OverlayColorHex,
+        OverlayOpacity     = OverlayOpacity,
     };
 }

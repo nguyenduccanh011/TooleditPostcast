@@ -1,6 +1,7 @@
 <UserControl x:Class="PodcastVideoEditor.Ui.Views.TrackEditorPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              Background="#1e1e1e"
              Foreground="#e0e0e0">
 
@@ -107,6 +108,52 @@
                     <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
                         <TextBlock x:Name="MotionHintText"
                                    Text="Khi bật, mỗi ảnh tĩnh sẽ tự động có hiệu ứng zoom/pan ngẫu nhiên. Hiệu ứng cố định theo segment (render lại cho kết quả giống nhau)."
+                                   Foreground="#7a8a96"
+                                   FontStyle="Italic"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"/>
+                    </Border>
+
+                    <!-- Color Overlay (darken / tint) -->
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="🎨  Lớp phủ màu (Overlay):" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
+                        <Run Text="Độ mờ: "/><Run x:Name="OverlayOpacityValueText" Text="0%"/>
+                    </TextBlock>
+                    <Slider x:Name="OverlayOpacitySlider"
+                            Minimum="0" Maximum="100" Value="0"
+                            TickFrequency="5" IsSnapToTickEnabled="False"
+                            ValueChanged="OverlayOpacitySlider_ValueChanged"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Màu:" Foreground="#b0bec5" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                        <Border x:Name="OverlayColorSwatch"
+                                Width="28" Height="28" CornerRadius="4"
+                                Background="Black" BorderBrush="#546e7a" BorderThickness="1"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="OverlayColorSwatch_Click"/>
+                        <TextBlock x:Name="OverlayColorHexText"
+                                   Text="#000000" Foreground="#81c784"
+                                   FontFamily="Courier New" FontSize="12"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Color picker popup -->
+                    <Popup x:Name="OverlayColorPopup"
+                           PlacementTarget="{Binding ElementName=OverlayColorSwatch}"
+                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                           PopupAnimation="Fade">
+                        <Border Background="#252530" BorderBrush="#546e7a" BorderThickness="1"
+                                CornerRadius="6" Padding="2">
+                            <controls:ColorPickerPopup x:Name="OverlayColorPicker"/>
+                        </Border>
+                    </Popup>
+
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,8,0,12">
+                        <TextBlock Text="Lớp phủ màu áp dụng cho toàn bộ segment trong track. Segment có thể ghi đè riêng trong Segment Properties."
                                    Foreground="#7a8a96"
                                    FontStyle="Italic"
                                    TextWrapping="Wrap"

@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
+             xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              Background="#1e1e1e"
              Foreground="#e0e0e0">
 
@@ -270,6 +271,70 @@
 
                     <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8">
                         <TextBlock Text="Chọn None để dùng hiệu ứng tự động từ Track (nếu Track bật auto-motion). Chọn preset cụ thể để ghi đè."
+                                   Foreground="#546e7a" FontSize="10" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Overlay Override (visual segments only) -->
+                <StackPanel Margin="0,0,0,15">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SelectedSegment.Kind}" Value="visual">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="🎨  Ghi đè lớp phủ màu:" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <CheckBox x:Name="OverlayOverrideCheckBox"
+                              Content="Ghi đè overlay của Track cho segment này"
+                              Foreground="#e0e0e0" Margin="0,0,0,8"
+                              Checked="OverlayOverrideCheckBox_Changed"
+                              Unchecked="OverlayOverrideCheckBox_Changed"/>
+
+                    <StackPanel x:Name="SegOverlayControlsPanel" Visibility="Collapsed" Margin="0,0,0,8">
+                        <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
+                            <Run Text="Độ mờ: "/><Run x:Name="SegOverlayOpacityValueText" Text="0%"/>
+                        </TextBlock>
+                        <Slider x:Name="SegOverlayOpacitySlider"
+                                Minimum="0" Maximum="100" Value="0"
+                                TickFrequency="5" IsSnapToTickEnabled="False"
+                                ValueChanged="SegOverlayOpacitySlider_ValueChanged"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Màu:" Foreground="#b0bec5" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
+                            <Border x:Name="SegOverlayColorSwatch"
+                                    Width="28" Height="28" CornerRadius="4"
+                                    Background="Black" BorderBrush="#546e7a" BorderThickness="1"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="SegOverlayColorSwatch_Click"/>
+                            <TextBlock x:Name="SegOverlayColorHexText"
+                                       Text="#000000" Foreground="#81c784"
+                                       FontFamily="Courier New" FontSize="12"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- Color picker popup for segment overlay -->
+                        <Popup x:Name="SegOverlayColorPopup"
+                               PlacementTarget="{Binding ElementName=SegOverlayColorSwatch}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                               PopupAnimation="Fade">
+                            <Border Background="#252530" BorderBrush="#546e7a" BorderThickness="1"
+                                    CornerRadius="6" Padding="2">
+                                <controls:ColorPickerPopup x:Name="SegOverlayColorPicker"/>
+                            </Border>
+                        </Popup>
+                    </StackPanel>
+
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8">
+                        <TextBlock Text="Bật để ghi đè overlay của Track cho riêng segment này. Tắt = dùng cài đặt track."
                                    Foreground="#546e7a" FontSize="10" TextWrapping="Wrap"/>
                     </Border>
                 </StackPanel>

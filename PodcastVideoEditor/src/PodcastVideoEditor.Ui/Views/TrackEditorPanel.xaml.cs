@@ -4,6 +4,8 @@ using Serilog;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace PodcastVideoEditor.Ui.Views;
 
@@ -17,6 +19,7 @@ public partial class TrackEditorPanel : UserControl
     private Track? _subscribedTrack;
     private bool _suppressRadioChecked;
     private bool _suppressMotionChanged;
+    private bool _suppressOverlayChanged;
 
     public TrackEditorPanel()
     {
@@ -91,6 +94,9 @@ public partial class TrackEditorPanel : UserControl
         if (isVisual)
             SyncAutoMotionControls(track);
 
+        if (isVisual)
+            SyncOverlayControls(track);
+
         UpdateLockVisibilityButtons(track);
 
         Log.Debug("TrackEditorPanel: showing track '{Name}' ({Type})", track.Name, track.TrackType);
@@ -105,6 +111,8 @@ public partial class TrackEditorPanel : UserControl
             SyncRadioButtons(track.ImageLayoutPreset);
         if (e.PropertyName == nameof(Track.AutoMotionEnabled) || e.PropertyName == nameof(Track.MotionIntensity))
             SyncAutoMotionControls(track);
+        if (e.PropertyName == nameof(Track.OverlayColorHex) || e.PropertyName == nameof(Track.OverlayOpacity))
+            SyncOverlayControls(track);
     }
 
     private void SyncRadioButtons(string preset)
@@ -189,5 +197,76 @@ public partial class TrackEditorPanel : UserControl
         _viewModel.SelectedTrack.MotionIntensity = intensity;
         MotionIntensityValueText.Text = $"{(int)(intensity * 100)}%";
         _viewModel.RequestProjectSave();
+    }
+
+    // ── Overlay (color tint) ────────────────────────────────
+
+    private void SyncOverlayControls(Track track)
+    {
+        _suppressOverlayChanged = true;
+        OverlayOpacitySlider.Value = track.OverlayOpacity * 100;
+        OverlayOpacityValueText.Text = $"{(int)(track.OverlayOpacity * 100)}%";
+        OverlayColorHexText.Text = track.OverlayColorHex;
+        OverlayColorPicker.SelectedColor = track.OverlayColorHex;
+        try
+        {
+            OverlayColorSwatch.Background = new SolidColorBrush(
+                (Color)ColorConverter.ConvertFromString(track.OverlayColorHex));
+        }
+        catch
+        {
+            OverlayColorSwatch.Background = Brushes.Black;
+        }
+        _suppressOverlayChanged = false;
+    }
+
+    private void OverlayOpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressOverlayChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+
+        var opacity = OverlayOpacitySlider.Value / 100.0;
+        _viewModel.SelectedTrack.OverlayOpacity = opacity;
+        OverlayOpacityValueText.Text = $"{(int)(opacity * 100)}%";
+        _viewModel.RequestProjectSave();
+    }
+
+    private void OverlayColorSwatch_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (_viewModel?.SelectedTrack == null) return;
+
+        _suppressOverlayChanged = true;
+        OverlayColorPicker.SelectedColor = _viewModel.SelectedTrack.OverlayColorHex;
+        _suppressOverlayChanged = false;
+
+        // Subscribe to color changes (unsubscribe on popup close)
+        OverlayColorPicker.ColorChanged -= OnOverlayColorChanged;
+        OverlayColorPicker.ColorChanged += OnOverlayColorChanged;
+        OverlayColorPopup.Closed -= OnOverlayPopupClosed;
+        OverlayColorPopup.Closed += OnOverlayPopupClosed;
+
+        OverlayColorPopup.IsOpen = true;
+    }
+
+    private void OnOverlayColorChanged(string hex)
+    {
+        if (_suppressOverlayChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+
+        _viewModel.SelectedTrack.OverlayColorHex = hex;
+        OverlayColorHexText.Text = hex;
+        try
+        {
+            OverlayColorSwatch.Background = new SolidColorBrush(
+                (Color)ColorConverter.ConvertFromString(hex));
+        }
+        catch { }
+        _viewModel.RequestProjectSave();
+    }
+
+    private void OnOverlayPopupClosed(object? sender, EventArgs e)
+    {
+        OverlayColorPicker.ColorChanged -= OnOverlayColorChanged;
+        OverlayColorPopup.Closed -= OnOverlayPopupClosed;
     }
 }
