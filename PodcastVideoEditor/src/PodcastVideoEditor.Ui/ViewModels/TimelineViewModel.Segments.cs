@@ -607,8 +607,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (sourceTrack?.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> sourceSegs)
                 sourceSegs.Remove(segment);
 
-            // Add to target track
+            // Add to target track — update BOTH FK and navigation property.
+            // If segment.Track stays stale, EF Core relationship fixup during autosave
+            // will use the old navigation to overwrite TrackId, reverting the move.
             segment.TrackId = targetTrack.Id;
+            segment.Track = targetTrack;
             if (targetTrack.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> targetSegs)
                 targetSegs.Add(segment);
 

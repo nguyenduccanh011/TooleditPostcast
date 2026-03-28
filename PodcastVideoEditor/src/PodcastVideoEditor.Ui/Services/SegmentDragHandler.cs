@@ -313,7 +313,10 @@ internal sealed class SegmentTrackChangedAction : IUndoableAction
         if (sourceTrack.Segments is ObservableCollection<Segment> sourceSegs)
             sourceSegs.Remove(_segment);
 
+        // Update BOTH FK and navigation property to prevent EF Core relationship
+        // fixup from reverting the move during autosave.
         _segment.TrackId = targetTrackId;
+        _segment.Track = targetTrack;
 
         if (targetTrack.Segments is ObservableCollection<Segment> targetSegs)
             targetSegs.Add(_segment);
