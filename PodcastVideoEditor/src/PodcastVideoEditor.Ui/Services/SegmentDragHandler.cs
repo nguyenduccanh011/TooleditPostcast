@@ -167,19 +167,31 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         var segment = _dragOp!.Segment;
         double oldStart = segment.StartTime;
         var (newStart, newEnd) = _dragOp.UpdateMove(horizontalChange);
-        var (snappedStart, snappedEnd) = _dragOp.ApplyMoveSnap(newStart, newEnd, _vm);
-
-        // Detect snap indicator
-        double? snapTime = null;
-        double snapDelta = Math.Abs(snappedStart - newStart);
-        double snapDeltaEnd = Math.Abs(snappedEnd - newEnd);
-        if (snapDelta > 0.001 || snapDeltaEnd > 0.001)
-            snapTime = snapDelta <= snapDeltaEnd ? snappedStart : snappedEnd;
+        var (snappedStart, snappedEnd, magneticSnapEdge) = _dragOp.ApplyMoveSnap(newStart, newEnd, _vm);
 
         bool updated = _vm.UpdateSegmentTiming(segment, snappedStart, snappedEnd);
 
+        // Determine snap indicator position AFTER collision resolution.
+        // Always check adjacency first for stable indicator when held against another segment.
+        double? snapTime = null;
         if (updated)
+        {
             _dragOp.HandleSnapCorrection(snappedStart, snappedEnd);
+
+            // Primary: show indicator at any same-track edge where segments touch.
+            // This is stable regardless of magnetic snap oscillation.
+            snapTime = FindAdjacentBoundary(segment);
+
+            // Secondary: if no same-track adjacency, check cross-track magnetic snap.
+            if (snapTime == null && magneticSnapEdge.HasValue)
+            {
+                double distToStart = Math.Abs(segment.StartTime - magneticSnapEdge.Value);
+                double distToEnd = Math.Abs(segment.EndTime - magneticSnapEdge.Value);
+                double tolerance = _vm.GridSize + 0.001;
+                if (distToStart < tolerance || distToEnd < tolerance)
+                    snapTime = magneticSnapEdge.Value;
+            }
+        }
 
         // Ripple mode: shift all segments after this one by the same delta
         if (updated && ripple)
@@ -189,7 +201,7 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
                 ApplyRippleShift(segment, rippleDelta);
         }
 
-        return new DragResult { Segment = segment, Updated = updated, SnapIndicatorTime = updated ? snapTime : null };
+        return new DragResult { Segment = segment, Updated = updated, SnapIndicatorTime = snapTime };
     }
 
     /// <summary>
@@ -220,6 +232,30 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
 
     private double _rippleDeltaAccumulator;
 
+    /// <summary>
+    /// Check if the segment's start or end is flush against another segment in the same track.
+    /// Returns the touching edge time, or null if neither edge is adjacent.
+    /// </summary>
+    private double? FindAdjacentBoundary(Segment segment)
+    {
+        double tolerance = _vm.GridSize + 0.001;
+        var trackSegments = _vm.GetSegmentsForTrack(segment.TrackId ?? string.Empty);
+
+        foreach (var other in trackSegments)
+        {
+            if (other.Id == segment.Id) continue;
+
+            // segment.End touches other.Start
+            if (Math.Abs(segment.EndTime - other.StartTime) < tolerance)
+                return segment.EndTime;
+
+            // segment.Start touches other.End
+            if (Math.Abs(segment.StartTime - other.EndTime) < tolerance)
+                return segment.StartTime;
+        }
+        return null;
+    }
+
     private DragResult ProcessResizeRightDelta(double horizontalChange)
     {
         var segment = _dragOp!.Segment;
@@ -238,12 +274,18 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
             }
         }
 
-        // Magnetic snap to nearest segment edge
+        // Cross-track magnetic snap only (same-track handled by collision resolution).
         double preSnapEnd = newEndTime;
-        newEndTime = _vm.SnapToSegmentEdge(newEndTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
-        double? snapTime = Math.Abs(newEndTime - preSnapEnd) > 0.001 ? newEndTime : null;
+        newEndTime = _vm.SnapToCrossTrackEdge(newEndTime, segment.TrackId, segment.Id, _dragOp.ResizeSnapThreshold);
+        bool didSnap = Math.Abs(newEndTime - preSnapEnd) > 0.001;
+        _dragOp.UpdateResizeSnapState(didSnap);
+        double? snapTime = didSnap ? newEndTime : null;
 
         bool updated = _vm.UpdateSegmentTiming(segment, segment.StartTime, newEndTime);
+
+        // Reset baseline when collision clamped the end
+        if (updated)
+            _dragOp.HandleResizeSnapCorrection(DragKind.ResizeRight);
 
         return new DragResult { Segment = segment, Updated = updated, SnapIndicatorTime = updated ? snapTime : null };
     }
@@ -258,12 +300,18 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         if (isAudio)
             newStartTime = _dragOp.ClampForAudioLeft(newStartTime);
 
-        // Magnetic snap to nearest segment edge
+        // Cross-track magnetic snap only (same-track handled by collision resolution).
         double preSnapStart = newStartTime;
-        newStartTime = _vm.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
-        double? snapTime = Math.Abs(newStartTime - preSnapStart) > 0.001 ? newStartTime : null;
+        newStartTime = _vm.SnapToCrossTrackEdge(newStartTime, segment.TrackId, segment.Id, _dragOp.ResizeSnapThreshold);
+        bool didSnap = Math.Abs(newStartTime - preSnapStart) > 0.001;
+        _dragOp.UpdateResizeSnapState(didSnap);
+        double? snapTime = didSnap ? newStartTime : null;
 
         bool updated = _vm.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
+
+        // Reset baseline when collision clamped the start
+        if (updated)
+            _dragOp.HandleResizeSnapCorrection(DragKind.ResizeLeft);
 
         // Audio segments: update SourceStartOffset to match the left-trim delta
         if (updated && isAudio)

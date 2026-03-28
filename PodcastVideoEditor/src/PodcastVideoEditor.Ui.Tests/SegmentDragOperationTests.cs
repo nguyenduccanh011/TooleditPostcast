@@ -312,4 +312,46 @@ public sealed class SegmentDragOperationTests
 
         Assert.Equal("TrackA", op.UndoOriginalTrackId);
     }
+
+    // ── HandleResizeSnapCorrection ──────────────────────────────────
+
+    [Fact]
+    public void HandleResizeSnapCorrection_ResetsBaseline_WhenCollisionClamped()
+    {
+        // Simulate resize-right being clamped by collision
+        var seg = MakeSegment("X", 5, 7);
+        var op = SegmentDragOperation.BeginResizeRight(seg, 100.0);
+
+        // Drag 200px right → proposed end = 7 + 2.0 = 9.0
+        double proposed = op.UpdateResizeRight(200.0, 0.01);
+        Assert.Equal(9.0, proposed, 2);
+
+        // Simulate collision clamping end to 8.0
+        seg.EndTime = 8.0;
+        op.HandleResizeSnapCorrection(DragKind.ResizeRight);
+
+        // Next drag 100px right → should compute from new baseline (8.0)
+        // newEnd = 8.0 + 100/100 = 9.0
+        double next = op.UpdateResizeRight(100.0, 0.01);
+        Assert.Equal(9.0, next, 2);
+    }
+
+    [Fact]
+    public void HandleResizeSnapCorrection_ResetsBaseline_ResizeLeft_WhenClamped()
+    {
+        var seg = MakeSegment("X", 5, 7);
+        var op = SegmentDragOperation.BeginResizeLeft(seg, 100.0);
+
+        // Drag 200px left → proposed start = 5 - 2.0 = 3.0
+        double proposed = op.UpdateResizeLeft(-200.0, 0.01);
+        Assert.Equal(3.0, proposed, 2);
+
+        // Simulate collision clamping start to 4.0
+        seg.StartTime = 4.0;
+        op.HandleResizeSnapCorrection(DragKind.ResizeLeft);
+
+        // Next drag 100px left → should compute from new baseline (4.0)
+        double next = op.UpdateResizeLeft(-100.0, 0.01);
+        Assert.Equal(3.0, next, 2);
+    }
 }

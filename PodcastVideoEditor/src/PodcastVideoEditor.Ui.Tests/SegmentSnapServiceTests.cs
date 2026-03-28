@@ -393,4 +393,96 @@ public sealed class SegmentSnapServiceTests
         Assert.Equal(4.0, result!.Value.start, 2);
         Assert.Equal(6.0, result.Value.end, 2);
     }
+
+    // ── Cross-track snap tests ───────────────────────────────────────
+
+    [Fact]
+    public void SnapToAllTrackEdges_SnapsToEdgeAcrossTracks()
+    {
+        var trackA = new Track { Id = "T1" };
+        trackA.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("A", 0, 5, "T1")
+        };
+        var trackB = new Track { Id = "T2" };
+        trackB.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("B", 8, 12, "T2")
+        };
+        var tracks = new[] { trackA, trackB };
+
+        // Proposed 7.95 should snap to B.StartTime = 8.0 (within 0.1 threshold)
+        double result = _sut.SnapToAllTrackEdges(7.95, tracks, excludeSegmentId: null, thresholdSeconds: 0.1);
+        Assert.Equal(8.0, result);
+    }
+
+    [Fact]
+    public void SnapToAllTrackEdges_ReturnsProposed_WhenNoEdgeNearby()
+    {
+        var trackA = new Track { Id = "T1" };
+        trackA.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("A", 0, 5, "T1")
+        };
+        var tracks = new[] { trackA };
+
+        double result = _sut.SnapToAllTrackEdges(3.5, tracks, excludeSegmentId: null, thresholdSeconds: 0.1);
+        Assert.Equal(3.5, result);
+    }
+
+    [Fact]
+    public void SnapToCrossTrackEdge_ExcludesOwnTrack()
+    {
+        var trackA = new Track { Id = "T1" };
+        trackA.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("A", 0, 5, "T1")
+        };
+        var trackB = new Track { Id = "T2" };
+        trackB.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("B", 8, 12, "T2")
+        };
+        var tracks = new[] { trackA, trackB };
+
+        // Proposed 4.95, threshold 0.1 — A.EndTime=5.0 is on excluded track T1
+        double result = _sut.SnapToCrossTrackEdge(4.95, tracks, excludeTrackId: "T1", excludeSegmentId: null, thresholdSeconds: 0.1);
+        // Should NOT snap to A.EndTime=5.0 (excluded track), no other edge nearby
+        Assert.Equal(4.95, result);
+    }
+
+    [Fact]
+    public void SnapToCrossTrackEdge_SnapsToOtherTrack()
+    {
+        var trackA = new Track { Id = "T1" };
+        trackA.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("A", 0, 5, "T1")
+        };
+        var trackB = new Track { Id = "T2" };
+        trackB.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("B", 8, 12, "T2")
+        };
+        var tracks = new[] { trackA, trackB };
+
+        // Proposed 7.95, threshold 0.1, exclude T1 → should snap to B.StartTime=8.0
+        double result = _sut.SnapToCrossTrackEdge(7.95, tracks, excludeTrackId: "T1", excludeSegmentId: null, thresholdSeconds: 0.1);
+        Assert.Equal(8.0, result);
+    }
+
+    [Fact]
+    public void SnapToAllTrackEdges_ExcludesSegmentById()
+    {
+        var trackA = new Track { Id = "T1" };
+        trackA.Segments = new System.Collections.ObjectModel.ObservableCollection<Segment>
+        {
+            MakeSegment("A", 0, 5, "T1")
+        };
+        var tracks = new[] { trackA };
+
+        // Even though 5.0 is close, "A" is excluded
+        double result = _sut.SnapToAllTrackEdges(4.95, tracks, excludeSegmentId: "A", thresholdSeconds: 0.1);
+        Assert.Equal(4.95, result);
+    }
 }

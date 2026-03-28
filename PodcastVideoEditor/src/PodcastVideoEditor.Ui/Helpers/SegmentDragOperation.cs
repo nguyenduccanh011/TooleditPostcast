@@ -85,10 +85,35 @@ internal sealed class SegmentDragOperation
 
     // ── Conversion helpers ─────────────────────────────────────────────────
 
-    /// <summary>Snap threshold in seconds (constant 15px converted via frozen PPS).</summary>
+    /// <summary>Snap-in threshold in seconds (engage magnetic snap).</summary>
     public double SnapThreshold => FrozenPPS > 0 ? TimelineConstants.SnapPixelThreshold / FrozenPPS : 0.1;
 
+    /// <summary>Snap-release threshold in seconds (disengage magnetic snap — larger to add hysteresis).</summary>
+    public double SnapReleaseThreshold => FrozenPPS > 0 ? TimelineConstants.SnapReleasePixelThreshold / FrozenPPS : 0.15;
+
+    /// <summary>Whether the segment is currently held by magnetic snap.</summary>
+    private bool _isSnapped;
+
+    /// <summary>The edge time we are currently snapped to (for hysteresis release check).</summary>
+    private double _snappedEdgeTime;
+
+    /// <summary>Whether a resize edge is currently held by cross-track magnetic snap.</summary>
+    private bool _resizeIsSnapped;
+
     private double PixelsToTime(double px) => FrozenPPS > 0 ? px / FrozenPPS : 0;
+
+    /// <summary>
+    /// Return the effective snap threshold for resize, applying hysteresis.
+    /// </summary>
+    public double ResizeSnapThreshold => _resizeIsSnapped ? SnapReleaseThreshold : SnapThreshold;
+
+    /// <summary>
+    /// Update resize snap hysteresis state after a cross-track snap attempt.
+    /// </summary>
+    public void UpdateResizeSnapState(bool didSnap)
+    {
+        _resizeIsSnapped = didSnap;
+    }
 
     // ── Cross-track vertical accumulator ─────────────────────────────────────
 
@@ -135,31 +160,65 @@ internal sealed class SegmentDragOperation
     }
 
     /// <summary>
-    /// Apply magnetic snap for a move operation. Returns snapped (newStart, newEnd).
+    /// Apply magnetic snap for a move operation. Returns snapped (newStart, newEnd)
+    /// plus the edge time to show the snap indicator at (null if no snap).
     /// </summary>
-    public (double newStart, double newEnd) ApplyMoveSnap(
+    public (double newStart, double newEnd, double? snapEdgeTime) ApplyMoveSnap(
         double newStart, double newEnd, TimelineViewModel vm)
     {
+        const double epsilon = 0.0005;
         double duration = _baselineEndTime - _baselineStartTime;
-        double threshold = SnapThreshold;
 
-        double snappedByStart = vm.SnapToSegmentEdge(newStart, Segment.TrackId, Segment.Id, threshold);
-        double snappedByEnd = vm.SnapToSegmentEdge(newEnd, Segment.TrackId, Segment.Id, threshold);
+        // Use wider threshold when already snapped (hysteresis prevents jitter at boundary)
+        double threshold = _isSnapped ? SnapReleaseThreshold : SnapThreshold;
+
+        double snappedByStart = vm.SnapToAllTrackEdges(newStart, Segment.Id, threshold);
+        double snappedByEnd = vm.SnapToAllTrackEdges(newEnd, Segment.Id, threshold);
         double distS = Math.Abs(snappedByStart - newStart);
         double distE = Math.Abs(snappedByEnd - newEnd);
 
-        if (distS <= distE && distS < threshold)
+        bool startSnapped = distS > epsilon && distS < threshold;
+        bool endSnapped = distE > epsilon && distE < threshold;
+
+        if (startSnapped && endSnapped)
+        {
+            if (distS <= distE)
+            {
+                newStart = snappedByStart;
+                newEnd = newStart + duration;
+                _isSnapped = true;
+                _snappedEdgeTime = snappedByStart;
+                return (newStart, newEnd, snappedByStart);
+            }
+            else
+            {
+                newEnd = snappedByEnd;
+                newStart = newEnd - duration;
+                _isSnapped = true;
+                _snappedEdgeTime = snappedByEnd;
+                return (newStart, newEnd, snappedByEnd);
+            }
+        }
+        else if (startSnapped)
         {
             newStart = snappedByStart;
             newEnd = newStart + duration;
+            _isSnapped = true;
+            _snappedEdgeTime = snappedByStart;
+            return (newStart, newEnd, snappedByStart);
         }
-        else if (distE < threshold)
+        else if (endSnapped)
         {
             newEnd = snappedByEnd;
             newStart = newEnd - duration;
+            _isSnapped = true;
+            _snappedEdgeTime = snappedByEnd;
+            return (newStart, newEnd, snappedByEnd);
         }
 
-        return (newStart, newEnd);
+        // No snap — clear hysteresis state
+        _isSnapped = false;
+        return (newStart, newEnd, null);
     }
 
     // ── Snap/collision correction ──────────────────────────────────────────
@@ -181,6 +240,31 @@ internal sealed class SegmentDragOperation
             _baselineStartTime = Segment.StartTime;
             _baselineEndTime = Segment.EndTime;
             _accumulatorDeltaX = 0;
+        }
+    }
+
+    /// <summary>
+    /// Call after UpdateSegmentTiming succeeds for a resize operation.
+    /// If the applied edge differs from the proposed value (collision clamped it),
+    /// resets the baseline to the actual position to prevent accumulator drift.
+    /// </summary>
+    public void HandleResizeSnapCorrection(DragKind kind)
+    {
+        if (kind == DragKind.ResizeRight)
+        {
+            if (Math.Abs(Segment.EndTime - _baselineEndTime - PixelsToTime(_accumulatorDeltaX)) > BaselineTolerance)
+            {
+                _baselineEndTime = Segment.EndTime;
+                _accumulatorDeltaX = 0;
+            }
+        }
+        else if (kind == DragKind.ResizeLeft)
+        {
+            if (Math.Abs(Segment.StartTime - _baselineStartTime - PixelsToTime(_accumulatorDeltaX)) > BaselineTolerance)
+            {
+                _baselineStartTime = Segment.StartTime;
+                _accumulatorDeltaX = 0;
+            }
         }
     }
 

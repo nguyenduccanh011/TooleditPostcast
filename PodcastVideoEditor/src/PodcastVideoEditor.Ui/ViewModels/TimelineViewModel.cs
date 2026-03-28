@@ -562,6 +562,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Cross-track magnetic snap: snap to nearest segment edge across ALL tracks
+        /// except the specified track (where collision resolution handles alignment).
+        /// Used for resize operations to show guide lines only for cross-track alignment.
+        /// </summary>
+        public double SnapToCrossTrackEdge(double proposedTime, string? excludeTrackId, string? excludeSegmentId, double thresholdSeconds)
+        {
+            return _snapService.SnapToCrossTrackEdge(proposedTime, Tracks, excludeTrackId, excludeSegmentId, thresholdSeconds);
+        }
+
+        /// <summary>
+        /// All-track magnetic snap: snap to nearest segment edge across ALL tracks.
+        /// Used for move operations to align with any track's segment edges.
+        /// </summary>
+        public double SnapToAllTrackEdges(double proposedTime, string? excludeSegmentId, double thresholdSeconds)
+        {
+            return _snapService.SnapToAllTrackEdges(proposedTime, Tracks, excludeSegmentId, thresholdSeconds);
+        }
+
+        /// <summary>
         /// Update a segment's timing with collision resolution and grid snapping.
         /// Returns true if the timing was successfully updated.
         /// </summary>

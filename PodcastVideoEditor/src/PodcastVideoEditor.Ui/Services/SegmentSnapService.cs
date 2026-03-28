@@ -67,6 +67,66 @@ internal sealed class SegmentSnapService
     }
 
     /// <summary>
+    /// Cross-track magnetic snap: snap to nearest segment edge across ALL tracks except
+    /// the segment's own track (where collision resolution already handles alignment).
+    /// Returns the snapped time or the original proposedTime if no edge is nearby.
+    /// </summary>
+    public double SnapToCrossTrackEdge(
+        double proposedTime,
+        IEnumerable<Track> allTracks,
+        string? excludeTrackId,
+        string? excludeSegmentId,
+        double thresholdSeconds)
+    {
+        double best = proposedTime;
+        double bestDist = thresholdSeconds;
+
+        foreach (var track in allTracks)
+        {
+            if (track.Id == excludeTrackId) continue;
+            foreach (var seg in track.Segments)
+            {
+                if (seg.Id == excludeSegmentId) continue;
+
+                double dStart = Math.Abs(proposedTime - seg.StartTime);
+                double dEnd = Math.Abs(proposedTime - seg.EndTime);
+                if (dStart < bestDist) { bestDist = dStart; best = seg.StartTime; }
+                if (dEnd < bestDist) { bestDist = dEnd; best = seg.EndTime; }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// All-track magnetic snap: snap to nearest segment edge across ALL tracks.
+    /// Used for move operations where we want to align with any track's segment edges.
+    /// Returns the snapped time or the original proposedTime if no edge is nearby.
+    /// </summary>
+    public double SnapToAllTrackEdges(
+        double proposedTime,
+        IEnumerable<Track> allTracks,
+        string? excludeSegmentId,
+        double thresholdSeconds)
+    {
+        double best = proposedTime;
+        double bestDist = thresholdSeconds;
+
+        foreach (var track in allTracks)
+        {
+            foreach (var seg in track.Segments)
+            {
+                if (seg.Id == excludeSegmentId) continue;
+
+                double dStart = Math.Abs(proposedTime - seg.StartTime);
+                double dEnd = Math.Abs(proposedTime - seg.EndTime);
+                if (dStart < bestDist) { bestDist = dStart; best = seg.StartTime; }
+                if (dEnd < bestDist) { bestDist = dEnd; best = seg.EndTime; }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// When a move causes collision, try to snap the segment to the nearest valid boundary
     /// (before or after each segment in the track). Returns null if no valid position found.
     /// </summary>

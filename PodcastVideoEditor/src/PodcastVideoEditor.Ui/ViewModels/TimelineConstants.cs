@@ -31,7 +31,13 @@ internal static class TimelineConstants
     public const double MinPixelsPerSecond = 1.0;
 
     /// <summary>Magnetic snap threshold in pixels (converted to seconds via PPS at drag start).</summary>
-    public const double SnapPixelThreshold = 15.0;
+    public const double SnapPixelThreshold = 5.0;
+
+    /// <summary>
+    /// Release threshold in pixels — once snapped, the mouse must move this far
+    /// beyond the snap target to break free. Prevents jitter at the snap boundary.
+    /// </summary>
+    public const double SnapReleasePixelThreshold = 10.0;
 
     /// <summary>Tolerance (seconds) for undo action change detection.</summary>
     public const double UndoTolerance = 0.001;

@@ -295,7 +295,12 @@ namespace PodcastVideoEditor.Ui.Views
         /// <summary>
         /// Show or hide the snap indicator line at the given timeline time.
         /// Pass null to hide the indicator.
+        /// Uses hysteresis to prevent flicker: once shown, requires the snap to
+        /// disappear for the indicator to hide, and small position jitter is absorbed.
         /// </summary>
+        private double? _lastSnapIndicatorTime;
+        private const double SnapIndicatorHysteresisPx = 3.0;
+
         private void UpdateSnapIndicator(double? snapTimeSeconds)
         {
             if (SnapIndicatorLine == null) return;
@@ -303,12 +308,23 @@ namespace PodcastVideoEditor.Ui.Views
             if (snapTimeSeconds.HasValue && _viewModel != null)
             {
                 double pixelX = snapTimeSeconds.Value * _viewModel.PixelsPerSecond;
+
+                // Hysteresis: if indicator is already visible near this position, keep it steady
+                if (_lastSnapIndicatorTime.HasValue)
+                {
+                    double lastPixelX = _lastSnapIndicatorTime.Value * _viewModel.PixelsPerSecond;
+                    if (Math.Abs(pixelX - lastPixelX) < SnapIndicatorHysteresisPx)
+                        return; // Absorb small jitter
+                }
+
                 Canvas.SetLeft(SnapIndicatorLine, pixelX);
                 SnapIndicatorLine.Visibility = Visibility.Visible;
+                _lastSnapIndicatorTime = snapTimeSeconds.Value;
             }
             else
             {
                 SnapIndicatorLine.Visibility = Visibility.Collapsed;
+                _lastSnapIndicatorTime = null;
             }
         }
 
