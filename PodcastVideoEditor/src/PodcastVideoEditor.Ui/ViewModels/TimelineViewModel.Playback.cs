@@ -2,6 +2,7 @@
 using PodcastVideoEditor.Core.Utilities;
 using Serilog;
 using System;
+using System.Threading;
 
 namespace PodcastVideoEditor.Ui.ViewModels
 {
@@ -24,7 +25,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     ExpandTimelineToFit(positionSeconds);
                 _audioService.Seek(positionSeconds);
                 PlayheadPosition = positionSeconds;
-                _lastSyncedPlayhead = positionSeconds;
+                Interlocked.Exchange(ref _lastSyncedPlayheadBits, BitConverter.DoubleToInt64Bits(positionSeconds));
                 _playbackCoordinator.NotifyUserInteraction();
                 // Immediately resync all segment audio to the new position (forceResync=true)
                 _audioPreviewService.SyncPreviewAudio(positionSeconds, forceResync: true);
@@ -60,6 +61,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _isScrubbing = false;
             _playbackCoordinator.NotifyUserInteraction();
             ScrubCompleted?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Force-clear the scrub flag. Called before playback starts to prevent a stuck
+        /// _isScrubbing from blocking the sync loop (e.g. mouse released outside canvas).
+        /// </summary>
+        public void ResetScrubState()
+        {
+            if (_isScrubbing)
+            {
+                _isScrubbing = false;
+                _playbackCoordinator.NotifyUserInteraction();
+                Log.Debug("ResetScrubState: forced _isScrubbing=false");
+            }
         }
 
         // StartPlayheadSync / StopPlayheadSync replaced by TimelinePlaybackCoordinator.

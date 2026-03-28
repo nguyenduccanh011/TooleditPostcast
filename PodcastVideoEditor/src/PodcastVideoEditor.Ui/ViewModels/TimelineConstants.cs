@@ -29,4 +29,10 @@ internal static class TimelineConstants
 
     /// <summary>Minimum PixelsPerSecond to avoid extreme zoom-out.</summary>
     public const double MinPixelsPerSecond = 1.0;
+
+    /// <summary>Magnetic snap threshold in pixels (converted to seconds via PPS at drag start).</summary>
+    public const double SnapPixelThreshold = 15.0;
+
+    /// <summary>Tolerance (seconds) for undo action change detection.</summary>
+    public const double UndoTolerance = 0.001;
 }

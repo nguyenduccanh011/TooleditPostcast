@@ -95,109 +95,89 @@ public sealed class SegmentSnapServiceTests
         Assert.Equal(4.95, result);
     }
 
-    // ── TrySnapToBoundary ─────────────────────────────────────────────
+    // ── TrySnapToBoundary ────────────────────────────────────────────
 
     [Fact]
-    public void TrySnapToBoundary_FindsSlotAfterOther()
-    {
-        var seg = MakeSegment("X", 0, 2);
-        var others = new[] { seg, MakeSegment("A", 3, 5) };
-
-        // Requesting position 3–5 collides with A. Nearest valid slot: after A at 5–7.
-        var result = _sut.TrySnapToBoundary(seg, 3.0, 5.0, others, totalDuration: 20, GridSize);
-        Assert.NotNull(result);
-        Assert.Equal(5.0, result!.Value.start);
-        Assert.Equal(7.0, result.Value.end);
-    }
-
-    [Fact]
-    public void TrySnapToBoundary_ReturnsNull_WhenTooFarAway()
-    {
-        // Segment duration = 2, maxSnapDistance = 2 * 2 = 4
-        var seg = MakeSegment("X", 0, 2);
-        var others = new[] { seg, MakeSegment("A", 10, 12) };
-
-        // Requesting 10–12 collides with A. Nearest slot (after A) = 12–14.
-        // Distance from requestedStart=10 to 12 = 2, within 4 → should find it.
-        var result = _sut.TrySnapToBoundary(seg, 10.0, 12.0, others, totalDuration: 20, GridSize);
-        Assert.NotNull(result);
-
-        // But requesting 1–3 with only A at 10–12: distance to slot = 9, which exceeds maxSnapDistance=4
-        var farResult = _sut.TrySnapToBoundary(seg, 1.0, 3.0, others, totalDuration: 20, GridSize);
-        Assert.Null(farResult);
-    }
-
-    [Fact]
-    public void TrySnapToBoundary_UsesRequestedStart_NotSegmentStart()
-    {
-        // Segment is currently at 0–2, but we're requesting position at 6–8.
-        // This verifies that distance is measured from requestedStart (6), not segment.StartTime (0).
-        var seg = MakeSegment("X", 0, 2);
-        var other = MakeSegment("A", 6, 8);
-        var others = new[] { seg, other };
-
-        // RequestedStart=6, slot after A = 8. Distance = |8-6| = 2 ≤ maxSnap (4). Should find.
-        var result = _sut.TrySnapToBoundary(seg, 6.0, 8.0, others, totalDuration: 20, GridSize);
-        Assert.NotNull(result);
-        Assert.Equal(8.0, result!.Value.start);
-    }
-
-    // ── TryClampAtCollision ───────────────────────────────────────────
-
-    [Fact]
-    public void TryClampAtCollision_MovingRight_ClampsBeforeBlocker()
+    public void TrySnapToBoundary_SnapsToNearestValidBoundary_Left()
     {
         var seg = MakeSegment("X", 2, 4);
         var blocker = MakeSegment("B", 5, 8);
         var all = new[] { seg, blocker };
 
-        // Moving right: requesting 4–6 overlaps with blocker (5–8).
-        // Should clamp end at blocker.Start=5, so result = (3, 5).
-        var result = _sut.TryClampAtCollision(seg, 4.0, 6.0, all, GridSize);
+        // Requesting (4, 6) overlaps B. Nearest boundary to currentStart=2:
+        // After B: (8, 10) dist=6. Before B: (3, 5) dist=1. → Before B wins.
+        var result = _sut.TrySnapToBoundary(seg, 4.0, 6.0, all, 20, GridSize);
         Assert.NotNull(result);
-        Assert.Equal(3.0, result!.Value.start);
-        Assert.Equal(5.0, result.Value.end);
+        Assert.Equal(3.0, result!.Value.start, 2);
+        Assert.Equal(5.0, result.Value.end, 2);
     }
 
     [Fact]
-    public void TryClampAtCollision_MovingLeft_ClampsAfterBlocker()
+    public void TrySnapToBoundary_SnapsToNearestValidBoundary_Right()
     {
-        var seg = MakeSegment("X", 6, 8);
-        var blocker = MakeSegment("B", 2, 5);
+        var seg = MakeSegment("X", 9, 11);
+        var blocker = MakeSegment("B", 5, 8);
         var all = new[] { seg, blocker };
 
-        // Moving left: requesting 4–6 overlaps with blocker (2–5).
-        // Should clamp start at blocker.End=5, so result = (5, 7).
-        var result = _sut.TryClampAtCollision(seg, 4.0, 6.0, all, GridSize);
+        // Requesting (6, 8) overlaps B. Nearest boundary to currentStart=9:
+        // After B: (8, 10) dist=1. Before B: (3, 5) dist=6. → After B wins.
+        var result = _sut.TrySnapToBoundary(seg, 6.0, 8.0, all, 20, GridSize);
         Assert.NotNull(result);
-        Assert.Equal(5.0, result!.Value.start);
-        Assert.Equal(7.0, result.Value.end);
+        Assert.Equal(8.0, result!.Value.start, 2);
+        Assert.Equal(10.0, result.Value.end, 2);
     }
 
     [Fact]
-    public void TryClampAtCollision_ReturnsNull_WhenNoCollision()
+    public void TrySnapToBoundary_ReturnsNull_WhenNoValidPosition()
     {
-        var seg = MakeSegment("X", 2, 4);
-        var other = MakeSegment("B", 10, 12);
-        var all = new[] { seg, other };
-
-        var result = _sut.TryClampAtCollision(seg, 5.0, 7.0, all, GridSize);
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public void TryClampAtCollision_ReturnsNull_WhenClampedPositionAlsoCollides()
-    {
-        // Segment stuck between two others — clamp would overlap the other side.
+        // Segment stuck between two others — no gap wide enough.
         var seg = MakeSegment("X", 5, 7);
         var left = MakeSegment("L", 2, 5);
         var right = MakeSegment("R", 6, 9);
         var all = new[] { seg, left, right };
 
-        // Moving right into R: clamp end at R.Start=6, start=4.
-        // But start=4 overlaps L (2–5)? Actually 4 < 5, so (4, 6) overlaps L(2,5) since 4 < 5.
-        var result = _sut.TryClampAtCollision(seg, 5.5, 7.5, all, GridSize);
-        Assert.Null(result);
+        // Only 1-second gap between L and R (5 to 6), but segment is 2 seconds wide.
+        var result = _sut.TrySnapToBoundary(seg, 5.5, 7.5, all, 20, GridSize);
+        // Before R: end=6, start=4 → overlaps L(2,5) since 4 < 5. Invalid.
+        // After L: start=5, end=7 → overlaps R(6,9). Invalid.
+        // Before L: end=2, start=0. dist=|0-5|=5. Valid!
+        // After R: start=9, end=11. dist=|9-5|=4. Valid!
+        // Winner: After R at dist=4.
+        Assert.NotNull(result);
+        Assert.Equal(9.0, result!.Value.start, 2);
+    }
+
+    [Fact]
+    public void TrySnapToBoundary_PicksClosestToCurrentPosition()
+    {
+        // Segment near blocker's left edge
+        var seg = MakeSegment("X", 3, 5);
+        var blocker = MakeSegment("B", 5, 8);
+        var all = new[] { seg, blocker };
+
+        // Requesting (4.5, 6.5) overlaps B. currentStart=3.
+        // After B: (8, 10) dist=5. Before B: (3, 5) dist=0. → Before B wins.
+        var result = _sut.TrySnapToBoundary(seg, 4.5, 6.5, all, 20, GridSize);
+        Assert.NotNull(result);
+        Assert.Equal(3.0, result!.Value.start, 2);
+        Assert.Equal(5.0, result.Value.end, 2);
+    }
+
+    [Fact]
+    public void TrySnapToBoundary_StuckBetweenSegments_FindsCurrentPosition()
+    {
+        // X(5,7) perfectly between L(0,5) and R(7,12).
+        var seg = MakeSegment("X", 5, 7);
+        var left = MakeSegment("L", 0, 5);
+        var right = MakeSegment("R", 7, 12);
+        var all = new[] { seg, left, right };
+
+        // After L: (5, 7). Check collision: vs R(7,12) → HasOverlap(5,7,7,12) = false. Valid!
+        // dist = |5 - 5| = 0. This IS the current position.
+        var result = _sut.TrySnapToBoundary(seg, 5.5, 7.5, all, 20, GridSize);
+        Assert.NotNull(result);
+        Assert.Equal(5.0, result!.Value.start, 2);
+        Assert.Equal(7.0, result.Value.end, 2);
     }
 
     // ── ResolveTiming ─────────────────────────────────────────────────
@@ -269,7 +249,7 @@ public sealed class SegmentSnapServiceTests
     }
 
     [Fact]
-    public void ResolveTiming_ReturnsNull_WhenBlocked()
+    public void ResolveTiming_ReturnsCurrentPosition_WhenBlocked()
     {
         var seg = MakeSegment("X", 5, 7);
         var left = MakeSegment("L", 2, 5);
@@ -277,17 +257,13 @@ public sealed class SegmentSnapServiceTests
         var all = new[] { seg, left, right };
 
         // Trying to move right into R while L is directly behind — completely blocked.
+        // Should return current position (segment stays put).
         var result = _sut.ResolveTiming(seg, 5.5, 7.5, all, totalDuration: 20, GridSize,
             expandTimeline: _ => { });
 
-        // Should either clamp at current position or return null (blocked)
-        // Depending on implementation, it may clamp successfully or block.
-        // The key assertion: segment should NOT jump past the blocker.
-        if (result.HasValue)
-        {
-            Assert.True(result.Value.end <= right.StartTime + 0.01);
-            Assert.True(result.Value.start >= left.EndTime - 0.01);
-        }
+        Assert.NotNull(result);
+        Assert.True(result!.Value.end <= right.StartTime + 0.01);
+        Assert.True(result.Value.start >= left.EndTime - 0.01);
     }
 
     [Fact]
@@ -327,5 +303,94 @@ public sealed class SegmentSnapServiceTests
             expandTimeline: _ => { });
 
         Assert.Null(result);
+    }
+
+    // ── Bug regression tests ──────────────────────────────────────────
+
+    [Fact]
+    public void Bug1_ThreeSegments_DragMiddleLeft_ClampsNearCurrentPosition()
+    {
+        // Setup: A(0–2), X(5–7), C(10–12) on one track.
+        // Drag X leftward. When X collides with A, TrySnapToBoundary picks the
+        // nearest valid boundary to X's currentStart=5.
+        var a = MakeSegment("A", 0, 2);
+        var x = MakeSegment("X", 5, 7);
+        var c = MakeSegment("C", 10, 12);
+        var all = new[] { a, x, c };
+
+        // Simulate dragging X leftward to overlap with A: requesting (1, 3)
+        var result = _sut.ResolveTiming(x, 1.0, 3.0, all, totalDuration: 20, GridSize,
+            expandTimeline: _ => { });
+
+        Assert.NotNull(result);
+        // Nearest boundary to currentStart(5): after A at (2,4) dist=3, before C at (8,10) dist=3.
+        // After A found first → (2, 4).
+        Assert.Equal(2.0, result!.Value.start, 2);
+        Assert.Equal(4.0, result.Value.end, 2);
+    }
+
+    [Fact]
+    public void Bug1_ThreeSegments_DragMiddleRight_ClampsNearCurrentPosition()
+    {
+        // Drag X rightward into C — but with X's current position closer to C.
+        var a = MakeSegment("A", 0, 2);
+        var x = MakeSegment("X", 8, 10); // current position near C
+        var c = MakeSegment("C", 10, 12);
+        var all = new[] { a, x, c };
+
+        // Requesting (9.5, 11.5) overlaps C. TrySnapToBoundary uses current position (8).
+        // Before C: end=10, start=8. dist=0. After C: (12,14) dist=4. → Before C wins.
+        var result = _sut.ResolveTiming(x, 9.5, 11.5, all, totalDuration: 20, GridSize,
+            expandTimeline: _ => { });
+
+        Assert.NotNull(result);
+        Assert.Equal(8.0, result!.Value.start, 2);
+        Assert.Equal(10.0, result.Value.end, 2);
+    }
+
+    [Fact]
+    public void Bug2_ResolveTiming_StuckBetweenSegments_StaysInPlace()
+    {
+        // When segment is perfectly between two segments with no extra gap,
+        // TrySnapToBoundary finds the current position as the nearest valid slot.
+        var left = MakeSegment("L", 0, 5);
+        var x = MakeSegment("X", 5, 7);
+        var right = MakeSegment("R", 7, 12);
+        var all = new[] { left, x, right };
+
+        // Try to move right — TrySnapToBoundary finds current position (5, 7) as best
+        var resultRight = _sut.ResolveTiming(x, 5.5, 7.5, all, totalDuration: 20, GridSize,
+            expandTimeline: _ => { });
+
+        Assert.NotNull(resultRight);
+        Assert.Equal(5.0, resultRight!.Value.start, 2);
+        Assert.Equal(7.0, resultRight.Value.end, 2);
+
+        // Try to move left — same result
+        var resultLeft = _sut.ResolveTiming(x, 4.5, 6.5, all, totalDuration: 20, GridSize,
+            expandTimeline: _ => { });
+
+        Assert.NotNull(resultLeft);
+        Assert.Equal(5.0, resultLeft!.Value.start, 2);
+        Assert.Equal(7.0, resultLeft.Value.end, 2);
+    }
+
+    [Fact]
+    public void ResolveTiming_Move_CollisionSnapsBoundaryNearSegment()
+    {
+        // Verify collision resolution snaps to nearest boundary relative to currentStart
+        var seg = MakeSegment("X", 5, 7);
+        var blocker = MakeSegment("B", 2, 4);
+        var all = new[] { seg, blocker };
+
+        // Moving left: requesting (3, 5) overlaps B(2,4).
+        // TrySnapToBoundary: after B = (4, 6) dist=1. Before B = (0, 2) dist=5.
+        // After B wins.
+        var result = _sut.ResolveTiming(seg, 3.0, 5.0, all, totalDuration: 20, GridSize,
+            expandTimeline: _ => { });
+
+        Assert.NotNull(result);
+        Assert.Equal(4.0, result!.Value.start, 2);
+        Assert.Equal(6.0, result.Value.end, 2);
     }
 }

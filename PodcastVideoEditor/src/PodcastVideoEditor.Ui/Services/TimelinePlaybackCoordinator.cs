@@ -79,6 +79,7 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
     private double _wallClockBasePosition;
     private int _playbackInteractionVersion;
     private bool _disposed;
+    private Stopwatch? _scrubStuckTimer;
 
     public TimelinePlaybackCoordinator(
         IAudioPlaybackService audioService,
@@ -159,14 +160,38 @@ internal sealed class TimelinePlaybackCoordinator : IDisposable
             {
                 if (!_audioService.IsPlaying || _isScrubbing())
                 {
-                    ResetWallClockTracking();
-                    // Wait for wake signal OR timeout — whichever comes first.
-                    // This replaces a flat 150ms delay: the signal fires immediately
-                    // when Play() is called, so the loop switches to active sync
-                    // within ~1ms instead of up to 150ms.
-                    try { await _wakeSignal.WaitAsync(IdleSyncIntervalMs, cancellationToken); }
-                    catch (OperationCanceledException) { break; }
-                    continue;
+                    // Safety net: if scrub flag is stuck while audio is playing, auto-clear
+                    // after 2 seconds. This handles edge cases where Mouse.Capture fails.
+                    if (_audioService.IsPlaying && _isScrubbing())
+                    {
+                        _scrubStuckTimer ??= Stopwatch.StartNew();
+                        if (_scrubStuckTimer.Elapsed.TotalSeconds > 2.0)
+                        {
+                            Log.Warning("Coordinator: _isScrubbing stuck for {Elapsed:F1}s during playback — forcing sync loop active",
+                                _scrubStuckTimer.Elapsed.TotalSeconds);
+                            _scrubStuckTimer = null;
+                            // Don't continue — fall through to active sync below
+                        }
+                        else
+                        {
+                            ResetWallClockTracking();
+                            try { await _wakeSignal.WaitAsync(IdleSyncIntervalMs, cancellationToken); }
+                            catch (OperationCanceledException) { break; }
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        _scrubStuckTimer = null;
+                        ResetWallClockTracking();
+                        try { await _wakeSignal.WaitAsync(IdleSyncIntervalMs, cancellationToken); }
+                        catch (OperationCanceledException) { break; }
+                        continue;
+                    }
+                }
+                else
+                {
+                    _scrubStuckTimer = null;
                 }
 
                 var totalDuration = _getTotalDuration();

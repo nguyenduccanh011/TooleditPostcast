@@ -924,6 +924,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
+                _timelineViewModel?.ResetScrubState();
                 SyncPlaybackToVisibleTimelinePosition();
                 _audioPlayerViewModel?.TogglePlayPauseCommand.Execute(null);
             }
@@ -952,6 +953,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [RelayCommand]
         public void Play()
         {
+            _timelineViewModel?.ResetScrubState();
             SyncPlaybackToVisibleTimelinePosition();
             _audioPlayerViewModel?.PlayCommand.Execute(null);
             StatusMessage = "▶ Playing...";

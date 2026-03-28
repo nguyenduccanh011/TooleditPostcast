@@ -216,6 +216,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             track.Segments.Add(segment);
+            segment.TimelinePixelsPerSecond = PixelsPerSecond;
             InvalidateActiveSegmentsCache();
             SelectSegment(segment);
             EnqueueSegmentPeakLoad(segment);
@@ -582,6 +583,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
             return null;
         }
 
+        /// <summary>
+        /// Move a segment from its current track to a different track during a drag operation.
+        /// Does NOT record undo (the calling drag handler records timing undo on CompleteDrag).
+        /// Returns true if the segment was successfully moved to the target track.
+        /// </summary>
+        public bool MoveSegmentToTrack(Segment segment, Track targetTrack)
+        {
+            if (segment == null || targetTrack == null) return false;
+            if (segment.TrackId == targetTrack.Id) return false;
+            if (targetTrack.IsLocked) return false;
+
+            // Type compatibility: segment kind must match target track type
+            if (!string.Equals(segment.Kind, targetTrack.TrackType, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Check collision on target track
+            if (CheckCollisionInTrack(segment, targetTrack.Id, segment))
+                return false;
+
+            // Remove from source track
+            var sourceTrack = Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+            if (sourceTrack?.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> sourceSegs)
+                sourceSegs.Remove(segment);
+
+            // Add to target track
+            segment.TrackId = targetTrack.Id;
+            if (targetTrack.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> targetSegs)
+                targetSegs.Add(segment);
+
+            InvalidateActiveSegmentsCache();
+            return true;
+        }
+
         // ── Segment select / duplicate / split ──────────────────────────────────
 
         /// <summary>
@@ -713,6 +747,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 // Add right half to the track
                 double originalEndBeforeSplit = rightHalf.EndTime; // same as segment's original EndTime
                 SelectedTrack.Segments.Add(rightHalf);
+                rightHalf.TimelinePixelsPerSecond = PixelsPerSecond;
                 InvalidateActiveSegmentsCache();
                 SelectSegment(rightHalf);
                 _undoRedo?.Record(new SegmentSplitAction(

@@ -314,10 +314,10 @@ namespace PodcastVideoEditor.Core.Services
                 EnsureSilentMixerInitialized();
                 if (_wavePlayer?.PlaybackState != PlaybackState.Playing)
                 {
-                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
                     _virtualStopwatch.Restart();
                     _wavePlayer?.Play();
                     _frozenPausePosition = -1;
+                    PlaybackStarted?.Invoke(this, EventArgs.Empty);
                     Log.Information("Playback started (segment-only / silent mode)");
                 }
                 return;
@@ -328,15 +328,15 @@ namespace PodcastVideoEditor.Core.Services
 
             if (_wavePlayer.PlaybackState != PlaybackState.Playing)
             {
-                // Fire event BEFORE starting playback so subscribers can add mixer inputs
-                // (segment). The first mixer Read() then includes all sources = zero offset.
-                // IMPORTANT: Keep _frozenPausePosition active through this event so any
-                // position reads return the stable pause-point (not the buffer-ahead SampleAggregator).
-                PlaybackStarted?.Invoke(this, EventArgs.Empty);
+                // IMPORTANT: Keep _frozenPausePosition active so any position reads during
+                // mixer input setup (segment audio) return the stable pause-point.
                 _wavePlayer.Play();
                 // Clear frozen position AFTER playback has started. The sync loop will now
                 // read the live SampleAggregator counter which advances smoothly from here.
                 _frozenPausePosition = -1;
+                // Fire event AFTER starting playback so IsPlaying is already true
+                // when the coordinator sync loop wakes up and checks it.
+                PlaybackStarted?.Invoke(this, EventArgs.Empty);
                 Log.Information("Playback started");
             }
         }

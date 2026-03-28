@@ -18,10 +18,13 @@ public partial class Segment : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SegmentDisplayDuration))]
+    [NotifyPropertyChangedFor(nameof(PixelLeft))]
+    [NotifyPropertyChangedFor(nameof(PixelWidth))]
     private double startTime;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SegmentDisplayDuration))]
+    [NotifyPropertyChangedFor(nameof(PixelWidth))]
     private double endTime;
 
     /// <summary>
@@ -139,6 +142,39 @@ public partial class Segment : ObservableObject
     [ObservableProperty]
     [property: NotMapped]
     private bool isMultiSelected;
+
+    /// <summary>
+    /// UI-only: true while the user is actively dragging this segment (not persisted).
+    /// The segment template reduces opacity during drag so the ghost overlay is more visible.
+    /// </summary>
+    [ObservableProperty]
+    [property: NotMapped]
+    private bool isDragging;
+
+    /// <summary>
+    /// UI-only: current PixelsPerSecond from the timeline, pushed to each segment
+    /// so that PixelLeft/PixelWidth can be computed as binding-friendly properties.
+    /// Not persisted.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PixelLeft))]
+    [NotifyPropertyChangedFor(nameof(PixelWidth))]
+    [property: NotMapped]
+    private double timelinePixelsPerSecond = 10.0;
+
+    /// <summary>
+    /// Computed: pixel X position on the timeline canvas = StartTime × PixelsPerSecond.
+    /// Bind to Canvas.Left in XAML to eliminate manual visual-tree walking.
+    /// </summary>
+    [NotMapped]
+    public double PixelLeft => StartTime * TimelinePixelsPerSecond;
+
+    /// <summary>
+    /// Computed: pixel width of the segment on the timeline = Duration × PixelsPerSecond.
+    /// Minimum 4px to keep the segment visible/clickable.
+    /// </summary>
+    [NotMapped]
+    public double PixelWidth => Math.Max(4, (EndTime - StartTime) * TimelinePixelsPerSecond);
 
     // Navigation (not observable; EF/serialization)
     public Project? Project { get; set; }

@@ -244,6 +244,7 @@ public partial class MainWindow : Window
         switch (e.Key)
         {
             case System.Windows.Input.Key.Space:
+                _timelineViewModel?.ResetScrubState();
                 _audioPlayerViewModel.TogglePlayPauseCommand.Execute(null);
                 e.Handled = true;
                 break;

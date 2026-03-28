@@ -8,7 +8,7 @@ namespace PodcastVideoEditor.Ui.Helpers;
 /// <summary>
 /// The kind of segment drag interaction in progress.
 /// </summary>
-internal enum DragKind
+public enum DragKind
 {
     None,
     Move,
@@ -18,14 +18,14 @@ internal enum DragKind
 
 /// <summary>
 /// Encapsulates all mutable state for a single segment drag/resize/move interaction.
-/// Created at drag-start, queried during drag-delta, and completed/disposed at drag-end.
-/// Eliminates scattered field variables and ensures consistent frozen-PPS usage.
+/// Uses baseline-reset pattern: when collision resolution moves the segment to a
+/// different position than requested, the baseline is reset to that position and
+/// the pixel accumulator is zeroed. This prevents the accumulator from "fighting"
+/// against collision snaps (the root cause of oscillation).
 /// </summary>
 internal sealed class SegmentDragOperation
 {
-    private const double SnapPixelThreshold = 15.0;
     private const double BaselineTolerance = 0.01;
-    private const double UndoTolerance = 0.001;
 
     // ── Immutable state (set at construction) ──────────────────────────────
     public DragKind Kind { get; }
@@ -38,11 +38,23 @@ internal sealed class SegmentDragOperation
     public double UndoOriginalStart { get; }
     public double UndoOriginalEnd { get; }
     public double UndoOriginalSourceOffset { get; }
+    public string UndoOriginalTrackId { get; } = string.Empty;
 
     // ── Mutable baseline state (reset when collision-snap detected) ────────
     private double _baselineStartTime;
     private double _baselineEndTime;
     private double _accumulatorDeltaX;
+
+    /// <summary>
+    /// Accumulated vertical pixel delta since the last track-switch event.
+    /// Cross-track switching only fires when this exceeds <see cref="CrossTrackThresholdPx"/>.
+    /// </summary>
+    private double _totalVerticalDeltaPx;
+
+    /// <summary>
+    /// Minimum accumulated vertical drag distance (px) required to trigger a cross-track move.
+    /// </summary>
+    public const double CrossTrackThresholdPx = 30.0;
 
     private SegmentDragOperation(DragKind kind, Segment segment, double frozenPPS)
     {
@@ -53,6 +65,7 @@ internal sealed class SegmentDragOperation
         UndoOriginalStart = segment.StartTime;
         UndoOriginalEnd = segment.EndTime;
         UndoOriginalSourceOffset = segment.SourceStartOffset;
+        UndoOriginalTrackId = segment.TrackId ?? string.Empty;
 
         _baselineStartTime = segment.StartTime;
         _baselineEndTime = segment.EndTime;
@@ -73,16 +86,35 @@ internal sealed class SegmentDragOperation
     // ── Conversion helpers ─────────────────────────────────────────────────
 
     /// <summary>Snap threshold in seconds (constant 15px converted via frozen PPS).</summary>
-    public double SnapThreshold => FrozenPPS > 0 ? SnapPixelThreshold / FrozenPPS : 0.1;
+    public double SnapThreshold => FrozenPPS > 0 ? TimelineConstants.SnapPixelThreshold / FrozenPPS : 0.1;
 
     private double PixelsToTime(double px) => FrozenPPS > 0 ? px / FrozenPPS : 0;
+
+    // ── Cross-track vertical accumulator ─────────────────────────────────────
+
+    /// <summary>
+    /// Accumulate a vertical drag delta and return <see langword="true"/> when the
+    /// signed total has exceeded <see cref="CrossTrackThresholdPx"/> in either direction.
+    /// Resets the accumulator after firing.
+    /// </summary>
+    public bool AccumulateVerticalDelta(double delta)
+    {
+        _totalVerticalDeltaPx += delta;
+        if (Math.Abs(_totalVerticalDeltaPx) >= CrossTrackThresholdPx)
+        {
+            _totalVerticalDeltaPx = 0;
+            return true;
+        }
+        return false;
+    }
 
     // ── Move delta ─────────────────────────────────────────────────────────
 
     /// <summary>
     /// Process a move drag delta. Returns proposed (newStart, newEnd) preserving original duration.
-    /// The caller should pass these to <see cref="TimelineViewModel.SnapToSegmentEdge"/> and
-    /// <see cref="TimelineViewModel.UpdateSegmentTiming"/> and then call <see cref="HandleSnapCorrection"/>.
+    /// Uses baseline pattern: newStart = baselineStartTime + accumulatedDelta / frozenPPS.
+    /// Call <see cref="HandleSnapCorrection"/> after UpdateSegmentTiming to reset baseline
+    /// when collision resolution changes the position.
     /// </summary>
     public (double newStart, double newEnd) UpdateMove(double horizontalChange)
     {
@@ -130,11 +162,32 @@ internal sealed class SegmentDragOperation
         return (newStart, newEnd);
     }
 
+    // ── Snap/collision correction ──────────────────────────────────────────
+
+    /// <summary>
+    /// Call after UpdateSegmentTiming succeeds. If the applied position differs from
+    /// requested (collision snap occurred), resets the baseline to prevent oscillation.
+    /// This is the KEY anti-oscillation mechanism: when the segment is clamped to a
+    /// boundary, the baseline is reset to that boundary position, so subsequent frames
+    /// compute delta FROM the boundary rather than fighting against it.
+    /// </summary>
+    public void HandleSnapCorrection(double requestedStart, double requestedEnd)
+    {
+        bool startDiffers = Math.Abs(Segment.StartTime - requestedStart) > BaselineTolerance;
+        bool endDiffers = Math.Abs(Segment.EndTime - requestedEnd) > BaselineTolerance;
+
+        if (startDiffers || endDiffers)
+        {
+            _baselineStartTime = Segment.StartTime;
+            _baselineEndTime = Segment.EndTime;
+            _accumulatorDeltaX = 0;
+        }
+    }
+
     // ── Resize-right delta ─────────────────────────────────────────────────
 
     /// <summary>
     /// Process a resize-right drag delta. Returns proposed newEndTime.
-    /// Caller should also apply audio clamping, snap, and UpdateSegmentTiming.
     /// </summary>
     public double UpdateResizeRight(double horizontalChange, double gridSize)
     {
@@ -152,7 +205,6 @@ internal sealed class SegmentDragOperation
 
     /// <summary>
     /// Process a resize-left drag delta. Returns proposed newStartTime.
-    /// Caller should also apply audio clamping, snap, and UpdateSegmentTiming.
     /// </summary>
     public double UpdateResizeLeft(double horizontalChange, double gridSize)
     {
@@ -187,36 +239,6 @@ internal sealed class SegmentDragOperation
         Segment.SourceStartOffset = Math.Max(0, UndoOriginalSourceOffset + offsetDelta);
     }
 
-    // ── Snap/collision correction ──────────────────────────────────────────
-
-    /// <summary>
-    /// Call after UpdateSegmentTiming succeeds. If the applied position differs from
-    /// requested by a small amount (magnetic snap correction), resets the baseline to
-    /// prevent oscillation. Large differences (collision clamp/resolution) do NOT reset
-    /// the baseline — this lets the user continue dragging past the obstruction.
-    /// </summary>
-    public void HandleSnapCorrection(double requestedStart, double requestedEnd)
-    {
-        double startDiff = Math.Abs(Segment.StartTime - requestedStart);
-        double endDiff = Math.Abs(Segment.EndTime - requestedEnd);
-        bool startDiffers = startDiff > BaselineTolerance;
-        bool endDiffers = endDiff > BaselineTolerance;
-
-        if (!startDiffers && !endDiffers)
-            return;
-
-        // Only reset baseline for small corrections (magnetic snap).
-        // Large jumps indicate collision resolution — don't reset, so the user
-        // can keep dragging and naturally move past the obstruction.
-        double maxSnapCorrection = SnapThreshold * 2;
-        if (startDiff <= maxSnapCorrection && endDiff <= maxSnapCorrection)
-        {
-            _baselineStartTime = Segment.StartTime;
-            _baselineEndTime = Segment.EndTime;
-            _accumulatorDeltaX = 0;
-        }
-    }
-
     // ── Completion ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -224,8 +246,8 @@ internal sealed class SegmentDragOperation
     /// </summary>
     public SegmentTimingChangedAction? BuildUndoAction(Action invalidateCache)
     {
-        bool startChanged = Math.Abs(Segment.StartTime - UndoOriginalStart) > UndoTolerance;
-        bool endChanged = Math.Abs(Segment.EndTime - UndoOriginalEnd) > UndoTolerance;
+        bool startChanged = Math.Abs(Segment.StartTime - UndoOriginalStart) > TimelineConstants.UndoTolerance;
+        bool endChanged = Math.Abs(Segment.EndTime - UndoOriginalEnd) > TimelineConstants.UndoTolerance;
 
         if (!startChanged && !endChanged)
             return null;

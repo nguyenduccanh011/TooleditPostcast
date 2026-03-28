@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Core.Utilities;
+using PodcastVideoEditor.Ui.Helpers;
 using PodcastVideoEditor.Ui.Services;
 using Serilog;
 using System;
@@ -27,7 +28,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly ProjectViewModel _projectViewModel;
         private SelectionSyncService? _selectionSyncService;
         private volatile bool _isScrubbing;
-        private double _lastSyncedPlayhead = -1;
+        private long _lastSyncedPlayheadBits = BitConverter.DoubleToInt64Bits(-1);
 
         // Dedicated services for multi-track segment audio and playback coordination.
         // These replace the previous inline sync loop and single-segment UpdateSegmentAudioPlayback.
@@ -171,8 +172,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 () => TotalDuration,
                 () => PlayheadPosition,
                 pos => PlayheadPosition = pos,
-                () => _lastSyncedPlayhead,
-                val => _lastSyncedPlayhead = val,
+                () => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _lastSyncedPlayheadBits)),
+                val => Interlocked.Exchange(ref _lastSyncedPlayheadBits, BitConverter.DoubleToInt64Bits(val)),
                 val => IsPlaying = val,
                 (pos, forceResync) => _audioPreviewService.SyncPreviewAudio(pos, forceResync));
         }
@@ -248,6 +249,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 foreach (var track in Tracks)
                     foreach (var seg in track.Segments)
                         EnqueueSegmentPeakLoad(seg);
+
+                // Push PixelsPerSecond to all segments for binding-based layout
+                BroadcastPixelsPerSecond();
             }
             catch (Exception ex)
             {
@@ -346,6 +350,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 TotalDuration = TimelineConstants.DefaultEmptyDuration;
 
             PixelsPerSecond = _layoutService.CalculatePixelsPerSecond(TimelineWidth, TotalDuration);
+        }
+
+        /// <summary>
+        /// Push PixelsPerSecond to all segments so their PixelLeft/PixelWidth update via binding.
+        /// </summary>
+        private void BroadcastPixelsPerSecond()
+        {
+            double pps = PixelsPerSecond;
+            foreach (var track in Tracks)
+                foreach (var seg in track.Segments)
+                    seg.TimelinePixelsPerSecond = pps;
+        }
+
+        /// <summary>Called by source generator when PixelsPerSecond changes.</summary>
+        partial void OnPixelsPerSecondChanged(double value)
+        {
+            BroadcastPixelsPerSecond();
         }
 
         /// <summary>
@@ -540,10 +561,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             return _snapService.SnapToSegmentEdge(proposedTime, track.Segments, excludeSegmentId, thresholdSeconds);
         }
 
-
         /// <summary>
-        /// Update segment timing with collision check within the same track.
-        /// When overlap detected, snaps to nearest valid boundary (edge of blocking segment) to prevent jitter.
+        /// Update a segment's timing with collision resolution and grid snapping.
+        /// Returns true if the timing was successfully updated.
         /// </summary>
         public bool UpdateSegmentTiming(Segment segment, double newStartTime, double newEndTime)
         {
@@ -576,8 +596,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 segment.StartTime = resolved.Value.start;
                 segment.EndTime = resolved.Value.end;
 
-                InvalidateActiveSegmentsCache();
-
                 StatusMessage = "Segment updated";
                 return true;
             }
@@ -587,14 +605,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Log.Error(ex, "Error updating segment");
                 return false;
             }
-        }
-
-        /// <summary>
-        /// Snap segment to valid boundary within the same track when overlap detected.
-        /// </summary>
-        private (double start, double end)? TrySnapToBoundary(Segment segment, double requestedStart, double requestedEnd, Track track)
-        {
-            return _snapService.TrySnapToBoundary(segment, requestedStart, requestedEnd, track.Segments, TotalDuration, GridSize);
         }
 
         /// <summary>

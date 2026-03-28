@@ -2,6 +2,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.Converters;
 using PodcastVideoEditor.Ui.Helpers;
+using PodcastVideoEditor.Ui.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.Collections.Generic;
@@ -48,7 +49,8 @@ namespace PodcastVideoEditor.Ui.Views
     {
         private TimelineViewModel? _viewModel;
         private bool _isDraggingPlayhead;
-        private SegmentDragOperation? _dragOp;
+        private ISegmentDragHandler? _dragHandler;
+        private DragAutoScrollHelper? _autoScrollHelper;
         private EventHandler? _undoRedoStateChangedHandler;
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
@@ -79,6 +81,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (_viewModel != null)
             {
+                _dragHandler = new SegmentDragHandler(_viewModel);
+
                 if (TimelineScroller != null)
                     TimelineScroller.PreviewMouseWheel += TimelineScroller_PreviewMouseWheel;
 
@@ -289,8 +293,29 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Update segment block layout (position and size) based on timeline properties.
-        /// Iterates through all track canvases and updates segment positioning within each track.
+        /// Show or hide the snap indicator line at the given timeline time.
+        /// Pass null to hide the indicator.
+        /// </summary>
+        private void UpdateSnapIndicator(double? snapTimeSeconds)
+        {
+            if (SnapIndicatorLine == null) return;
+
+            if (snapTimeSeconds.HasValue && _viewModel != null)
+            {
+                double pixelX = snapTimeSeconds.Value * _viewModel.PixelsPerSecond;
+                Canvas.SetLeft(SnapIndicatorLine, pixelX);
+                SnapIndicatorLine.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                SnapIndicatorLine.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Update segment vertical centering within tracks.
+        /// Horizontal position (Canvas.Left) and width are handled by data binding
+        /// to Segment.PixelLeft and Segment.PixelWidth, so this method only sets Canvas.Top.
         /// </summary>
         private void UpdateSegmentLayout(Segment? limitToSegment = null)
         {
@@ -299,21 +324,17 @@ namespace PodcastVideoEditor.Ui.Views
 
             try
             {
-                // With multi-track layout, we need to find all segment ItemsControls within track rows
                 if (TracksItemsControl == null)
                     return;
 
-                // Iterate through each track item
                 for (int trackIndex = 0; trackIndex < TracksItemsControl.Items.Count; trackIndex++)
                 {
-                    // Get the container for this track (which holds the entire track row Grid)
                     var trackContainer = TracksItemsControl.ItemContainerGenerator.ContainerFromIndex(trackIndex) as ContentPresenter;
                     if (trackContainer == null)
                         continue;
 
                     trackContainer.ApplyTemplate();
 
-                    // Find the nested ItemsControl (SegmentsItemsControl) within this track row
                     var segmentsItemsControl = FindVisualChild<ItemsControl>(trackContainer);
                     if (segmentsItemsControl == null)
                         continue;
@@ -323,7 +344,6 @@ namespace PodcastVideoEditor.Ui.Views
                         continue;
                     double trackHeight = TrackHeightConverter.GetHeight(track.TrackType);
 
-                    // Update positioning for each segment in this track
                     for (int segmentIndex = 0; segmentIndex < segmentsItemsControl.Items.Count; segmentIndex++)
                     {
                         var presenter = segmentsItemsControl.ItemContainerGenerator.ContainerFromIndex(segmentIndex) as ContentPresenter;
@@ -343,13 +363,7 @@ namespace PodcastVideoEditor.Ui.Views
                         if (rootGrid == null)
                             continue;
 
-                        // Calculate position and size
-                        double pixelX = _viewModel.TimeToPixels(segment.StartTime);
-                        double pixelWidth = _viewModel.TimeToPixels(segment.EndTime - segment.StartTime);
-                        pixelWidth = Math.Max(4, pixelWidth);
-
-                        // Set Canvas positioning (relative to the parent Canvas)
-                        Canvas.SetLeft(presenter, pixelX);
+                        // Vertical centering only — horizontal position and width are binding-driven
                         double segmentHeight = rootGrid.ActualHeight;
                         if (segmentHeight <= 0 || double.IsNaN(segmentHeight))
                             segmentHeight = rootGrid.Height;
@@ -357,7 +371,6 @@ namespace PodcastVideoEditor.Ui.Views
                             segmentHeight = TrackHeightConverter.GetHeight(track.TrackType);
                         double verticalCenter = Math.Max(0, (trackHeight - segmentHeight) / 2);
                         Canvas.SetTop(presenter, verticalCenter);
-                        rootGrid.Width = pixelWidth;
                     }
                 }
             }
@@ -443,8 +456,30 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Auto-scroll timeline so the segment stays visible when dragging (like CapCut).
+        /// Determine which track the mouse cursor is currently over by hit-testing
+        /// the TracksItemsControl. Returns the Track data context of the row under the mouse,
+        /// or null if no track is found.
         /// </summary>
+        private PodcastVideoEditor.Core.Models.Track? GetTrackUnderMouse()
+        {
+            if (TracksItemsControl == null) return null;
+
+            var mousePos = Mouse.GetPosition(TracksItemsControl);
+            var hitResult = VisualTreeHelper.HitTest(TracksItemsControl, mousePos);
+            if (hitResult?.VisualHit == null) return null;
+
+            // Walk up the visual tree from the hit element to find a ContentPresenter
+            // whose content is a Track
+            DependencyObject? current = hitResult.VisualHit;
+            while (current != null)
+            {
+                if (current is FrameworkElement fe && fe.DataContext is PodcastVideoEditor.Core.Models.Track track)
+                    return track;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
         private void EnsureSegmentVisibleInScroll(Segment segment)
         {
             if (_viewModel == null || TimelineScroller == null)
@@ -512,9 +547,14 @@ namespace PodcastVideoEditor.Ui.Views
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _dragOp = SegmentDragOperation.BeginResizeRight(segment, _viewModel!.PixelsPerSecond);
+                _dragHandler?.BeginResizeRight(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
-                _viewModel.IsDeferringThumbnailUpdate = true;
+
+                _autoScrollHelper ??= new DragAutoScrollHelper();
+                _autoScrollHelper.Start(
+                    TimelineScroller,
+                    () => Mouse.GetPosition(TimelineScroller),
+                    endTime => _viewModel.ExpandTimelineToFit(endTime > 0 ? endTime : _viewModel.TotalDuration + 2));
             }
         }
 
@@ -530,81 +570,50 @@ namespace PodcastVideoEditor.Ui.Views
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _dragOp = SegmentDragOperation.BeginResizeLeft(segment, _viewModel!.PixelsPerSecond);
+                _dragHandler?.BeginResizeLeft(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
-                _viewModel.IsDeferringThumbnailUpdate = true;
+
+                _autoScrollHelper ??= new DragAutoScrollHelper();
+                _autoScrollHelper.Start(
+                    TimelineScroller,
+                    () => Mouse.GetPosition(TimelineScroller),
+                    endTime => _viewModel.ExpandTimelineToFit(endTime > 0 ? endTime : _viewModel.TotalDuration + 2));
             }
         }
 
         /// <summary>
         /// Handle segment resize (right edge) drag.
-        /// For audio segments, clamps to remaining source duration (SourceDuration - SourceStartOffset).
+        /// All processing logic is delegated to the ISegmentDragHandler.
         /// </summary>
         private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (_dragOp?.Kind != DragKind.ResizeRight || _viewModel == null)
+            if (_dragHandler?.ActiveDrag?.Kind != DragKind.ResizeRight)
                 return;
 
-            var segment = _dragOp.Segment;
-            double newEndTime = _dragOp.UpdateResizeRight(e.HorizontalChange, _viewModel.GridSize);
-
-            // For audio segments: clamp to source file duration
-            if (string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase))
+            var result = _dragHandler.ProcessDelta(e.HorizontalChange);
+            UpdateSnapIndicator(result.SnapIndicatorTime);
+            if (result.Updated)
             {
-                double? sourceDuration = _viewModel.GetSourceDurationForSegment(segment);
-                if (sourceDuration.HasValue && sourceDuration.Value > 0)
-                {
-                    double maxSegDuration = sourceDuration.Value - segment.SourceStartOffset;
-                    double maxEndTime = segment.StartTime + maxSegDuration;
-                    if (newEndTime > maxEndTime)
-                        newEndTime = maxEndTime;
-                }
-            }
-
-            // Magnetic snap to nearest segment edge
-            newEndTime = _viewModel.SnapToSegmentEdge(newEndTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
-
-            bool updated = _viewModel.UpdateSegmentTiming(segment, segment.StartTime, newEndTime);
-
-            if (updated)
-            {
-                _dragOp.HandleSnapCorrection(segment.StartTime, newEndTime);
-                EnsureSegmentVisibleInScroll(segment);
-                UpdateSegmentLayout(segment);
+                EnsureSegmentVisibleInScroll(result.Segment);
+                UpdateSegmentLayout(result.Segment);
             }
         }
 
         /// <summary>
-        /// Handle segment resize (left edge) drag — extend/shrink duration toward earlier time.
-        /// For audio segments, also adjusts SourceStartOffset so the content trim tracks the edge.
+        /// Handle segment resize (left edge) drag.
+        /// All processing logic is delegated to the ISegmentDragHandler.
         /// </summary>
         private void ResizeLeftThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (_dragOp?.Kind != DragKind.ResizeLeft || _viewModel == null)
+            if (_dragHandler?.ActiveDrag?.Kind != DragKind.ResizeLeft)
                 return;
 
-            var segment = _dragOp.Segment;
-            double newStartTime = _dragOp.UpdateResizeLeft(e.HorizontalChange, _viewModel.GridSize);
-
-            // For audio segments: clamp so SourceStartOffset cannot go negative
-            bool isAudio = string.Equals(segment.Kind, "audio", StringComparison.OrdinalIgnoreCase);
-            if (isAudio)
-                newStartTime = _dragOp.ClampForAudioLeft(newStartTime);
-
-            // Magnetic snap to nearest segment edge
-            newStartTime = _viewModel.SnapToSegmentEdge(newStartTime, segment.TrackId, segment.Id, _dragOp.SnapThreshold);
-
-            bool updated = _viewModel.UpdateSegmentTiming(segment, newStartTime, segment.EndTime);
-
-            // For audio segments: update SourceStartOffset to match the left-trim delta
-            if (updated && isAudio)
-                _dragOp.UpdateAudioSourceOffset();
-
-            if (updated)
+            var result = _dragHandler.ProcessDelta(e.HorizontalChange);
+            UpdateSnapIndicator(result.SnapIndicatorTime);
+            if (result.Updated)
             {
-                _dragOp.HandleSnapCorrection(newStartTime, segment.EndTime);
-                EnsureSegmentVisibleInScroll(segment);
-                UpdateSegmentLayout(segment);
+                EnsureSegmentVisibleInScroll(result.Segment);
+                UpdateSegmentLayout(result.Segment);
             }
         }
 
@@ -616,14 +625,11 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
 
-            if (_dragOp?.Kind == DragKind.ResizeRight)
-            {
-                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
-                if (action != null) _viewModel?.UndoRedoService?.Record(action);
-            }
-            _dragOp = null;
-            _viewModel!.IsDeferringThumbnailUpdate = false;
-            _viewModel.RecalculateDurationFromSegments();
+            _autoScrollHelper?.Stop();
+            UpdateSnapIndicator(null);
+
+            var action = _dragHandler?.CompleteDrag();
+            if (action != null) _viewModel?.UndoRedoService?.Record(action);
             UpdateSegmentLayout();
         }
 
@@ -635,14 +641,11 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
 
-            if (_dragOp?.Kind == DragKind.ResizeLeft)
-            {
-                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
-                if (action != null) _viewModel?.UndoRedoService?.Record(action);
-            }
-            _dragOp = null;
-            _viewModel!.IsDeferringThumbnailUpdate = false;
-            _viewModel.RecalculateDurationFromSegments();
+            _autoScrollHelper?.Stop();
+            UpdateSnapIndicator(null);
+
+            var action = _dragHandler?.CompleteDrag();
+            if (action != null) _viewModel?.UndoRedoService?.Record(action);
             UpdateSegmentLayout();
         }
 
@@ -658,33 +661,45 @@ namespace PodcastVideoEditor.Ui.Views
                 var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _dragOp = SegmentDragOperation.BeginMove(segment, _viewModel!.PixelsPerSecond);
+                _dragHandler?.BeginMove(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeAll;
-                _viewModel.SelectSegment(segment);
-                _viewModel.IsDeferringThumbnailUpdate = true;
+                _viewModel!.SelectSegment(segment);
+
+                _autoScrollHelper ??= new DragAutoScrollHelper();
+                _autoScrollHelper.Start(
+                    TimelineScroller,
+                    () => Mouse.GetPosition(TimelineScroller),
+                    endTime => _viewModel.ExpandTimelineToFit(endTime > 0 ? endTime : _viewModel.TotalDuration + 2));
             }
         }
 
         /// <summary>
-        /// Handle segment move drag.
+        /// Handle segment move drag — delegated to ISegmentDragHandler.
+        /// Includes cross-track detection: if the mouse moves into a compatible track,
+        /// the segment is reassigned to that track during the drag.
         /// </summary>
         private void MoveThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (_dragOp?.Kind != DragKind.Move || _viewModel == null)
+            if (_dragHandler?.ActiveDrag?.Kind != DragKind.Move)
                 return;
 
-            var segment = _dragOp.Segment;
-            var (newStart, newEnd) = _dragOp.UpdateMove(e.HorizontalChange);
-            (newStart, newEnd) = _dragOp.ApplyMoveSnap(newStart, newEnd, _viewModel);
-
-            bool updated = _viewModel.UpdateSegmentTiming(segment, newStart, newEnd);
-
-            if (updated)
+            // Cross-track detection: fire only when accumulated vertical drag exceeds the
+            // threshold (~30 px = 50 % of a standard track row).  This prevents accidental
+            // track switches caused by the 1-3 px of vertical jitter that WPF generates on
+            // every frame of a horizontal drag.
+            if (_dragHandler.AccumulateVerticalDelta(e.VerticalChange) && TracksItemsControl != null && _viewModel != null)
             {
-                _dragOp.HandleSnapCorrection(newStart, newEnd);
-                EnsureSegmentVisibleInScroll(segment);
-                UpdateSegmentLayout(segment);
+                var targetTrack = GetTrackUnderMouse();
+                if (targetTrack != null)
+                    _dragHandler.TryMoveToTrack(targetTrack);
             }
+
+            bool isRipple = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            var result = _dragHandler.ProcessDelta(e.HorizontalChange, isRipple);
+            UpdateSnapIndicator(result.SnapIndicatorTime);
+            if (result.Updated)
+                UpdateSegmentLayout(isRipple ? null : result.Segment);
+            // Auto-scroll is handled by the DragAutoScrollHelper timer
         }
 
         /// <summary>
@@ -695,14 +710,11 @@ namespace PodcastVideoEditor.Ui.Views
             if (sender is Thumb thumb && thumb.Parent is Grid grid)
                 grid.Cursor = Cursors.Arrow;
 
-            if (_dragOp?.Kind == DragKind.Move)
-            {
-                var action = _dragOp.BuildUndoAction(() => _viewModel!.InvalidateActiveSegmentsCachePublic());
-                if (action != null) _viewModel?.UndoRedoService?.Record(action);
-            }
-            _dragOp = null;
-            _viewModel!.IsDeferringThumbnailUpdate = false;
-            _viewModel.RecalculateDurationFromSegments();
+            _autoScrollHelper?.Stop();
+            UpdateSnapIndicator(null);
+
+            var action = _dragHandler?.CompleteDrag();
+            if (action != null) _viewModel?.UndoRedoService?.Record(action);
             UpdateSegmentLayout();
         }
 
@@ -784,8 +796,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
-            var canvas = sender as IInputElement;
-            HandlePlayheadPreview(canvas != null ? e.GetPosition(canvas).X : 0, force: true);
+            if (sender is IInputElement inputElement)
+            {
+                inputElement.CaptureMouse();
+                HandlePlayheadPreview(e.GetPosition(inputElement).X, force: true);
+            }
             e.Handled = true;
         }
 
@@ -805,8 +820,13 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void TimelineCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_isDraggingPlayhead && _viewModel != null)
-                _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
+            if (_isDraggingPlayhead)
+            {
+                if (sender is IInputElement inputElement)
+                    inputElement.ReleaseMouseCapture();
+                if (_viewModel != null)
+                    _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
+            }
             _isDraggingPlayhead = false;
         }
 
@@ -841,6 +861,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             Focus();
             _isDraggingPlayhead = true;
+            if (sender is IInputElement inputElement)
+                inputElement.CaptureMouse();
 
             var position = e.GetPosition(RulerControl);
             double newTime = _viewModel.PixelsToTime(Math.Max(0, position.X));
@@ -864,8 +886,13 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void RulerBorder_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_isDraggingPlayhead && _viewModel != null)
-                _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
+            if (_isDraggingPlayhead)
+            {
+                if (sender is IInputElement inputElement)
+                    inputElement.ReleaseMouseCapture();
+                if (_viewModel != null)
+                    _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
+            }
             _isDraggingPlayhead = false;
         }
 

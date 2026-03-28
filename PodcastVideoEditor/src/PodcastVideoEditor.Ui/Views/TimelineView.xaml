@@ -302,14 +302,30 @@
                                                     <Canvas Background="Transparent" Width="{Binding RelativeSource={RelativeSource AncestorType=Canvas}, Path=Width}"/>
                                                 </ItemsPanelTemplate>
                                             </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding PixelLeft}"/>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Grid x:Name="SegmentRoot"
+                                                          Width="{Binding PixelWidth}"
                                                           Height="{Binding DataContext.TrackType,
                                                                    RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}},
                                                                    Converter={StaticResource TrackHeightConverter},
                                                                    FallbackValue=48}"
                                                           Cursor="Hand">
+                                                        <Grid.Style>
+                                                            <Style TargetType="Grid">
+                                                                <!-- Ghost-drag: reduce opacity so the clamped position reads as a ghost placeholder -->
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsDragging}" Value="True">
+                                                                        <Setter Property="Opacity" Value="0.45"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Grid.Style>
                                                         <!-- Kind-based color: visual=blue, text=green, audio=teal; multi-select=orange -->
                                                         <Border x:Name="SegmentFill" BorderThickness="0,2,0,0"
                                                                 CornerRadius="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
@@ -532,6 +548,13 @@
                                  Stroke="#64b5f6" StrokeThickness="2"
                                  Canvas.Left="0" Canvas.Top="0"
                                  StrokeDashArray="5,5"/>
+                            <!-- Snap indicator: yellow vertical line shown when segment snaps to edge -->
+                            <Line x:Name="SnapIndicatorLine"
+                                 X1="0" Y1="0" X2="0" Y2="10000"
+                                 Stroke="#FFD600" StrokeThickness="1"
+                                 Canvas.Left="0" Canvas.Top="0"
+                                 Visibility="Collapsed"
+                                 Opacity="0.85"/>
                         </Canvas>
                     </Grid>
                 </ScrollViewer>
