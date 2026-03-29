@@ -95,6 +95,7 @@ public sealed class MainViewModel : IDisposable
             CanvasViewModel?.Dispose();
             TimelineViewModel?.Dispose();
             ProjectViewModel?.Dispose();
+            AudioPlayerViewModel?.Dispose();
         }
         catch
         {

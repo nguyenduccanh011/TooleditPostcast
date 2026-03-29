@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly string _appDataPath;
     private bool _initialLoadDone;
     private bool _isClosing;
+    private bool _isTabSwitching;
 
     /// <summary>
     /// Constructor receives all dependencies from the DI container (composition root in App.xaml.cs).
@@ -320,14 +321,25 @@ public partial class MainWindow : Window
             ? System.Windows.Visibility.Visible
             : System.Windows.Visibility.Collapsed;
 
-        // Flush pending autosave when leaving the Editor tab so changes
-        // (e.g. property edits) are persisted before navigating away.
-        // Only flushes when there's actually a pending debounced save.
-        if (_initialLoadDone && MainTabControl.SelectedIndex != 1 && _autosaveService.HasPendingSave)
-            await _autosaveService.FlushAsync();
+        if (!_initialLoadDone || _isTabSwitching)
+            return;
 
-        if (_initialLoadDone && MainTabControl.SelectedIndex == 0)
-            await LoadProjectsSafeAsync();
+        _isTabSwitching = true;
+        try
+        {
+            // Flush pending autosave when leaving the Editor tab so changes
+            // (e.g. property edits) are persisted before navigating away.
+            // Only flushes when there's actually a pending debounced save.
+            if (MainTabControl.SelectedIndex != 1 && _autosaveService.HasPendingSave)
+                await _autosaveService.FlushAsync();
+
+            if (MainTabControl.SelectedIndex == 0)
+                await LoadProjectsSafeAsync();
+        }
+        finally
+        {
+            _isTabSwitching = false;
+        }
     }
 
     // ── Title bar button handlers ──

@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Ui.ViewModels
@@ -25,6 +26,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly ThumbnailPreGenerationService _thumbnailService;
         private readonly ImageAssetIngestService _imageAssetIngestService;
         private readonly PropertyChangedEventHandler _canvasPropertyChangedHandler;
+        private readonly SemaphoreSlim _saveSemaphore = new(1, 1);
 
         /// <summary>
         /// Expose project service for ViewModels that need direct DB operations
@@ -117,6 +119,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             IsLoading = true;
             StatusMessage = "Loading projects...";
+
 
             // Capture the LIVE reference before Projects.Clear() triggers the
             // ListBox two-way binding which would set CurrentProject = null.
@@ -361,7 +364,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             }
 
-            IsLoading = true;
+            // Prevent concurrent saves (fire-and-forget callers, Ctrl+S spam, autosave overlap)
+            if (!await _saveSemaphore.WaitAsync(0))
+                return;
+
             StatusMessage = "Saving project...";
 
             try
@@ -387,7 +393,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
             finally
             {
-                IsLoading = false;
+                _saveSemaphore.Release();
             }
         }
 
@@ -489,6 +495,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _disposed = true;
             _canvasViewModel.PropertyChanged -= _canvasPropertyChangedHandler;
             _thumbnailService.Stop();
+            _saveSemaphore.Dispose();
         }
     }
 }
