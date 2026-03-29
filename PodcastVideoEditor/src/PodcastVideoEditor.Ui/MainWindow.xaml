@@ -231,21 +231,11 @@
                                          Background="#1E1E1E" Foreground="#FFFFFF" BorderThickness="0"
                                          MouseDoubleClick="ProjectsList_MouseDoubleClick">
                                     <ListBox.ItemContainerStyle>
-                                        <Style TargetType="ListBoxItem">
-                                            <Setter Property="Background" Value="Transparent" />
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
                                             <Setter Property="Padding" Value="8,6" />
                                             <Setter Property="Margin" Value="0,1" />
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#2A2D2E" />
-                                                    <Setter Property="Cursor" Value="Hand" />
-                                                </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="#094771" />
-                                                    <Setter Property="Foreground" Value="#FFFFFF" />
-                                                </Trigger>
-                                            </Style.Triggers>
+                                            <Setter Property="Cursor" Value="Hand" />
                                         </Style>
                                     </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>

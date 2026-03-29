@@ -94,6 +94,7 @@ public partial class MainWindow : Window
     private void OnTimelinePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (_projectViewModel.CurrentProject != null
+            && !_timelineViewModel.IsLoadingFromProject
             && !_timelineViewModel.IsDeferringThumbnailUpdate
             && e.PropertyName is not (nameof(TimelineViewModel.PlayheadPosition)
                 or nameof(TimelineViewModel.IsPlaying)
@@ -105,7 +106,7 @@ public partial class MainWindow : Window
 
     private void OnTimelineTracksChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
-        if (_projectViewModel.CurrentProject != null)
+        if (_projectViewModel.CurrentProject != null && !_timelineViewModel.IsLoadingFromProject)
             _autosaveService.RequestSave();
     }
 

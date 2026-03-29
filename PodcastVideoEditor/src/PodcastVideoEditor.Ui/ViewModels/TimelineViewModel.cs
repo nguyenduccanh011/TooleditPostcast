@@ -74,6 +74,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool isDeferringThumbnailUpdate;
 
+        /// <summary>
+        /// When true, the timeline is loading tracks from a project (not a user edit).
+        /// Autosave handlers should ignore property/collection changes while this is set.
+        /// </summary>
+        public bool IsLoadingFromProject { get; private set; }
+
         [ObservableProperty]
         private bool isPlaying = false;
 
@@ -201,6 +207,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private void LoadTracksFromProject()
         {
+            IsLoadingFromProject = true;
             try
             {
                 Tracks.Clear();
@@ -257,6 +264,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 StatusMessage = $"Error loading tracks: {ex.Message}";
                 Log.Error(ex, "Error loading tracks");
+            }
+            finally
+            {
+                IsLoadingFromProject = false;
             }
         }
 
