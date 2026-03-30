@@ -75,6 +75,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isDeferringThumbnailUpdate;
 
         /// <summary>
+        /// When true, suppress implicit RecalculatePixelsPerSecond from OnTotalDurationChanged /
+        /// OnTimelineWidthChanged because the caller will set PixelsPerSecond explicitly.
+        /// </summary>
+        private bool _batchingPpsUpdate;
+
+        /// <summary>
         /// When true, the timeline is loading tracks from a project (not a user edit).
         /// Autosave handlers should ignore property/collection changes while this is set.
         /// </summary>
@@ -230,7 +236,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     TotalDuration = audioDuration;
                 else
                     RecalculateDurationAndZoomToFit();
-                RecalculatePixelsPerSecond();
+                // PPS already recalculated by OnTotalDurationChanged / RecalculateDurationAndZoomToFit above
 
                 // Load tracks ordered by Order (display order)
                 var sortedTracks = _projectViewModel.CurrentProject.Tracks
@@ -398,11 +404,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Recalculate <see cref="TotalDuration"/> from segment data, always keeping the timeline
         /// at least as long as any audio loaded in the player. Falls back to 60 s when empty.
         /// Does NOT change <see cref="TimelineWidth"/> so the user's zoom level is preserved.
+        /// Sets TotalDuration and PixelsPerSecond in one pass to avoid double broadcast.
         /// </summary>
         public void RecalculateDurationFromSegments()
         {
             var result = _layoutService.RecalculateDuration(Tracks, _audioService.GetDuration(), TimelineWidth);
+            // Set TotalDuration silently (OnTotalDurationChanged would recalc PPS redundantly)
+            _batchingPpsUpdate = true;
             TotalDuration = result.totalDuration;
+            _batchingPpsUpdate = false;
             PixelsPerSecond = result.pixelsPerSecond;
         }
 
@@ -413,8 +423,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void RecalculateDurationAndZoomToFit()
         {
             var result = _layoutService.RecalculateDuration(Tracks, _audioService.GetDuration(), TimelineWidth);
+            _batchingPpsUpdate = true;
             TotalDuration = result.totalDuration;
             TimelineWidth = _layoutService.ComputeFitWidth(result.totalDuration);
+            _batchingPpsUpdate = false;
             PixelsPerSecond = result.pixelsPerSecond;
         }
 
@@ -745,7 +757,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         partial void OnTimelineWidthChanged(double value)
         {
-            if (!IsDeferringThumbnailUpdate)
+            if (!IsDeferringThumbnailUpdate && !_batchingPpsUpdate)
                 RecalculatePixelsPerSecond();
             OnPropertyChanged(nameof(TimelineContentWidth));
         }
@@ -753,11 +765,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Handle total duration change.
         /// Skip recalculation during an active segment drag so that the pixel↔time
-        /// conversion rate stays constant and the segment doesn't oscillate.
+        /// conversion rate stays constant and the segment doesn’t oscillate.
         /// </summary>
         partial void OnTotalDurationChanged(double value)
         {
-            if (!IsDeferringThumbnailUpdate)
+            if (!IsDeferringThumbnailUpdate && !_batchingPpsUpdate)
                 RecalculatePixelsPerSecond();
         }
 

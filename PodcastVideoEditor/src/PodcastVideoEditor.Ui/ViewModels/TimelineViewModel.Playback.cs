@@ -84,16 +84,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
         // are now handled by TimelineAudioPreviewService.
         // The coordinator calls _audioPreviewService.SyncPreviewAudio() each frame.
 
-        /// <summary>
-        /// Min/max timeline width for zoom (Ctrl+wheel and slider).
-        /// </summary>
-        public const double MinTimelineWidth = 200;
-        public const double MaxTimelineWidth = 80000;
-
         /// <summary>Bindable min zoom width for slider.</summary>
-        public double MinZoomWidth => MinTimelineWidth;
+        public double MinZoomWidth => TimelineConstants.MinTimelineWidth;
         /// <summary>Bindable max zoom width for slider.</summary>
-        public double MaxZoomWidth => MaxTimelineWidth;
+        public double MaxZoomWidth => TimelineConstants.MaxTimelineWidth;
 
         /// <summary>
         /// Zoom timeline by factor (e.g. 1.15 = zoom in, 1/1.15 = zoom out). Call from Ctrl+MouseWheel.
@@ -101,8 +95,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void ZoomBy(double factor)
         {
             double newWidth = TimelineWidth * factor;
-            newWidth = Math.Clamp(newWidth, MinTimelineWidth, MaxTimelineWidth);
-            if (Math.Abs(newWidth - TimelineWidth) < 1)
+            newWidth = Math.Clamp(newWidth, TimelineConstants.MinTimelineWidth, TimelineConstants.MaxTimelineWidth);
+            // Use relative threshold (0.1%) to avoid dead zones at both small and large widths
+            if (Math.Abs(newWidth - TimelineWidth) / Math.Max(1, TimelineWidth) < 0.001)
                 return;
             TimelineWidth = newWidth;
         }

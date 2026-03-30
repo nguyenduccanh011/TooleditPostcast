@@ -27,6 +27,9 @@ internal static class TimelineConstants
     /// <summary>Minimum timeline width in pixels.</summary>
     public const double MinTimelineWidth = 200.0;
 
+    /// <summary>Maximum timeline width in pixels (zoom-in ceiling).</summary>
+    public const double MaxTimelineWidth = 80_000.0;
+
     /// <summary>Minimum PixelsPerSecond to avoid extreme zoom-out.</summary>
     public const double MinPixelsPerSecond = 0.5;
 

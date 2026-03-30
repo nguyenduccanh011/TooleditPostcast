@@ -294,13 +294,16 @@ namespace PodcastVideoEditor.Ui.Views
         /// Zoom timeline to fit all content in the visible viewport. Called from
         /// zoom slider double-click and Shift+Z keyboard shortcut.
         /// </summary>
+        /// <summary>Width of the track-header column (mirrors the XAML ColumnDefinition).</summary>
+        private const double TrackHeaderWidth = 56;
+
         private void ZoomToFitViewport()
         {
             if (_viewModel == null) return;
-            if (TimelineScroller.ActualWidth > 0)
-                _viewModel.TimelineWidth = TimelineScroller.ActualWidth - 56;
-            else
-                _viewModel.TimelineWidth = 800;
+            double available = TimelineScroller.ActualWidth > TrackHeaderWidth
+                ? TimelineScroller.ActualWidth - TrackHeaderWidth
+                : TimelineScroller.ActualWidth;
+            _viewModel.TimelineWidth = Math.Max(TimelineConstants.MinTimelineWidth, available);
         }
 
         private void TimelineView_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -330,13 +333,14 @@ namespace PodcastVideoEditor.Ui.Views
             double pixelX = _viewModel.TimeToPixels(_viewModel.PlayheadPosition);
             Canvas.SetLeft(PlayheadLine, pixelX);
 
-            // Auto-scroll to follow playhead during playback
+            // Auto-scroll to follow playhead during playback.
+            // Margins scale with viewport so behaviour is consistent at every zoom level.
             if (_viewModel.IsPlaying && TimelineScroller != null && !_isDraggingPlayhead)
             {
                 double viewportWidth = TimelineScroller.ViewportWidth;
                 double offset = TimelineScroller.HorizontalOffset;
-                const double rightMargin = 80;  // start scrolling before playhead hits edge
-                const double leftMargin = 40;
+                double rightMargin = Math.Max(40, viewportWidth * 0.10);  // 10% of viewport
+                double leftMargin  = Math.Max(20, viewportWidth * 0.05);  //  5% of viewport
 
                 if (pixelX > offset + viewportWidth - rightMargin)
                 {
