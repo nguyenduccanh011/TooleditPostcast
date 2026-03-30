@@ -252,6 +252,13 @@ namespace PodcastVideoEditor.Ui.Views
                 _zoomTimer.Start();
                 e.Handled = true;
             }
+            else if (Keyboard.Modifiers == ModifierKeys.Shift)
+            {
+                // Shift + scroll → horizontal scroll (Premiere Pro / DaVinci Resolve convention)
+                TimelineScroller.ScrollToHorizontalOffset(
+                    TimelineScroller.HorizontalOffset - e.Delta / 3.0);
+                e.Handled = true;
+            }
             else
             {
                 // Forward vertical scroll to the outer scroller.
