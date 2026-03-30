@@ -46,6 +46,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public Action<VisualizerElement>? OnVisualizerElementConfigChanged { get; set; }
 
+        /// <summary>
+        /// Called when a TextOverlayElement property changes, to propagate to track siblings.
+        /// Parameters: (TextOverlayElement source, string propertyName).
+        /// Returns: list of (siblingElement, oldValue) pairs for undo support — null if no propagation.
+        /// </summary>
+        public Func<TextOverlayElement, string, List<(CanvasElement Element, object? OldValue)>?>? OnTextElementPropertyChanged { get; set; }
+
         [ObservableProperty]
         private CanvasElement? selectedElement;
 
@@ -66,6 +73,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         [ObservableProperty]
         private string? segmentTimingText;
+
+        /// <summary>
+        /// Informational text shown when a TextOverlayElement is on a text track with shared style.
+        /// Null when element is not part of a shared-style text track.
+        /// </summary>
+        [ObservableProperty]
+        private string? trackStyleInfoText;
 
         /// <summary>
         /// Segment that this element is bound to (via SegmentId). Used for timing badge display.
@@ -163,6 +177,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 prop.SetValue(field.SourceElement, converted);
 
+                // Propagate TextOverlayElement property changes to track siblings
+                // (must happen before undo recording so we can capture sibling old values)
+                List<(CanvasElement Element, object? OldValue)>? siblingChanges = null;
+                if (field.SourceElement is TextOverlayElement te && !string.IsNullOrEmpty(prop.Name))
+                {
+                    siblingChanges = OnTextElementPropertyChanged?.Invoke(te, prop.Name);
+                }
+
                 // Record undo (coalesce rapid changes on the same property within debounce window)
                 if (_undoRedo != null)
                 {
@@ -175,15 +197,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         // Pop the previous action and merge old-value from it with new-value from this edit
                         if (_undoRedo.CanUndo)
                         {
-                            _undoRedo.Undo(); // restores the previous old value
+                            _undoRedo.Undo(); // restores the previous old value (and siblings if CompoundAction)
                             var mergedOld = prop.GetValue(field.SourceElement);
                             prop.SetValue(field.SourceElement, converted); // re-apply current value
-                            _undoRedo.Record(new ElementPropertyChangedAction(field.SourceElement, prop, mergedOld, converted));
+
+                            // Re-propagate siblings after coalesce
+                            if (field.SourceElement is TextOverlayElement te2 && !string.IsNullOrEmpty(prop.Name))
+                                siblingChanges = OnTextElementPropertyChanged?.Invoke(te2, prop.Name);
+
+                            RecordPropertyUndoWithSiblings(field.SourceElement, prop, mergedOld, converted, siblingChanges);
                         }
                     }
                     else
                     {
-                        _undoRedo.Record(new ElementPropertyChangedAction(field.SourceElement, prop, oldValue, converted));
+                        RecordPropertyUndoWithSiblings(field.SourceElement, prop, oldValue, converted, siblingChanges);
                     }
 
                     _lastUndoPropName = prop.Name;
@@ -200,6 +227,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 Serilog.Log.Warning(ex, "Failed to set property {Name}", field.Name);
             }
+        }
+
+        /// <summary>
+        /// Record an undo action for a property change, including sibling changes as a CompoundAction when applicable.
+        /// </summary>
+        private void RecordPropertyUndoWithSiblings(
+            CanvasElement source,
+            System.Reflection.PropertyInfo prop,
+            object? oldValue,
+            object? newValue,
+            List<(CanvasElement Element, object? OldValue)>? siblingChanges)
+        {
+            if (_undoRedo == null) return;
+
+            var sourceAction = new ElementPropertyChangedAction(source, prop, oldValue, newValue);
+
+            if (siblingChanges == null || siblingChanges.Count == 0)
+            {
+                _undoRedo.Record(sourceAction);
+                return;
+            }
+
+            // Build compound action: source + all sibling changes
+            var actions = new List<IUndoableAction> { sourceAction };
+            foreach (var (sibling, sibOld) in siblingChanges)
+            {
+                actions.Add(new ElementPropertyChangedAction(sibling, prop, sibOld, newValue));
+            }
+            _undoRedo.Record(new CompoundAction($"Change '{prop.Name}' on track text elements", actions));
         }
 
         private void BuildPropertyFields(CanvasElement element)

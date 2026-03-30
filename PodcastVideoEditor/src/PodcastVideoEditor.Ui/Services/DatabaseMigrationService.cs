@@ -50,6 +50,11 @@ internal static class DatabaseMigrationService
                 migrationId: "20260313100000_AddSegmentAudioProperties",
                 checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Volume'",
                 productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260330100000_AddTrackTextStyleJson",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Tracks') WHERE name='TextStyleJson'",
+                productVersion);
         }
         finally
         {

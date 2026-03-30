@@ -2,7 +2,9 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Ui.ViewModels;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -22,9 +24,13 @@ namespace PodcastVideoEditor.Ui.Views
         private bool _isDragging;
         private double _originalX;
         private double _originalY;
+        // Track sibling text elements for synchronized drag
+        private List<(TextOverlayElement element, double origX, double origY)>? _dragSiblings;
         // Resize state
         private double _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH;
         private double _resizeAspectRatio;
+        // Track sibling text elements for synchronized resize
+        private List<(TextOverlayElement element, double origX, double origY, double origW, double origH)>? _resizeSiblings;
         // Throttle video position sync to ~30fps to avoid excessive frame decoding
         private DateTime _lastVideoSyncTime = DateTime.MinValue;
         private const int VideoSyncThrottleMs = 33; // ~30fps
@@ -219,6 +225,21 @@ namespace PodcastVideoEditor.Ui.Views
             _originalY = element.Y;
             _isDragging = true;
 
+            // If this is a TextOverlayElement on a text track, capture siblings for synchronized drag
+            _dragSiblings = null;
+            if (element is TextOverlayElement textEl && _viewModel != null)
+            {
+                var track = _viewModel.FindOwnerTrack(textEl);
+                if (track != null)
+                {
+                    var siblings = _viewModel.GetTrackSiblingTextElements(track);
+                    _dragSiblings = siblings
+                        .Where(s => !ReferenceEquals(s, textEl))
+                        .Select(s => (s, s.X, s.Y))
+                        .ToList();
+                }
+            }
+
             e.Handled = true;
 
             // Start drag on the Grid
@@ -242,6 +263,16 @@ namespace PodcastVideoEditor.Ui.Views
             var el = _viewModel.SelectedElement;
             el.X = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
             el.Y = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
+
+            // Synchronize sibling text elements on the same track
+            if (_dragSiblings != null)
+            {
+                foreach (var (sibling, origX, origY) in _dragSiblings)
+                {
+                    sibling.X = Math.Max(0, Math.Min(origX + offsetX, _viewModel.CanvasWidth - sibling.Width));
+                    sibling.Y = Math.Max(0, Math.Min(origY + offsetY, _viewModel.CanvasHeight - sibling.Height));
+                }
+            }
         }
 
         /// <summary>
@@ -252,11 +283,32 @@ namespace PodcastVideoEditor.Ui.Views
             if (_isDragging && _viewModel?.SelectedElement != null)
             {
                 var el = _viewModel.SelectedElement;
-                if (Math.Abs(el.X - _originalX) > 0.5 || Math.Abs(el.Y - _originalY) > 0.5)
-                    _viewModel.UndoRedoService?.Record(new ElementMovedAction(el, _originalX, _originalY, el.X, el.Y));
+                bool moved = Math.Abs(el.X - _originalX) > 0.5 || Math.Abs(el.Y - _originalY) > 0.5;
+
+                if (moved)
+                {
+                    if (_dragSiblings != null && _dragSiblings.Count > 0)
+                    {
+                        // Group undo: primary element + all siblings
+                        var actions = new List<IUndoableAction>();
+                        actions.Add(new ElementMovedAction(el, _originalX, _originalY, el.X, el.Y));
+                        foreach (var (sibling, origX, origY) in _dragSiblings)
+                            actions.Add(new ElementMovedAction(sibling, origX, origY, sibling.X, sibling.Y));
+                        _viewModel.UndoRedoService?.Record(new CompoundAction($"Move text elements on track", actions));
+
+                        // Update track template with new position
+                        if (el is TextOverlayElement textEl)
+                            _viewModel.PropagateTextElementStyle(textEl);
+                    }
+                    else
+                    {
+                        _viewModel.UndoRedoService?.Record(new ElementMovedAction(el, _originalX, _originalY, el.X, el.Y));
+                    }
+                }
             }
 
             _isDragging = false;
+            _dragSiblings = null;
 
             if (sender is FrameworkElement fe)
             {
@@ -278,6 +330,21 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeOrigW = el.Width;
             _resizeOrigH = el.Height;
             _resizeAspectRatio = el.Width / Math.Max(el.Height, 1);
+
+            // Capture sibling state for synchronized resize on text tracks
+            _resizeSiblings = null;
+            if (el is TextOverlayElement textEl && _viewModel != null)
+            {
+                var track = _viewModel.FindOwnerTrack(textEl);
+                if (track != null)
+                {
+                    var siblings = _viewModel.GetTrackSiblingTextElements(track);
+                    _resizeSiblings = siblings
+                        .Where(s => !ReferenceEquals(s, textEl))
+                        .Select(s => (s, s.X, s.Y, s.Width, s.Height))
+                        .ToList();
+                }
+            }
         }
 
         /// <summary>
@@ -369,6 +436,18 @@ namespace PodcastVideoEditor.Ui.Views
                 }
             }
 
+            // Synchronize sibling text elements with new size/position during resize
+            if (_resizeSiblings != null)
+            {
+                foreach (var (sibling, _, _, _, _) in _resizeSiblings)
+                {
+                    sibling.X = el.X;
+                    sibling.Y = el.Y;
+                    sibling.Width = el.Width;
+                    sibling.Height = el.Height;
+                }
+            }
+
             e.Handled = true;
         }
 
@@ -385,13 +464,30 @@ namespace PodcastVideoEditor.Ui.Views
             if (Math.Abs(el.X - _resizeOrigX) > 0.5 || Math.Abs(el.Y - _resizeOrigY) > 0.5 ||
                 Math.Abs(el.Width - _resizeOrigW) > 0.5 || Math.Abs(el.Height - _resizeOrigH) > 0.5)
             {
-                _viewModel.UndoRedoService?.Record(new ElementResizedAction(
-                    el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH,
-                    el.X, el.Y, el.Width, el.Height));
+                if (_resizeSiblings != null && _resizeSiblings.Count > 0)
+                {
+                    // Group undo: primary element + all siblings
+                    var actions = new List<IUndoableAction>();
+                    actions.Add(new ElementResizedAction(el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH, el.X, el.Y, el.Width, el.Height));
+                    foreach (var (sibling, origX, origY, origW, origH) in _resizeSiblings)
+                        actions.Add(new ElementResizedAction(sibling, origX, origY, origW, origH, sibling.X, sibling.Y, sibling.Width, sibling.Height));
+                    _viewModel.UndoRedoService?.Record(new CompoundAction($"Resize text elements on track", actions));
+
+                    // Update track template
+                    if (el is TextOverlayElement textEl)
+                        _viewModel.PropagateTextElementStyle(textEl);
+                }
+                else
+                {
+                    _viewModel.UndoRedoService?.Record(new ElementResizedAction(
+                        el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH,
+                        el.X, el.Y, el.Width, el.Height));
+                }
             }
 
             // Reset for next resize
             _resizeOrigX = _resizeOrigY = _resizeOrigW = _resizeOrigH = 0;
+            _resizeSiblings = null;
             e.Handled = true;
         }
 

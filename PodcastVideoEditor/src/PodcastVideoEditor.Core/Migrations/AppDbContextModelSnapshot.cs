@@ -349,6 +349,9 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.Property<double>("OverlayOpacity")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("TextStyleJson")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProjectId")

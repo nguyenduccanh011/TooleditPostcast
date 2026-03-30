@@ -53,6 +53,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private Dictionary<string, Asset>? _assetDictionary;
         private long _assetDictionarySignature;
 
+        // Track-level text style propagation (CapCut model)
+        private readonly TrackStylePropagationService _trackStylePropagation = new();
+
         public ObservableCollection<string> AspectRatioOptions { get; } = new()
         {
             "9:16", "16:9", "1:1", "4:5"
@@ -354,6 +357,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 SegmentId = segmentId
             };
 
+            // Apply track's shared text style template if available
+            if (ownerTrack != null)
+            {
+                var template = ownerTrack.TextStyle;
+                if (template != null)
+                {
+                    template.ApplyTo(element);
+                    // Restore per-element properties that ApplyTo overwrites
+                    element.Content = segment.Text;
+                    element.Name = label;
+                    element.SegmentId = segmentId;
+                    element.ZIndex = ComputeZIndexForTrack(ownerTrack);
+                }
+                else
+                {
+                    // Initialize track template from this first element
+                    _trackStylePropagation.InitializeTrackTemplate(ownerTrack, element);
+                }
+            }
+
             Elements.Add(element);
             Log.Information("Auto-created TextOverlayElement for text segment {SegmentId}", segmentId);
             return element;
@@ -370,6 +393,87 @@ namespace PodcastVideoEditor.Ui.ViewModels
             GetOrCreateTextElement(segment.Id);
         }
 
+        // ─── Track-level text style propagation helpers ───────────────────
+
+        /// <summary>
+        /// Exposes the propagation service for use by CanvasView (drag/resize) and PropertyEditor.
+        /// </summary>
+        public TrackStylePropagationService TrackStylePropagation => _trackStylePropagation;
+
+        /// <summary>
+        /// Find the Track that owns a given TextOverlayElement (via its SegmentId).
+        /// Returns null if the element has no SegmentId or the owning track is not a text track.
+        /// </summary>
+        public Track? FindOwnerTrack(TextOverlayElement element)
+        {
+            if (string.IsNullOrWhiteSpace(element.SegmentId) || _timelineViewModel == null)
+                return null;
+
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                if (!string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (track.Segments.Any(s => string.Equals(s.Id, element.SegmentId, StringComparison.Ordinal)))
+                    return track;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Get all TextOverlayElements that belong to the same track as the given element.
+        /// Includes the source element itself.
+        /// </summary>
+        public List<TextOverlayElement> GetTrackSiblingTextElements(Track track)
+        {
+            var segmentIds = new HashSet<string>(
+                track.Segments.Select(s => s.Id),
+                StringComparer.Ordinal);
+
+            return Elements
+                .OfType<TextOverlayElement>()
+                .Where(e => e.SegmentId != null && segmentIds.Contains(e.SegmentId))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Propagate position changes from a dragged/resized TextOverlayElement to all siblings on the same track.
+        /// Called during canvas drag (real-time) for smooth visual feedback.
+        /// </summary>
+        public void PropagateTextElementPosition(TextOverlayElement source)
+        {
+            var track = FindOwnerTrack(source);
+            if (track == null) return;
+
+            var siblings = GetTrackSiblingTextElements(track);
+            _trackStylePropagation.PropagatePositionFromElement(source, siblings);
+        }
+
+        /// <summary>
+        /// Propagate all style changes from a TextOverlayElement to all siblings on the same track.
+        /// Updates the Track.TextStyleJson template. Called after drag/resize completes and on property edits.
+        /// </summary>
+        public void PropagateTextElementStyle(TextOverlayElement source)
+        {
+            var track = FindOwnerTrack(source);
+            if (track == null) return;
+
+            var siblings = GetTrackSiblingTextElements(track);
+            _trackStylePropagation.PropagateStyleFromElement(source, track, siblings);
+        }
+
+        /// <summary>
+        /// Propagate a single named property change to track siblings.
+        /// Returns true if propagation occurred.
+        /// </summary>
+        public bool PropagateTextElementProperty(TextOverlayElement source, string propertyName)
+        {
+            var track = FindOwnerTrack(source);
+            if (track == null) return false;
+
+            var siblings = GetTrackSiblingTextElements(track);
+            return _trackStylePropagation.PropagateSingleProperty(source, propertyName, track, siblings);
+        }
+
         public CanvasViewModel(VisualizerViewModel visualizerViewModel)
         {
             _visualizerViewModel = visualizerViewModel ?? throw new ArgumentNullException(nameof(visualizerViewModel));
@@ -380,6 +484,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerTimer.Tick += OnVisualizerTimerTick;
             PropertyEditor = new PropertyEditorViewModel();
             PropertyEditor.OnVisualizerElementConfigChanged = SyncVisualizerFromElement;
+            PropertyEditor.OnTextElementPropertyChanged = OnTextElementPropertyChanged;
             ApplyAspectRatio(selectedAspectRatio);
         }
 
@@ -401,6 +506,38 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerViewModel.BarGradientDarkness = element.BarGradientDarkness;
             _visualizerViewModel.BarGradientEnabled = element.BarGradientEnabled;
             _visualizerViewModel.BarGradientBaseColorHex = element.BarGradientBaseColorHex;
+        }
+
+        /// <summary>
+        /// Called when a TextOverlayElement property is changed via PropertyEditor.
+        /// Captures sibling old values, propagates the change, and returns old values for undo support.
+        /// </summary>
+        private List<(CanvasElement Element, object? OldValue)>? OnTextElementPropertyChanged(TextOverlayElement element, string propertyName)
+        {
+            var track = FindOwnerTrack(element);
+            if (track == null) return null;
+
+            if (TrackStylePropagationService.IsExcludedProperty(propertyName))
+                return null;
+
+            var prop = typeof(TextOverlayElement).GetProperty(propertyName)
+                       ?? typeof(CanvasElement).GetProperty(propertyName);
+            if (prop == null) return null;
+
+            var siblings = GetTrackSiblingTextElements(track);
+            var siblingOldValues = new List<(CanvasElement, object?)>();
+
+            // Capture old values BEFORE propagation
+            foreach (var sibling in siblings)
+            {
+                if (ReferenceEquals(sibling, element)) continue;
+                siblingOldValues.Add((sibling, prop.GetValue(sibling)));
+            }
+
+            // Now propagate
+            _trackStylePropagation.PropagateSingleProperty(element, propertyName, track, siblings);
+
+            return siblingOldValues.Count > 0 ? siblingOldValues : null;
         }
 
         private void OnVisualizerTimerTick(object? sender, EventArgs e)
@@ -703,6 +840,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 PropertyEditor.SetSelectedElement(element);
                 // Wire timing badge: find bound segment for this element
                 PropertyEditor.SetBoundSegment(FindSegmentById(element.SegmentId));
+
+                // Wire track style info badge for text elements on shared-style tracks
+                if (element is TextOverlayElement textEl)
+                {
+                    var track = FindOwnerTrack(textEl);
+                    var segCount = track?.Segments.Count ?? 0;
+                    PropertyEditor.TrackStyleInfoText = track != null && segCount > 1
+                        ? $"🔗 Changes apply to all {segCount} text segments on \"{track.Name}\""
+                        : null;
+                }
+                else
+                {
+                    PropertyEditor.TrackStyleInfoText = null;
+                }
+
                 if (element is VisualizerElement ve)
                     SyncVisualizerFromElement(ve);
 

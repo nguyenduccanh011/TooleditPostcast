@@ -221,6 +221,17 @@
             </StackPanel>
         </Border>
 
+        <!-- Track style sharing badge (visible when editing a text element on a shared track) -->
+        <Border Grid.Row="1" CornerRadius="4" Background="#2a2535" Padding="8,5"
+                Margin="0,0,0,6"
+                Visibility="{Binding TrackStyleInfoText, Converter={StaticResource ObjectToVisibilityConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="🔗" FontSize="12" Foreground="#ce93d8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding TrackStyleInfoText}" FontSize="11"
+                           Foreground="#ce93d8" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
         <!-- No selection -->
         <TextBlock Grid.Row="2" Text="Select an element on canvas to edit properties"
                    Foreground="#7a8a96" FontStyle="Italic"

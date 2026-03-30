@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace PodcastVideoEditor.Core.Models;
 
@@ -115,6 +116,24 @@ public partial class Track : ObservableObject
     [ObservableProperty]
     private double overlayOpacity;
 
+    /// <summary>
+    /// JSON-serialized shared text style template for text tracks.
+    /// When set, all TextOverlayElements on this track share the same visual style.
+    /// Only used when TrackType == "text". Null for visual/audio tracks.
+    /// </summary>
+    public string? TextStyleJson { get; set; }
+
+    /// <summary>
+    /// Deserialized accessor for <see cref="TextStyleJson"/>.
+    /// Returns null if TextStyleJson is empty or invalid.
+    /// </summary>
+    [NotMapped]
+    public TextStyleTemplate? TextStyle
+    {
+        get => TextStyleTemplate.FromJson(TextStyleJson);
+        set => TextStyleJson = value?.ToJson();
+    }
+
     // Navigation properties
 
     /// <summary>
@@ -147,5 +166,6 @@ public partial class Track : ObservableObject
         MotionIntensity    = MotionIntensity,
         OverlayColorHex    = OverlayColorHex,
         OverlayOpacity     = OverlayOpacity,
+        TextStyleJson      = TextStyleJson,
     };
 }
