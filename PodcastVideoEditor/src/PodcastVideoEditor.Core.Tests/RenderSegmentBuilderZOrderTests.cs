@@ -29,11 +29,12 @@ public class RenderSegmentBuilderZOrderTests
     }
 
     /// <summary>
-    /// Three tracks of mixed types: verify ordering is purely by Track.Order,
-    /// not by track type. Text track between two visual tracks gets correct slot.
+    /// Three tracks of mixed types: text tracks always render above visual tracks
+    /// regardless of Track.Order, matching commercial editor behavior.
+    /// Within the same type tier, lower Order = foreground (higher ZOrder).
     /// </summary>
     [Fact]
-    public void ComputeTrackZOrderMap_MixedTypes_OrderedByTrackOrderOnly()
+    public void ComputeTrackZOrderMap_TextAlwaysAboveVisual()
     {
         var project = new Project
         {
@@ -47,8 +48,14 @@ public class RenderSegmentBuilderZOrderTests
 
         var map = RenderSegmentBuilder.ComputeTrackZOrderMap(project);
 
-        Assert.True(map["v-front"] > map["text-mid"]);
-        Assert.True(map["text-mid"] > map["v-back"]);
+        // Text track always above both visual tracks
+        Assert.True(map["text-mid"] > map["v-front"],
+            $"Text track ZOrder {map["text-mid"]} should be > visual front ZOrder {map["v-front"]}");
+        Assert.True(map["text-mid"] > map["v-back"],
+            $"Text track ZOrder {map["text-mid"]} should be > visual back ZOrder {map["v-back"]}");
+        // Within visual tier, front (Order=0) above back (Order=2)
+        Assert.True(map["v-front"] > map["v-back"],
+            $"Visual front ZOrder {map["v-front"]} should be > visual back ZOrder {map["v-back"]}");
     }
 
     /// <summary>

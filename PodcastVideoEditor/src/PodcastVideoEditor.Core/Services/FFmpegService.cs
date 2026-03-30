@@ -562,10 +562,22 @@ public static class FFmpegService
             if (File.Exists(filterScript))
                 File.Delete(filterScript);
 
-            // Delete text segment temp files
+            // Delete text segment temp files (drawtext input)
             var textDir = Path.Combine(tempDir, "render_text");
             if (Directory.Exists(textDir))
                 Directory.Delete(textDir, recursive: true);
+
+            // Delete rasterized text PNG images (unique per-render dirs: render_text_img_*)
+            foreach (var dir in Directory.EnumerateDirectories(tempDir, "render_text_img*"))
+            {
+                try { Directory.Delete(dir, recursive: true); }
+                catch { /* still locked by FFmpeg — will be cleaned on next render */ }
+            }
+
+            // Delete baked visualizer video files
+            var vizDir = Path.Combine(tempDir, "visualizer_bake");
+            if (Directory.Exists(vizDir))
+                Directory.Delete(vizDir, recursive: true);
         }
         catch (Exception ex)
         {
@@ -623,19 +635,30 @@ public static class FFmpegService
 
             // Parse stderr line-by-line for progress
             var stderrLines = new System.Collections.Generic.List<string>();
-            double totalDurationSeconds = 0;
 
-            // First pass: try to detect total duration from the audio input headers
-            // (FFmpeg prints "Duration: HH:MM:SS.mm" for each input early in stderr)
+            // Try to extract the explicit -t duration from the command args.
+            // This is far more reliable than parsing FFmpeg's "Duration:" header lines
+            // which may come from a lavfi color source or a -loop 1 image input
+            // (both report unhelpful durations).
+            double totalDurationSeconds = ExtractExplicitDuration(args);
+            double maxDurationFromHeaders = 0;
+            int inputHeaderCount = 0;
+
+            // Track encoding phase vs finalization (faststart) phase
+            bool encodingFinished = false;
+            var encodingStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
             var stderrReader = _currentRenderProcess.StandardError;
             string? line;
             while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
             {
                 stderrLines.Add(line);
 
-                // Detect total duration from the FIRST "Duration:" line (usually the audio input)
-                if (totalDurationSeconds <= 0 && line.Contains("Duration:"))
+                // Collect Duration: headers from all inputs to find the longest real one.
+                // Skip N/A and very short durations (images report 00:00:00.04 etc.).
+                if (line.Contains("Duration:") && !line.Contains("N/A"))
                 {
+                    inputHeaderCount++;
                     var durationMatch = System.Text.RegularExpressions.Regex.Match(
                         line, @"Duration:\s*(\d+):(\d+):(\d+\.\d+)");
                     if (durationMatch.Success &&
@@ -645,7 +668,10 @@ public static class FFmpegService
                             System.Globalization.NumberStyles.Float,
                             CultureInfo.InvariantCulture, out var ds))
                     {
-                        totalDurationSeconds = dh * 3600 + dm * 60 + ds;
+                        var dur = dh * 3600 + dm * 60 + ds;
+                        // Only consider durations > 1s as real media (skip image inputs)
+                        if (dur > 1.0 && dur > maxDurationFromHeaders)
+                            maxDurationFromHeaders = dur;
                     }
                 }
 
@@ -662,19 +688,36 @@ public static class FFmpegService
                             CultureInfo.InvariantCulture, out var ts))
                     {
                         var encodedSeconds = th * 3600 + tm * 60 + ts;
-                        int pct = totalDurationSeconds > 0
-                            ? (int)Math.Min(99, encodedSeconds / totalDurationSeconds * 100)
+
+                        // Use explicit -t duration first, then best header duration
+                        var effectiveDuration = totalDurationSeconds > 0
+                            ? totalDurationSeconds
+                            : (maxDurationFromHeaders > 0 ? maxDurationFromHeaders : 0);
+
+                        // Cap encoding progress at 90% to reserve 90-99% for faststart phase
+                        int pct = effectiveDuration > 0
+                            ? (int)Math.Min(90, encodedSeconds / effectiveDuration * 90)
                             : 50;
 
                         progress?.Report(new RenderProgress
                         {
                             ProgressPercentage = pct,
-                            Message = $"Rendering... {pct}%",
+                            Message = $"Encoding... {pct}%",
                             IsComplete = false
                         });
                     }
                 }
             }
+
+            // Encoding phase finished (stderr closed). Now FFmpeg may be doing
+            // movflags +faststart (MOOV atom relocation) which produces no output.
+            encodingFinished = true;
+            progress?.Report(new RenderProgress
+            {
+                ProgressPercentage = 95,
+                Message = "Finalizing video (faststart optimization)...",
+                IsComplete = false
+            });
 
             await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             var stdout = await outputTask.ConfigureAwait(false);
@@ -697,6 +740,22 @@ public static class FFmpegService
             _currentRenderProcess?.Dispose();
             _currentRenderProcess = null;
         }
+    }
+
+    /// <summary>
+    /// Extract the explicit -t (duration) value from FFmpeg command-line arguments.
+    /// Returns 0 if not found.
+    /// </summary>
+    private static double ExtractExplicitDuration(string args)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(args, @"-t\s+(\d+\.\d+)");
+        if (match.Success && double.TryParse(match.Groups[1].Value,
+                System.Globalization.NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var duration))
+        {
+            return duration;
+        }
+        return 0;
     }
 }
 

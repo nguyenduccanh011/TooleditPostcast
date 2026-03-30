@@ -393,6 +393,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
             GetOrCreateTextElement(segment.Id);
         }
 
+        /// <summary>
+        /// Ensure every text-track segment has a corresponding TextOverlayElement.
+        /// Must be called before render snapshot so that lazily-created elements
+        /// are present in the Elements collection for cloning.
+        /// </summary>
+        public void MaterializeAllTextElements()
+        {
+            if (_timelineViewModel == null) return;
+
+            foreach (var track in _timelineViewModel.Tracks)
+            {
+                if (!string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (var seg in track.Segments)
+                {
+                    if (string.IsNullOrWhiteSpace(seg.Id)) continue;
+                    GetOrCreateTextElement(seg.Id);
+                }
+            }
+        }
+
         // ─── Track-level text style propagation helpers ───────────────────
 
         /// <summary>
@@ -514,6 +536,16 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private List<(CanvasElement Element, object? OldValue)>? OnTextElementPropertyChanged(TextOverlayElement element, string propertyName)
         {
+            // Reverse sync: keep Segment.Text in sync when Content is edited via property editor
+            if (string.Equals(propertyName, nameof(TextOverlayElement.Content), StringComparison.Ordinal))
+            {
+                var seg = FindSegmentById(element.SegmentId);
+                if (seg != null && !string.Equals(seg.Text, element.Content, StringComparison.Ordinal))
+                {
+                    seg.Text = element.Content;
+                }
+            }
+
             var track = FindOwnerTrack(element);
             if (track == null) return null;
 

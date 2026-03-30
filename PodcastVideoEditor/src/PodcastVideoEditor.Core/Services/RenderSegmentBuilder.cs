@@ -20,15 +20,19 @@ namespace PodcastVideoEditor.Core.Services;
 public static class RenderSegmentBuilder
 {
     // ── Unified ZOrder ──────────────────────────────────────────────
-    // All tracks participate in a single global z-order based on Track.Order.
-    // Each track is allocated a slot of ZOrderSlotSize values.
-    // Tracks are iterated from highest Order (background) → lowest Order (foreground),
-    // so background tracks get low ZOrder (overlaid first in FFmpeg) and
-    // foreground tracks get high ZOrder (overlaid last = on top).
+    // Tracks participate in a type-tiered z-order system so that overlay tracks
+    // (text, effect) always render on top of background tracks (visual), matching
+    // commercial editor behavior. Within each tier, Track.Order determines
+    // stacking (lower Order = foreground within that tier).
     //
-    // This replaces the old fixed ranges (Visual=0-999, Text=1000-1999, Visualizer=2000+)
-    // and allows any track type at any z-order position.
+    // Tiers:
+    //   0 – Visual   (background images/video)
+    //   1 – Text     (text overlays — always above visuals)
+    //   2 – Effect   (graphical effects — above text)
+    //
+    // Each track is allocated a slot of ZOrderSlotSize values within its tier.
     public const int ZOrderSlotSize = 100;
+    private const int ZOrderTierSize = 10_000;
 
     private static readonly string[] VideoExtensions = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
 
@@ -76,22 +80,40 @@ public static class RenderSegmentBuilder
 
     /// <summary>
     /// Build a map from Track.Id → ZOrder base value.
-    /// Tracks are sorted by Order descending (background first = low ZOrder),
-    /// each gets a slot of <see cref="ZOrderSlotSize"/> values.
-    /// This ensures that Track Order 0 (top/foreground) gets the highest ZOrder range.
+    /// Uses type-based tiers (Visual &lt; Text &lt; Effect) so that text overlays
+    /// always render on top of visual backgrounds, regardless of Track.Order.
+    /// Within each tier, tracks are sorted by Order descending (higher Order =
+    /// background within that tier, lower Order = foreground).
     /// </summary>
     public static Dictionary<string, int> ComputeTrackZOrderMap(Project project)
     {
         var map = new Dictionary<string, int>();
         if (project.Tracks == null) return map;
 
-        var sorted = project.Tracks
-            .Where(t => t.IsVisible)
-            .OrderByDescending(t => t.Order)
-            .ToList();
+        var visible = project.Tracks.Where(t => t.IsVisible).ToList();
 
-        for (int i = 0; i < sorted.Count; i++)
-            map[sorted[i].Id] = i * ZOrderSlotSize;
+        // Assign a tier per track type so overlay types always sit above backgrounds
+        static int GetTier(string? trackType) => trackType?.ToLowerInvariant() switch
+        {
+            "visual" => 0,
+            "audio"  => 0,  // audio tracks have no visuals but share the base tier
+            "text"   => 1,
+            "effect" => 2,
+            _        => 0
+        };
+
+        // Within each tier, lower Order = foreground (higher ZOrder)
+        var grouped = visible
+            .GroupBy(t => GetTier(t.TrackType))
+            .OrderBy(g => g.Key);
+
+        foreach (var tier in grouped)
+        {
+            var tierBase = tier.Key * ZOrderTierSize;
+            var sorted = tier.OrderByDescending(t => t.Order).ToList();
+            for (int i = 0; i < sorted.Count; i++)
+                map[sorted[i].Id] = tierBase + i * ZOrderSlotSize;
+        }
 
         return map;
     }
@@ -234,13 +256,27 @@ public static class RenderSegmentBuilder
             .ToList();
 
         if (textTracks == null || textTracks.Count == 0)
+        {
+            Log.Information("BuildRasterizedTextSegments: no visible text tracks found (total tracks={Count})",
+                project.Tracks?.Count ?? 0);
             return [];
+        }
+
+        var totalTextSegs = textTracks.Sum(t => t.Segments?.Count ?? 0);
+        Log.Information("BuildRasterizedTextSegments: {TrackCount} text tracks, {SegCount} total segments, {ElCount} snapshot elements",
+            textTracks.Count, totalTextSegs, elements?.Count ?? 0);
 
         // Create temp directory for rasterized text images
-        var textImageDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
+        // Use a unique temp directory per render to avoid file-lock conflicts
+        // when a previous FFmpeg process still holds earlier PNGs open.
+        var textImageDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text_img_" + Guid.NewGuid().ToString("N")[..8]);
         Directory.CreateDirectory(textImageDir);
 
-        var segments = new List<RenderVisualSegment>();
+        // First pass: collect all work items with pre-assigned indices (needed for
+        // deterministic file names and z-order, which must match across runs).
+        var workItems = new List<(int index, Segment segment, CanvasElement? linkedElement,
+                                  int trackBase, int localIdx, TextRasterizeOptions options,
+                                  int overlayX, int overlayY, int imgWidth, int imgHeight)>();
         var index = 0;
         foreach (var track in textTracks)
         {
@@ -250,10 +286,17 @@ public static class RenderSegmentBuilder
             foreach (var segment in track.Segments.OrderBy(s => s.StartTime))
             {
                 if (string.IsNullOrWhiteSpace(segment.Text) || segment.EndTime <= segment.StartTime)
+                {
+                    Log.Debug("BuildRasterizedTextSegments: skipping segment {Id} — Text='{Text}', Start={Start}, End={End}",
+                        segment.Id, segment.Text ?? "(null)", segment.StartTime, segment.EndTime);
                     continue;
+                }
 
                 // Look up linked canvas element to get position/style/size data
                 var linkedElement = elements?.FirstOrDefault(e => e.SegmentId == segment.Id);
+                Log.Debug("BuildRasterizedTextSegments: segment {Id} Text='{Text}' linkedElement={HasEl} ZOrder={Z}",
+                    segment.Id, segment.Text?.Length > 30 ? segment.Text[..30] + "…" : segment.Text,
+                    linkedElement != null, trackBase + localIdx);
 
                 // Build rasterization options from element properties
                 var options = new TextRasterizeOptions
@@ -329,37 +372,53 @@ public static class RenderSegmentBuilder
                 options.Width = imgWidth;
                 options.Height = imgHeight;
 
-                // Rasterize text to PNG
-                var imagePath = Path.Combine(textImageDir, $"text_{index}.png");
-                try
-                {
-                    TextRasterizer.RenderToFile(options, imagePath);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Failed to rasterize text segment {Index}, skipping", index);
-                    index++;
-                    continue;
-                }
-
-                segments.Add(new RenderVisualSegment
-                {
-                    SourcePath  = imagePath,
-                    StartTime   = segment.StartTime,
-                    EndTime     = segment.EndTime,
-                    IsVideo     = false,
-                    OverlayX    = overlayX.ToString(CultureInfo.InvariantCulture),
-                    OverlayY    = overlayY.ToString(CultureInfo.InvariantCulture),
-                    ScaleWidth  = imgWidth,
-                    ScaleHeight = imgHeight,
-                    ZOrder      = trackBase + localIdx++
-                });
-
+                workItems.Add((index, segment, linkedElement, trackBase, localIdx, options,
+                               overlayX, overlayY, imgWidth, imgHeight));
+                localIdx++;
                 index++;
             }
         }
 
-        return segments;
+        // Second pass: rasterize all text segments in parallel (each is CPU-bound and independent)
+        var segments = new RenderVisualSegment?[workItems.Count];
+        int rasterFailures = 0;
+        Parallel.For(0, workItems.Count, i =>
+        {
+            var item = workItems[i];
+            var imagePath = Path.Combine(textImageDir, $"text_{item.index}.png");
+            try
+            {
+                TextRasterizer.RenderToFile(item.options, imagePath);
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref rasterFailures);
+                Log.Warning(ex, "Failed to rasterize text segment {Index}, skipping", item.index);
+                return;
+            }
+
+            segments[i] = new RenderVisualSegment
+            {
+                SourcePath  = imagePath,
+                StartTime   = item.segment.StartTime,
+                EndTime     = item.segment.EndTime,
+                IsVideo     = false,
+                OverlayX    = item.overlayX.ToString(CultureInfo.InvariantCulture),
+                OverlayY    = item.overlayY.ToString(CultureInfo.InvariantCulture),
+                ScaleWidth  = item.imgWidth,
+                ScaleHeight = item.imgHeight,
+                ZOrder      = item.trackBase + item.localIdx
+            };
+        });
+
+        var result = segments.Where(s => s != null).Select(s => s!).ToList();
+        if (rasterFailures > 0)
+            Log.Error("Text rasterization: {Failed}/{Total} segments failed — rendered text may be incomplete",
+                rasterFailures, workItems.Count);
+        else
+            Log.Information("Text rasterization: {Count} segments rasterized successfully", result.Count);
+
+        return result;
     }
 
     /// <summary>
@@ -410,6 +469,10 @@ public static class RenderSegmentBuilder
         var scaleX = renderWidth  / canvasWidth;
         var scaleY = renderHeight / canvasHeight;
 
+        // Prepare bake tasks for all visualizer elements so they run in parallel.
+        // Each task is independent (separate audio reader, separate FFmpeg process).
+        var bakeTasks = new List<Task<(VisualizerElement element, string? bakedPath, double vizStart, double vizEnd, string? vizTrackId)>>();
+
         foreach (var element in elements.OfType<VisualizerElement>())
         {
             // If the visualizer is bound to a specific segment, limit its time range
@@ -436,16 +499,32 @@ public static class RenderSegmentBuilder
                 "Baking VisualizerElement {Id} ({Style}) [{Start:F2}–{End:F2}s]",
                 element.Id, element.Style, vizStart, vizEnd);
 
-            var bakedPath = await OfflineVisualizerBaker.BakeAsync(
-                element,
-                audioFilePath,
-                renderWidth, renderHeight,
-                (int)canvasWidth, (int)canvasHeight,
-                vizStart, vizEnd,
-                frameRate,
-                ffmpegPath,
-                ct);
+            // Capture loop variables for the async lambda
+            var capturedStart = vizStart;
+            var capturedEnd = vizEnd;
+            var capturedTrackId = vizTrackId;
+            var capturedElement = element;
 
+            bakeTasks.Add(Task.Run(async () =>
+            {
+                var path = await OfflineVisualizerBaker.BakeAsync(
+                    capturedElement,
+                    audioFilePath,
+                    renderWidth, renderHeight,
+                    (int)canvasWidth, (int)canvasHeight,
+                    capturedStart, capturedEnd,
+                    frameRate,
+                    ffmpegPath,
+                    ct);
+                return (capturedElement, path, capturedStart, capturedEnd, capturedTrackId);
+            }, ct));
+        }
+
+        // Await all bake tasks in parallel
+        var bakeResults = await Task.WhenAll(bakeTasks);
+
+        foreach (var (element, bakedPath, vizStart, vizEnd, vizTrackId) in bakeResults)
+        {
             if (string.IsNullOrEmpty(bakedPath)) continue;
 
             int overlayX = Math.Max(0, (int)Math.Round(element.X * scaleX));

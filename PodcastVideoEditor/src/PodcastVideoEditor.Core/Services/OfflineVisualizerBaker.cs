@@ -166,11 +166,13 @@ public static class OfflineVisualizerBaker
         string outputPath,
         CancellationToken ct)
     {
-        // FFmpeg: consume raw RGBA bytes from stdin → lossless PNG-in-MOV with alpha
+        // FFmpeg: consume raw RGBA bytes from stdin → lossless video with alpha.
+        // Use qtrle (QuickTime Animation/RLE) codec — much faster than PNG codec
+        // while still supporting lossless RGBA. Output is a .mov container.
         var ffmpegArgs =
             $"-y " +
             $"-f rawvideo -pixel_format rgba -video_size {outW}x{outH} -framerate {fps} -i pipe:0 " +
-            $"-c:v png -pix_fmt rgba " +
+            $"-c:v qtrle -pix_fmt argb " +
             $"\"{outputPath}\"";
 
         var psi = new ProcessStartInfo(ffmpegPath, ffmpegArgs)

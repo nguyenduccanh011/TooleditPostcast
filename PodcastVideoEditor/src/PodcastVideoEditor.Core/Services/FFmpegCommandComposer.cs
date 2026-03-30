@@ -113,7 +113,13 @@ public static class FFmpegCommandComposer
             if (seg.IsVideo)
                 args.Append($"-i \"{seg.SourcePath}\" ");
             else
-                args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
+            {
+                // Limit looped image duration to prevent infinite frame generation.
+                // Without -t, "-loop 1" produces an INFINITE stream that FFmpeg must
+                // process for every output frame, even when the overlay is disabled.
+                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
+                args.Append($"-loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
+            }
         }
 
         // ── Input N+1: primary audio or silent placeholder
@@ -166,11 +172,11 @@ public static class FFmpegCommandComposer
                 if (zoompanFilter != null)
                 {
                     // zoompan produces the final sized output, so we skip the separate scale
-                    filter.Append($"[{inputIdx}:v]format={pixFmt},{zoompanFilter},setsar=1[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1[{scaledLabel}];");
                 }
                 else
                 {
-                    filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
                 }
             }
         }
@@ -309,6 +315,7 @@ public static class FFmpegCommandComposer
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
+        args.Append("-threads 0 ");
         args.Append("-movflags +faststart ");
         // Always add -t flag so FFmpeg stops at the timeline end, not at the end of
         // the (potentially longer) audio file.
@@ -319,7 +326,10 @@ public static class FFmpegCommandComposer
             var maxEnd = allEndTimes.Any() ? allEndTimes.Max() : 1.0;
             args.Append($"-t {maxEnd.ToString("F3", invariant)} ");
         }
-        args.Append("-shortest -y ");
+        // NOTE: Do NOT use -shortest here. It conflicts with -t and can cause
+        // premature termination when a looped image input "ends" before the audio.
+        // The -t flag already precisely controls output duration.
+        args.Append("-y ");
         args.Append($"\"{config.OutputPath}\"");
 
         return args.ToString();

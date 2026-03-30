@@ -21,7 +21,7 @@ public static class TextRasterizer
         using var bitmap = RenderToBitmap(options);
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.OpenWrite(outputPath);
+        using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
         data.SaveTo(stream);
     }
 

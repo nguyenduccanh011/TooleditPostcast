@@ -36,7 +36,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private int frameRate = 30;
 
         [ObservableProperty]
-        private string videoCodec = "h264";
+        private string videoCodec = "h264_auto";
 
         [ObservableProperty]
         private string audioCodec = "aac";
@@ -189,6 +189,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var timelineVisualSegments = RenderSegmentBuilder.BuildTimelineVisualSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
                 var rasterizedTextVisuals  = RenderSegmentBuilder.BuildRasterizedTextSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
                 var timelineAudioSegments  = RenderSegmentBuilder.BuildTimelineAudioSegments(snapshot.Project);
+
+                Log.Information("Render segments built: {Visual} visual, {Text} rasterized text, {Audio} audio, {Elements} snapshot elements",
+                    timelineVisualSegments.Count, rasterizedTextVisuals.Count, timelineAudioSegments.Count,
+                    snapshot.Elements?.Count ?? 0);
+
+                if (rasterizedTextVisuals.Count == 0)
+                {
+                    var textTrackCount = snapshot.Project.Tracks?
+                        .Count(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible) ?? 0;
+                    var textSegmentCount = snapshot.Project.Tracks?
+                        .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
+                        .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                        .Count() ?? 0;
+                    var textElementCount = snapshot.Elements?.OfType<TextOverlayElement>().Count() ?? 0;
+                    Log.Warning("Render: 0 text visuals rasterized — textTracks={Tracks}, textSegments={Segs}, textElements={Els}",
+                        textTrackCount, textSegmentCount, textElementCount);
+                }
 
                 // Merge all visual layers into one list — FFmpegCommandComposer sorts by ZOrder.
                 timelineVisualSegments.AddRange(rasterizedTextVisuals);
@@ -427,9 +444,21 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private RenderSnapshot CreateRenderSnapshot(Project project)
         {
+            // Ensure all text-track segments have materialized canvas elements
+            // before snapshotting, so lazily-created elements are not lost.
+            _canvasViewModel?.MaterializeAllTextElements();
+
             var liveProject = BuildLiveProject(project);
             var elements = SnapshotElementsForRender();
             var registry = ElementSegmentRegistry.Build(elements, liveProject.Tracks);
+
+            var textElCount = elements?.OfType<TextOverlayElement>().Count() ?? 0;
+            var textSegCount = liveProject.Tracks?
+                .Where(t => string.Equals(t.TrackType, "text", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                .Count() ?? 0;
+            Log.Information("RenderSnapshot: {ElTotal} elements ({TextEls} text), {TextSegs} text segments",
+                elements?.Count ?? 0, textElCount, textSegCount);
 
             return new RenderSnapshot
             {
@@ -494,7 +523,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             SelectedQuality = QualityOptions.Contains(settings.Quality) ? settings.Quality : "Medium";
             SelectedScaleMode = "Fill";
             FrameRate = settings.FrameRate > 0 ? settings.FrameRate : 30;
-            VideoCodec = string.IsNullOrWhiteSpace(settings.VideoCodec) ? "h264" : settings.VideoCodec;
+            VideoCodec = string.IsNullOrWhiteSpace(settings.VideoCodec) ? "h264_auto" : settings.VideoCodec;
             AudioCodec = string.IsNullOrWhiteSpace(settings.AudioCodec) ? "aac" : settings.AudioCodec;
         }
 
