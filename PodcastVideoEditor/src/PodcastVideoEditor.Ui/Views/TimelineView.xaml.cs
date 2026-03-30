@@ -54,6 +54,7 @@ namespace PodcastVideoEditor.Ui.Views
         private EventHandler? _undoRedoStateChangedHandler;
         private readonly DispatcherTimer _zoomTimer;
         private double _pendingZoomFactor = 1.0;
+        private double _zoomMouseXInViewport;  // mouse X relative to TimelineScroller viewport
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
         private NotifyCollectionChangedEventHandler? _tracksCollectionChangedHandler;
         private readonly List<(System.Collections.ObjectModel.ObservableCollection<Segment> collection, NotifyCollectionChangedEventHandler handler)> _segmentsCollectionHandlers = new();
@@ -85,6 +86,9 @@ namespace PodcastVideoEditor.Ui.Views
 
                 if (TimelineScroller != null)
                     TimelineScroller.PreviewMouseWheel += TimelineScroller_PreviewMouseWheel;
+
+                // Shift+Z → zoom-to-fit (WPF KeyBinding doesn't support Shift+Letter cleanly)
+                PreviewKeyDown += TimelineView_PreviewKeyDown;
 
                 // Timeline width is bound in XAML (RulerControl, track canvases, etc.)
 
@@ -170,6 +174,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         private void TimelineView_Unloaded(object sender, RoutedEventArgs e)
         {
+            PreviewKeyDown -= TimelineView_PreviewKeyDown;
             if (TimelineScroller != null)
                 TimelineScroller.PreviewMouseWheel -= TimelineScroller_PreviewMouseWheel;
             if (_viewModel != null && _viewModelPropertyChangedHandler != null)
@@ -241,6 +246,8 @@ namespace PodcastVideoEditor.Ui.Views
                     return;
                 double factor = e.Delta > 0 ? 1.15 : 1.0 / 1.15;
                 _pendingZoomFactor *= factor;
+                // Remember mouse X relative to viewport for zoom-around-cursor
+                _zoomMouseXInViewport = e.GetPosition(TimelineScroller).X;
                 _zoomTimer.Stop();
                 _zoomTimer.Start();
                 e.Handled = true;
@@ -261,18 +268,49 @@ namespace PodcastVideoEditor.Ui.Views
                 return;
             if (Math.Abs(_pendingZoomFactor - 1.0) < 0.0001)
                 return;
+
+            // Zoom around cursor: remember the time position under the mouse,
+            // apply zoom, then adjust scroll so that same time stays under cursor.
+            double scrollOffset = TimelineScroller.HorizontalOffset;
+            double mouseContentX = scrollOffset + _zoomMouseXInViewport;
+            double timeAtCursor = _viewModel.PixelsToTime(mouseContentX);
+
             _viewModel.ZoomBy(_pendingZoomFactor);
             _pendingZoomFactor = 1.0;
+
+            // After zoom, TimelineWidth & PixelsPerSecond have updated.
+            double newContentX = _viewModel.TimeToPixels(timeAtCursor);
+            double newOffset = newContentX - _zoomMouseXInViewport;
+            TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, newOffset));
         }
 
         private void ZoomSlider_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel == null) return;
-            // Reset zoom to fit the entire timeline in the visible area
+            ZoomToFitViewport();
+        }
+
+        /// <summary>
+        /// Zoom timeline to fit all content in the visible viewport. Called from
+        /// zoom slider double-click and Shift+Z keyboard shortcut.
+        /// </summary>
+        private void ZoomToFitViewport()
+        {
+            if (_viewModel == null) return;
             if (TimelineScroller.ActualWidth > 0)
                 _viewModel.TimelineWidth = TimelineScroller.ActualWidth - 56;
             else
                 _viewModel.TimelineWidth = 800;
+        }
+
+        private void TimelineView_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // Shift+Z → zoom-to-fit (Premiere Pro shortcut)
+            if (e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Shift)
+            {
+                ZoomToFitViewport();
+                e.Handled = true;
+            }
         }
 
         private void InvalidateRuler()
@@ -282,6 +320,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Update playhead position based on ViewModel's PlayheadPosition.
+        /// When playing, auto-scrolls the viewport to keep the playhead visible.
         /// </summary>
         private void UpdatePlayheadPosition()
         {
@@ -290,6 +329,28 @@ namespace PodcastVideoEditor.Ui.Views
 
             double pixelX = _viewModel.TimeToPixels(_viewModel.PlayheadPosition);
             Canvas.SetLeft(PlayheadLine, pixelX);
+
+            // Auto-scroll to follow playhead during playback
+            if (_viewModel.IsPlaying && TimelineScroller != null && !_isDraggingPlayhead)
+            {
+                double viewportWidth = TimelineScroller.ViewportWidth;
+                double offset = TimelineScroller.HorizontalOffset;
+                const double rightMargin = 80;  // start scrolling before playhead hits edge
+                const double leftMargin = 40;
+
+                if (pixelX > offset + viewportWidth - rightMargin)
+                {
+                    // Playhead approaching right edge → page-scroll so playhead is at left quarter
+                    double newOffset = pixelX - viewportWidth * 0.25;
+                    TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, newOffset));
+                }
+                else if (pixelX < offset + leftMargin)
+                {
+                    // Playhead behind left edge (e.g. loop restart)
+                    double newOffset = pixelX - leftMargin;
+                    TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, newOffset));
+                }
+            }
         }
 
         /// <summary>

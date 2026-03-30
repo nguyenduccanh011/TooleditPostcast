@@ -44,9 +44,10 @@ internal sealed class TimelineLayoutService
     /// <summary>
     /// Compute TotalDuration from segment data and audio player duration.
     /// Always keeps timeline at least as long as any loaded audio.
-    /// Returns (totalDuration, pixelsPerSecond, timelineWidth).
+    /// Does NOT change TimelineWidth – the user's zoom level is preserved.
+    /// Returns (totalDuration, pixelsPerSecond).
     /// </summary>
-    public (double totalDuration, double pixelsPerSecond, double timelineWidth) RecalculateDuration(
+    public (double totalDuration, double pixelsPerSecond) RecalculateDuration(
         IEnumerable<Track> tracks,
         double audioDuration,
         double currentTimelineWidth)
@@ -55,8 +56,15 @@ internal sealed class TimelineLayoutService
         double computed = segEnd > 0 ? segEnd + TimelineConstants.SegmentEndBuffer : TimelineConstants.DefaultEmptyDuration;
         double totalDuration = Math.Max(computed, audioDuration);
         double pps = CalculatePixelsPerSecond(currentTimelineWidth, totalDuration);
-        double width = Math.Max(TimelineConstants.MinTimelineWidth, totalDuration * 10);
-        return (totalDuration, pps, width);
+        return (totalDuration, pps);
+    }
+
+    /// <summary>
+    /// Compute a suitable TimelineWidth to fit all content (for initial project load / zoom-to-fit).
+    /// </summary>
+    public double ComputeFitWidth(double totalDuration)
+    {
+        return Math.Max(TimelineConstants.MinTimelineWidth, totalDuration * 10);
     }
 
     /// <summary>Convert time (seconds) to pixel position on timeline.</summary>

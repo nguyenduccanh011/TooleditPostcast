@@ -128,33 +128,35 @@ namespace PodcastVideoEditor.Ui.Controls
 
         private static void SelectTickSteps(double pixelsPerSecond, out double minorStep, out double majorStep)
         {
-            if (pixelsPerSecond < 3)
-            {
-                minorStep = 5;
-                majorStep = 10;
-            }
-            else if (pixelsPerSecond < 6)
-            {
-                minorStep = 2;
-                majorStep = 10;
-            }
-            else if (pixelsPerSecond < 12)
-            {
-                minorStep = 1;
-                majorStep = 5;
-            }
-            else
-            {
-                minorStep = 0.5;
-                majorStep = 5;
-            }
+            // Adaptive tick table: each entry is (ppsThreshold, minor, major).
+            // At higher PPS (zoomed in) we show finer ticks; at lower PPS we show coarser ticks.
+            // Goal: major tick labels stay roughly 80-150 px apart.
+            if (pixelsPerSecond >= 200)       { minorStep = 0.1;  majorStep = 0.5; }
+            else if (pixelsPerSecond >= 80)   { minorStep = 0.25; majorStep = 1; }
+            else if (pixelsPerSecond >= 40)   { minorStep = 0.5;  majorStep = 2; }
+            else if (pixelsPerSecond >= 15)   { minorStep = 1;    majorStep = 5; }
+            else if (pixelsPerSecond >= 6)    { minorStep = 2;    majorStep = 10; }
+            else if (pixelsPerSecond >= 3)    { minorStep = 5;    majorStep = 15; }
+            else if (pixelsPerSecond >= 1.5)  { minorStep = 5;    majorStep = 30; }
+            else                               { minorStep = 10;   majorStep = 60; }
         }
 
         private static string FormatTimeRuler(double timeSeconds)
         {
+            if (timeSeconds < 60)
+            {
+                // Sub-second precision when we have fractional values
+                double frac = timeSeconds - Math.Floor(timeSeconds);
+                if (frac > 0.001)
+                    return $"0:{timeSeconds:00.0}";
+                return $"0:{(int)timeSeconds:D2}";
+            }
             int t = (int)Math.Floor(timeSeconds);
             int m = t / 60;
             int s = t % 60;
+            double sub = timeSeconds - t;
+            if (sub > 0.001)
+                return $"{m}:{s:D2}.{(int)(sub * 10)}";
             return $"{m}:{s:D2}";
         }
     }

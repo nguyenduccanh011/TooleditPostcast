@@ -11,6 +11,10 @@
         <KeyBinding Key="Delete" Command="{Binding DeleteSelectedSegmentCommand}"/>
         <KeyBinding Modifiers="Ctrl" Key="A" Command="{Binding SelectAllSegmentsCommand}"/>
         <KeyBinding Modifiers="Ctrl" Key="D" Command="{Binding DuplicateSelectedSegmentCommand}"/>
+        <KeyBinding Key="OemPlus" Command="{Binding ZoomInCommand}"/>
+        <KeyBinding Key="Add" Command="{Binding ZoomInCommand}"/>
+        <KeyBinding Key="OemMinus" Command="{Binding ZoomOutCommand}"/>
+        <KeyBinding Key="Subtract" Command="{Binding ZoomOutCommand}"/>
         <!-- Space bar for playback control is now handled by CanvasView to avoid conflicts -->
     </UserControl.InputBindings>
 

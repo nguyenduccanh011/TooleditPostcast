@@ -87,8 +87,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Min/max timeline width for zoom (Ctrl+wheel and slider).
         /// </summary>
-        public const double MinTimelineWidth = 400;
-        public const double MaxTimelineWidth = 20000;
+        public const double MinTimelineWidth = 200;
+        public const double MaxTimelineWidth = 80000;
 
         /// <summary>Bindable min zoom width for slider.</summary>
         public double MinZoomWidth => MinTimelineWidth;
@@ -106,5 +106,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
             TimelineWidth = newWidth;
         }
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        private void ZoomIn() => ZoomBy(1.25);
+
+        [CommunityToolkit.Mvvm.Input.RelayCommand]
+        private void ZoomOut() => ZoomBy(1.0 / 1.25);
     }
 }

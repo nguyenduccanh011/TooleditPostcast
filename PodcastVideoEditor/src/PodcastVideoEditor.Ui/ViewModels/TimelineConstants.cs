@@ -25,10 +25,10 @@ internal static class TimelineConstants
     public const double PlayheadOvershoot = 30.0;
 
     /// <summary>Minimum timeline width in pixels.</summary>
-    public const double MinTimelineWidth = 800.0;
+    public const double MinTimelineWidth = 200.0;
 
     /// <summary>Minimum PixelsPerSecond to avoid extreme zoom-out.</summary>
-    public const double MinPixelsPerSecond = 1.0;
+    public const double MinPixelsPerSecond = 0.5;
 
     /// <summary>Magnetic snap threshold in pixels (converted to seconds via PPS at drag start).</summary>
     public const double SnapPixelThreshold = 5.0;

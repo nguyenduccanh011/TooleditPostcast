@@ -229,7 +229,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (audioDuration > 0)
                     TotalDuration = audioDuration;
                 else
-                    RecalculateDurationFromSegments();
+                    RecalculateDurationAndZoomToFit();
                 RecalculatePixelsPerSecond();
 
                 // Load tracks ordered by Order (display order)
@@ -397,13 +397,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// <summary>
         /// Recalculate <see cref="TotalDuration"/> from segment data, always keeping the timeline
         /// at least as long as any audio loaded in the player. Falls back to 60 s when empty.
+        /// Does NOT change <see cref="TimelineWidth"/> so the user's zoom level is preserved.
         /// </summary>
         public void RecalculateDurationFromSegments()
         {
             var result = _layoutService.RecalculateDuration(Tracks, _audioService.GetDuration(), TimelineWidth);
             TotalDuration = result.totalDuration;
             PixelsPerSecond = result.pixelsPerSecond;
-            TimelineWidth = result.timelineWidth;
+        }
+
+        /// <summary>
+        /// Recalculate duration AND set <see cref="TimelineWidth"/> to fit all content.
+        /// Use on project load / explicit "zoom to fit" actions only.
+        /// </summary>
+        public void RecalculateDurationAndZoomToFit()
+        {
+            var result = _layoutService.RecalculateDuration(Tracks, _audioService.GetDuration(), TimelineWidth);
+            TotalDuration = result.totalDuration;
+            TimelineWidth = _layoutService.ComputeFitWidth(result.totalDuration);
+            PixelsPerSecond = result.pixelsPerSecond;
         }
 
         /// <summary>

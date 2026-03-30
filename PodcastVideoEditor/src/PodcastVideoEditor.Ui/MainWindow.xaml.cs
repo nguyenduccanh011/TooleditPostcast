@@ -555,12 +555,14 @@ public partial class MainWindow : Window
         else
         {
             // No main audio file — compute duration from segments on the timeline
-            _timelineViewModel.RecalculateDurationFromSegments();
+            _timelineViewModel.RecalculateDurationAndZoomToFit();
         }
     }
 
     /// <summary>
     /// Called whenever audio is loaded (Open project or Select audio). Syncs timeline and waveform.
+    /// On first load (project open) we zoom-to-fit; on subsequent loads (e.g. replacing audio)
+    /// we preserve the user's current zoom level and only update the duration.
     /// </summary>
     private void OnAudioLoaded(object? sender, EventArgs e)
     {
@@ -573,7 +575,8 @@ public partial class MainWindow : Window
         var segmentEnd = _timelineViewModel.ComputeMaxSegmentEndTime();
         var durationSeconds = Math.Max(audioDuration, segmentEnd);
         _timelineViewModel.TotalDuration = durationSeconds;
-        _timelineViewModel.TimelineWidth = Math.Max(800, durationSeconds * 10);
+        // PPS automatically recalculated via OnTotalDurationChanged —
+        // do NOT reset TimelineWidth here so the user's zoom level is preserved.
     }
 
 }
