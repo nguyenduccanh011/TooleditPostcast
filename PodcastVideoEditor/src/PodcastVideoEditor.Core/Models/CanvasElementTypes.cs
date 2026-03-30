@@ -394,7 +394,7 @@ namespace PodcastVideoEditor.Core.Models
     {
         private string _filePath = "";
         private double _opacity = 1.0;
-        private ScaleMode _scaleMode = ScaleMode.Fill;
+        private ScaleMode _scaleMode = ScaleMode.Fit;
 
         // Motion preview transforms (set by CanvasViewModel preview pipeline each frame)
         private double _motionScaleX = 1.0;

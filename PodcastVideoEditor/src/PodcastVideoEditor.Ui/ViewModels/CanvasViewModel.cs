@@ -218,11 +218,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (string.Equals(asset.Type, "Audio", StringComparison.OrdinalIgnoreCase))
                 return null;
 
-            // Create an ImageElement using the track's ImageLayoutPreset so the auto-created
-            // element matches the preview (Square_Center, Widescreen_Center, or FullFrame).
+            // Compute element rect by fitting the source image into the canvas while
+            // preserving its native aspect ratio (prevents crop on non-matching ratios).
             var ownerTrack = FindTrackForSegment(segmentId);
-            var layoutPreset = ownerTrack?.ImageLayoutPreset ?? global::PodcastVideoEditor.Core.Models.ImageLayoutPresets.FullFrame;
-            var (elemX, elemY, elemW, elemH) = global::PodcastVideoEditor.Core.RenderHelper.ComputeImageRect(layoutPreset, CanvasWidth, CanvasHeight);
+            var (elemX, elemY, elemW, elemH) = ComputeFitRect(asset.FilePath, CanvasWidth, CanvasHeight);
             var element = new ImageElement
             {
                 Name = asset.Name ?? Path.GetFileNameWithoutExtension(asset.FilePath) ?? "Image",
@@ -245,6 +244,53 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// Lower Track.Order (foreground) → higher ZIndex (drawn on top in WPF Canvas).
         /// Falls back to <see cref="Elements.Count"/> when track info is unavailable.
         /// </summary>
+        /// <summary>
+        /// Compute an element rect that fits the source image inside the canvas while
+        /// preserving the image's native aspect ratio. Falls back to full-canvas when
+        /// the image cannot be read.
+        /// </summary>
+        private static (double X, double Y, double W, double H) ComputeFitRect(
+            string imagePath, double canvasW, double canvasH)
+        {
+            double imgW = canvasW, imgH = canvasH;
+            try
+            {
+                using var stream = new System.IO.FileStream(imagePath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read);
+                var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                if (decoder.Frames.Count > 0)
+                {
+                    imgW = decoder.Frames[0].PixelWidth;
+                    imgH = decoder.Frames[0].PixelHeight;
+                }
+            }
+            catch
+            {
+                // Fallback: fill entire canvas
+                return (0, 0, canvasW, canvasH);
+            }
+
+            double imgAspect = imgW / Math.Max(imgH, 1);
+            double canvasAspect = canvasW / Math.Max(canvasH, 1);
+
+            double elemW, elemH;
+            if (imgAspect >= canvasAspect)
+            {
+                // Image is wider than canvas → fit to width
+                elemW = canvasW;
+                elemH = canvasW / imgAspect;
+            }
+            else
+            {
+                // Image is taller than canvas → fit to height
+                elemH = canvasH;
+                elemW = canvasH * imgAspect;
+            }
+
+            double elemX = (canvasW - elemW) / 2;
+            double elemY = (canvasH - elemH) / 2;
+            return (elemX, elemY, elemW, elemH);
+        }
+
         private int ComputeZIndexForTrack(Track? track)
         {
             if (track == null || _timelineViewModel == null)

@@ -31,6 +31,9 @@ namespace PodcastVideoEditor.Ui.Views
         private double _resizeAspectRatio;
         // Track sibling text elements for synchronized resize
         private List<(TextOverlayElement element, double origX, double origY, double origW, double origH)>? _resizeSiblings;
+        // Rotation state
+        private double _rotationOrigAngle;
+        private Point _rotationCenter;
         // Throttle video position sync to ~30fps to avoid excessive frame decoding
         private DateTime _lastVideoSyncTime = DateTime.MinValue;
         private const int VideoSyncThrottleMs = 33; // ~30fps
@@ -434,6 +437,21 @@ namespace PodcastVideoEditor.Ui.Views
                     el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
                     break;
                 }
+                case "MiddleTop":
+                {
+                    var newH = Math.Max(minSize, el.Height - e.VerticalChange);
+                    var dy = el.Height - newH;
+                    el.Y = Math.Max(0, el.Y + dy);
+                    el.Height = newH;
+                    break;
+                }
+                case "MiddleBottom":
+                {
+                    var newH = Math.Max(minSize, el.Height + e.VerticalChange);
+                    newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    el.Height = newH;
+                    break;
+                }
             }
 
             // Synchronize sibling text elements with new size/position during resize
@@ -488,6 +506,56 @@ namespace PodcastVideoEditor.Ui.Views
             // Reset for next resize
             _resizeOrigX = _resizeOrigY = _resizeOrigW = _resizeOrigH = 0;
             _resizeSiblings = null;
+            e.Handled = true;
+        }
+
+        // ─── Rotation handle ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Handle DragDelta on the rotation handle. Computes angle from element center to mouse.
+        /// </summary>
+        private void OnRotationHandleDrag(object sender, DragDeltaEventArgs e)
+        {
+            if (sender is not Thumb thumb || _mainCanvas == null) return;
+            var el = thumb.DataContext as CanvasElement;
+            if (el == null || _viewModel == null) return;
+
+            // Lazy-init on first delta
+            if (_rotationCenter == default)
+            {
+                _rotationOrigAngle = el.Rotation;
+                _rotationCenter = new Point(el.X + el.Width / 2, el.Y + el.Height / 2);
+            }
+
+            // Get current mouse position relative to the main canvas
+            var mousePos = Mouse.GetPosition(_mainCanvas);
+            var dx = mousePos.X - _rotationCenter.X;
+            var dy = mousePos.Y - _rotationCenter.Y;
+            var angle = Math.Atan2(dy, dx) * 180.0 / Math.PI + 90; // +90 because handle is above
+
+            // Snap to 15° increments when Shift is held
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+                angle = Math.Round(angle / 15.0) * 15.0;
+
+            el.Rotation = angle;
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Record undo action when rotation drag is completed.
+        /// </summary>
+        private void OnRotationHandleCompleted(object sender, DragCompletedEventArgs e)
+        {
+            if (sender is not Thumb thumb) return;
+            var el = thumb.DataContext as CanvasElement;
+            if (el == null || _viewModel == null) return;
+
+            if (Math.Abs(el.Rotation - _rotationOrigAngle) > 0.5)
+            {
+                _viewModel.UndoRedoService?.Record(new ElementRotatedAction(el, _rotationOrigAngle, el.Rotation));
+            }
+
+            _rotationCenter = default;
             e.Handled = true;
         }
 

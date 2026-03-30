@@ -258,6 +258,20 @@ public sealed class ElementResizedAction : IUndoableAction
     public void Redo() { _el.X = _nx; _el.Y = _ny; _el.Width = _nw; _el.Height = _nh; }
 }
 
+/// <summary>A canvas element was rotated on the canvas.</summary>
+public sealed class ElementRotatedAction : IUndoableAction
+{
+    private readonly CanvasElement _el;
+    private readonly double _oldAngle, _newAngle;
+
+    public ElementRotatedAction(CanvasElement el, double oldAngle, double newAngle)
+    { _el = el; _oldAngle = oldAngle; _newAngle = newAngle; }
+
+    public string Description => $"Rotate '{_el.Name}'";
+    public void Undo() { _el.Rotation = _oldAngle; }
+    public void Redo() { _el.Rotation = _newAngle; }
+}
+
 /// <summary>A canvas element was added.</summary>
 public sealed class ElementAddedAction : IUndoableAction
 {

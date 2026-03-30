@@ -16,16 +16,20 @@
         <conv:FilePathToImageConverter x:Key="FilePathToImageConverter"/>
         <conv:ScaleModeConverter x:Key="ScaleModeConverter"/>
 
-        <!-- Shared style for resize handle thumbs (4 corners) -->
+        <!-- Shared style for resize handle thumbs (4 corners) — larger hit area for usability -->
         <Style x:Key="ResizeHandleStyle" TargetType="Thumb"
                xmlns:sys="clr-namespace:System;assembly=mscorlib">
-            <Setter Property="Width" Value="10"/>
-            <Setter Property="Height" Value="10"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
             <Setter Property="Opacity" Value="1"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="White" BorderBrush="#333333" BorderThickness="1" CornerRadius="1"/>
+                        <Grid Background="Transparent">
+                            <Border Width="14" Height="14" Background="White" BorderBrush="#333333"
+                                    BorderThickness="1" CornerRadius="2"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -33,13 +37,56 @@
 
         <!-- Horizontal-only resize handle (middle left/right for text) -->
         <Style x:Key="HorizontalResizeHandleStyle" TargetType="Thumb">
-            <Setter Property="Width" Value="8"/>
-            <Setter Property="Height" Value="16"/>
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="28"/>
             <Setter Property="Opacity" Value="1"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="White" BorderBrush="#333333" BorderThickness="1" CornerRadius="1"/>
+                        <Grid Background="Transparent">
+                            <Border Width="10" Height="20" Background="White" BorderBrush="#333333"
+                                    BorderThickness="1" CornerRadius="2"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Edge resize handle (middle top/bottom) -->
+        <Style x:Key="VerticalResizeHandleStyle" TargetType="Thumb">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Grid Background="Transparent">
+                            <Border Width="20" Height="10" Background="White" BorderBrush="#333333"
+                                    BorderThickness="1" CornerRadius="2"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Rotation handle: circular, positioned above element -->
+        <Style x:Key="RotationHandleStyle" TargetType="Thumb">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Opacity" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Grid Background="Transparent">
+                            <Ellipse Width="16" Height="16" Fill="#0E639C" Stroke="White" StrokeThickness="2"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBlock Text="↻" Foreground="White" FontSize="10" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,-1,0,0"/>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -47,28 +94,59 @@
 
         <!-- Template for generic elements — shows Name -->
         <DataTemplate x:Key="DefaultElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
+                  RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform Angle="{Binding Rotation}"/>
+                </Grid.RenderTransform>
                 <Border Background="#333333"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2">
                     <TextBlock Text="{Binding Name}" Foreground="White"
                                VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="12"/>
                 </Border>
-                <!-- Corner resize handles (visible when selected) -->
+                <!-- Rotation handle -->
+                <Thumb Tag="Rotate" Style="{StaticResource RotationHandleStyle}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
+                <!-- Rotation connector line -->
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
+                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsHitTestVisible="False"/>
+                <!-- Corner resize handles -->
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-12,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-12,-12,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-12,0,0,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-12,-12"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <!-- Edge resize handles -->
+                <Thumb Tag="MiddleTop" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-10,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleBottom" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-10"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleRight" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-10,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
             </Grid>
@@ -76,7 +154,11 @@
 
         <!-- ImageElement: displays actual image file -->
         <DataTemplate x:Key="ImageElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
+                  RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform Angle="{Binding Rotation}"/>
+                </Grid.RenderTransform>
                 <Border Background="#222222"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2"
@@ -104,20 +186,47 @@
                                    Visibility="{Binding FilePath, Converter={StaticResource NullToVisibilityConverter}}"/>
                     </Grid>
                 </Border>
+                <!-- Rotation handle -->
+                <Thumb Tag="Rotate" Style="{StaticResource RotationHandleStyle}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
+                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsHitTestVisible="False"/>
+                <!-- Corner resize handles -->
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-12,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-12,-12,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-12,0,0,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-12,-12"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <!-- Edge resize handles -->
+                <Thumb Tag="MiddleTop" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-10,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleBottom" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-10"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleRight" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-10,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
             </Grid>
@@ -125,7 +234,11 @@
 
         <!-- LogoElement: displays logo image file -->
         <DataTemplate x:Key="LogoElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
+                  RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform Angle="{Binding Rotation}"/>
+                </Grid.RenderTransform>
                 <Border Background="#222222"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2">
@@ -139,20 +252,45 @@
                                    Visibility="{Binding ImagePath, Converter={StaticResource NullToVisibilityConverter}}"/>
                     </Grid>
                 </Border>
+                <!-- Rotation handle -->
+                <Thumb Tag="Rotate" Style="{StaticResource RotationHandleStyle}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
+                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsHitTestVisible="False"/>
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-12,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-12,-12,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-12,0,0,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-12,-12"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleTop" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-10,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleBottom" Style="{StaticResource VerticalResizeHandleStyle}" Cursor="SizeNS"
+                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-10"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
+                <Thumb Tag="MiddleRight" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-10,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
             </Grid>
@@ -160,7 +298,11 @@
 
         <!-- TextOverlayElement: unified text element with shadow/outline/background support -->
         <DataTemplate x:Key="TextOverlayElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
+                  RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform Angle="{Binding Rotation}"/>
+                </Grid.RenderTransform>
                 <!-- Background layer (only rendered when HasBackground=true) -->
                 <Border Background="{Binding BackgroundColorHex, Converter={StaticResource HexToBrushConverter}}"
                         Opacity="{Binding BackgroundOpacity}"
@@ -182,28 +324,37 @@
                                TextWrapping="Wrap"
                                Padding="8,4"/>
                 </Border>
+                <!-- Rotation handle -->
+                <Thumb Tag="Rotate" Style="{StaticResource RotationHandleStyle}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
+                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsHitTestVisible="False"/>
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-12,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-12,-12,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-12,0,0,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-12,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="MiddleLeft" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
-                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-4,0,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-10,0,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="MiddleRight" Style="{StaticResource HorizontalResizeHandleStyle}" Cursor="SizeWE"
-                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-4,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-10,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
             </Grid>
@@ -211,7 +362,11 @@
 
         <!-- Template for VisualizerElement: live spectrum bitmap + 4 corner handles -->
         <DataTemplate x:Key="VisualizerElementTemplate">
-            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown">
+            <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
+                  RenderTransformOrigin="0.5,0.5">
+                <Grid.RenderTransform>
+                    <RotateTransform Angle="{Binding Rotation}"/>
+                </Grid.RenderTransform>
                 <Border Background="Transparent"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2">
@@ -219,20 +374,29 @@
                            Stretch="Fill"
                            RenderOptions.BitmapScalingMode="LowQuality"/>
                 </Border>
+                <!-- Rotation handle -->
+                <Thumb Tag="Rotate" Style="{StaticResource RotationHandleStyle}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
+                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                       DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                      HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
+                      Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
+                      IsHitTestVisible="False"/>
                 <Thumb Tag="TopLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-5,-5,0,0"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-12,-12,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="TopRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-5,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-12,-12,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomLeft" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNESW"
-                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-5,0,0,-5"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-12,0,0,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
                 <Thumb Tag="BottomRight" Style="{StaticResource ResizeHandleStyle}" Cursor="SizeNWSE"
-                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-5,-5"
+                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-12,-12"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnResizeHandleDrag" DragCompleted="OnResizeHandleCompleted"/>
             </Grid>
