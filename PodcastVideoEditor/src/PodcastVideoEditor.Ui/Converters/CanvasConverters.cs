@@ -241,6 +241,18 @@ namespace PodcastVideoEditor.Ui.Converters
     }
 
     /// <summary>
+    /// Convert bool (FlipH / FlipV) to ScaleTransform scale factor: true → -1.0, false → 1.0.
+    /// </summary>
+    public class BoolToFlipScaleConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+            value is true ? -1.0 : 1.0;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            value is double d && d < 0;
+    }
+
+    /// <summary>
     /// Convert object to Visibility: null = Collapsed, non-null = Visible.
     /// </summary>
     public class ObjectToVisibilityConverter : IValueConverter

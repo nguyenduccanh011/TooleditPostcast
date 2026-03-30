@@ -15,6 +15,7 @@
     <UserControl.Resources>
         <conv:FilePathToImageConverter x:Key="FilePathToImageConverter"/>
         <conv:ScaleModeConverter x:Key="ScaleModeConverter"/>
+        <conv:BoolToFlipScaleConverter x:Key="BoolToFlipScaleConverter"/>
 
         <!-- Shared style for resize handle thumbs (4 corners) — larger hit area for usability -->
         <Style x:Key="ResizeHandleStyle" TargetType="Thumb"
@@ -97,7 +98,11 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
                   RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
-                    <RotateTransform Angle="{Binding Rotation}"/>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding FlipH, Converter={StaticResource BoolToFlipScaleConverter}}"
+                                        ScaleY="{Binding FlipV, Converter={StaticResource BoolToFlipScaleConverter}}"/>
+                        <RotateTransform Angle="{Binding Rotation}"/>
+                    </TransformGroup>
                 </Grid.RenderTransform>
                 <Border Background="#333333"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
@@ -157,7 +162,11 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
                   RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
-                    <RotateTransform Angle="{Binding Rotation}"/>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding FlipH, Converter={StaticResource BoolToFlipScaleConverter}}"
+                                        ScaleY="{Binding FlipV, Converter={StaticResource BoolToFlipScaleConverter}}"/>
+                        <RotateTransform Angle="{Binding Rotation}"/>
+                    </TransformGroup>
                 </Grid.RenderTransform>
                 <Border Background="#222222"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
@@ -237,7 +246,11 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
                   RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
-                    <RotateTransform Angle="{Binding Rotation}"/>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding FlipH, Converter={StaticResource BoolToFlipScaleConverter}}"
+                                        ScaleY="{Binding FlipV, Converter={StaticResource BoolToFlipScaleConverter}}"/>
+                        <RotateTransform Angle="{Binding Rotation}"/>
+                    </TransformGroup>
                 </Grid.RenderTransform>
                 <Border Background="#222222"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
@@ -301,7 +314,11 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
                   RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
-                    <RotateTransform Angle="{Binding Rotation}"/>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding FlipH, Converter={StaticResource BoolToFlipScaleConverter}}"
+                                        ScaleY="{Binding FlipV, Converter={StaticResource BoolToFlipScaleConverter}}"/>
+                        <RotateTransform Angle="{Binding Rotation}"/>
+                    </TransformGroup>
                 </Grid.RenderTransform>
                 <!-- Background layer (only rendered when HasBackground=true) -->
                 <Border Background="{Binding BackgroundColorHex, Converter={StaticResource HexToBrushConverter}}"
@@ -365,7 +382,11 @@
             <Grid Width="{Binding Width}" Height="{Binding Height}" MouseDown="OnCanvasElementMouseDown"
                   RenderTransformOrigin="0.5,0.5">
                 <Grid.RenderTransform>
-                    <RotateTransform Angle="{Binding Rotation}"/>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="{Binding FlipH, Converter={StaticResource BoolToFlipScaleConverter}}"
+                                        ScaleY="{Binding FlipV, Converter={StaticResource BoolToFlipScaleConverter}}"/>
+                        <RotateTransform Angle="{Binding Rotation}"/>
+                    </TransformGroup>
                 </Grid.RenderTransform>
                 <Border Background="Transparent"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
@@ -576,6 +597,14 @@
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
+
+                            <!-- Snap guide lines (managed from code-behind) -->
+                            <Line x:Name="SnapGuideH" Stroke="#FF00AAFF" StrokeThickness="1.5"
+                                  StrokeDashArray="4,3" IsHitTestVisible="False" Visibility="Collapsed"
+                                  Canvas.ZIndex="9999"/>
+                            <Line x:Name="SnapGuideV" Stroke="#FF00AAFF" StrokeThickness="1.5"
+                                  StrokeDashArray="4,3" IsHitTestVisible="False" Visibility="Collapsed"
+                                  Canvas.ZIndex="9999"/>
                         </Canvas>
                     </Grid>
                 </Viewbox>

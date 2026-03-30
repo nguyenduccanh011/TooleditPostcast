@@ -1030,6 +1030,38 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Flip the selected element horizontally.
+        /// </summary>
+        [RelayCommand]
+        public void FlipHorizontal()
+        {
+            if (SelectedElement == null) return;
+            var oldVal = SelectedElement.FlipH;
+            SelectedElement.FlipH = !oldVal;
+            _undoRedo?.Record(new ElementPropertyChangedAction(
+                SelectedElement,
+                typeof(CanvasElement).GetProperty(nameof(CanvasElement.FlipH))!,
+                oldVal, SelectedElement.FlipH));
+            LogMessage($"Flip H: {SelectedElement.Name}");
+        }
+
+        /// <summary>
+        /// Flip the selected element vertically.
+        /// </summary>
+        [RelayCommand]
+        public void FlipVertical()
+        {
+            if (SelectedElement == null) return;
+            var oldVal = SelectedElement.FlipV;
+            SelectedElement.FlipV = !oldVal;
+            _undoRedo?.Record(new ElementPropertyChangedAction(
+                SelectedElement,
+                typeof(CanvasElement).GetProperty(nameof(CanvasElement.FlipV))!,
+                oldVal, SelectedElement.FlipV));
+            LogMessage($"Flip V: {SelectedElement.Name}");
+        }
+
+        /// <summary>
         /// Bring selected element to front by moving its track to the top (lowest Order).
         /// Uses track reorder so the z-order change is persistent and consistent with the
         /// track-based compositing model used by commercial editors.

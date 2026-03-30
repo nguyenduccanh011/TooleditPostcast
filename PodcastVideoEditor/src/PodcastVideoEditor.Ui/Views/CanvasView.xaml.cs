@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Shapes;
 
 namespace PodcastVideoEditor.Ui.Views
 {
@@ -34,6 +35,10 @@ namespace PodcastVideoEditor.Ui.Views
         // Rotation state
         private double _rotationOrigAngle;
         private Point _rotationCenter;
+        // Snap guide lines
+        private Line? _snapGuideH;
+        private Line? _snapGuideV;
+        private const double SnapThreshold = 8.0; // px distance to snap
         // Throttle video position sync to ~30fps to avoid excessive frame decoding
         private DateTime _lastVideoSyncTime = DateTime.MinValue;
         private const int VideoSyncThrottleMs = 33; // ~30fps
@@ -76,6 +81,8 @@ namespace PodcastVideoEditor.Ui.Views
             // Fallback: try FindName again if constructor didn't find them
             _videoPreview ??= (MediaElement?)FindName("VideoPreview");
             _mainCanvas ??= (Canvas?)FindName("MainCanvas");
+            _snapGuideH ??= (Line?)FindName("SnapGuideH");
+            _snapGuideV ??= (Line?)FindName("SnapGuideV");
             
             _viewModel?.OnCanvasReloaded();
             
@@ -252,7 +259,7 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         /// <summary>
-        /// Handle mouse move for dragging elements.
+        /// Handle mouse move for dragging elements with smart snap guides.
         /// </summary>
         private void OnCanvasElementMouseMove(object sender, MouseEventArgs e)
         {
@@ -264,8 +271,65 @@ namespace PodcastVideoEditor.Ui.Views
             var offsetY = currentPoint.Y - _dragStartPoint.Y;
 
             var el = _viewModel.SelectedElement;
-            el.X = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
-            el.Y = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
+            var newX = Math.Max(0, Math.Min(_originalX + offsetX, _viewModel.CanvasWidth - el.Width));
+            var newY = Math.Max(0, Math.Min(_originalY + offsetY, _viewModel.CanvasHeight - el.Height));
+
+            // Smart snap: center of canvas and edges of other elements
+            var canvasW = _viewModel.CanvasWidth;
+            var canvasH = _viewModel.CanvasHeight;
+            var elCenterX = newX + el.Width / 2;
+            var elCenterY = newY + el.Height / 2;
+            bool snappedH = false, snappedV = false;
+            double snapLineY = 0, snapLineX = 0;
+
+            // Snap to canvas center horizontal (element center Y → canvas center Y)
+            if (Math.Abs(elCenterY - canvasH / 2) < SnapThreshold)
+            {
+                newY = canvasH / 2 - el.Height / 2;
+                snapLineY = canvasH / 2;
+                snappedH = true;
+            }
+            // Snap to canvas center vertical (element center X → canvas center X)
+            if (Math.Abs(elCenterX - canvasW / 2) < SnapThreshold)
+            {
+                newX = canvasW / 2 - el.Width / 2;
+                snapLineX = canvasW / 2;
+                snappedV = true;
+            }
+            // Snap to canvas top edge
+            if (!snappedH && Math.Abs(newY) < SnapThreshold)
+            {
+                newY = 0;
+                snapLineY = 0;
+                snappedH = true;
+            }
+            // Snap to canvas bottom edge
+            if (!snappedH && Math.Abs(newY + el.Height - canvasH) < SnapThreshold)
+            {
+                newY = canvasH - el.Height;
+                snapLineY = canvasH;
+                snappedH = true;
+            }
+            // Snap to canvas left edge
+            if (!snappedV && Math.Abs(newX) < SnapThreshold)
+            {
+                newX = 0;
+                snapLineX = 0;
+                snappedV = true;
+            }
+            // Snap to canvas right edge
+            if (!snappedV && Math.Abs(newX + el.Width - canvasW) < SnapThreshold)
+            {
+                newX = canvasW - el.Width;
+                snapLineX = canvasW;
+                snappedV = true;
+            }
+
+            el.X = newX;
+            el.Y = newY;
+
+            // Show/hide snap guide lines
+            UpdateSnapGuides(snappedH, snapLineY, snappedV, snapLineX, canvasW, canvasH);
 
             // Synchronize sibling text elements on the same track
             if (_dragSiblings != null)
@@ -312,6 +376,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             _isDragging = false;
             _dragSiblings = null;
+            HideSnapGuides();
 
             if (sender is FrameworkElement fe)
             {
@@ -319,6 +384,55 @@ namespace PodcastVideoEditor.Ui.Views
                 fe.MouseUp -= OnCanvasElementMouseUp;
                 fe.ReleaseMouseCapture();
             }
+        }
+
+        // ─── Snap guides ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Show or hide snap guide lines during element drag.
+        /// </summary>
+        private void UpdateSnapGuides(bool showH, double hY, bool showV, double vX,
+                                       double canvasW, double canvasH)
+        {
+            if (_snapGuideH != null)
+            {
+                if (showH)
+                {
+                    _snapGuideH.X1 = 0;
+                    _snapGuideH.X2 = canvasW;
+                    _snapGuideH.Y1 = hY;
+                    _snapGuideH.Y2 = hY;
+                    _snapGuideH.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    _snapGuideH.Visibility = Visibility.Collapsed;
+                }
+            }
+            if (_snapGuideV != null)
+            {
+                if (showV)
+                {
+                    _snapGuideV.X1 = vX;
+                    _snapGuideV.X2 = vX;
+                    _snapGuideV.Y1 = 0;
+                    _snapGuideV.Y2 = canvasH;
+                    _snapGuideV.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    _snapGuideV.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Hide all snap guide lines.
+        /// </summary>
+        private void HideSnapGuides()
+        {
+            if (_snapGuideH != null) _snapGuideH.Visibility = Visibility.Collapsed;
+            if (_snapGuideV != null) _snapGuideV.Visibility = Visibility.Collapsed;
         }
 
         // ─── Resize handles ───────────────────────────────────────────────
@@ -366,6 +480,7 @@ namespace PodcastVideoEditor.Ui.Views
 
             var tag = thumb.Tag as string ?? "";
             const double minSize = 20;
+            bool lockAspect = (Keyboard.Modifiers & ModifierKeys.Shift) == 0; // Shift = free resize
 
             switch (tag)
             {
@@ -388,53 +503,100 @@ namespace PodcastVideoEditor.Ui.Views
                 }
                 case "TopLeft":
                 {
-                    // Proportional resize from top-left corner
-                    var delta = (e.HorizontalChange + e.VerticalChange) / 2;
-                    var newW = Math.Max(minSize, el.Width - delta);
-                    var newH = newW / _resizeAspectRatio;
-                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
-                    var dx = el.Width - newW;
-                    var dy = el.Height - newH;
-                    el.X = Math.Max(0, el.X + dx);
-                    el.Y = Math.Max(0, el.Y + dy);
-                    el.Width = newW;
-                    el.Height = newH;
+                    if (lockAspect)
+                    {
+                        var delta = (e.HorizontalChange + e.VerticalChange) / 2;
+                        var newW = Math.Max(minSize, el.Width - delta);
+                        var newH = newW / _resizeAspectRatio;
+                        if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                        var dx = el.Width - newW;
+                        var dy = el.Height - newH;
+                        el.X = Math.Max(0, el.X + dx);
+                        el.Y = Math.Max(0, el.Y + dy);
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
+                    else
+                    {
+                        var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
+                        var newH = Math.Max(minSize, el.Height - e.VerticalChange);
+                        el.X = Math.Max(0, el.X + (el.Width - newW));
+                        el.Y = Math.Max(0, el.Y + (el.Height - newH));
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
                     break;
                 }
                 case "TopRight":
                 {
-                    var delta = (e.HorizontalChange - e.VerticalChange) / 2;
-                    var newW = Math.Max(minSize, el.Width + delta);
-                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
-                    var newH = newW / _resizeAspectRatio;
-                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
-                    var dy = el.Height - newH;
-                    el.Y = Math.Max(0, el.Y + dy);
-                    el.Width = newW;
-                    el.Height = newH;
+                    if (lockAspect)
+                    {
+                        var delta = (e.HorizontalChange - e.VerticalChange) / 2;
+                        var newW = Math.Max(minSize, el.Width + delta);
+                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        var newH = newW / _resizeAspectRatio;
+                        if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                        var dy = el.Height - newH;
+                        el.Y = Math.Max(0, el.Y + dy);
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
+                    else
+                    {
+                        var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
+                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        var newH = Math.Max(minSize, el.Height - e.VerticalChange);
+                        el.Y = Math.Max(0, el.Y + (el.Height - newH));
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
                     break;
                 }
                 case "BottomLeft":
                 {
-                    var delta = (-e.HorizontalChange + e.VerticalChange) / 2;
-                    var newW = Math.Max(minSize, el.Width - delta);
-                    var newH = newW / _resizeAspectRatio;
-                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
-                    var dx = el.Width - newW;
-                    el.X = Math.Max(0, el.X + dx);
-                    el.Width = newW;
-                    el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    if (lockAspect)
+                    {
+                        var delta = (-e.HorizontalChange + e.VerticalChange) / 2;
+                        var newW = Math.Max(minSize, el.Width - delta);
+                        var newH = newW / _resizeAspectRatio;
+                        if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                        var dx = el.Width - newW;
+                        el.X = Math.Max(0, el.X + dx);
+                        el.Width = newW;
+                        el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    }
+                    else
+                    {
+                        var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
+                        var newH = Math.Max(minSize, el.Height + e.VerticalChange);
+                        newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                        el.X = Math.Max(0, el.X + (el.Width - newW));
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
                     break;
                 }
                 case "BottomRight":
                 {
-                    var delta = (e.HorizontalChange + e.VerticalChange) / 2;
-                    var newW = Math.Max(minSize, el.Width + delta);
-                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
-                    var newH = newW / _resizeAspectRatio;
-                    if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
-                    el.Width = newW;
-                    el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    if (lockAspect)
+                    {
+                        var delta = (e.HorizontalChange + e.VerticalChange) / 2;
+                        var newW = Math.Max(minSize, el.Width + delta);
+                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        var newH = newW / _resizeAspectRatio;
+                        if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
+                        el.Width = newW;
+                        el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    }
+                    else
+                    {
+                        var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
+                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        var newH = Math.Max(minSize, el.Height + e.VerticalChange);
+                        newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                        el.Width = newW;
+                        el.Height = newH;
+                    }
                     break;
                 }
                 case "MiddleTop":
@@ -590,6 +752,20 @@ namespace PodcastVideoEditor.Ui.Views
 
                 case Key.D when (Keyboard.Modifiers & ModifierKeys.Control) != 0:
                     _viewModel.DuplicateElementCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // Flip H: Ctrl+H
+                case Key.H when (Keyboard.Modifiers & ModifierKeys.Control) != 0
+                              && (Keyboard.Modifiers & ModifierKeys.Shift) == 0:
+                    _viewModel.FlipHorizontalCommand.Execute(null);
+                    e.Handled = true;
+                    break;
+
+                // Flip V: Ctrl+Shift+H
+                case Key.H when (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift))
+                              == (ModifierKeys.Control | ModifierKeys.Shift):
+                    _viewModel.FlipVerticalCommand.Execute(null);
                     e.Handled = true;
                     break;
 

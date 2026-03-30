@@ -16,6 +16,8 @@ namespace PodcastVideoEditor.Core.Models
         private int _zIndex;
         private bool _isSelected;
         private double _rotation;
+        private bool _flipH;
+        private bool _flipV;
         private bool _isVisible = true;
         private string _name = string.Empty;
 
@@ -102,6 +104,22 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _rotation, value);
         }
 
+        /// <summary>Flip horizontally (mirror).</summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 908)]
+        public bool FlipH
+        {
+            get => _flipH;
+            set => SetProperty(ref _flipH, value);
+        }
+
+        /// <summary>Flip vertically (mirror).</summary>
+        [PropertyMetadata(Group = "📐 Transform", Order = 909)]
+        public bool FlipV
+        {
+            get => _flipV;
+            set => SetProperty(ref _flipV, value);
+        }
+
         /// <summary>
         /// Whether this element is currently selected.
         /// </summary>
@@ -162,6 +180,8 @@ namespace PodcastVideoEditor.Core.Models
             Height = 100;
             ZIndex = 0;
             Rotation = 0;
+            FlipH = false;
+            FlipV = false;
             IsVisible = true;
             IsSelected = false;
         }
