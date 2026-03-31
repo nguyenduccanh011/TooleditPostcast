@@ -666,6 +666,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             SelectedSegment = segment;
             
+            // Set range anchor for Shift+Click
+            _selectionService.SetAnchor(segment);
+            
             // Also select the track containing this segment
             if (!string.IsNullOrWhiteSpace(segment.TrackId))
             {

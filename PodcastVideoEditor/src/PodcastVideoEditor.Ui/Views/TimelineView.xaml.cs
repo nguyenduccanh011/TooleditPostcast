@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -62,6 +63,11 @@ namespace PodcastVideoEditor.Ui.Views
         private const int ScrubPreviewThrottleMs = 16;
         private Point _trackHeaderDragStartPoint;
         private PodcastVideoEditor.Core.Models.Track? _draggedTrackHeader;
+
+        // ── Multi-drag state ─────────────────────────────────────────────────
+        private bool _isMultiDragging;
+        private double _multiDragPrimaryOrigStart;
+        private List<(Segment Seg, double OrigStart, double OrigEnd, double OrigSourceOffset)>? _multiDragCompanions;
 
         public TimelineView()
         {
@@ -319,6 +325,44 @@ namespace PodcastVideoEditor.Ui.Views
             if (e.Key == Key.Z && Keyboard.Modifiers == ModifierKeys.Shift)
             {
                 ZoomToFitViewport();
+                e.Handled = true;
+                return;
+            }
+
+            // Escape → clear multi-selection
+            if (e.Key == Key.Escape && _viewModel != null)
+            {
+                _viewModel.ClearMultiSelection();
+                _viewModel.StatusMessage = "Selection cleared";
+                e.Handled = true;
+                return;
+            }
+
+            // Arrow Left/Right → navigate to prev/next segment on same track
+            if ((e.Key == Key.Left || e.Key == Key.Right) && _viewModel?.SelectedSegment != null && _viewModel.SelectedTrack != null)
+            {
+                var segments = _viewModel.SelectedTrack.Segments
+                    .OrderBy(s => s.StartTime)
+                    .ToList();
+                int idx = segments.IndexOf(_viewModel.SelectedSegment);
+                if (idx < 0) return;
+
+                int newIdx = e.Key == Key.Left ? idx - 1 : idx + 1;
+                if (newIdx >= 0 && newIdx < segments.Count)
+                {
+                    bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+                    if (shift)
+                    {
+                        // Shift+Arrow → extend selection
+                        _viewModel.ToggleMultiSelect(segments[newIdx]);
+                    }
+                    else
+                    {
+                        _viewModel.ClearMultiSelection();
+                        _viewModel.SelectSegment(segments[newIdx]);
+                    }
+                    EnsureSegmentVisibleInScroll(segments[newIdx]);
+                }
                 e.Handled = true;
             }
         }
@@ -599,6 +643,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Handle clicking on a segment (move thumb) to select it.
+        /// Ctrl+Click = toggle, Shift+Click = range select, Click = single select.
         /// </summary>
         private void MoveThumb_MouseDown(object sender, MouseButtonEventArgs e)
         {
@@ -607,11 +652,18 @@ namespace PodcastVideoEditor.Ui.Views
                 grid.DataContext is Segment segment)
             {
                 Focus();
-                bool ctrlOrShift = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
-                if (ctrlOrShift)
+                bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+                bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+                if (ctrl)
                 {
                     // Toggle this segment into/out of multi-selection
                     _viewModel?.ToggleMultiSelect(segment);
+                }
+                else if (shift)
+                {
+                    // Range-select from anchor to this segment
+                    _viewModel?.RangeMultiSelect(segment);
                 }
                 else
                 {
@@ -739,6 +791,8 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Start segment move operation.
+        /// If the dragged segment is part of a multi-selection, all selected segments
+        /// move together (multi-drag). Otherwise single-drag as before.
         /// </summary>
         private void MoveThumb_DragStarted(object sender, DragStartedEventArgs e)
         {
@@ -751,7 +805,30 @@ namespace PodcastVideoEditor.Ui.Views
 
                 _dragHandler?.BeginMove(segment, _viewModel!.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeAll;
-                _viewModel!.SelectSegment(segment);
+
+                // Multi-drag: if dragged segment is already multi-selected, move all together
+                var selSvc = _viewModel!.SelectionService;
+                if (selSvc.IsSelected(segment) && selSvc.Count > 1)
+                {
+                    _isMultiDragging = true;
+                    _multiDragPrimaryOrigStart = segment.StartTime;
+                    _multiDragCompanions = new List<(Segment, double, double, double)>();
+                    foreach (var sel in selSvc.SelectedSegments)
+                    {
+                        if (sel == segment) continue;
+                        var selTrack = _viewModel.Tracks.FirstOrDefault(t => t.Id == sel.TrackId);
+                        if (selTrack?.IsLocked == true) continue;
+                        _multiDragCompanions.Add((sel, sel.StartTime, sel.EndTime, sel.SourceStartOffset));
+                        sel.IsDragging = true;
+                    }
+                    // Don't call SelectSegment — preserve multi-selection
+                }
+                else
+                {
+                    _isMultiDragging = false;
+                    _multiDragCompanions = null;
+                    _viewModel!.SelectSegment(segment);
+                }
 
                 _autoScrollHelper ??= new DragAutoScrollHelper();
                 _autoScrollHelper.Start(
@@ -765,33 +842,51 @@ namespace PodcastVideoEditor.Ui.Views
         /// Handle segment move drag — delegated to ISegmentDragHandler.
         /// Includes cross-track detection: if the mouse moves into a compatible track,
         /// the segment is reassigned to that track during the drag.
+        /// Multi-drag: companion segments follow the same horizontal delta.
         /// </summary>
         private void MoveThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
             if (_dragHandler?.ActiveDrag?.Kind != DragKind.Move)
                 return;
 
-            // Cross-track detection: fire only when accumulated vertical drag exceeds the
-            // threshold (~30 px = 50 % of a standard track row).  This prevents accidental
-            // track switches caused by the 1-3 px of vertical jitter that WPF generates on
-            // every frame of a horizontal drag.
+            // Cross-track detection (primary segment only — companions stay on their tracks)
             if (_dragHandler.AccumulateVerticalDelta(e.VerticalChange) && TracksItemsControl != null && _viewModel != null)
             {
-                var targetTrack = GetTrackUnderMouse();
-                if (targetTrack != null)
-                    _dragHandler.TryMoveToTrack(targetTrack);
+                if (!_isMultiDragging)
+                {
+                    var targetTrack = GetTrackUnderMouse();
+                    if (targetTrack != null)
+                        _dragHandler.TryMoveToTrack(targetTrack);
+                }
             }
 
-            bool isRipple = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            bool isRipple = !_isMultiDragging && (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
             var result = _dragHandler.ProcessDelta(e.HorizontalChange, isRipple);
             UpdateSnapIndicator(result.SnapIndicatorTime);
+
+            // Move companion segments by the same delta
+            if (_isMultiDragging && _multiDragCompanions != null && result.Updated && result.Segment != null)
+            {
+                double delta = result.Segment.StartTime - _multiDragPrimaryOrigStart;
+                foreach (var (seg, origStart, origEnd, _) in _multiDragCompanions)
+                {
+                    double newStart = Math.Max(0, origStart + delta);
+                    double newEnd = origEnd + delta;
+                    if (newEnd > newStart)
+                    {
+                        seg.StartTime = newStart;
+                        seg.EndTime = newEnd;
+                    }
+                }
+            }
+
             if (result.Updated)
-                UpdateSegmentLayout(isRipple ? null : result.Segment);
-            // Auto-scroll is handled by the DragAutoScrollHelper timer
+                UpdateSegmentLayout(isRipple ? null : (_isMultiDragging ? null : result.Segment));
         }
 
         /// <summary>
         /// End segment move operation.
+        /// Multi-drag: builds a CompoundAction covering primary + all companions.
         /// </summary>
         private void MoveThumb_DragCompleted(object sender, DragCompletedEventArgs e)
         {
@@ -801,8 +896,40 @@ namespace PodcastVideoEditor.Ui.Views
             _autoScrollHelper?.Stop();
             UpdateSnapIndicator(null);
 
-            var action = _dragHandler?.CompleteDrag();
-            if (action != null) _viewModel?.UndoRedoService?.Record(action);
+            var primaryAction = _dragHandler?.CompleteDrag();
+
+            if (_isMultiDragging && _multiDragCompanions != null && _viewModel != null)
+            {
+                var allActions = new List<IUndoableAction>();
+                if (primaryAction != null)
+                    allActions.Add(primaryAction);
+
+                foreach (var (seg, origStart, origEnd, origSourceOffset) in _multiDragCompanions)
+                {
+                    seg.IsDragging = false;
+                    // Only record undo if the companion actually moved
+                    if (Math.Abs(seg.StartTime - origStart) > 0.001 || Math.Abs(seg.EndTime - origEnd) > 0.001)
+                    {
+                        allActions.Add(new SegmentTimingChangedAction(
+                            seg, origStart, origEnd,
+                            seg.StartTime, seg.EndTime,
+                            origSourceOffset, seg.SourceStartOffset,
+                            () => _viewModel.InvalidateActiveSegmentsCachePublic()));
+                    }
+                }
+
+                if (allActions.Count > 0)
+                    _viewModel.UndoRedoService?.Record(
+                        allActions.Count == 1 ? allActions[0] : new CompoundAction("Move segments", allActions));
+
+                _isMultiDragging = false;
+                _multiDragCompanions = null;
+            }
+            else
+            {
+                if (primaryAction != null) _viewModel?.UndoRedoService?.Record(primaryAction);
+            }
+
             UpdateSegmentLayout();
         }
 
@@ -873,9 +1000,14 @@ namespace PodcastVideoEditor.Ui.Views
             }
         }
 
+        // ── Rubber-band selection state ──────────────────────────────────────
+        private bool _isRubberBanding;
+        private Point _rubberBandOrigin;
+        private Canvas? _rubberBandCanvas;          // parent canvas where rubber-band started
+        private System.Windows.Shapes.Rectangle? _rubberBandRect;
+
         /// <summary>
-        /// Handle clicking on timeline to move playhead.
-        /// Only seek when clicking on empty area (not on a segment block).
+        /// Handle clicking on timeline empty area: clear multi-selection + start rubber-band or playhead drag.
         /// </summary>
         private void TimelineCanvas_MouseDown(object sender, MouseButtonEventArgs e)
         {
@@ -883,39 +1015,133 @@ namespace PodcastVideoEditor.Ui.Views
                 return; // Let segment handle selection
 
             Focus();
-            _isDraggingPlayhead = true;
-            if (sender is IInputElement inputElement)
+
+            // Clear multi-selection when clicking empty area (unless Ctrl held for additive)
+            bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+            if (!ctrl)
+                _viewModel?.ClearMultiSelection();
+
+            if (sender is Canvas canvas && e.LeftButton == MouseButtonState.Pressed)
             {
-                inputElement.CaptureMouse();
-                HandlePlayheadPreview(e.GetPosition(inputElement).X, force: true);
+                _rubberBandOrigin = e.GetPosition(canvas);
+                _rubberBandCanvas = canvas;
+                _isRubberBanding = false; // Will activate on move if drag exceeds threshold
+                canvas.CaptureMouse();
+
+                // Also start playhead preview immediately
+                HandlePlayheadPreview(_rubberBandOrigin.X, force: true);
+                _isDraggingPlayhead = true;
             }
             e.Handled = true;
         }
 
         /// <summary>
-        /// Handle dragging to move playhead.
+        /// Handle dragging on empty area: switch to rubber-band if moved enough, otherwise continue playhead drag.
         /// </summary>
         private void TimelineCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (_isDraggingPlayhead && sender is IInputElement canvas)
+            if (sender is not Canvas canvas) return;
+
+            if (e.LeftButton == MouseButtonState.Pressed && _rubberBandCanvas == canvas)
             {
-                HandlePlayheadPreview(e.GetPosition(canvas).X, force: false);
+                var pos = e.GetPosition(canvas);
+                double dx = Math.Abs(pos.X - _rubberBandOrigin.X);
+                double dy = Math.Abs(pos.Y - _rubberBandOrigin.Y);
+
+                // Activate rubber-band if moved > 5px from origin
+                if (!_isRubberBanding && (dx > 5 || dy > 5))
+                {
+                    _isRubberBanding = true;
+                    _isDraggingPlayhead = false; // Switch from playhead to rubber-band
+
+                    // Create selection rectangle overlay
+                    _rubberBandRect = new System.Windows.Shapes.Rectangle
+                    {
+                        Stroke = new SolidColorBrush(Color.FromArgb(200, 0x64, 0xb5, 0xf6)),
+                        StrokeThickness = 1,
+                        Fill = new SolidColorBrush(Color.FromArgb(40, 0x64, 0xb5, 0xf6)),
+                        StrokeDashArray = new DoubleCollection { 4, 2 },
+                        IsHitTestVisible = false
+                    };
+                    canvas.Children.Add(_rubberBandRect);
+                }
+
+                if (_isRubberBanding && _rubberBandRect != null)
+                {
+                    double x = Math.Min(pos.X, _rubberBandOrigin.X);
+                    double y = Math.Min(pos.Y, _rubberBandOrigin.Y);
+                    double w = Math.Abs(pos.X - _rubberBandOrigin.X);
+                    double h = Math.Abs(pos.Y - _rubberBandOrigin.Y);
+
+                    Canvas.SetLeft(_rubberBandRect, x);
+                    Canvas.SetTop(_rubberBandRect, y);
+                    _rubberBandRect.Width = w;
+                    _rubberBandRect.Height = h;
+                }
+                else if (_isDraggingPlayhead)
+                {
+                    HandlePlayheadPreview(pos.X, force: false);
+                }
             }
         }
 
         /// <summary>
-        /// Handle releasing playhead drag.
+        /// Handle releasing: complete rubber-band selection or playhead drag.
         /// </summary>
         private void TimelineCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_isDraggingPlayhead)
+            if (sender is Canvas canvas)
             {
-                if (sender is IInputElement inputElement)
-                    inputElement.ReleaseMouseCapture();
-                if (_viewModel != null)
+                if (_isRubberBanding && _viewModel != null)
+                {
+                    var pos = e.GetPosition(canvas);
+
+                    // Calculate time range from pixel positions
+                    double x1 = Math.Min(pos.X, _rubberBandOrigin.X);
+                    double x2 = Math.Max(pos.X, _rubberBandOrigin.X);
+                    double startTime = _viewModel.PixelsToTime(x1);
+                    double endTime = _viewModel.PixelsToTime(x2);
+
+                    // Determine which track this canvas belongs to
+                    var hitTracks = GetRubberBandHitTracks(canvas);
+
+                    bool additive = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+                    _viewModel.SelectionService.RubberBandSelect(startTime, endTime, hitTracks, additive);
+                    _viewModel.StatusMessage = _viewModel.SelectionService.HasSelection
+                        ? $"{_viewModel.SelectionService.Count} segment(s) selected"
+                        : "No segments in selection area";
+
+                    // Remove the rectangle visual
+                    if (_rubberBandRect != null)
+                    {
+                        canvas.Children.Remove(_rubberBandRect);
+                        _rubberBandRect = null;
+                    }
+                }
+                else if (_isDraggingPlayhead && _viewModel != null)
+                {
                     _viewModel.CommitScrubSeek(_viewModel.PlayheadPosition);
+                }
+
+                canvas.ReleaseMouseCapture();
             }
             _isDraggingPlayhead = false;
+            _isRubberBanding = false;
+            _rubberBandCanvas = null;
+        }
+
+        /// <summary>
+        /// Get the track(s) under the rubber-band canvas.
+        /// Since each track has its own Canvas, rubber-band within one track returns only that track.
+        /// </summary>
+        private IReadOnlyList<PodcastVideoEditor.Core.Models.Track> GetRubberBandHitTracks(Canvas canvas)
+        {
+            // The canvas is inside a DataTemplate whose DataContext is a Track
+            if (canvas.DataContext is PodcastVideoEditor.Core.Models.Track track)
+                return new[] { track };
+
+            // Fallback: return all tracks
+            return _viewModel?.Tracks as IReadOnlyList<PodcastVideoEditor.Core.Models.Track> ?? Array.Empty<PodcastVideoEditor.Core.Models.Track>();
         }
 
         /// <summary>
@@ -1216,6 +1442,14 @@ namespace PodcastVideoEditor.Ui.Views
 
             if (sender is Border border && border.DataContext is PodcastVideoEditor.Core.Models.Track track)
             {
+                // Ctrl+Click track header → select all segments on this track
+                if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+                {
+                    _viewModel.SelectionService.SelectTrack(track);
+                    e.Handled = true;
+                    return;
+                }
+
                 _viewModel.SelectTrack(track);
                 _trackHeaderDragStartPoint = e.GetPosition(this);
                 _draggedTrackHeader = track;

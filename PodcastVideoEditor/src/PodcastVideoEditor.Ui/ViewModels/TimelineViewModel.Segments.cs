@@ -17,42 +17,48 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
     public partial class TimelineViewModel
     {
-        // ── Multi-select state ──────────────────────────────────────────────────
+        // ── Multi-select state (delegated to TimelineSelectionService) ───────────
 
-        private readonly List<Segment> _multiSelectedSegments = new();
+        private readonly TimelineSelectionService _selectionService = new();
+
+        /// <summary>True when one or more segments are in the multi-selection.</summary>
+        public bool HasMultiSelection => _selectionService.HasSelection;
+
+        /// <summary>Number of multi-selected segments.</summary>
+        public int MultiSelectionCount => _selectionService.Count;
+
+        /// <summary>Read-only access to multi-selected segments.</summary>
+        public IReadOnlyCollection<Segment> MultiSelectedSegments => _selectionService.SelectedSegments;
+
+        /// <summary>The underlying selection service (for rubber-band from View).</summary>
+        public TimelineSelectionService SelectionService => _selectionService;
 
         /// <summary>
-        /// Return true when one or more segments are in the multi-selection.
-        /// </summary>
-        public bool HasMultiSelection => _multiSelectedSegments.Count > 0;
-
-        /// <summary>
-        /// Toggle <paramref name="segment"/> in/out of the multi-selection without
-        /// changing <see cref="SelectedSegment"/> (single-select is kept independent).
+        /// Toggle <paramref name="segment"/> in/out of the multi-selection (Ctrl+Click).
         /// </summary>
         public void ToggleMultiSelect(Segment segment)
         {
-            if (_multiSelectedSegments.Contains(segment))
-            {
-                _multiSelectedSegments.Remove(segment);
-                segment.IsMultiSelected = false;
-            }
-            else
-            {
-                _multiSelectedSegments.Add(segment);
-                segment.IsMultiSelected = true;
-            }
-            StatusMessage = _multiSelectedSegments.Count > 0
-                ? $"{_multiSelectedSegments.Count} segment(s) selected"
+            _selectionService.Toggle(segment);
+            StatusMessage = _selectionService.HasSelection
+                ? $"{_selectionService.Count} segment(s) selected"
+                : "Multi-selection cleared";
+        }
+
+        /// <summary>
+        /// Range-select from anchor to target (Shift+Click).
+        /// </summary>
+        public void RangeMultiSelect(Segment segment)
+        {
+            _selectionService.RangeSelect(segment, Tracks);
+            StatusMessage = _selectionService.HasSelection
+                ? $"{_selectionService.Count} segment(s) selected"
                 : "Multi-selection cleared";
         }
 
         /// <summary>Clear all multi-selected segments without deleting them.</summary>
         public void ClearMultiSelection()
         {
-            foreach (var seg in _multiSelectedSegments)
-                seg.IsMultiSelected = false;
-            _multiSelectedSegments.Clear();
+            _selectionService.Clear();
         }
 
         // ── Segment add / create ────────────────────────────────────────────────
@@ -491,11 +497,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
             try
             {
                 // Multi-select delete takes priority
-                if (_multiSelectedSegments.Count > 0)
+                if (_selectionService.HasSelection)
                 {
-                    int totalCount = _multiSelectedSegments.Count;
+                    int totalCount = _selectionService.Count;
                     // Skip segments whose track is locked
-                    var toDelete = _multiSelectedSegments
+                    var toDelete = _selectionService.SelectedSegments
                         .Where(seg => Tracks.FirstOrDefault(t => t.Id == seg.TrackId)?.IsLocked != true)
                         .ToList();
                     int skipped = totalCount - toDelete.Count;
@@ -627,27 +633,57 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [RelayCommand]
         public void SelectAllSegments()
         {
-            ClearMultiSelection();
-            foreach (var track in Tracks)
-            {
-                foreach (var seg in track.Segments)
-                {
-                    seg.IsMultiSelected = true;
-                    _multiSelectedSegments.Add(seg);
-                }
-            }
-            int total = _multiSelectedSegments.Count;
+            _selectionService.SelectAll(Tracks);
+            int total = _selectionService.Count;
             StatusMessage = total > 0 ? $"All {total} segment(s) selected" : "No segments to select";
         }
 
         /// <summary>
-        /// Duplicate selected segment with offset, in the same track.
+        /// Duplicate selected segment(s) with offset, in the same track.
+        /// Supports multi-selection: all selected segments are duplicated.
         /// </summary>
         [RelayCommand]
         public void DuplicateSelectedSegment()
         {
             try
             {
+                // Multi-select duplicate
+                if (_selectionService.HasSelection)
+                {
+                    var toDuplicate = _selectionService.SelectedSegments
+                        .Where(seg => Tracks.FirstOrDefault(t => t.Id == seg.TrackId)?.IsLocked != true)
+                        .OrderBy(seg => seg.StartTime)
+                        .ToList();
+
+                    if (toDuplicate.Count == 0) { StatusMessage = "All selected segments are on locked tracks"; return; }
+
+                    var actions = new List<IUndoableAction>();
+                    foreach (var original in toDuplicate)
+                    {
+                        var track = Tracks.FirstOrDefault(t => t.Id == original.TrackId);
+                        if (track == null) continue;
+
+                        double duration = original.EndTime - original.StartTime;
+                        var duplicate = CloneSegmentWithOffset(original, track, duration);
+
+                        if (track.Segments is ObservableCollection<Segment> segs)
+                        {
+                            if (CheckCollisionInTrack(duplicate, track.Id)) continue;
+                            segs.Add(duplicate);
+                            duplicate.TimelinePixelsPerSecond = PixelsPerSecond;
+                            actions.Add(new SegmentAddedAction(
+                                segs, duplicate, InvalidateActiveSegmentsCache,
+                                seg => { if (seg != null) SelectSegment(seg); else SelectedSegment = null; }));
+                        }
+                    }
+
+                    if (actions.Count > 0)
+                        _undoRedo?.Record(new CompoundAction($"Duplicate {actions.Count} segment(s)", actions));
+                    InvalidateActiveSegmentsCache();
+                    StatusMessage = $"{actions.Count} segment(s) duplicated";
+                    return;
+                }
+
                 if (SelectedSegment == null)
                 {
                     StatusMessage = "No segment selected";
@@ -660,28 +696,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                var original = SelectedSegment;
-                double duration = original.EndTime - original.StartTime;
+                var orig = SelectedSegment;
+                double dur = orig.EndTime - orig.StartTime;
+                var dup = CloneSegmentWithOffset(orig, SelectedTrack, dur);
 
-                var duplicate = new Segment
-                {
-                    ProjectId = original.ProjectId,
-                    TrackId = original.TrackId,
-                    StartTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds),
-                    EndTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds + duration),
-                    Text = original.Text + " (Copy)",
-                    Kind = original.Kind,
-                    BackgroundAssetId = original.BackgroundAssetId,
-                    TransitionType = original.TransitionType,
-                    TransitionDuration = original.TransitionDuration,
-                    Volume = original.Volume,
-                    FadeInDuration = original.FadeInDuration,
-                    FadeOutDuration = original.FadeOutDuration,
-                    SourceStartOffset = original.SourceStartOffset,
-                    Order = SelectedTrack.Segments.Count
-                };
-
-                if (!CommitSegmentToTrack(SelectedTrack, duplicate, "Segment duplicated"))
+                if (!CommitSegmentToTrack(SelectedTrack, dup, "Segment duplicated"))
                     return;
 
                 Log.Information("Segment duplicated in track {TrackId}", SelectedTrack.Id);
@@ -693,69 +712,133 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
+        private Segment CloneSegmentWithOffset(Segment original, Track track, double duration)
+        {
+            return new Segment
+            {
+                ProjectId = original.ProjectId,
+                TrackId = original.TrackId,
+                StartTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds),
+                EndTime = SnapToGrid(original.EndTime + TimelineConstants.DuplicateGapSeconds + duration),
+                Text = original.Text + " (Copy)",
+                Kind = original.Kind,
+                BackgroundAssetId = original.BackgroundAssetId,
+                TransitionType = original.TransitionType,
+                TransitionDuration = original.TransitionDuration,
+                Volume = original.Volume,
+                FadeInDuration = original.FadeInDuration,
+                FadeOutDuration = original.FadeOutDuration,
+                SourceStartOffset = original.SourceStartOffset,
+                Order = track.Segments.Count
+            };
+        }
+
         /// <summary>
-        /// Split the selected segment at the current playhead position (Ctrl+B).
-        /// Creates two segments: [original.Start → playhead] and [playhead → original.End].
+        /// Split the selected segment(s) at the current playhead position (Ctrl+B).
+        /// Multi-select: splits ALL selected segments intersected by playhead.
+        /// Creates two segments per split: [original.Start → playhead] and [playhead → original.End].
         /// </summary>
         [RelayCommand]
         public void SplitSelectedSegmentAtPlayhead()
         {
             try
             {
-                if (SelectedSegment == null)
-                {
-                    StatusMessage = "No segment selected";
-                    return;
-                }
-
-                if (SelectedTrack == null)
-                {
-                    StatusMessage = "No track context";
-                    return;
-                }
-
-                var segment = SelectedSegment;
                 var splitTime = SnapToGrid(PlayheadPosition);
-
-                // Validate: playhead must be inside segment (with margin)
                 const double margin = 0.05; // 50ms minimum segment duration
-                if (splitTime <= segment.StartTime + margin || splitTime >= segment.EndTime - margin)
+
+                // Multi-split: split all selected segments at playhead
+                if (_selectionService.HasSelection)
+                {
+                    var toSplit = _selectionService.SelectedSegments
+                        .Where(seg =>
+                        {
+                            var track = Tracks.FirstOrDefault(t => t.Id == seg.TrackId);
+                            return track?.IsLocked != true
+                                && splitTime > seg.StartTime + margin
+                                && splitTime < seg.EndTime - margin;
+                        })
+                        .ToList();
+
+                    if (toSplit.Count == 0) { StatusMessage = "No selected segments intersect the playhead"; return; }
+
+                    ClearMultiSelection();
+                    var actions = new List<IUndoableAction>();
+                    foreach (var segment in toSplit)
+                    {
+                        var track = Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                        if (track?.Segments is not ObservableCollection<Segment> segs) continue;
+
+                        var rightHalf = new Segment
+                        {
+                            ProjectId = segment.ProjectId,
+                            TrackId = segment.TrackId,
+                            StartTime = splitTime,
+                            EndTime = segment.EndTime,
+                            Text = segment.Text,
+                            Kind = segment.Kind,
+                            BackgroundAssetId = segment.BackgroundAssetId,
+                            TransitionType = segment.TransitionType,
+                            TransitionDuration = segment.TransitionDuration,
+                            Volume = segment.Volume,
+                            FadeInDuration = 0,
+                            FadeOutDuration = segment.FadeOutDuration,
+                            Order = segs.Count
+                        };
+                        double origEnd = segment.EndTime;
+                        segment.EndTime = splitTime;
+                        segment.FadeOutDuration = 0;
+                        segs.Add(rightHalf);
+                        rightHalf.TimelinePixelsPerSecond = PixelsPerSecond;
+                        actions.Add(new SegmentSplitAction(
+                            segs, segment, origEnd, rightHalf,
+                            InvalidateActiveSegmentsCache,
+                            seg2 => { if (seg2 != null) SelectSegment(seg2); else SelectedSegment = null; }));
+                    }
+                    if (actions.Count > 0)
+                        _undoRedo?.Record(new CompoundAction($"Split {actions.Count} segment(s)", actions));
+                    InvalidateActiveSegmentsCache();
+                    StatusMessage = $"{actions.Count} segment(s) split at {splitTime:F2}s";
+                    return;
+                }
+
+                // Single-segment fallback
+                if (SelectedSegment == null) { StatusMessage = "No segment selected"; return; }
+                if (SelectedTrack == null) { StatusMessage = "No track context"; return; }
+
+                var singleSeg = SelectedSegment;
+                if (splitTime <= singleSeg.StartTime + margin || splitTime >= singleSeg.EndTime - margin)
                 {
                     StatusMessage = "Playhead must be inside the segment to split";
                     return;
                 }
 
-                // Create the right half (new segment)
-                var rightHalf = new Segment
+                var singleRight = new Segment
                 {
-                    ProjectId = segment.ProjectId,
-                    TrackId = segment.TrackId,
+                    ProjectId = singleSeg.ProjectId,
+                    TrackId = singleSeg.TrackId,
                     StartTime = splitTime,
-                    EndTime = segment.EndTime,
-                    Text = segment.Text,
-                    Kind = segment.Kind,
-                    BackgroundAssetId = segment.BackgroundAssetId,
-                    TransitionType = segment.TransitionType,
-                    TransitionDuration = segment.TransitionDuration,
-                    Volume = segment.Volume,
-                    FadeInDuration = 0, // Right half starts clean
-                    FadeOutDuration = segment.FadeOutDuration,
+                    EndTime = singleSeg.EndTime,
+                    Text = singleSeg.Text,
+                    Kind = singleSeg.Kind,
+                    BackgroundAssetId = singleSeg.BackgroundAssetId,
+                    TransitionType = singleSeg.TransitionType,
+                    TransitionDuration = singleSeg.TransitionDuration,
+                    Volume = singleSeg.Volume,
+                    FadeInDuration = 0,
+                    FadeOutDuration = singleSeg.FadeOutDuration,
                     Order = SelectedTrack.Segments.Count
                 };
+                double origEndSingle = singleSeg.EndTime;
+                singleSeg.EndTime = splitTime;
+                singleSeg.FadeOutDuration = 0;
 
-                // Trim the left half (modify existing segment)
-                segment.EndTime = splitTime;
-                segment.FadeOutDuration = 0; // Left half ends clean
-
-                // Add right half to the track
-                double originalEndBeforeSplit = rightHalf.EndTime; // same as segment's original EndTime
-                SelectedTrack.Segments.Add(rightHalf);
-                rightHalf.TimelinePixelsPerSecond = PixelsPerSecond;
+                SelectedTrack.Segments.Add(singleRight);
+                singleRight.TimelinePixelsPerSecond = PixelsPerSecond;
                 InvalidateActiveSegmentsCache();
-                SelectSegment(rightHalf);
+                SelectSegment(singleRight);
                 _undoRedo?.Record(new SegmentSplitAction(
                     (System.Collections.ObjectModel.ObservableCollection<Segment>)SelectedTrack.Segments,
-                    segment, originalEndBeforeSplit, rightHalf,
+                    singleSeg, origEndSingle, singleRight,
                     InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
                 StatusMessage = $"Segment split at {splitTime:F2}s";
                 Log.Information("Segment split at {SplitTime}s in track {TrackId}", splitTime, SelectedTrack.Id);
