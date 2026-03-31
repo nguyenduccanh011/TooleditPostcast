@@ -101,12 +101,17 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
             _ => new CompoundAction("Move segment", actions)
         };
 
+        bool hadActualChange = actions.Count > 0;
         _dragOp.Segment.IsDragging = false;
         _dragOp = null;
         _rippleDeltaAccumulator = 0;
         _vm.IsDeferringThumbnailUpdate = false;
         _vm.InvalidateActiveSegmentsCachePublic();
-        _vm.RecalculateDurationFromSegments();
+        // Only recalculate duration when the drag actually moved/resized the segment.
+        // A simple click fires DragStarted+DragCompleted without movement — skip to
+        // avoid an unnecessary PPS recalculation that can cause a visible zoom jump.
+        if (hadActualChange)
+            _vm.RecalculateDurationFromSegments();
         return finalAction;
     }
 

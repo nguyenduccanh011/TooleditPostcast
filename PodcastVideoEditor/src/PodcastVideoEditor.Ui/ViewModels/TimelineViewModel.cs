@@ -427,7 +427,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
             TotalDuration = result.totalDuration;
             TimelineWidth = _layoutService.ComputeFitWidth(result.totalDuration);
             _batchingPpsUpdate = false;
-            PixelsPerSecond = result.pixelsPerSecond;
+            // Recompute PPS with the NEW TimelineWidth (not the stale value from before).
+            PixelsPerSecond = _layoutService.CalculatePixelsPerSecond(TimelineWidth, TotalDuration);
         }
 
         /// <summary>
