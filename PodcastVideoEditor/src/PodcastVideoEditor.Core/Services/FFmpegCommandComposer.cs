@@ -108,6 +108,47 @@ public static class FFmpegCommandComposer
         _ => $"scale={width}:{height}"
     };
 
+    // ── GPU capabilities (exposed to UI layer) ──────────────────────────
+
+    /// <summary>
+    /// Snapshot of detected GPU capabilities for display in the render UI.
+    /// </summary>
+    public record GpuCapabilities(
+        string H264Encoder,
+        string HevcEncoder,
+        GpuFilterBackend FilterBackend)
+    {
+        /// <summary>True when video encoding runs on GPU (NVENC / QSV / AMF).</summary>
+        public bool IsGpuEncoding => H264Encoder is "h264_nvenc" or "h264_qsv" or "h264_amf";
+
+        /// <summary>True when compositing (scale + overlay) runs on GPU.</summary>
+        public bool IsGpuFiltering => FilterBackend != GpuFilterBackend.None;
+
+        /// <summary>Human-readable status line shown in the render panel.</summary>
+        public string StatusText => (IsGpuEncoding, IsGpuFiltering) switch
+        {
+            (true,  true)  => $"GPU ({FilterBackend}): encode + composite ✓",
+            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode (libx264) — update driver for full GPU",
+            _              => "CPU encode + composite — no GPU acceleration detected",
+        };
+
+        /// <summary>Hex colour for the status indicator dot / text.</summary>
+        public string StatusColor => IsGpuEncoding ? "#28A745" : IsGpuFiltering ? "#FFA500" : "#888888";
+    }
+
+    /// <summary>
+    /// Returns the GPU capabilities detected at startup (encoder + filter backend).
+    /// Triggers the lazy probe on first call; cheap on subsequent calls (cached).
+    /// </summary>
+    public static GpuCapabilities GetGpuCapabilities()
+    {
+        EnsurePreferredEncodersInitialized();
+        return new GpuCapabilities(
+            _preferredH264Encoder ?? "libx264",
+            _preferredHevcEncoder ?? "libx265",
+            _gpuFilterBackend);
+    }
+
     /// <summary>
     /// Normalize and build the complete FFmpeg argument string for a render config.
     /// Entry point used by <see cref="FFmpegService.RenderVideoAsync"/>.
@@ -232,9 +273,14 @@ public static class FFmpegCommandComposer
                 }
                 else
                 {
-                    // Non-CUDA (QSV/Vulkan/OpenCL/CPU): let FFmpeg pick the best
-                    // available decoder. Decoded frames auto-download to CPU memory.
-                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
+                    // Non-CUDA (QSV/Vulkan/OpenCL/CPU): use D3D11VA — the Windows
+                    // DirectX 11 Video Acceleration API.  Works on ALL modern Windows 10+
+                    // GPUs (NVIDIA/AMD/Intel) without a specific driver version requirement,
+                    // identical to what CapCut/Premiere use for decode.  Frames are
+                    // automatically copied to system memory before the filter graph, so no
+                    // filter-graph changes are needed.  FFmpeg silently falls back to
+                    // software decode on hardware that doesn't support D3D11VA.
+                    args.Append($"-thread_queue_size 512 -hwaccel d3d11va -i \"{seg.SourcePath}\" ");
                 }
             }
             else

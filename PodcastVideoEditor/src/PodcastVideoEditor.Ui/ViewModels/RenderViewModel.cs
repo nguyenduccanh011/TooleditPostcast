@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media;
 
 namespace PodcastVideoEditor.Ui.ViewModels
 {
@@ -61,6 +62,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private bool hasError;
 
+        /// <summary>Human-readable GPU status shown in the render panel (e.g. "GPU (Cuda): encode + composite ✓").</summary>
+        [ObservableProperty]
+        private string gpuStatusText = "Detecting GPU…";
+
+        /// <summary>Brush for the GPU status indicator dot and text (green / amber / grey).</summary>
+        [ObservableProperty]
+        private Brush gpuStatusBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+
         [ObservableProperty]
         private string outputFolder = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -93,6 +102,27 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public RenderViewModel()
         {
+            // Probe GPU capabilities in the background so the status badge
+            // is populated shortly after the render panel first appears.
+            // The probe is cached after the first call — subsequent renders pay ~0ms.
+            _ = Task.Run(() =>
+            {
+                var caps = FFmpegCommandComposer.GetGpuCapabilities();
+                var brush = new SolidColorBrush(ParseHexColor(caps.StatusColor));
+                brush.Freeze(); // safe to pass to UI thread
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    GpuStatusText  = caps.StatusText;
+                    GpuStatusBrush = brush;
+                });
+            });
+        }
+
+        private static Color ParseHexColor(string hex)
+        {
+            // hex is always one of three known values from GpuCapabilities
+            try { return (Color)ColorConverter.ConvertFromString(hex); }
+            catch { return Colors.Gray; }
         }
 
         public void AttachTimeline(TimelineViewModel timelineViewModel)
@@ -187,12 +217,39 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var zOrderMap = RenderSegmentBuilder.ComputeTrackZOrderMap(snapshot.Project);
 
                 var timelineVisualSegments = RenderSegmentBuilder.BuildTimelineVisualSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
-                var rasterizedTextVisuals  = RenderSegmentBuilder.BuildRasterizedTextSegments(snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
                 var timelineAudioSegments  = RenderSegmentBuilder.BuildTimelineAudioSegments(snapshot.Project);
 
-                Log.Information("Render segments built: {Visual} visual, {Text} rasterized text, {Audio} audio, {Elements} snapshot elements",
+                // Run text rasterization and visualizer baking in parallel.
+                // Text rasterization is CPU-bound (Parallel.For internally).
+                // Visualizer baking is mixed CPU+I/O (SkiaSharp render + FFmpeg pipe).
+                // They are fully independent, so overlapping them saves wall time.
+                StatusMessage = "Preparing text & visualizer overlays…";
+                var hasVisualizerElements = snapshot.Elements?.OfType<VisualizerElement>().Any() == true;
+
+                var vizProgress = new Progress<double>(pct =>
+                {
+                    RenderProgress = (int)(pct * 15); // visualizer bake = 0-15% of total render
+                    StatusMessage = $"Baking spectrum: {(int)(pct * 100)}%";
+                });
+
+                var textTask = Task.Run(() => RenderSegmentBuilder.BuildRasterizedTextSegments(
+                    snapshot.Project, width, height, snapshot.Elements,
+                    snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap),
+                    _renderCancellationTokenSource.Token);
+
+                var vizTask = RenderSegmentBuilder.BuildVisualizerSegmentsAsync(
+                    snapshot.Project, width, height, snapshot.Elements,
+                    snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate,
+                    _renderCancellationTokenSource.Token, zOrderMap, vizProgress);
+
+                await Task.WhenAll(textTask, vizTask);
+
+                var rasterizedTextVisuals = textTask.Result;
+                var visualizerSegments = vizTask.Result;
+
+                Log.Information("Render segments built: {Visual} visual, {Text} rasterized text, {Audio} audio, {Viz} visualizer, {Elements} snapshot elements",
                     timelineVisualSegments.Count, rasterizedTextVisuals.Count, timelineAudioSegments.Count,
-                    snapshot.Elements?.Count ?? 0);
+                    visualizerSegments.Count, snapshot.Elements?.Count ?? 0);
 
                 if (rasterizedTextVisuals.Count == 0)
                 {
@@ -209,12 +266,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Merge all visual layers into one list — FFmpegCommandComposer sorts by ZOrder.
                 timelineVisualSegments.AddRange(rasterizedTextVisuals);
-
-                // Bake visualizer spectrum overlays and merge them
-                StatusMessage = "Baking visualizer spectrum…";
-                var hasVisualizerElements = snapshot.Elements?.OfType<VisualizerElement>().Any() == true;
-                var visualizerSegments = await RenderSegmentBuilder.BuildVisualizerSegmentsAsync(
-                    snapshot.Project, width, height, snapshot.Elements, snapshot.CanvasWidth, snapshot.CanvasHeight, FrameRate, _renderCancellationTokenSource.Token, zOrderMap);
                 timelineVisualSegments.AddRange(visualizerSegments);
 
                 // Warn when the canvas has visualizer elements but none were baked into render.

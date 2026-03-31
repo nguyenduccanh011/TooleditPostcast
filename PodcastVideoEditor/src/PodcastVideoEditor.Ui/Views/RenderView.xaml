@@ -108,8 +108,17 @@
                 Text="Render Video"
                 FontSize="18"
                 FontWeight="Bold"
-                Margin="0,0,0,20"
+                Margin="0,0,0,12"
                 Foreground="#007ACC" />
+
+            <!-- GPU status badge -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0"
+                         Fill="{Binding GpuStatusBrush}" />
+                <TextBlock Text="{Binding GpuStatusText}"
+                           FontSize="11" VerticalAlignment="Center"
+                           Foreground="{Binding GpuStatusBrush}" />
+            </StackPanel>
 
             <!-- Resolution & Quality: compact outline buttons (like ratio under preview) -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
