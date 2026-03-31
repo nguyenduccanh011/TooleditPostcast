@@ -229,7 +229,7 @@ public class FFmpegCommandComposerTests
     // ═══════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Build_VideoSegment_ContainsHwaccelAuto()
+    public void Build_VideoSegment_ContainsHwaccelD3d11va()
     {
         var tempMp4 = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(), $"test_{System.Guid.NewGuid():N}.mp4");

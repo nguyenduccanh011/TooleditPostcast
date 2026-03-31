@@ -79,10 +79,15 @@ public static class FFmpegFilterGraphBuilder
         var filterStr = filter.ToString().TrimEnd(';');
         var filterScriptPath = WriteFilterScript(filterStr, config.OutputPath);
 
-        args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
+        // -filter_complex_script was removed in FFmpeg 7.1; use -/filter_complex
+        // to read the graph from a file.
+        args.Append($"-/filter_complex \"{filterScriptPath}\" ");
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
         args.Append($"-c:v {videoCodec} ");
-        args.Append($"-crf {crf} ");
+        args.Append(FFmpegCommandComposer.BuildQualityArgs(videoCodec, crf));
+        var preset = FFmpegCommandComposer.GetEncoderPreset(videoCodec, config.Quality);
+        if (!string.IsNullOrEmpty(preset))
+            args.Append($"-preset {preset} ");
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
@@ -139,7 +144,7 @@ public static class FFmpegFilterGraphBuilder
                 if (cudaZeroCopy)
                     args.Append($"-hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
                 else
-                    args.Append($"-hwaccel auto -i \"{seg.SourcePath}\" ");
+                    args.Append($"-hwaccel d3d11va -i \"{seg.SourcePath}\" ");
             }
             else
                 args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
