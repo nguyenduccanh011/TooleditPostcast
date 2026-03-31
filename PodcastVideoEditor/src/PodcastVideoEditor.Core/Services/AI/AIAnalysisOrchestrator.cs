@@ -39,7 +39,8 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         string script,
         double? audioDuration = null,
         IProgress<AIAnalysisProgressReport>? progress = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool closeGaps = true)
     {
         Report(progress, 1, 5, "Chuẩn bị…");
 
@@ -145,6 +146,12 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
                 Order              = i
             });
         }
+
+        // ── Step 6b: Close gaps between segments ─────────────────────────────
+        // ASR timestamps often have small gaps (e.g. 2.42→2.74). Extend each
+        // segment's EndTime to the next segment's StartTime so scenes are seamless.
+        if (closeGaps)
+            CloseGapsService.CloseGapsPaired(textSegments, visualSegments);
 
         Report(progress, 6, 100, $"Hoàn thành! {textSegments.Count} segment, {registeredAssetIds.Count} ảnh");
 

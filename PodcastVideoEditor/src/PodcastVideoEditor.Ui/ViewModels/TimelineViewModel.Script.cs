@@ -72,6 +72,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     });
                 }
 
+                // Close gaps: extend each segment's EndTime to next segment's StartTime
+                // so there are no black frames between scenes.
+                if (AutoCloseGaps)
+                    CloseGapsService.CloseGaps(newSegments);
+
                 await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
 
                 // Reload tracks from project
@@ -152,7 +157,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 var result = await Task.Run(
                     () => _aiOrchestrator.RunAsync(
-                        project, ScriptPasteText, TotalDuration, progress, cts.Token),
+                        project, ScriptPasteText, TotalDuration, progress, cts.Token, AutoCloseGaps),
                     cts.Token);
 
                 // Persist text track

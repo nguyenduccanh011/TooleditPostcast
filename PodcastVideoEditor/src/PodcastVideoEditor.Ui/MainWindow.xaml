@@ -21,6 +21,8 @@
     <Window.InputBindings>
         <KeyBinding Key="B" Modifiers="Control"
                     Command="{Binding TimelineViewModel.SplitSelectedSegmentAtPlayheadCommand}"/>
+        <KeyBinding Key="G" Modifiers="Control"
+                    Command="{Binding TimelineViewModel.CloseGapsOnTrackCommand}"/>
         <KeyBinding Key="S" Modifiers="Control"
                     Command="{Binding ProjectViewModel.SaveProjectCommand}"/>
     </Window.InputBindings>

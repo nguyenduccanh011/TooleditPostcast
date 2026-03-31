@@ -22,5 +22,6 @@ public interface IAIAnalysisOrchestrator
         string script,
         double? audioDuration = null,
         IProgress<AIAnalysisProgressReport>? progress = null,
-        CancellationToken ct = default);
+        CancellationToken ct = default,
+        bool closeGaps = true);
 }

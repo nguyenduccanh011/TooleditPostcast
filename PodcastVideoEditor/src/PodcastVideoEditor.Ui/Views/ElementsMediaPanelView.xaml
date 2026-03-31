@@ -280,6 +280,10 @@
                                 HorizontalAlignment="Left" Margin="0,6,0,0"
                                 Background="#7b1fa2" Foreground="White" Padding="12,8" MinHeight="32"
                                 ToolTip="Normalize script → tách đoạn + keywords → tìm 60 ảnh/đoạn → AI chọn ảnh tốt nhất"/>
+                        <CheckBox Content="Tự động xóa khoảng trống"
+                                  IsChecked="{Binding TimelineViewModel.AutoCloseGaps}"
+                                  Foreground="#b0bec5" FontSize="11" Margin="0,8,0,0"
+                                  ToolTip="Tự động mở rộng EndTime mỗi segment để liền mạch với segment kế tiếp (không có khung đen giữa các cảnh)"/>
                         <TextBlock Text="{Binding TimelineViewModel.AIAnalysisStatus}"
                                    Foreground="#b0bec5" FontSize="11" TextWrapping="Wrap"
                                    Margin="0,4,0,0"

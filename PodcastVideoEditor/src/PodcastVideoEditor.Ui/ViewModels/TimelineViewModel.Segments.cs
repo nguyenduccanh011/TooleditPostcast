@@ -908,5 +908,121 @@ namespace PodcastVideoEditor.Ui.ViewModels
             StatusMessage = "Background cleared";
             Serilog.Log.Information("Background cleared for segment {SegmentId}", SelectedSegment.Id);
         }
+
+        // ── Close gaps ──────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Close all timing gaps on the selected track (or all tracks if none selected).
+        /// Extends each segment's EndTime to the next segment's StartTime.
+        /// Paired text+visual tracks are synchronized automatically.
+        /// Fully undoable.
+        /// </summary>
+        [RelayCommand]
+        public void CloseGapsOnTrack()
+        {
+            try
+            {
+                if (_projectViewModel.CurrentProject == null)
+                {
+                    StatusMessage = "No project loaded";
+                    return;
+                }
+
+                var allActions = new List<IUndoableAction>();
+                var processedTrackIds = new HashSet<string>();
+                int totalClosed = 0;
+
+                // Determine which tracks to process
+                IEnumerable<Track> targetTracks;
+                if (SelectedTrack != null)
+                    targetTracks = new[] { SelectedTrack };
+                else
+                    targetTracks = Tracks;
+
+                foreach (var track in targetTracks)
+                {
+                    if (processedTrackIds.Contains(track.Id))
+                        continue;
+                    if (track.IsLocked)
+                        continue;
+
+                    var segments = track.Segments?.ToList();
+                    if (segments == null || segments.Count < 2)
+                        continue;
+
+                    // Try to find paired track (text↔visual from same import have matching timing)
+                    var pairedTrack = FindPairedTrack(track);
+
+                    if (pairedTrack != null && !pairedTrack.IsLocked && !processedTrackIds.Contains(pairedTrack.Id))
+                    {
+                        var pairedSegments = pairedTrack.Segments?.ToList();
+                        if (pairedSegments != null && pairedSegments.Count >= 2)
+                        {
+                            var (changesA, changesB) = CloseGapsService.CloseGapsPaired(segments, pairedSegments);
+                            foreach (var c in changesA)
+                                allActions.Add(new SegmentTimingChangedAction(c.Segment, c.Segment.StartTime, c.OldEndTime, c.Segment.StartTime, c.NewEndTime, InvalidateActiveSegmentsCache));
+                            foreach (var c in changesB)
+                                allActions.Add(new SegmentTimingChangedAction(c.Segment, c.Segment.StartTime, c.OldEndTime, c.Segment.StartTime, c.NewEndTime, InvalidateActiveSegmentsCache));
+                            totalClosed += changesA.Count + changesB.Count;
+                            processedTrackIds.Add(pairedTrack.Id);
+                        }
+                        else
+                        {
+                            // Paired track has no matching segments; close independently
+                            var changes = CloseGapsService.CloseGaps(segments);
+                            foreach (var c in changes)
+                                allActions.Add(new SegmentTimingChangedAction(c.Segment, c.Segment.StartTime, c.OldEndTime, c.Segment.StartTime, c.NewEndTime, InvalidateActiveSegmentsCache));
+                            totalClosed += changes.Count;
+                        }
+                    }
+                    else
+                    {
+                        var changes = CloseGapsService.CloseGaps(segments);
+                        foreach (var c in changes)
+                            allActions.Add(new SegmentTimingChangedAction(c.Segment, c.Segment.StartTime, c.OldEndTime, c.Segment.StartTime, c.NewEndTime, InvalidateActiveSegmentsCache));
+                        totalClosed += changes.Count;
+                    }
+
+                    processedTrackIds.Add(track.Id);
+                }
+
+                if (allActions.Count > 0)
+                {
+                    InvalidateActiveSegmentsCache();
+                    _undoRedo?.Record(new CompoundAction("Close gaps", allActions));
+                    RequestProjectSave();
+                    StatusMessage = $"Closed {totalClosed} gap(s) across {processedTrackIds.Count} track(s)";
+                    Serilog.Log.Information("CloseGaps: closed {Count} gaps on {Tracks} track(s)", totalClosed, processedTrackIds.Count);
+                }
+                else
+                {
+                    StatusMessage = "No gaps to close";
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error closing gaps: {ex.Message}";
+                Serilog.Log.Error(ex, "Error in CloseGapsOnTrack");
+            }
+        }
+
+        /// <summary>
+        /// Find the paired track (text↔visual) for synchronized gap closure.
+        /// Returns null if no valid paired track exists.
+        /// </summary>
+        private Track? FindPairedTrack(Track track)
+        {
+            string? pairedType = track.TrackType switch
+            {
+                TrackTypes.Text => TrackTypes.Visual,
+                TrackTypes.Visual => TrackTypes.Text,
+                _ => null
+            };
+
+            if (pairedType == null)
+                return null;
+
+            return Tracks.FirstOrDefault(t => t.TrackType == pairedType);
+        }
     }
 }

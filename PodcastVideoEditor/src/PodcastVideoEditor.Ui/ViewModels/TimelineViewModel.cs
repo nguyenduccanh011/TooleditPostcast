@@ -69,6 +69,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private string scriptPasteText = string.Empty;
 
         /// <summary>
+        /// When true, automatically close gaps between segments after script import
+        /// (both manual paste and AI analysis). Default is true for seamless podcast workflow.
+        /// </summary>
+        [ObservableProperty]
+        private bool autoCloseGaps = true;
+
+        /// <summary>
         /// When true, defer thumbnail strip updates (during resize/drag) to avoid FFmpeg blocking UI.
         /// </summary>
         [ObservableProperty]

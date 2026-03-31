@@ -990,6 +990,10 @@ namespace PodcastVideoEditor.Ui.Views
                 selectAllItem.Click += (_, _) => _viewModel.SelectAllSegmentsCommand.Execute(null);
                 menu.Items.Add(selectAllItem);
 
+                var closeGapsItem = new MenuItem { Header = "Close Gaps", InputGestureText = "Ctrl+G" };
+                closeGapsItem.Click += (_, _) => _viewModel.CloseGapsOnTrackCommand.Execute(null);
+                menu.Items.Add(closeGapsItem);
+
                 var clearAllItem = new MenuItem { Header = "Clear All" };
                 clearAllItem.Click += (_, _) => _viewModel.ClearAllSegmentsCommand.Execute(null);
                 menu.Items.Add(clearAllItem);
