@@ -495,8 +495,11 @@ public static class FFmpegCommandComposer
             if (currentOnGpu && segOnGpu[i])
             {
                 // Both on CUDA → overlay_cuda (fully in VRAM, no PCIe transfer)
+                // NOTE: overlay_cuda does NOT support the timeline 'enable' option.
+                // Timing is handled correctly by trim+setpts (top starts at {start})
+                // and eof_action=pass:repeatlast=0 (base passes through after top ends).
                 filter.Append($"[{currentVideo}][{shiftedLabel}]overlay_cuda=x={overlayX}:y={overlayY}:" +
-                              $"eof_action=pass:repeatlast=0:enable='between(t,{start},{end})'[{outLabel}];");
+                              $"eof_action=pass:repeatlast=0[{outLabel}];");
                 // result remains on GPU
             }
             else
@@ -643,7 +646,9 @@ public static class FFmpegCommandComposer
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
         Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);
 
-        args.Append($"-filter_complex_script \"{filterScriptPath}\" ");
+        // -filter_complex_script was removed in FFmpeg 7.1; use -/filter_complex to
+        // read the graph from a file (FFmpeg itself suggests this in the deprecation msg).
+        args.Append($"-/filter_complex \"{filterScriptPath}\" ");
 
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 

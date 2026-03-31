@@ -103,13 +103,13 @@ public class FFmpegCommandComposerTests
         {
             var config = BuildMinimalConfig(seg, "fade");
             var (args, _) = FFmpegCommandComposer.Build(config);
-            // The filter_complex_script file path is written; check args reference it.
-            // Alternatively, read the script file to verify fade= filter presence.
-            Assert.Contains("-filter_complex_script", args);
+            // -/filter_complex is the FFmpeg 7.1+ file-read syntax (replacement for
+            // removed -filter_complex_script). Check args reference the script file.
+            Assert.Contains("-/filter_complex", args);
             // Read the generated filter script
             var scriptMatch = System.Text.RegularExpressions.Regex.Match(
-                args, @"-filter_complex_script ""([^""]+)""");
-            Assert.True(scriptMatch.Success, "filter_complex_script path not found in args");
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
             var scriptPath = scriptMatch.Groups[1].Value;
             Assert.True(System.IO.File.Exists(scriptPath));
             var script = System.IO.File.ReadAllText(scriptPath);
@@ -141,7 +141,7 @@ public class FFmpegCommandComposerTests
             var config = BuildMinimalConfig(seg, "fade");
             var (args, _) = FFmpegCommandComposer.Build(config);
             var scriptMatch = System.Text.RegularExpressions.Regex.Match(
-                args, @"-filter_complex_script ""([^""]+)""");
+                args, @"-/filter_complex ""([^""]+)""");
             if (scriptMatch.Success)
             {
                 var script = System.IO.File.ReadAllText(scriptMatch.Groups[1].Value);
