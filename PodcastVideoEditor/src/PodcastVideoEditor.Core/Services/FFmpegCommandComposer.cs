@@ -111,7 +111,11 @@ public static class FFmpegCommandComposer
         foreach (var seg in visualSegments)
         {
             if (seg.IsVideo)
-                args.Append($"-i \"{seg.SourcePath}\" ");
+            {
+                // Hardware-accelerate decode for video files; FFmpeg auto-downloads
+                // decoded frames to CPU memory when they hit software filters.
+                args.Append($"-hwaccel auto -i \"{seg.SourcePath}\" ");
+            }
             else
             {
                 // Limit looped image duration to prevent infinite frame generation.
@@ -159,10 +163,13 @@ public static class FFmpegCommandComposer
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
             var pixFmt = (isPngOverlay || seg.HasAlpha) ? "rgba" : "yuv420p";
 
+            // Build optional fade-in/fade-out filter for this segment
+            var fadeFilter = BuildFadeFilter(seg, invariant);
+
             if (seg.IsVideo)
             {
                 filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
             }
             else
             {
@@ -172,11 +179,11 @@ public static class FFmpegCommandComposer
                 if (zoompanFilter != null)
                 {
                     // zoompan produces the final sized output, so we skip the separate scale
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
             }
         }
@@ -312,6 +319,11 @@ public static class FFmpegCommandComposer
 
         args.Append($"-c:v {videoCodec} ");
         args.Append($"-crf {crf} ");
+        // Add encoder preset for software encoders to control encode speed vs. quality.
+        // GPU encoders (nvenc/qsv/amf) do not use libx264-style presets.
+        var preset = GetEncoderPreset(videoCodec, config.Quality);
+        if (!string.IsNullOrEmpty(preset))
+            args.Append($"-preset {preset} ");
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
@@ -522,6 +534,48 @@ public static class FFmpegCommandComposer
         "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}",
         _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
     };
+
+    /// <summary>
+    /// Returns the FFmpeg -preset value for software encoders (libx264/libx265) based on quality.
+    /// Returns empty string for hardware encoders (nvenc/qsv/amf) which do not use this flag.
+    /// Mapping: Low → veryfast (3-5× faster), Medium → fast, High → medium.
+    /// </summary>
+    public static string GetEncoderPreset(string videoCodec, string quality)
+    {
+        // Only software encoders support -preset in the libx264/libx265 style
+        var isSoftware = videoCodec is "libx264" or "libx265";
+        if (!isSoftware)
+            return string.Empty;
+
+        return quality switch
+        {
+            "Low"  => "veryfast",
+            "High" => "medium",
+            _      => "fast",     // Medium quality default
+        };
+    }
+
+    /// <summary>
+    /// Builds a comma-prefixed FFmpeg fade filter string for a segment with transition configured.
+    /// Returns an empty string when no transition is set.
+    /// The fade uses alpha=1 so it affects transparency rather than color, ensuring adjacent
+    /// segments cross-dissolve naturally through the composite base canvas.
+    /// Format: ",fade=t=in:st=0:d={dur}:alpha=1,fade=t=out:st={outSt}:d={dur}:alpha=1"
+    /// </summary>
+    private static string BuildFadeFilter(RenderVisualSegment seg, IFormatProvider invariant)
+    {
+        if (!string.Equals(seg.TransitionType, "fade", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        var dur = seg.TransitionDuration;
+        if (dur <= 0 || dur > seg.Duration / 2.0)
+            return string.Empty;
+
+        // fade=out starts at (Duration - transitionDuration) seconds into the clip
+        var outStart = Math.Max(0, seg.Duration - dur);
+        return $",fade=t=in:st=0:d={dur.ToString("F3", invariant)}:alpha=1" +
+               $",fade=t=out:st={outStart.ToString("F3", invariant)}:d={dur.ToString("F3", invariant)}:alpha=1";
+    }
 
     internal static string EscapeFilterPath(string path) =>
         path.Replace("\\", "/")

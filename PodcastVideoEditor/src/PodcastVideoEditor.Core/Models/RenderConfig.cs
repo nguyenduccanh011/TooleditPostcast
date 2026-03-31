@@ -201,6 +201,19 @@ public class RenderVisualSegment
     /// Pre-computed for convenience in FFmpeg filter generation.
     /// </summary>
     public double Duration => Math.Max(0, EndTime - StartTime);
+
+    /// <summary>
+    /// Transition type to apply at the start/end of this segment.
+    /// Supported values: "none", "fade". Default "none".
+    /// When "fade", a transparent fade-in and fade-out is applied using FFmpeg's fade filter (alpha=1).
+    /// </summary>
+    public string TransitionType { get; set; } = "none";
+
+    /// <summary>
+    /// Duration of the fade-in and fade-out transition in seconds. Default 0 (disabled).
+    /// Only used when <see cref="TransitionType"/> is "fade".
+    /// </summary>
+    public double TransitionDuration { get; set; }
 }
 
 /// <summary>

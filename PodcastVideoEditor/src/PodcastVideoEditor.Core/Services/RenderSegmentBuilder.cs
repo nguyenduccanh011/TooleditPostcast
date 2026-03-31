@@ -165,7 +165,9 @@ public static class RenderSegmentBuilder
                     EndTime             = segment.EndTime,
                     IsVideo             = IsVideoAsset(asset),
                     SourceOffsetSeconds = 0,
-                    ZOrder              = trackBase + localIdx++
+                    ZOrder              = trackBase + localIdx++,
+                    TransitionType      = string.IsNullOrWhiteSpace(segment.TransitionType) ? "none" : segment.TransitionType,
+                    TransitionDuration  = segment.TransitionDuration
                 };
 
                 // Sync position and size from the linked canvas element when available.
