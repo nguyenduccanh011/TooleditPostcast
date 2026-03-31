@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PodcastVideoEditor.Core.Services.AI;
+using PodcastVideoEditor.Ui.Configuration;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui.Services;
@@ -69,4 +70,73 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     }
 
     private static string FilePath(string appDataPath) => Path.Combine(appDataPath, FileName);
+
+    /// <summary>
+    /// Fills in any empty API-key fields from the bundled <c>appsettings.json</c> defaults.
+    /// This lets the release builder pre-configure keys so new installs work immediately.
+    /// User-supplied values always take priority.
+    /// </summary>
+    public void ApplyFallbacks(AppConfiguration appConfig)
+    {
+        if (string.IsNullOrWhiteSpace(YesScaleApiKey) && !string.IsNullOrWhiteSpace(appConfig.AIAnalysis.YesScaleApiKey))
+            YesScaleApiKey = appConfig.AIAnalysis.YesScaleApiKey;
+
+        if (string.IsNullOrWhiteSpace(YesScaleBaseUrl) || YesScaleBaseUrl == "https://api.yescale.vip/v1")
+        {
+            if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.BaseUrl))
+                YesScaleBaseUrl = appConfig.AIAnalysis.BaseUrl;
+        }
+
+        if (string.IsNullOrWhiteSpace(YesScaleModel) || YesScaleModel == "gpt-4o-mini")
+        {
+            if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.DefaultModel))
+                YesScaleModel = appConfig.AIAnalysis.DefaultModel;
+        }
+
+        if (string.IsNullOrWhiteSpace(PexelsApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PexelsApiKey))
+            PexelsApiKey = appConfig.ImageSearch.PexelsApiKey;
+
+        if (string.IsNullOrWhiteSpace(PixabayApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PixabayApiKey))
+            PixabayApiKey = appConfig.ImageSearch.PixabayApiKey;
+
+        if (string.IsNullOrWhiteSpace(UnsplashApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.UnsplashApiKey))
+            UnsplashApiKey = appConfig.ImageSearch.UnsplashApiKey;
+    }
+
+    /// <summary>Exports current settings to the specified file path.</summary>
+    public void ExportTo(string filePath)
+    {
+        var dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        File.WriteAllText(filePath, JsonSerializer.Serialize(this, _jsonOpts));
+    }
+
+    /// <summary>
+    /// Imports settings from a JSON file and overwrites current values.
+    /// Returns true on success.
+    /// </summary>
+    public bool ImportFrom(string filePath)
+    {
+        try
+        {
+            var json = File.ReadAllText(filePath);
+            var imported = JsonSerializer.Deserialize<UserSettingsStore>(json, _jsonOpts);
+            if (imported is null) return false;
+
+            YesScaleApiKey  = imported.YesScaleApiKey;
+            YesScaleBaseUrl = imported.YesScaleBaseUrl;
+            YesScaleModel   = imported.YesScaleModel;
+            FFmpegPath      = imported.FFmpegPath;
+            PexelsApiKey    = imported.PexelsApiKey;
+            PixabayApiKey   = imported.PixabayApiKey;
+            UnsplashApiKey  = imported.UnsplashApiKey;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to import settings from {Path}", filePath);
+            return false;
+        }
+    }
 }

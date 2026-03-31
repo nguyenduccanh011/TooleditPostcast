@@ -512,6 +512,33 @@ public partial class MainWindow : Window
         FFmpegStatusText.Text = result.Message;
     }
 
+    private void ExportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export Settings",
+            Filter = "JSON Files (*.json)|*.json",
+            FileName = "podcast_editor_settings.json",
+            DefaultExt = ".json"
+        };
+
+        if (dialog.ShowDialog() == true)
+            _settingsViewModel.ExportSettings(dialog.FileName);
+    }
+
+    private void ImportSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import Settings",
+            Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+            CheckFileExists = true
+        };
+
+        if (dialog.ShowDialog() == true)
+            _settingsViewModel.ImportSettings(dialog.FileName);
+    }
+
     private async void MainWindow_Closing(object sender, CancelEventArgs e)
     {
         // Guard: if we're already in the closing sequence (after flush), let it close.

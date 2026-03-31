@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Ui.Services;
 using System.Collections.ObjectModel;
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -84,6 +85,57 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             IsStatusError = true;
             StatusMessage = $"Error saving settings: {ex.Message}";
+        }
+    }
+
+    /// <summary>Exports current settings to the specified file path.</summary>
+    public void ExportSettings(string filePath)
+    {
+        try
+        {
+            // Flush current UI values to the store first
+            _store.YesScaleApiKey  = YesScaleApiKey.Trim();
+            _store.YesScaleBaseUrl = string.IsNullOrWhiteSpace(YesScaleBaseUrl) ? "https://api.yescale.vip/v1" : YesScaleBaseUrl.Trim();
+            _store.YesScaleModel   = string.IsNullOrWhiteSpace(YesScaleModel)   ? "gpt-4o-mini" : YesScaleModel.Trim();
+            _store.FFmpegPath      = FfmpegPath.Trim();
+            _store.PexelsApiKey    = PexelsApiKey.Trim();
+            _store.PixabayApiKey   = PixabayApiKey.Trim();
+            _store.UnsplashApiKey  = UnsplashApiKey.Trim();
+
+            _store.ExportTo(filePath);
+            IsStatusError = false;
+            StatusMessage = $"Settings exported to {Path.GetFileName(filePath)}.";
+        }
+        catch (Exception ex)
+        {
+            IsStatusError = true;
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    /// <summary>Imports settings from the specified JSON file and refreshes the UI.</summary>
+    public void ImportSettings(string filePath)
+    {
+        try
+        {
+            if (_store.ImportFrom(filePath))
+            {
+                _store.Save(_appDataPath);
+                LoadFromStore();
+                QueueYesScaleModelReload();
+                IsStatusError = false;
+                StatusMessage = $"Settings imported from {Path.GetFileName(filePath)}.";
+            }
+            else
+            {
+                IsStatusError = true;
+                StatusMessage = "Import failed: invalid settings file.";
+            }
+        }
+        catch (Exception ex)
+        {
+            IsStatusError = true;
+            StatusMessage = $"Import failed: {ex.Message}";
         }
     }
 

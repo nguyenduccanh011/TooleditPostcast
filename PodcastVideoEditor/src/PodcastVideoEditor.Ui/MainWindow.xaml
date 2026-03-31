@@ -460,6 +460,14 @@
                                     Content="Save Settings"
                                     Command="{Binding SaveSettingsCommand}"
                                     Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" />
+                            <Button Width="120" Height="34" Margin="10,0,0,0"
+                                    Content="Export Settings"
+                                    Click="ExportSettings_Click"
+                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
+                            <Button Width="120" Height="34" Margin="10,0,0,0"
+                                    Content="Import Settings"
+                                    Click="ImportSettings_Click"
+                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
                             <TextBlock Margin="12,8,0,0"
                                        Text="{Binding StatusMessage}"
                                        Foreground="#CCCCCC" />
