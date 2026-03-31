@@ -114,15 +114,33 @@ public static class FFmpegFilterGraphBuilder
         out bool hasPrimaryAudio,
         out int extraAudioStartIndex)
     {
+        // GPU backend detection for GPU scale filters
+        var gpuBackend = FFmpegCommandComposer.DetectedGpuBackend;
+        var useGpu = gpuBackend != FFmpegCommandComposer.GpuFilterBackend.None;
+
+        // GPU hardware device init
+        if (useGpu)
+        {
+            var (initHwDevice, _, _, _, _) = FFmpegCommandComposer.GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
+            if (!string.IsNullOrEmpty(initHwDevice))
+                args.Append($"{initHwDevice} ");
+        }
+
         // Input 0: black background canvas
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}" +
                     $":r={config.FrameRate}:d=86400\" ");
 
         // Inputs 1..N: visual sources
+        var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
         foreach (var seg in visualSegments)
         {
             if (seg.IsVideo)
-                args.Append($"-i \"{seg.SourcePath}\" ");
+            {
+                if (cudaZeroCopy)
+                    args.Append($"-hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
+                else
+                    args.Append($"-hwaccel auto -i \"{seg.SourcePath}\" ");
+            }
             else
                 args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
         }
@@ -148,6 +166,10 @@ public static class FFmpegFilterGraphBuilder
         List<RenderVisualSegment> visualSegments,
         RenderConfig config)
     {
+        var gpuBackend = FFmpegCommandComposer.DetectedGpuBackend;
+        var hasGpu = gpuBackend != FFmpegCommandComposer.GpuFilterBackend.None;
+        var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
+
         for (int i = 0; i < visualSegments.Count; i++)
         {
             var inputIdx = i + 1;
@@ -156,24 +178,63 @@ public static class FFmpegFilterGraphBuilder
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", Inv);
             var scaledLabel = $"scaled{i}";
 
-            var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
-                : BuildScalingFilter(config);
-
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
-            // Use 'rgba' (not 'yuva420p') for alpha-containing sources to avoid 4:2:0 chroma
-            // subsampling which causes colour banding in spectrum visualizer overlays.
-            // The overlay filter handles the final RGBA→YUV420P compositing via format=auto.
-            var pixFmt = (isPngOverlay || seg.HasAlpha) ? "rgba" : "yuv420p";
+            var needsAlpha = isPngOverlay || seg.HasAlpha;
 
-            if (seg.IsVideo)
+            if (seg.IsVideo && hasGpu && !needsAlpha)
             {
+                var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                    ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                    : (config.ResolutionWidth, config.ResolutionHeight);
+                var gpuScaleExact = FFmpegCommandComposer.BuildGpuScaleExact(scaleW, scaleH);
+
+                filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                if (cudaZeroCopy)
+                    filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
+                else
+                    filter.Append($"format=yuv420p,{FFmpegCommandComposer.GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
+            }
+            else if (seg.IsVideo)
+            {
+                // CPU fallback for video (alpha-needed or no GPU)
+                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                    ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                    : BuildScalingFilter(config);
                 filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                 filter.Append($"format={pixFmt},{scaleFilter},setsar=1");
             }
             else
             {
-                filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1");
+                // Image/PNG: GPU scale for non-alpha images; CPU for alpha (RGBA) or no GPU.
+                // Ken Burns zoompan has no GPU equivalent, so always CPU for motion.
+                var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
+                    config.ResolutionWidth, config.ResolutionHeight);
+
+                if (zoompanFilter != null)
+                {
+                    // Ken Burns: CPU only
+                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                    filter.Append($"[{inputIdx}:v]format={pixFmt},{zoompanFilter},setsar=1");
+                }
+                else if (hasGpu && !needsAlpha)
+                {
+                    // GPU scale for non-alpha images (JPG, solid PNG)
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = FFmpegCommandComposer.BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{inputIdx}:v]format=yuv420p,{FFmpegCommandComposer.GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
+                }
+                else
+                {
+                    // CPU fallback: alpha PNG or no GPU backend
+                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                    var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                        ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                        : BuildScalingFilter(config);
+                    filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1");
+                }
             }
 
             // Apply color overlay tint (darken/tint effect) when opacity > 0

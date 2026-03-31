@@ -23,6 +23,91 @@ public static class FFmpegCommandComposer
     private static string? _preferredH264Encoder;
     private static string? _preferredHevcEncoder;
 
+    // ── GPU filter backend detection ────────────────────────────────────
+    // Probed once alongside encoder detection. Determines whether the FFmpeg
+    // filter graph can run scale/overlay on GPU (CUDA, QSV, Vulkan, or OpenCL).
+    // When a backend is available the compose methods emit hwupload + GPU filters
+    // instead of CPU libswscale, keeping decoded frames on the GPU and avoiding
+    // costly CPU↔GPU round-trips. Falls back gracefully to CPU if none found.
+
+    /// <summary>GPU filter backends in preference order.</summary>
+    public enum GpuFilterBackend { None, Cuda, Qsv, Vulkan, OpenCL }
+
+    private static GpuFilterBackend _gpuFilterBackend = GpuFilterBackend.None;
+    private static bool _gpuFilterProbed;
+
+    /// <summary>Returns the detected GPU filter backend (probe runs lazily on first call).</summary>
+    public static GpuFilterBackend DetectedGpuBackend
+    {
+        get
+        {
+            EnsurePreferredEncodersInitialized(); // also probes GPU filters
+            return _gpuFilterBackend;
+        }
+    }
+
+    /// <summary>
+    /// Returns the FFmpeg <c>-init_hw_device</c> argument and the <c>-filter_hw_device</c>
+    /// name for the detected GPU backend.  Empty strings when no GPU backend is available.
+    /// </summary>
+    internal static (string initHwDevice, string filterHwDevice, string hwuploadFilter, string scaleFilter, string overlayFilter) GetGpuFilterArgs(int width, int height)
+    {
+        return _gpuFilterBackend switch
+        {
+            GpuFilterBackend.Cuda => (
+                "-init_hw_device cuda=gpudev -filter_hw_device gpudev",
+                "gpudev",
+                "hwupload_cuda",
+                $"scale_cuda={width}:{height}:force_original_aspect_ratio=0",
+                "overlay_cuda"),
+            GpuFilterBackend.Qsv => (
+                "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
+                "gpudev",
+                "hwupload=extra_hw_frames=64",
+                $"scale_qsv=w={width}:h={height}",
+                "overlay_qsv"),
+            GpuFilterBackend.Vulkan => (
+                "-init_hw_device vulkan=gpudev -filter_hw_device gpudev",
+                "gpudev",
+                "hwupload",
+                $"scale_vulkan=w={width}:h={height}",
+                "overlay_vulkan"),
+            GpuFilterBackend.OpenCL => (
+                "-init_hw_device opencl=gpudev -filter_hw_device gpudev",
+                "gpudev",
+                "hwupload",
+                $"scale_opencl=w={width}:h={height}",
+                "overlay_opencl"),
+            _ => ("", "", "", "", "")
+        };
+    }
+
+    /// <summary>
+    /// Returns the hwupload filter string for the detected GPU backend.
+    /// Used in filter_complex chains: <c>format=yuv420p,{hwupload},scale_cuda=...,hwdownload,format=yuv420p</c>.
+    /// </summary>
+    public static string GpuHwuploadFilter() => _gpuFilterBackend switch
+    {
+        GpuFilterBackend.Cuda   => "hwupload_cuda",
+        GpuFilterBackend.Qsv    => "hwupload=extra_hw_frames=64",
+        GpuFilterBackend.Vulkan => "hwupload",
+        GpuFilterBackend.OpenCL => "hwupload",
+        _ => ""
+    };
+
+    /// <summary>
+    /// Returns the GPU-specific scale filter string for the given dimensions.
+    /// Centralises the backend switch that was previously duplicated 4+ times.
+    /// </summary>
+    internal static string BuildGpuScaleExact(int width, int height) => _gpuFilterBackend switch
+    {
+        GpuFilterBackend.Cuda   => $"scale_cuda={width}:{height}",
+        GpuFilterBackend.Qsv    => $"scale_qsv=w={width}:h={height}",
+        GpuFilterBackend.Vulkan => $"scale_vulkan=w={width}:h={height}",
+        GpuFilterBackend.OpenCL => $"scale_opencl=w={width}:h={height}",
+        _ => $"scale={width}:{height}"
+    };
+
     /// <summary>
     /// Normalize and build the complete FFmpeg argument string for a render config.
     /// Entry point used by <see cref="FFmpegService.RenderVideoAsync"/>.
@@ -49,12 +134,16 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
+        var qualityArgs = BuildQualityArgs(videoCodec, crf);
+        var encPreset = GetEncoderPreset(videoCodec, config.Quality);
+        var presetArg = !string.IsNullOrEmpty(encPreset) ? $"-preset {encPreset} " : "";
 
         return $"-loop 1 " +
                $"-i \"{config.ImagePath}\" " +
                $"-i \"{config.AudioPath}\" " +
                $"-c:v {videoCodec} " +
-               $"-crf {crf} " +
+               $"{qualityArgs}" +
+               $"{presetArg}" +
                $"-vf \"{scaleFilter},setsar=1\" " +
                "-pix_fmt yuv420p " +
                $"-r {config.FrameRate} " +
@@ -71,6 +160,10 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var invariant = CultureInfo.InvariantCulture;
+
+        // Detect GPU backend once
+        var gpuBackend = DetectedGpuBackend;
+        var useGpuDecode = gpuBackend != GpuFilterBackend.None;
 
         var visualSegments = (config.VisualSegments ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
@@ -97,6 +190,16 @@ public static class FFmpegCommandComposer
 
         var args = new StringBuilder();
 
+        // ── GPU hardware device init (when available) ──
+        // Placed before all inputs so that -hwaccel can reference the device.
+        // This lets decode → scale run on the same GPU without CPU round-trip.
+        if (useGpuDecode)
+        {
+            var (initHwDevice, _, _, _, _) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
+            if (!string.IsNullOrEmpty(initHwDevice))
+                args.Append($"{initHwDevice} ");
+        }
+
         // ── Input 0: black background canvas (duration = max segment end + 1s safety margin)
         var maxEndTime = new[]
         {
@@ -108,13 +211,31 @@ public static class FFmpegCommandComposer
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
         // ── Inputs 1..N : visual sources
+        // -thread_queue_size 512: prevents buffer underrun when many inputs compete
+        // for decode bandwidth. Default (8) is too small for 10+ concurrent inputs.
+        // Track whether CUDA zero-copy decode is active. When true, decoded
+        // video frames stay in VRAM (CUDA surfaces), eliminating one PCIe
+        // upload per frame in the filter graph (no hwupload_cuda needed).
+        var cudaZeroCopy = gpuBackend == GpuFilterBackend.Cuda;
+
         foreach (var seg in visualSegments)
         {
             if (seg.IsVideo)
             {
-                // Hardware-accelerate decode for video files; FFmpeg auto-downloads
-                // decoded frames to CPU memory when they hit software filters.
-                args.Append($"-hwaccel auto -i \"{seg.SourcePath}\" ");
+                if (cudaZeroCopy)
+                {
+                    // CUDA zero-copy: decode on GPU, keep frames in VRAM.
+                    // -hwaccel_output_format cuda prevents the automatic download
+                    // to system memory, giving ~2× decode throughput (per NVIDIA docs).
+                    // The filter graph can use scale_cuda directly without hwupload.
+                    args.Append($"-thread_queue_size 512 -hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
+                }
+                else
+                {
+                    // Non-CUDA (QSV/Vulkan/OpenCL/CPU): let FFmpeg pick the best
+                    // available decoder. Decoded frames auto-download to CPU memory.
+                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
+                }
             }
             else
             {
@@ -122,7 +243,7 @@ public static class FFmpegCommandComposer
                 // Without -t, "-loop 1" produces an INFINITE stream that FFmpeg must
                 // process for every output frame, even when the overlay is disabled.
                 var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
-                args.Append($"-loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
+                args.Append($"-thread_queue_size 512 -loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
             }
         }
 
@@ -141,11 +262,24 @@ public static class FFmpegCommandComposer
 
         // ── filter_complex
         var filter = new StringBuilder();
+        var (_, _, gpuHwupload, gpuScale, gpuOverlay) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
+        var hasGpuFilters = gpuBackend != GpuFilterBackend.None;
 
-        // Step 1: base canvas
+        // Log GPU pipeline diagnostics
+        if (cudaZeroCopy)
+            Log.Information("Render: CUDA zero-copy decode active — frames stay in VRAM, skip hwupload");
+        if (hasGpuFilters)
+            Log.Information("Render: GPU backend {Backend} for scale, encoder {Encoder}", gpuBackend, videoCodec);
+        else
+            Log.Information("Render: CPU filters (no GPU backend), encoder {Encoder}", videoCodec);
+
+        // Step 1: base canvas — always CPU (lavfi source)
         filter.Append($"[0:v]format=yuv420p,setsar=1[base];");
 
         // Step 2: Scale + position each visual segment
+        // GPU path: video segments decoded on GPU → GPU scale → hwdownload → CPU overlay
+        // This avoids the expensive CPU libswscale while keeping full overlay flexibility
+        // (enable expressions, alpha blending, repeatlast, etc.).
         for (int i = 0; i < visualSegments.Count; i++)
         {
             var inputIdx = i + 1;
@@ -156,30 +290,75 @@ public static class FFmpegCommandComposer
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", invariant);
             var scaledLabel = $"scaled{i}";
 
-            var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
-                : BuildScalingFilter(config);
-
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
-            var pixFmt = (isPngOverlay || seg.HasAlpha) ? "rgba" : "yuv420p";
+            var needsAlpha = isPngOverlay || seg.HasAlpha;
 
             // Build optional fade-in/fade-out filter for this segment
             var fadeFilter = BuildFadeFilter(seg, invariant);
 
             if (seg.IsVideo)
             {
-                filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                // GPU scale path for video: scale on GPU, then hwdownload to CPU
+                // for the overlay step (which needs enable expressions + alpha).
+                if (hasGpuFilters && !needsAlpha)
+                {
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+
+                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    if (cudaZeroCopy)
+                    {
+                        // CUDA zero-copy: frames are already CUDA surfaces from
+                        // -hwaccel_output_format cuda. Go directly to scale_cuda,
+                        // skipping format=yuv420p + hwupload_cuda (saves 1 PCIe transfer).
+                        filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                    }
+                    else
+                    {
+                        // Non-CUDA GPU: frames are on CPU, need upload → GPU scale → download.
+                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                    }
+                }
+                else
+                {
+                    // CPU fallback (alpha-needed or no GPU backend)
+                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                    var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                        ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                        : BuildScalingFilter(config);
+                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
             }
             else
             {
-                // Check for Ken Burns motion effect (zoom/pan)
+                // Image/PNG inputs: GPU scale for non-alpha images, CPU for alpha or motion.
+                // scale_cuda/scale_qsv do not support RGBA, so alpha channels must stay on CPU.
+                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                    ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                    : BuildScalingFilter(config);
+
+                // Check for Ken Burns motion effect (zoom/pan) — CPU only, no GPU equivalent
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
                     config.ResolutionWidth, config.ResolutionHeight);
                 if (zoompanFilter != null)
                 {
-                    // zoompan produces the final sized output, so we skip the separate scale
+                    // Ken Burns: always CPU (zoompan filter has no GPU equivalent)
                     filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else if (hasGpuFilters && !needsAlpha)
+                {
+                    // GPU scale for non-alpha images (JPG, solid PNG).
+                    // Images are CPU-decoded so always need hwupload → GPU scale → hwdownload.
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
@@ -201,17 +380,20 @@ public static class FFmpegCommandComposer
             var overlayY = seg.OverlayY ?? "0";
             var overlayPos = $"x={overlayX}:y={overlayY}:";
 
+            // repeatlast=0: do not hold the last overlay frame after the overlay
+            // input ends — frees the overlay's decoded frame buffer immediately,
+            // reducing peak memory when many overlays share the timeline.
             if (!seg.IsVideo)
             {
                 var scaledPtsLabel = $"scaledpts{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{scaledPtsLabel}];");
-                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}format=auto:shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}format=auto:shortest=0:repeatlast=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             else
             {
                 var shiftedLabel = $"shifted{i}";
                 filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
-                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}format=auto:shortest=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}format=auto:shortest=0:repeatlast=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
             }
             currentVideo = outLabel;
         }
@@ -318,16 +500,22 @@ public static class FFmpegCommandComposer
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
-        args.Append($"-crf {crf} ");
-        // Add encoder preset for software encoders to control encode speed vs. quality.
-        // GPU encoders (nvenc/qsv/amf) do not use libx264-style presets.
+        args.Append(BuildQualityArgs(videoCodec, crf));
         var preset = GetEncoderPreset(videoCodec, config.Quality);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
+        // -threads 0: auto-detect optimal thread count for encoder.
+        // -filter_threads 4: parallelize individual filter operations (overlay, scale)
+        //   that are normally single-threaded. Significantly reduces wall time when
+        //   the filter graph has many overlay chains.
+        // -filter_complex_threads 4: parallelize independent filter graph branches
+        //   (e.g. separate visual segment scale+motion operations run concurrently).
         args.Append("-threads 0 ");
+        args.Append("-filter_threads 4 ");
+        args.Append("-filter_complex_threads 4 ");
         args.Append("-movflags +faststart ");
         // Always add -t flag so FFmpeg stops at the timeline end, not at the end of
         // the (potentially longer) audio file.
@@ -352,11 +540,16 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
+        var legacyQualityArgs = BuildQualityArgs(videoCodec, crf);
+        var legacyPreset = GetEncoderPreset(videoCodec, config.Quality);
+        var legacyPresetArg = !string.IsNullOrEmpty(legacyPreset) ? $"-preset {legacyPreset} " : "";
+
         return $"-loop 1 " +
                $"-i \"{config.ImagePath}\" " +
                $"-i \"{config.AudioPath}\" " +
                $"-c:v {videoCodec} " +
-               $"-crf {crf} " +
+               $"{legacyQualityArgs}" +
+               $"{legacyPresetArg}" +
                $"-vf \"{scaleFilter},setsar=1\" " +
                "-pix_fmt yuv420p " +
                $"-r {config.FrameRate} " +
@@ -428,17 +621,19 @@ public static class FFmpegCommandComposer
         {
             "h264_auto" => GetPreferredH264Encoder(),
             "hevc_auto" => GetPreferredHevcEncoder(),
-            "h264" => "libx264",
-            "x264" => "libx264",
-            "h265" => "libx265",
-            "hevc" => "libx265",
-            "x265" => "libx265",
+            // "h264" / "hevc" from older project configs → auto-detect to use GPU encoder
+            "h264" or "x264" => GetPreferredH264Encoder(),
+            "h265" or "hevc" or "x265" => GetPreferredHevcEncoder(),
+            // Explicit encoder names pass through unchanged
             "h264_nvenc" => "h264_nvenc",
             "hevc_nvenc" => "hevc_nvenc",
             "h264_qsv" => "h264_qsv",
             "hevc_qsv" => "hevc_qsv",
             "h264_amf" => "h264_amf",
             "hevc_amf" => "hevc_amf",
+            // Explicit software encoder names pass through unchanged
+            "libx264" => "libx264",
+            "libx265" => "libx265",
             _ => videoCodec
         };
     }
@@ -469,12 +664,12 @@ public static class FFmpegCommandComposer
 
     private static void EnsurePreferredEncodersInitialized()
     {
-        if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder))
+        if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder) && _gpuFilterProbed)
             return;
 
         lock (_encoderProbeLock)
         {
-            if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder))
+            if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder) && _gpuFilterProbed)
                 return;
 
             _preferredH264Encoder = "libx264";
@@ -482,10 +677,14 @@ public static class FFmpegCommandComposer
 
             var ffmpegPath = FFmpegService.GetFFmpegPath();
             if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
+            {
+                _gpuFilterProbed = true;
                 return;
+            }
 
             try
             {
+                // ── Step 1: probe encoders ──
                 var psi = new ProcessStartInfo
                 {
                     FileName = ffmpegPath,
@@ -498,7 +697,10 @@ public static class FFmpegCommandComposer
 
                 using var process = Process.Start(psi);
                 if (process == null)
+                {
+                    _gpuFilterProbed = true;
                     return;
+                }
 
                 var output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit(TimeSpan.FromSeconds(5));
@@ -517,16 +719,238 @@ public static class FFmpegCommandComposer
                 else if (output.Contains("hevc_amf", StringComparison.OrdinalIgnoreCase))
                     _preferredHevcEncoder = "hevc_amf";
 
+                // ── Step 1b: validate GPU encoders with a 1-frame smoke test ──
+                // Some systems list nvenc/qsv/amf encoders but the driver version is
+                // too old for this FFmpeg build. Validate that they actually produce output.
+                // Fallback: GPU encoder → libx264/libx265 (CPU).
+                // NOTE: h264_mf / hevc_mf (Media Foundation) are NOT GPU encoders —
+                // the inbox "H264 Encoder MFT" runs on CPU. We skip them entirely.
+                if (_preferredH264Encoder != "libx264" && !ValidateEncoder(ffmpegPath, _preferredH264Encoder, out var h264Err))
+                {
+                    Log.Warning("H264 GPU encoder '{Encoder}' listed but failed validation: {Error}. Falling back to libx264 (CPU).",
+                        _preferredH264Encoder, h264Err);
+                    if (_preferredH264Encoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+                        Log.Warning("UPDATE YOUR NVIDIA DRIVER to 570.0 or newer to enable GPU encoding (h264_nvenc). " +
+                                    "Current driver supports NVENC API 12.2 but this FFmpeg build requires 13.0. " +
+                                    "Download: https://www.nvidia.com/drivers");
+                    _preferredH264Encoder = "libx264";
+                }
+                if (_preferredHevcEncoder != "libx265" && !ValidateEncoder(ffmpegPath, _preferredHevcEncoder, out var hevcErr))
+                {
+                    Log.Warning("HEVC GPU encoder '{Encoder}' listed but failed validation: {Error}. Falling back to libx265 (CPU).",
+                        _preferredHevcEncoder, hevcErr);
+                    _preferredHevcEncoder = "libx265";
+                }
+
                 Log.Information("Preferred encoders: H264={H264}, HEVC={HEVC}", _preferredH264Encoder, _preferredHevcEncoder);
+
+                // ── Step 2: probe GPU filter backends ──
+                // Run `ffmpeg -filters` and check for GPU-accelerated scale/overlay filters.
+                // Priority: CUDA > QSV > Vulkan > OpenCL (matches encoder priority: NVENC > QSV > AMF)
+                ProbeGpuFilterBackend(ffmpegPath);
             }
             catch (Exception ex)
             {
-                Log.Warning(ex, "Failed to probe FFmpeg hardware encoders. Falling back to software encoders.");
+                Log.Warning(ex, "Failed to probe FFmpeg hardware encoders/filters. Falling back to software.");
+            }
+            finally
+            {
+                _gpuFilterProbed = true;
             }
         }
     }
 
+    /// <summary>
+    /// Probe for GPU-accelerated filter support by checking <c>ffmpeg -filters</c> output.
+    /// Then validate by running a tiny 1-frame encode with the GPU pipeline to confirm
+    /// the driver actually works (some systems list filters but the driver is broken/old).
+    /// </summary>
+    private static void ProbeGpuFilterBackend(string ffmpegPath)
+    {
+        try
+        {
+            var filterPsi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = "-hide_banner -filters",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var filterProc = Process.Start(filterPsi);
+            if (filterProc == null) return;
+
+            var filterOutput = filterProc.StandardOutput.ReadToEnd();
+            filterProc.WaitForExit(TimeSpan.FromSeconds(5));
+
+            // Check for GPU filter availability in preference order.
+            // CUDA (NVIDIA) > QSV (Intel) > Vulkan (cross-vendor) > OpenCL (cross-vendor)
+            // Each backend needs BOTH a scale and overlay filter to be useful in the pipeline.
+            // Backends not present in the ffmpeg build simply won't match, no overhead.
+            if (filterOutput.Contains("scale_cuda", StringComparison.OrdinalIgnoreCase) &&
+                filterOutput.Contains("overlay_cuda", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ValidateGpuBackend(ffmpegPath, "cuda"))
+                {
+                    _gpuFilterBackend = GpuFilterBackend.Cuda;
+                    Log.Information("GPU filter backend: CUDA (NVIDIA) — scale_cuda + overlay_cuda");
+                    return;
+                }
+                Log.Information("GPU filter backend: CUDA listed but validation failed (driver issue?)");
+            }
+
+            if (filterOutput.Contains("scale_qsv", StringComparison.OrdinalIgnoreCase) &&
+                filterOutput.Contains("overlay_qsv", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ValidateGpuBackend(ffmpegPath, "qsv"))
+                {
+                    _gpuFilterBackend = GpuFilterBackend.Qsv;
+                    Log.Information("GPU filter backend: QSV (Intel) — scale_qsv + overlay_qsv");
+                    return;
+                }
+                Log.Information("GPU filter backend: QSV listed but validation failed (driver issue?)");
+            }
+
+            // Vulkan: present in FFmpeg builds with --enable-libvulkan (less common)
+            if (filterOutput.Contains("scale_vulkan", StringComparison.OrdinalIgnoreCase) &&
+                filterOutput.Contains("overlay_vulkan", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ValidateGpuBackend(ffmpegPath, "vulkan"))
+                {
+                    _gpuFilterBackend = GpuFilterBackend.Vulkan;
+                    Log.Information("GPU filter backend: Vulkan (cross-vendor) — scale_vulkan + overlay_vulkan");
+                    return;
+                }
+            }
+
+            // OpenCL: present in FFmpeg builds with --enable-opencl (cross-vendor: NVIDIA/Intel/AMD)
+            if (filterOutput.Contains("scale_opencl", StringComparison.OrdinalIgnoreCase) &&
+                filterOutput.Contains("overlay_opencl", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ValidateGpuBackend(ffmpegPath, "opencl"))
+                {
+                    _gpuFilterBackend = GpuFilterBackend.OpenCL;
+                    Log.Information("GPU filter backend: OpenCL (cross-vendor) — scale_opencl + overlay_opencl");
+                    return;
+                }
+            }
+
+            Log.Information("GPU filter backend: None — CPU filters (scale + overlay). " +
+                "For AMD GPU acceleration, use an FFmpeg build with --enable-opencl or --enable-libvulkan.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "GPU filter probe failed, using CPU filters");
+        }
+    }
+
+    /// <summary>
+    /// Run a 1-frame smoke test to verify the GPU backend actually initialises.
+    /// Some systems enumerate CUDA/QSV filters but the driver doesn't work.
+    /// </summary>
+    private static bool ValidateGpuBackend(string ffmpegPath, string backend)
+    {
+        try
+        {
+            // Build a minimal pipeline: generate 1 frame → format on CPU → hwupload → GPU scale → hwdownload → format → null output.
+            // Must use format=yuv420p before hwupload (CUDA/QSV require known CPU pixel format)
+            // and format=yuv420p after hwdownload (overlay needs CPU yuv420p, not hw surface).
+            var (hwArg, scaleFilter) = backend switch
+            {
+                "cuda"   => ("-init_hw_device cuda=gpudev -filter_hw_device gpudev",   "format=yuv420p,hwupload_cuda,scale_cuda=64:64,hwdownload,format=yuv420p"),
+                "qsv"    => ("-init_hw_device qsv=gpudev -filter_hw_device gpudev",    "format=yuv420p,hwupload=extra_hw_frames=16,scale_qsv=w=64:h=64,hwdownload,format=yuv420p"),
+                "vulkan" => ("-init_hw_device vulkan=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_vulkan=w=64:h=64,hwdownload,format=yuv420p"),
+                "opencl" => ("-init_hw_device opencl=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_opencl=w=64:h=64,hwdownload,format=yuv420p"),
+                _ => ("", "")
+            };
+
+            if (string.IsNullOrEmpty(hwArg)) return false;
+
+            var validatePsi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-hide_banner -loglevel error {hwArg} " +
+                            $"-f lavfi -i \"color=c=black:s=64x64:r=1:d=0.04\" " +
+                            $"-vf \"{scaleFilter}\" -frames:v 1 -f null -",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(validatePsi);
+            if (proc == null) return false;
+
+            var stderr = proc.StandardError.ReadToEnd();
+            proc.WaitForExit(TimeSpan.FromSeconds(10));
+
+            if (proc.ExitCode == 0)
+            {
+                Log.Debug("GPU backend '{Backend}' validation passed", backend);
+                return true;
+            }
+
+            Log.Debug("GPU backend '{Backend}' validation failed (exit={Code}): {Err}",
+                backend, proc.ExitCode, stderr.Length > 200 ? stderr[..200] : stderr);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "GPU backend '{Backend}' validation threw", backend);
+            return false;
+        }
+    }
+
     // ── Filter helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Run a 1-frame smoke test to verify a video encoder actually works.
+    /// Catches cases where the encoder is listed but the GPU driver is too old
+    /// (e.g. NVENC API version mismatch, QSV driver missing).
+    /// </summary>
+    private static bool ValidateEncoder(string ffmpegPath, string encoder, out string errorDetail)
+    {
+        errorDetail = "";
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-hide_banner -loglevel error " +
+                            $"-f lavfi -i \"color=c=black:s=64x64:r=1:d=0.04\" " +
+                            $"-c:v {encoder} -frames:v 1 -f null -",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc == null) { errorDetail = "process failed to start"; return false; }
+
+            var stderr = proc.StandardError.ReadToEnd();
+            proc.WaitForExit(TimeSpan.FromSeconds(10));
+
+            if (proc.ExitCode == 0)
+            {
+                Log.Debug("Encoder '{Encoder}' validation passed", encoder);
+                return true;
+            }
+
+            errorDetail = stderr.Length > 300 ? stderr[..300] : stderr;
+            Log.Debug("Encoder '{Encoder}' validation failed (exit={Code}): {Err}",
+                encoder, proc.ExitCode, errorDetail);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            errorDetail = ex.Message;
+            Log.Debug(ex, "Encoder '{Encoder}' validation threw", encoder);
+            return false;
+        }
+    }
 
     internal static string BuildScalingFilter(RenderConfig config) => config.ScaleMode switch
     {
@@ -542,7 +966,33 @@ public static class FFmpegCommandComposer
     /// </summary>
     public static string GetEncoderPreset(string videoCodec, string quality)
     {
-        // Only software encoders support -preset in the libx264/libx265 style
+        // NVENC presets: p1 (fastest) → p7 (slowest/best quality)
+        if (videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+        {
+            return quality switch
+            {
+                "Low"  => "p1",
+                "High" => "p5",
+                _      => "p4",     // Medium
+            };
+        }
+
+        // QSV presets
+        if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
+        {
+            return quality switch
+            {
+                "Low"  => "veryfast",
+                "High" => "medium",
+                _      => "fast",
+            };
+        }
+
+        // AMF has no -preset; skip
+        if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
+            return string.Empty;
+
+        // Software encoders (libx264/libx265)
         var isSoftware = videoCodec is "libx264" or "libx265";
         if (!isSoftware)
             return string.Empty;
@@ -553,6 +1003,32 @@ public static class FFmpegCommandComposer
             "High" => "medium",
             _      => "fast",     // Medium quality default
         };
+    }
+
+    /// <summary>
+    /// Returns the quality parameter string appropriate for the given video encoder.
+    /// NVENC uses <c>-cq</c>, QSV uses <c>-global_quality</c>, AMF uses <c>-qp_i/-qp_p</c>,
+    /// software encoders use <c>-crf</c>.
+    /// </summary>
+    internal static string BuildQualityArgs(string videoCodec, int crfValue)
+    {
+        if (videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+        {
+            // VBR with CQ target: better quality-per-bit than constant QP.
+            // -spatial-aq 1: adaptive quantization for spatial detail (~10-15% quality gain)
+            // -temporal-aq 1: temporal AQ for scene motion
+            // -rc-lookahead 32: look-ahead frames for rate control decisions
+            // -b_ref_mode middle: B-frame as reference (~5-10% better compression)
+            // -b:v 0: uncapped bitrate, let CQ target drive quality
+            return $"-rc vbr -cq {crfValue} -b:v 0 " +
+                   $"-spatial-aq 1 -temporal-aq 1 -rc-lookahead 32 -b_ref_mode middle ";
+        }
+        if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
+            return $"-global_quality {crfValue} ";
+        if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
+            return $"-rc cqp -qp_i {crfValue} -qp_p {crfValue} ";
+        // Software encoder (libx264, libx265)
+        return $"-crf {crfValue} ";
     }
 
     /// <summary>
