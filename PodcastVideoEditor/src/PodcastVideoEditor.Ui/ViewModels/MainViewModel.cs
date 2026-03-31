@@ -25,7 +25,8 @@ public sealed class MainViewModel : IDisposable
         CanvasViewModel canvasViewModel,
         AudioPlayerViewModel audioPlayerViewModel,
         VisualizerViewModel visualizerViewModel,
-        TimelineViewModel timelineViewModel)
+        TimelineViewModel timelineViewModel,
+        LibraryViewModel libraryViewModel)
     {
         ArgumentNullException.ThrowIfNull(canvasViewModel);
         ArgumentNullException.ThrowIfNull(audioPlayerViewModel);
@@ -37,6 +38,7 @@ public sealed class MainViewModel : IDisposable
         AudioPlayerViewModel = audioPlayerViewModel;
         VisualizerViewModel = visualizerViewModel ?? throw new ArgumentNullException(nameof(visualizerViewModel));
         TimelineViewModel = timelineViewModel;
+        LibraryViewModel = libraryViewModel ?? throw new ArgumentNullException(nameof(libraryViewModel));
 
         _audioPlayerViewModel = audioPlayerViewModel;
         _timelineViewModel = timelineViewModel;
@@ -76,6 +78,7 @@ public sealed class MainViewModel : IDisposable
     public AudioPlayerViewModel AudioPlayerViewModel { get; }
     public VisualizerViewModel VisualizerViewModel { get; }
     public TimelineViewModel TimelineViewModel { get; }
+    public LibraryViewModel LibraryViewModel { get; }
 
     /// <summary>
     /// Clean up event subscriptions to prevent memory leaks.

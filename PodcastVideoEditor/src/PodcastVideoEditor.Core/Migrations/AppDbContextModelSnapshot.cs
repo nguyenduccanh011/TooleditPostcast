@@ -43,6 +43,9 @@ namespace PodcastVideoEditor.Core.Migrations
                     b.Property<long>("FileSize")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("GlobalAssetId")
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("Height")
                         .HasColumnType("INTEGER");
 

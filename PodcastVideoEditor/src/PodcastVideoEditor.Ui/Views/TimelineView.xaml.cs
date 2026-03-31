@@ -1268,6 +1268,12 @@ namespace PodcastVideoEditor.Ui.Views
                 if (asset != null)
                     compatible = TimelineViewModel.IsAssetCompatibleWithTrack(asset, track);
             }
+            else if (e.Data.GetDataPresent("PVE_GlobalAsset"))
+            {
+                // Global library assets are always images → compatible with visual tracks
+                var trackType = track.TrackType?.ToLowerInvariant() ?? "";
+                compatible = trackType == TrackTypes.Visual;
+            }
             else if (e.Data.GetDataPresent("PVE_ElementType"))
             {
                 var elementType = e.Data.GetData("PVE_ElementType") as string;
@@ -1344,6 +1350,15 @@ namespace PodcastVideoEditor.Ui.Views
                 if (asset != null && TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
                     added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, asset);
             }
+            else if (e.Data.GetDataPresent("PVE_GlobalAsset"))
+            {
+                var globalAsset = e.Data.GetData("PVE_GlobalAsset") as PodcastVideoEditor.Core.Models.GlobalAsset;
+                if (globalAsset != null)
+                {
+                    _ = HandleGlobalAssetDropAsync(globalAsset, track, dropTimeSeconds);
+                    added = true; // optimistic — the async method handles errors
+                }
+            }
             else if (e.Data.GetDataPresent("PVE_ElementType"))
             {
                 var elementType = e.Data.GetData("PVE_ElementType") as string;
@@ -1384,6 +1399,63 @@ namespace PodcastVideoEditor.Ui.Views
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Handle drop of a global library asset onto a timeline track.
+        /// Copies the asset into the current project (copy-on-use), then creates a segment.
+        /// </summary>
+        private async System.Threading.Tasks.Task HandleGlobalAssetDropAsync(
+            PodcastVideoEditor.Core.Models.GlobalAsset globalAsset,
+            PodcastVideoEditor.Core.Models.Track track,
+            double dropTimeSeconds)
+        {
+            var mainVm = Window.GetWindow(this)?.DataContext as MainViewModel;
+            var projectVm = mainVm?.ProjectViewModel;
+            if (projectVm?.CurrentProject == null || _viewModel == null)
+                return;
+
+            if (!System.IO.File.Exists(globalAsset.FilePath))
+            {
+                Serilog.Log.Warning("Global asset file not found: {Path}", globalAsset.FilePath);
+                return;
+            }
+
+            try
+            {
+                // Check if already imported into this project
+                var existing = projectVm.CurrentProject.Assets
+                    .FirstOrDefault(a => a.GlobalAssetId == globalAsset.Id);
+
+                Asset projectAsset;
+                if (existing != null)
+                {
+                    projectAsset = existing;
+                }
+                else
+                {
+                    var imported = await projectVm.AddAssetToCurrentProjectAsync(globalAsset.FilePath, "Image");
+                    if (imported == null) return;
+                    imported.GlobalAssetId = globalAsset.Id;
+                    await projectVm.SaveProjectAsync();
+                    projectAsset = imported;
+                }
+
+                // Now add a segment using the project-local asset
+                Dispatcher.Invoke(() =>
+                {
+                    var added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, projectAsset);
+                    if (added)
+                    {
+                        UpdateSegmentLayout();
+                        UpdateSegmentSelection();
+                    }
+                });
+            }
+            catch (System.Exception ex)
+            {
+                Serilog.Log.Error(ex, "Failed to add global asset to project via timeline drop");
+            }
         }
 
         /// <summary>

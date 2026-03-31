@@ -65,6 +65,12 @@ public class Asset
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Optional link to the global library asset this was copied from.
+    /// Null for assets imported directly into the project.
+    /// </summary>
+    public string? GlobalAssetId { get; set; }
+
     // Navigation
     public Project? Project { get; set; }
 }

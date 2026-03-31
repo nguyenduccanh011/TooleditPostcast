@@ -7,8 +7,10 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using PodcastVideoEditor.Core.Database;
+using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
 using PodcastVideoEditor.Ui.Services;
+using PodcastVideoEditor.Ui.ViewModels;
 using Serilog;
 
 namespace PodcastVideoEditor.Ui;
@@ -72,6 +74,15 @@ public partial class App : Application
             {
                 DatabaseMigrationService.InitializeDatabase(dbContext);
             }
+
+            // Initialize global asset library database and scan built-in assets.
+            var globalAssetService = _serviceProvider.GetRequiredService<GlobalAssetService>();
+            globalAssetService.InitializeDatabase();
+            _ = globalAssetService.ScanBuiltInAssetsAsync();
+
+            // Pre-load library assets into the ViewModel for immediate UI display.
+            var libraryVm = _serviceProvider.GetRequiredService<LibraryViewModel>();
+            _ = libraryVm.RefreshAsync();
 
             // Resolve and show the main window.
             var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();

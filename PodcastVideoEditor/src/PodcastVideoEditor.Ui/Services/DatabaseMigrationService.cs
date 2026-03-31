@@ -31,6 +31,10 @@ internal static class DatabaseMigrationService
             Log.Warning(ex, "Database migration failed, falling back to EnsureCreated");
             context.Database.EnsureCreated();
         }
+
+        // Ensure new columns exist even if Migrate/EnsureCreated didn't add them
+        // (EnsureCreated skips ALTER on existing tables; Migrate may fail silently).
+        EnsureColumnsExist(context);
     }
 
     private static void RepairMigrationHistory(AppDbContext context)
@@ -54,6 +58,11 @@ internal static class DatabaseMigrationService
             MarkMigrationIfColumnExists(conn,
                 migrationId: "20260330100000_AddTrackTextStyleJson",
                 checkSql: "SELECT COUNT(*) FROM pragma_table_info('Tracks') WHERE name='TextStyleJson'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260331100000_AddGlobalAssetId",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Assets') WHERE name='GlobalAssetId'",
                 productVersion);
         }
         finally
@@ -82,6 +91,48 @@ internal static class DatabaseMigrationService
             insertCmd.Parameters.Add(pVer);
             insertCmd.ExecuteNonQuery();
             Log.Information("Migration history repaired: marked {MigrationId} as applied", migrationId);
+        }
+    }
+
+    /// <summary>
+    /// Directly ALTER TABLE to add missing columns. Safe to call repeatedly —
+    /// SQLite will throw "duplicate column" if already present, which we ignore.
+    /// This is the last-resort guarantee that the schema matches the model.
+    /// </summary>
+    private static void EnsureColumnsExist(AppDbContext context)
+    {
+        var alterStatements = new[]
+        {
+            "ALTER TABLE Assets ADD COLUMN GlobalAssetId TEXT",
+        };
+
+        var conn = context.Database.GetDbConnection();
+        bool opened = conn.State != System.Data.ConnectionState.Open;
+        if (opened) conn.Open();
+        try
+        {
+            foreach (var sql in alterStatements)
+            {
+                try
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = sql;
+                    cmd.ExecuteNonQuery();
+                    Log.Information("Schema fix applied: {Sql}", sql);
+                }
+                catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("duplicate column"))
+                {
+                    // Column already exists — expected, nothing to do.
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Schema fix failed (non-critical): {Sql}", sql);
+                }
+            }
+        }
+        finally
+        {
+            if (opened) conn.Close();
         }
     }
 }

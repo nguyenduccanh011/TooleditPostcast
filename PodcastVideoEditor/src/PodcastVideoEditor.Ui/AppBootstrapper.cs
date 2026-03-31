@@ -55,6 +55,11 @@ public static class AppBootstrapper
         services.AddSingleton<IRuntimeApiSettings>(sp => sp.GetRequiredService<UserSettingsStore>());
         services.AddDbContextFactory<AppDbContext>(opts =>
             opts.UseSqlite($"Data Source={dbPath}"));
+
+        // Library database (global asset library, separate from per-project DB)
+        var libraryDbPath = Path.Combine(appDataPath, "library.db");
+        services.AddDbContextFactory<LibraryDbContext>(opts =>
+            opts.UseSqlite($"Data Source={libraryDbPath}"));
     }
 
     private static void RegisterCoreServices(IServiceCollection services)
@@ -62,6 +67,16 @@ public static class AppBootstrapper
         services.AddSingleton<ProjectService>();
         services.AddSingleton<IProjectService>(sp => sp.GetRequiredService<ProjectService>());
         services.AddSingleton<ImageAssetIngestService>();
+        services.AddSingleton<GlobalAssetService>(sp =>
+        {
+            var contextFactory = sp.GetRequiredService<IDbContextFactory<LibraryDbContext>>();
+            var settings = sp.GetRequiredService<UserSettingsStore>();
+            var appDataPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "PodcastVideoEditor");
+            var installDir = AppContext.BaseDirectory;
+            return new GlobalAssetService(contextFactory, appDataPath, installDir);
+        });
 
         services.AddSingleton<IAIProvider, YesScaleProvider>();
         services.AddSingleton<IImageSearchProvider, PexelsImageSearchProvider>();
@@ -81,6 +96,7 @@ public static class AppBootstrapper
         services.AddSingleton<VisualizerViewModel>();
         services.AddSingleton<CanvasViewModel>();
         services.AddSingleton<ProjectViewModel>();
+        services.AddSingleton<LibraryViewModel>();
         services.AddSingleton<SettingsViewModel>(sp =>
             new SettingsViewModel(
                 sp.GetRequiredService<UserSettingsStore>(),
@@ -97,7 +113,8 @@ public static class AppBootstrapper
                 sp.GetRequiredService<CanvasViewModel>(),
                 sp.GetRequiredService<AudioPlayerViewModel>(),
                 sp.GetRequiredService<VisualizerViewModel>(),
-                sp.GetRequiredService<TimelineViewModel>());
+                sp.GetRequiredService<TimelineViewModel>(),
+                sp.GetRequiredService<LibraryViewModel>());
 
             var canvas = sp.GetRequiredService<CanvasViewModel>();
             var project = sp.GetRequiredService<ProjectViewModel>();

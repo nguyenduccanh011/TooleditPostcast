@@ -277,4 +277,160 @@ public partial class ElementsMediaPanelView : UserControl
         }
     }
 
+    // ─── Library Tab (Global Asset Library) ───
+
+    private Point _libraryDragStartPoint;
+    private bool _isLibraryDragging;
+
+    private void LibraryAssetItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _libraryDragStartPoint = e.GetPosition(null);
+        _isLibraryDragging = false;
+
+        // Double-click → add to current project
+        if (e.ClickCount == 2 && sender is FrameworkElement fe && fe.Tag is GlobalAsset globalAsset)
+        {
+            _ = AddGlobalAssetToProjectAsync(globalAsset);
+        }
+    }
+
+    private void LibraryAssetItem_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        var currentPos = e.GetPosition(null);
+        var diff = currentPos - _libraryDragStartPoint;
+
+        if (System.Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            System.Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance)
+            return;
+
+        if (_isLibraryDragging)
+            return;
+
+        if (sender is not FrameworkElement element)
+            return;
+
+        var globalAsset = element.Tag as GlobalAsset;
+        if (globalAsset == null)
+            return;
+
+        _isLibraryDragging = true;
+
+        var data = new DataObject("PVE_GlobalAsset", globalAsset);
+        DragDrop.DoDragDrop(element, data, DragDropEffects.Copy);
+
+        _isLibraryDragging = false;
+    }
+
+    private void LibraryAssetItem_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.Tag is not GlobalAsset globalAsset)
+            return;
+
+        var menu = new ContextMenu();
+
+        var addItem = new MenuItem { Header = "Thêm vào project" };
+        addItem.Click += (_, __) => _ = AddGlobalAssetToProjectAsync(globalAsset);
+        menu.Items.Add(addItem);
+
+        if (!globalAsset.IsBuiltIn)
+        {
+            var deleteItem = new MenuItem { Header = "Xóa khỏi thư viện" };
+            deleteItem.Click += async (_, __) =>
+            {
+                var result = MessageBox.Show(
+                    $"Xóa \"{globalAsset.Name}\" khỏi thư viện?",
+                    "Xác nhận xóa",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    var mainVm = DataContext as MainViewModel;
+                    if (mainVm?.LibraryViewModel != null)
+                        await mainVm.LibraryViewModel.DeleteAssetCommand.ExecuteAsync(globalAsset);
+                }
+            };
+            menu.Items.Add(deleteItem);
+        }
+
+        element.ContextMenu = menu;
+        menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Copy a global library asset into the current project (copy-on-use pattern).
+    /// </summary>
+    private async System.Threading.Tasks.Task AddGlobalAssetToProjectAsync(GlobalAsset globalAsset)
+    {
+        var mainVm = DataContext as MainViewModel;
+        if (mainVm?.ProjectViewModel?.CurrentProject == null)
+        {
+            MessageBox.Show("Hãy mở một project trước.", "Chưa có project", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Check if this global asset is already in the project (by GlobalAssetId)
+        var existing = mainVm.ProjectViewModel.CurrentProject.Assets
+            .FirstOrDefault(a => a.GlobalAssetId == globalAsset.Id);
+        if (existing != null)
+        {
+            Serilog.Log.Information("Global asset {Id} already in project, reusing {AssetId}", globalAsset.Id, existing.Id);
+            return;
+        }
+
+        // Copy-on-use: import file into project
+        if (!System.IO.File.Exists(globalAsset.FilePath))
+        {
+            MessageBox.Show($"Tệp không tìm thấy: {globalAsset.FilePath}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        try
+        {
+            var asset = await mainVm.ProjectViewModel.AddAssetToCurrentProjectAsync(globalAsset.FilePath, "Image");
+            if (asset != null)
+            {
+                asset.GlobalAssetId = globalAsset.Id;
+                await mainVm.ProjectViewModel.SaveProjectAsync();
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error adding global asset to project");
+            MessageBox.Show(ex.Message, "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+
+        ApplyAssetFilters();
+    }
+
+    private async void ImportLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var mainVm = DataContext as MainViewModel;
+        if (mainVm?.LibraryViewModel == null)
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Import ảnh vào thư viện",
+            Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*",
+            CheckFileExists = true,
+            Multiselect = true
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        // Determine selected category from the import combo
+        var category = "Uncategorized";
+        if (ImportCategoryCombo?.SelectedItem is string selectedCat && selectedCat != "All")
+            category = selectedCat;
+
+        foreach (var filePath in dialog.FileNames)
+        {
+            await mainVm.LibraryViewModel.ImportFileAsync(filePath, category);
+        }
+    }
+
 }
