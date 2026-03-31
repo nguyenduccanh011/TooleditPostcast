@@ -1010,10 +1010,10 @@ public static class FFmpegCommandComposer
             // and format=yuv420p after hwdownload (overlay needs CPU yuv420p, not hw surface).
             var (hwArg, scaleFilter) = backend switch
             {
-                "cuda"   => ("-init_hw_device cuda=gpudev -filter_hw_device gpudev",   "format=yuv420p,hwupload_cuda,scale_cuda=64:64,hwdownload,format=yuv420p"),
-                "qsv"    => ("-init_hw_device qsv=gpudev -filter_hw_device gpudev",    "format=yuv420p,hwupload=extra_hw_frames=16,scale_qsv=w=64:h=64,hwdownload,format=yuv420p"),
-                "vulkan" => ("-init_hw_device vulkan=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_vulkan=w=64:h=64,hwdownload,format=yuv420p"),
-                "opencl" => ("-init_hw_device opencl=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_opencl=w=64:h=64,hwdownload,format=yuv420p"),
+                "cuda"   => ("-init_hw_device cuda=gpudev -filter_hw_device gpudev",   "format=yuv420p,hwupload_cuda,scale_cuda=256:256,hwdownload,format=yuv420p"),
+                "qsv"    => ("-init_hw_device qsv=gpudev -filter_hw_device gpudev",    "format=yuv420p,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=256,hwdownload,format=yuv420p"),
+                "vulkan" => ("-init_hw_device vulkan=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_vulkan=w=256:h=256,hwdownload,format=yuv420p"),
+                "opencl" => ("-init_hw_device opencl=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_opencl=w=256:h=256,hwdownload,format=yuv420p"),
                 _ => ("", "")
             };
 
@@ -1023,7 +1023,7 @@ public static class FFmpegCommandComposer
             {
                 FileName = ffmpegPath,
                 Arguments = $"-hide_banner -loglevel error {hwArg} " +
-                            $"-f lavfi -i \"color=c=black:s=64x64:r=1:d=0.04\" " +
+                            $"-f lavfi -i \"color=c=black:s=256x256:r=1:d=0.04\" " +
                             $"-vf \"{scaleFilter}\" -frames:v 1 -f null -",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -1070,7 +1070,7 @@ public static class FFmpegCommandComposer
             {
                 FileName = ffmpegPath,
                 Arguments = $"-hide_banner -loglevel error " +
-                            $"-f lavfi -i \"color=c=black:s=64x64:r=1:d=0.04\" " +
+                            $"-f lavfi -i \"color=c=black:s=256x256:r=1:d=0.04\" " +
                             $"-c:v {encoder} -frames:v 1 -f null -",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
