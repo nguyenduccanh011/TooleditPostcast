@@ -6,6 +6,73 @@
     Foreground="#FFFFFF">
 
     <UserControl.Resources>
+        <!-- Action button (Start Render) -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="12,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1A8AD4"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#005A9E"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="#808080"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Danger button (Cancel) -->
+        <Style x:Key="DangerButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#D13438"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="12,6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E04448"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#A82830"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="#808080"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Compact outline button (same as ratio button under preview) -->
         <Style x:Key="CompactOptionButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -112,7 +179,8 @@
                     Padding="10"
                     Background="#252526"
                     BorderBrush="#3E3E42"
-                    BorderThickness="1">
+                    BorderThickness="1"
+                    CornerRadius="3">
                     <TextBox
                         Text="{Binding StatusMessage}"
                         TextWrapping="Wrap"
@@ -141,12 +209,9 @@
                     Height="35"
                     Margin="0,0,10,0"
                     Content="Start Render"
-                    Background="#007ACC"
-                    Foreground="#FFFFFF"
-                    BorderThickness="0"
+                    Style="{StaticResource ActionButtonStyle}"
                     Command="{Binding StartRenderCommand}"
-                    CommandParameter="{Binding DataContext.ProjectViewModel.CurrentProject, RelativeSource={RelativeSource AncestorType=Window}}"
-                    Cursor="Hand" />
+                    CommandParameter="{Binding DataContext.ProjectViewModel.CurrentProject, RelativeSource={RelativeSource AncestorType=Window}}" />
 
                 <Button
                     x:Name="CancelButton"
@@ -154,12 +219,9 @@
                     Width="100"
                     Height="35"
                     Content="Cancel"
-                    Background="#D13438"
-                    Foreground="#FFFFFF"
-                    BorderThickness="0"
+                    Style="{StaticResource DangerButtonStyle}"
                     IsEnabled="{Binding CanCancel}"
-                    Command="{Binding CancelRenderCommand}"
-                    Cursor="Hand" />
+                    Command="{Binding CancelRenderCommand}" />
             </Grid>
         </StackPanel>
     </Grid>
