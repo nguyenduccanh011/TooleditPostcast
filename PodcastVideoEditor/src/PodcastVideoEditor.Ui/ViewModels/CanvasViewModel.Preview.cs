@@ -350,7 +350,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (deletedIds.Count > 0)
                 {
                     var removed = RemoveOrphanedElements(deletedIds);
-                    // Cache for undo restoration
+                    // Cache for undo restoration (bounded to prevent memory leaks)
+                    const int MaxOrphanedCacheEntries = 50;
                     foreach (var el in removed)
                     {
                         if (el.SegmentId != null)
@@ -362,6 +363,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                             }
                             list.Add(el);
                         }
+                    }
+                    // Evict oldest entries when cache exceeds limit
+                    while (_orphanedElementCache.Count > MaxOrphanedCacheEntries)
+                    {
+                        var firstKey = _orphanedElementCache.Keys.First();
+                        _orphanedElementCache.Remove(firstKey);
                     }
                 }
             }
@@ -619,16 +626,54 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         private void EnsureImageElementForVisualSegment(Track track, Segment segment)
         {
-            // Already has a linked canvas element
-            if (Elements.Any(e => string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal)))
+            // Check for existing element linked to this segment
+            var existing = Elements.FirstOrDefault(e =>
+                string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal));
+            if (existing != null)
+            {
+                // Non-image element (text, visualizer) linked to same segment — leave it alone
+                if (existing is not ImageElement existingImg)
+                    return;
+
+                // ImageElement exists — verify it still has a valid FilePath.
+                // DB-loaded elements may carry a stale path (file moved/deleted) or an
+                // empty path if the element was saved before the asset was fully resolved.
+                if (!string.IsNullOrWhiteSpace(existingImg.FilePath))
+                    return; // valid — nothing to do
+
+                // Stale/empty FilePath — try to refresh from the current asset
+                var refreshAsset = FindAssetById(segment.BackgroundAssetId);
+                if (refreshAsset != null && !string.IsNullOrWhiteSpace(refreshAsset.FilePath))
+                {
+                    existingImg.FilePath = refreshAsset.FilePath;
+                    existingImg.Name = refreshAsset.Name
+                        ?? Path.GetFileNameWithoutExtension(refreshAsset.FilePath) ?? "Image";
+                    Serilog.Log.Information(
+                        "Refreshed stale ImageElement FilePath for segment {SegId} from asset {AssetId}",
+                        segment.Id, refreshAsset.Id);
+                }
+                else
+                {
+                    Serilog.Log.Warning(
+                        "ImageElement for segment {SegId} has empty FilePath and asset cannot be resolved",
+                        segment.Id);
+                }
                 return;
+            }
 
             if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId))
+            {
+                Serilog.Log.Debug("EnsureImageElement skipped: segment {SegId} has no BackgroundAssetId", segment.Id);
                 return;
+            }
 
             var asset = FindAssetById(segment.BackgroundAssetId);
             if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath))
+            {
+                Serilog.Log.Warning("EnsureImageElement skipped: asset {AssetId} not found or has no FilePath (segment {SegId})",
+                    segment.BackgroundAssetId, segment.Id);
                 return;
+            }
 
             // Video assets are rendered via MediaElement, not ImageElement
             if (IsVideoAsset(asset))
@@ -654,7 +699,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
 
             Elements.Add(element);
-            Serilog.Log.Debug("Auto-created ImageElement for unified compositing: segment {SegId}", segment.Id);
+            Serilog.Log.Debug("Auto-created ImageElement for segment {SegId}, asset {AssetId}", segment.Id, asset.Id);
         }
 
         private void SetActiveVisualLayout(string? preset)

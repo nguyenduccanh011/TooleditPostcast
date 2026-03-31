@@ -187,11 +187,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
 
             // If no linked element exists, auto-create one for image or text segments
+            bool wasCreated = false;
             if (linked == null)
+            {
                 linked = (CanvasElement?)TryCreateImageElementForSegment(segmentId)
                       ?? GetOrCreateTextElement(segmentId);
+                wasCreated = linked != null;
+            }
 
             SelectElement(linked);
+
+            // When a new element was just created, run a full preview update so that
+            // UpdateElementVisibility sets the correct IsVisible based on playhead
+            // position (new elements default to IsVisible=true which is wrong when
+            // the playhead is outside the segment).
+            if (wasCreated)
+                UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
         }
 
         /// <summary>
@@ -263,9 +274,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     imgH = decoder.Frames[0].PixelHeight;
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Fallback: fill entire canvas
+                Log.Warning(ex, "ComputeFitRect: failed to read image dimensions from {Path}, using full canvas", imagePath);
                 return (0, 0, canvasW, canvasH);
             }
 
@@ -1419,6 +1430,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     Elements.Clear();
                     SelectedElement = null;
                     PropertyEditor.SetSelectedElement(null);
+                    // Recreate auto-generated elements for active segments
+                    UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
                     return;
                 }
 
@@ -1427,12 +1440,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 foreach (var ce in canvasElements)
                     Elements.Add(ce);
 
+                var imgCount = canvasElements.Count(e => e is ImageElement);
+                var txtCount = canvasElements.Count(e => e is TextOverlayElement);
+                Log.Information("LoadElementsFromProject: loaded {Total} elements ({Img} image, {Txt} text) from DB",
+                    canvasElements.Count, imgCount, txtCount);
+
                 // Validate SegmentIds: nullify references to segments that no longer exist
                 ValidateElementSegmentIds();
 
                 SelectedElement = null;
                 PropertyEditor.SetSelectedElement(null);
                 EnsureVisualizerTimer();
+
+                // Re-run preview to recreate auto-generated elements (ImageElements for
+                // visual segments, TextOverlayElements for text segments) that were not
+                // persisted. Without this, Elements.Clear() above wipes runtime-only
+                // elements that the preview pipeline created before LoadElementsFromProject ran.
+                UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
+
                 LogMessage($"Loaded {canvasElements.Count} element(s) from project");
                 Log.Information("Canvas elements loaded: {Count} from project {ProjectId}",
                     canvasElements.Count, _projectViewModel.CurrentProject.Id);
