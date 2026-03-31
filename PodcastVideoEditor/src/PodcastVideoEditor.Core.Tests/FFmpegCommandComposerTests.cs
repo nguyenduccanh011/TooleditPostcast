@@ -32,14 +32,21 @@ public class FFmpegCommandComposerTests
     }
 
     [Theory]
-    [InlineData("h264_nvenc", "Low")]
-    [InlineData("h264_nvenc", "High")]
-    [InlineData("hevc_nvenc", "Medium")]
-    [InlineData("h264_qsv",   "Low")]
-    [InlineData("hevc_qsv",   "High")]
+    [InlineData("h264_nvenc", "Low",    "p1")]
+    [InlineData("h264_nvenc", "High",   "p5")]
+    [InlineData("hevc_nvenc", "Medium", "p4")]
+    [InlineData("h264_qsv",   "Low",    "veryfast")]
+    [InlineData("hevc_qsv",   "High",   "medium")]
+    public void GetEncoderPreset_GpuEncoders_ReturnsCorrectPreset(string codec, string quality, string expectedPreset)
+    {
+        var result = FFmpegCommandComposer.GetEncoderPreset(codec, quality);
+        Assert.Equal(expectedPreset, result);
+    }
+
+    [Theory]
     [InlineData("h264_amf",   "Medium")]
     [InlineData("hevc_amf",   "High")]
-    public void GetEncoderPreset_HardwareEncoders_ReturnsEmpty(string codec, string quality)
+    public void GetEncoderPreset_NoPresetEncoders_ReturnsEmpty(string codec, string quality)
     {
         var result = FFmpegCommandComposer.GetEncoderPreset(codec, quality);
         Assert.Equal(string.Empty, result);
@@ -218,7 +225,7 @@ public class FFmpegCommandComposerTests
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // hwaccel auto for video inputs
+    // hwaccel d3d11va for video inputs (non-CUDA path)
     // ═══════════════════════════════════════════════════════════════════
 
     [Fact]
@@ -251,7 +258,8 @@ public class FFmpegCommandComposerTests
                 AudioSegments    = []
             };
             var (args, _) = FFmpegCommandComposer.Build(config);
-            Assert.Contains("-hwaccel auto", args);
+            // Non-CUDA path uses D3D11VA (Windows OS API) for hardware-accelerated decode.
+            Assert.Contains("-hwaccel d3d11va", args);
         }
         finally
         {

@@ -173,14 +173,22 @@ public static class FFmpegService
     /// </summary>
     private static bool TryFindCommonLocations()
     {
+        // Prefer the locally-cached compatible build downloaded by FFmpegUpdateService.
+        // This lives in %LOCALAPPDATA%\PodcastVideoEditor\ffmpeg-compat\ and is
+        // guaranteed to work with NVENC API 12.x (driver 560.x).
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var compatBin = Path.Combine(localAppData, "PodcastVideoEditor", "ffmpeg-compat",
+                                     "ffmpeg-7.1-essentials_build", "bin", "ffmpeg.exe");
+
         var commonPaths = new[]
         {
+            compatBin,                                                                   // compat 7.1 (SDK 12.x)
             @"C:\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe",
             @"C:\ffmpeg\bin\ffmpeg.exe",
             @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
             @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ffmpeg", "bin", "ffmpeg.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ffmpeg", "bin", "ffmpeg.exe"),
+            Path.Combine(localAppData, "ffmpeg", "bin", "ffmpeg.exe"),
         };
 
         foreach (var path in commonPaths)
@@ -250,6 +258,22 @@ public static class FFmpegService
     public static string? GetFFmpegPath()
     {
         return _ffmpegPath;
+    }
+
+    /// <summary>
+    /// Override the active FFmpeg/ffprobe paths at runtime. Used by
+    /// <see cref="FFmpegUpdateService"/> to redirect to a compatible build
+    /// after downloading it without requiring a full re-init.
+    /// </summary>
+    public static void OverridePath(string ffmpegPath, string? ffprobePath = null)
+    {
+        if (!File.Exists(ffmpegPath))
+            throw new FileNotFoundException("FFmpeg not found at override path.", ffmpegPath);
+
+        _ffmpegPath  = ffmpegPath;
+        _ffprobePath = ffprobePath ?? Path.Combine(Path.GetDirectoryName(ffmpegPath) ?? "", "ffprobe.exe");
+        _ffmpegVersion = null;   // will be re-detected lazily on next call to GetFFmpegVersion()
+        Log.Information("FFmpegService: Path overridden to {Path}", ffmpegPath);
     }
 
     /// <summary>

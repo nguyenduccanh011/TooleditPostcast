@@ -352,7 +352,7 @@ public class CompositionBuilder : ICompositionBuilder
             element, audioFilePath,
             ctx.RenderWidth, ctx.RenderHeight,
             (int)ctx.CanvasWidth, (int)ctx.CanvasHeight,
-            vizStart, vizEnd, ctx.FrameRate, ffmpegPath, ct);
+            vizStart, vizEnd, ctx.FrameRate, ffmpegPath, progress: null, ct);
 
         if (string.IsNullOrEmpty(bakedPath))
         {

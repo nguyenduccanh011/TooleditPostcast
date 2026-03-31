@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Services.Visualizers;
 using Serilog;
 using SkiaSharp;
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -46,6 +47,7 @@ public static class OfflineVisualizerBaker
     /// <param name="endTime">Timeline end time of the visualizer in seconds.</param>
     /// <param name="fps">Frames per second for the baked output.</param>
     /// <param name="ffmpegPath">Absolute path to the ffmpeg executable.</param>
+    /// <param name="progress">Optional progress callback (0.0 – 1.0).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>
     /// Path to the baked .mov file, or <c>null</c> if baking failed or was skipped.
@@ -61,6 +63,7 @@ public static class OfflineVisualizerBaker
         double endTime,
         int fps,
         string ffmpegPath,
+        IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
         if (!File.Exists(audioFilePath))
@@ -125,7 +128,7 @@ public static class OfflineVisualizerBaker
         {
             await BakeCoreAsync(
                 config, audioFilePath, startTime, endTime,
-                outW, outH, fps, ffmpegPath, outputPath, ct);
+                outW, outH, fps, ffmpegPath, outputPath, progress, ct);
 
             if (!File.Exists(outputPath))
             {
@@ -164,6 +167,7 @@ public static class OfflineVisualizerBaker
         int fps,
         string ffmpegPath,
         string outputPath,
+        IProgress<double>? progress,
         CancellationToken ct)
     {
         // FFmpeg: consume raw RGBA bytes from stdin → lossless video with alpha.
@@ -204,7 +208,7 @@ public static class OfflineVisualizerBaker
             await GenerateAndPipeFramesAsync(
                 config, audioFilePath, startTime, endTime,
                 outW, outH, fps,
-                ffmpegProcess.StandardInput.BaseStream, ct);
+                ffmpegProcess.StandardInput.BaseStream, progress, ct);
         }
         finally
         {
@@ -231,8 +235,14 @@ public static class OfflineVisualizerBaker
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Frame generation loop
+    // Frame generation loop — double-buffered I/O pipeline
     // ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Progress report throttle: report at most once every N frames to avoid
+    /// flooding the UI thread with progress callbacks.
+    /// </summary>
+    private const int ProgressReportInterval = 15;
 
     private static async Task GenerateAndPipeFramesAsync(
         VisualizerConfig config,
@@ -243,6 +253,7 @@ public static class OfflineVisualizerBaker
         int outH,
         int fps,
         Stream pipeStream,
+        IProgress<double>? progress,
         CancellationToken ct)
     {
         int fftSize       = SpectrumProcessor.NextPow2(config.BandCount * 8);
@@ -278,74 +289,103 @@ public static class OfflineVisualizerBaker
         // which is what FFmpeg's -pixel_format rgba expects for correct alpha compositing.
         using var bitmap   = new SKBitmap(outW, outH, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
-        // Frame byte buffer (reuse across frames to avoid GC pressure)
-        var frameBytes = new byte[outW * outH * 4];
+        // ── Double-buffered frame pipeline ───────────────────────────────────
+        // Two frame byte buffers allow overlapping CPU render with pipe I/O:
+        // while buffer[cur] is being written to FFmpeg, we render the next frame
+        // into buffer[next]. This hides pipe latency behind CPU work.
+        int frameSize = outW * outH * 4;
+        var buffers = new byte[2][];
+        buffers[0] = ArrayPool<byte>.Shared.Rent(frameSize);
+        buffers[1] = ArrayPool<byte>.Shared.Rent(frameSize);
+        Task? prevWriteTask = null;
 
-        for (int frameIdx = 0; frameIdx < totalFrames; frameIdx++)
+        try
         {
-            ct.ThrowIfCancellationRequested();
-
-            // ── Read audio samples for this frame ─────────────────────────
-            int stereoSamplesToRead = samplesPerFrame * channels;
-            int readCount = audioReader.Read(readBuf, 0, stereoSamplesToRead);
-
-            // Mix down to mono and push into ring buffer
-            int monoRead = readCount / channels;
-            for (int i = 0; i < monoRead; i++)
+            for (int frameIdx = 0; frameIdx < totalFrames; frameIdx++)
             {
-                float mono = 0f;
-                for (int c = 0; c < channels; c++)
-                    mono += readBuf[i * channels + c];
-                mono /= channels;
+                ct.ThrowIfCancellationRequested();
 
-                ringBuffer[ringWrite] = mono;
-                ringWrite = (ringWrite + 1) % fftSize;
+                // ── Read audio samples for this frame ─────────────────────────
+                int stereoSamplesToRead = samplesPerFrame * channels;
+                int readCount = audioReader.Read(readBuf, 0, stereoSamplesToRead);
+
+                // Mix down to mono and push into ring buffer
+                int monoRead = readCount / channels;
+                for (int i = 0; i < monoRead; i++)
+                {
+                    float mono = 0f;
+                    for (int c = 0; c < channels; c++)
+                        mono += readBuf[i * channels + c];
+                    mono /= channels;
+
+                    ringBuffer[ringWrite] = mono;
+                    ringWrite = (ringWrite + 1) % fftSize;
+                }
+
+                // ── Compute FFT → process spectrum ────────────────────────────
+                // Use simulated time so peak hold/decay works correctly even though
+                // the baker processes frames much faster than real-time.
+                var magnitudes = SpectrumProcessor.ComputeFFTMagnitudes(ringBuffer, ringWrite, fftSize);
+                long simulatedMs = (long)((startTime + frameIdx / (double)fps) * 1000.0);
+                specProcessor.ProcessSpectrum(magnitudes, config, simulatedMs);
+
+                // ── Demo fallback: replace silent frames with animated idle spectrum ──
+                if (specProcessor.IsSilent(SilenceLevel))
+                {
+                    silentFrames++;
+                    if (silentFrames >= SilenceFrameThreshold)
+                        specProcessor.GenerateDemoSpectrum(config, startTime + frameIdx / (double)fps, simulatedMs);
+                }
+                else
+                {
+                    silentFrames = 0;
+                }
+
+                // Build symmetric or raw arrays
+                float[] specToRender;
+                float[] peaksToRender;
+                if (config.SymmetricMode)
+                    specToRender = specProcessor.BuildMirroredSpectrum(out peaksToRender);
+                else
+                {
+                    specToRender  = specProcessor.CurrentSpectrum;
+                    peaksToRender = specProcessor.PeakBars;
+                }
+
+                // ── Render frame ────────────────────────────────────────────────
+                using (var canvas = new SKCanvas(bitmap))
+                {
+                    canvas.DrawColor(SKColors.Transparent, SKBlendMode.Src);
+                    registry.GetRenderer(config.Style)
+                            .Render(canvas, specToRender, peaksToRender, config,
+                                    outW, outH, colorTick);
+                }
+
+                colorTick += ColorTickActive;
+
+                // ── Double-buffered pipe: overlap I/O with next frame render ────
+                int cur = frameIdx % 2;
+                CopyBitmapBytes(bitmap, buffers[cur], frameSize);
+
+                // Wait for the previous write to finish before reusing its buffer
+                if (prevWriteTask != null)
+                    await prevWriteTask.ConfigureAwait(false);
+
+                prevWriteTask = pipeStream.WriteAsync(buffers[cur], 0, frameSize, ct);
+
+                // ── Progress report (throttled) ─────────────────────────────────
+                if (progress != null && (frameIdx % ProgressReportInterval == 0 || frameIdx == totalFrames - 1))
+                    progress.Report((double)(frameIdx + 1) / totalFrames);
             }
 
-            // ── Compute FFT → process spectrum ────────────────────────────
-            // Use simulated time so peak hold/decay works correctly even though
-            // the baker processes frames much faster than real-time.
-            var magnitudes = SpectrumProcessor.ComputeFFTMagnitudes(ringBuffer, ringWrite, fftSize);
-            long simulatedMs = (long)((startTime + frameIdx / (double)fps) * 1000.0);
-            specProcessor.ProcessSpectrum(magnitudes, config, simulatedMs);
-
-            // ── Demo fallback: replace silent frames with animated idle spectrum ──
-            if (specProcessor.IsSilent(SilenceLevel))
-            {
-                silentFrames++;
-                if (silentFrames >= SilenceFrameThreshold)
-                    specProcessor.GenerateDemoSpectrum(config, startTime + frameIdx / (double)fps, simulatedMs);
-            }
-            else
-            {
-                silentFrames = 0;
-            }
-
-            // Build symmetric or raw arrays
-            float[] specToRender;
-            float[] peaksToRender;
-            if (config.SymmetricMode)
-                specToRender = specProcessor.BuildMirroredSpectrum(out peaksToRender);
-            else
-            {
-                specToRender  = specProcessor.CurrentSpectrum;
-                peaksToRender = specProcessor.PeakBars;
-            }
-
-            // ── Render frame ────────────────────────────────────────────────
-            using (var canvas = new SKCanvas(bitmap))
-            {
-                canvas.DrawColor(SKColors.Transparent, SKBlendMode.Src);
-                registry.GetRenderer(config.Style)
-                        .Render(canvas, specToRender, peaksToRender, config,
-                                outW, outH, colorTick);
-            }
-
-            colorTick += ColorTickActive;
-
-            // ── Copy bitmap bytes and pipe to FFmpeg ────────────────────────
-            CopyBitmapBytes(bitmap, frameBytes);
-            await pipeStream.WriteAsync(frameBytes, 0, frameBytes.Length, ct);
+            // Flush the last pending write
+            if (prevWriteTask != null)
+                await prevWriteTask.ConfigureAwait(false);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffers[0]);
+            ArrayPool<byte>.Shared.Return(buffers[1]);
         }
     }
 
@@ -353,10 +393,10 @@ public static class OfflineVisualizerBaker
     // Helpers
     // ────────────────────────────────────────────────────────────────────────
 
-    private static void CopyBitmapBytes(SKBitmap bitmap, byte[] dest)
+    private static void CopyBitmapBytes(SKBitmap bitmap, byte[] dest, int length)
     {
         var ptr = bitmap.GetPixels();
-        System.Runtime.InteropServices.Marshal.Copy(ptr, dest, 0, bitmap.ByteCount);
+        System.Runtime.InteropServices.Marshal.Copy(ptr, dest, 0, length);
     }
 
     private static void TryDelete(string path)

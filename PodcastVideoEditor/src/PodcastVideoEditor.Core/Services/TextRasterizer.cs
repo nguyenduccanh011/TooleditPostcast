@@ -1,6 +1,7 @@
 #nullable enable
 using SkiaSharp;
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 
 namespace PodcastVideoEditor.Core.Services;
@@ -11,8 +12,15 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class TextRasterizer
 {
+    // ── Typeface cache ──────────────────────────────────────────────────
+    // SKTypeface.FromFamilyName() is expensive (~0.5-2ms per call) because it
+    // queries the OS font registry. Cache resolved typefaces per (family, style)
+    // tuple so Parallel.For text rasterization reuses them across segments.
+    private static readonly ConcurrentDictionary<(string family, SKFontStyle style), SKTypeface> _typefaceCache = new();
+
     /// <summary>
     /// Render a text element to a transparent PNG file with word-wrap support.
+    /// Uses PNG quality 80 (sufficient for temp overlay — FFmpeg re-decodes immediately).
     /// </summary>
     /// <param name="options">Text rendering options.</param>
     /// <param name="outputPath">Path to write the PNG file.</param>
@@ -20,7 +28,7 @@ public static class TextRasterizer
     {
         using var bitmap = RenderToBitmap(options);
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 80);
         using var stream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
         data.SaveTo(stream);
     }
@@ -168,28 +176,49 @@ public static class TextRasterizer
     /// <summary>Draw a single line with optional per-character letter spacing.</summary>
     private static void DrawLine(SKCanvas canvas, string line, float x, float y, SKPaint paint, float letterSpacing)
     {
-        if (letterSpacing == 0)
+        if (letterSpacing == 0 || line.Length <= 1)
         {
             canvas.DrawText(line, x, y, paint);
             return;
         }
+
+        // Batch letter-spaced text via SKTextBlob — single draw call instead
+        // of N separate DrawText calls. Build glyph array + positions up-front.
+        using var font = paint.ToFont();
+        font.Size = paint.TextSize;
+        font.Typeface = paint.Typeface;
+
+        var advances = paint.GetGlyphWidths(line);
+        var glyphs = new ushort[line.Length];
+        var positions = new SKPoint[line.Length];
         float cx = x;
-        foreach (var ch in line)
+        for (int i = 0; i < line.Length; i++)
         {
-            var s = ch.ToString();
-            canvas.DrawText(s, cx, y, paint);
-            cx += paint.MeasureText(s) + letterSpacing;
+            glyphs[i] = font.GetGlyph(line[i]);
+            positions[i] = new SKPoint(cx, y);
+            cx += advances[i] + letterSpacing;
         }
+
+        using var builder = new SKTextBlobBuilder();
+        var run = builder.AllocatePositionedRun(font, glyphs.Length);
+        glyphs.AsSpan().CopyTo(run.GetGlyphSpan());
+        positions.AsSpan().CopyTo(run.GetPositionSpan());
+        using var blob = builder.Build();
+        if (blob != null)
+            canvas.DrawText(blob, 0, 0, paint);
     }
 
     /// <summary>Measure the rendered width of a line, accounting for letter spacing.</summary>
     private static float MeasureLineWidth(string line, SKPaint paint, float letterSpacing)
     {
-        if (letterSpacing == 0 || line.Length == 0)
+        if (letterSpacing == 0 || line.Length <= 1)
             return paint.MeasureText(line);
+
+        // Use paint glyph widths for accurate measurement
+        var widths = paint.GetGlyphWidths(line);
         float total = 0;
-        foreach (var ch in line)
-            total += paint.MeasureText(ch.ToString()) + letterSpacing;
+        for (int i = 0; i < widths.Length; i++)
+            total += widths[i] + letterSpacing;
         // Remove trailing spacing from last char
         return total - letterSpacing;
     }
@@ -305,6 +334,8 @@ public static class TextRasterizer
 
     /// <summary>
     /// Resolve an SKTypeface from font family name and style flags.
+    /// Results are cached in a static ConcurrentDictionary for reuse across
+    /// parallel text rasterization calls.
     /// </summary>
     private static SKTypeface ResolveTypeface(string? fontFamily, bool isBold, bool isItalic)
     {
@@ -316,15 +347,17 @@ public static class TextRasterizer
         else if (isItalic)
             style = SKFontStyle.Italic;
 
-        if (!string.IsNullOrWhiteSpace(fontFamily))
+        var family = fontFamily ?? "Arial";
+        return _typefaceCache.GetOrAdd((family, style), key =>
         {
-            var typeface = SKTypeface.FromFamilyName(fontFamily, style);
-            if (typeface != null)
-                return typeface;
-        }
-
-        return SKTypeface.FromFamilyName("Arial", style)
-               ?? SKTypeface.Default;
+            if (!string.IsNullOrWhiteSpace(key.family))
+            {
+                var typeface = SKTypeface.FromFamilyName(key.family, key.style);
+                if (typeface != null)
+                    return typeface;
+            }
+            return SKTypeface.FromFamilyName("Arial", key.style) ?? SKTypeface.Default;
+        });
     }
 
     /// <summary>

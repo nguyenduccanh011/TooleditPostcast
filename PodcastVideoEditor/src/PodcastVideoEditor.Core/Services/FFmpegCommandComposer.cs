@@ -128,7 +128,7 @@ public static class FFmpegCommandComposer
         public string StatusText => (IsGpuEncoding, IsGpuFiltering) switch
         {
             (true,  true)  => $"GPU ({FilterBackend}): encode + composite ✓",
-            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode (libx264) — update driver for full GPU",
+            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode — downloading compatible FFmpeg…",
             _              => "CPU encode + composite — no GPU acceleration detected",
         };
 
@@ -147,6 +147,25 @@ public static class FFmpegCommandComposer
             _preferredH264Encoder ?? "libx264",
             _preferredHevcEncoder ?? "libx265",
             _gpuFilterBackend);
+    }
+
+    /// <summary>
+    /// Invalidate the encoder / GPU-filter cache so the next call to
+    /// <see cref="GetGpuCapabilities"/> (or any build method) re-probes from
+    /// scratch using the currently active FFmpeg binary.
+    /// Called by <see cref="FFmpegUpdateService"/> after redirecting to a
+    /// compatible FFmpeg build.
+    /// </summary>
+    public static void InvalidateEncoderCache()
+    {
+        lock (_encoderProbeLock)
+        {
+            _preferredH264Encoder = null;
+            _preferredHevcEncoder = null;
+            _gpuFilterBackend = GpuFilterBackend.None;
+            _gpuFilterProbed = false;
+        }
+        Log.Information("FFmpegCommandComposer: Encoder/filter cache invalidated – will re-probe on next use.");
     }
 
     /// <summary>
@@ -859,9 +878,8 @@ public static class FFmpegCommandComposer
                     Log.Warning("H264 GPU encoder '{Encoder}' listed but failed validation: {Error}. Falling back to libx264 (CPU).",
                         _preferredH264Encoder, h264Err);
                     if (_preferredH264Encoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
-                        Log.Warning("UPDATE YOUR NVIDIA DRIVER to 570.0 or newer to enable GPU encoding (h264_nvenc). " +
-                                    "Current driver supports NVENC API 12.2 but this FFmpeg build requires 13.0. " +
-                                    "Download: https://www.nvidia.com/drivers");
+                        Log.Warning("NVENC requires a newer driver API than this FFmpeg build supports. " +
+                                    "FFmpegUpdateService will download a compatible build automatically.");
                     _preferredH264Encoder = "libx264";
                 }
                 if (_preferredHevcEncoder != "libx265" && !ValidateEncoder(ffmpegPath, _preferredHevcEncoder, out var hevcErr))

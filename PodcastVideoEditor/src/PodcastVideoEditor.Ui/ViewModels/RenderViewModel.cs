@@ -102,19 +102,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public RenderViewModel()
         {
+            // Subscribe to FFmpegUpdateService so we can refresh the badge when
+            // the compatible FFmpeg 7.1 download finishes in the background.
+            FFmpegUpdateService.CompatBinaryReady += OnCompatBinaryReady;
+
             // Probe GPU capabilities in the background so the status badge
             // is populated shortly after the render panel first appears.
-            // The probe is cached after the first call — subsequent renders pay ~0ms.
-            _ = Task.Run(() =>
+            // If NVENC fails, EnsureCompatibleFFmpegAsync will download FFmpeg 7.1
+            // and fire CompatBinaryReady which refreshes the badge automatically.
+            _ = Task.Run(async () =>
             {
                 var caps = FFmpegCommandComposer.GetGpuCapabilities();
-                var brush = new SolidColorBrush(ParseHexColor(caps.StatusColor));
-                brush.Freeze(); // safe to pass to UI thread
-                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                {
-                    GpuStatusText  = caps.StatusText;
-                    GpuStatusBrush = brush;
-                });
+                RefreshGpuBadge(caps);
+
+                // Only attempt compat download if GPU encoding is not available.
+                if (!caps.IsGpuEncoding)
+                    await FFmpegUpdateService.EnsureCompatibleFFmpegAsync().ConfigureAwait(false);
             });
         }
 
@@ -123,6 +126,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // hex is always one of three known values from GpuCapabilities
             try { return (Color)ColorConverter.ConvertFromString(hex); }
             catch { return Colors.Gray; }
+        }
+
+        private void RefreshGpuBadge(FFmpegCommandComposer.GpuCapabilities caps)
+        {
+            var brush = new SolidColorBrush(ParseHexColor(caps.StatusColor));
+            brush.Freeze(); // safe to pass to UI thread
+            System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+            {
+                GpuStatusText  = caps.StatusText;
+                GpuStatusBrush = brush;
+            });
+        }
+
+        private void OnCompatBinaryReady()
+        {
+            // Called on a thread-pool thread when FFmpegUpdateService finishes
+            // downloading / redirecting to the compatible FFmpeg 7.1 binary.
+            var caps = FFmpegCommandComposer.GetGpuCapabilities();
+            RefreshGpuBadge(caps);
         }
 
         public void AttachTimeline(TimelineViewModel timelineViewModel)
@@ -595,6 +617,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         public void Dispose()
         {
+            FFmpegUpdateService.CompatBinaryReady -= OnCompatBinaryReady;
             _renderCancellationTokenSource?.Dispose();
         }
     }

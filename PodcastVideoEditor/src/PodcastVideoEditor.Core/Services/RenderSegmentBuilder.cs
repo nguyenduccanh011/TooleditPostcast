@@ -438,7 +438,8 @@ public static class RenderSegmentBuilder
         double canvasHeight,
         int frameRate,
         CancellationToken ct,
-        Dictionary<string, int>? zOrderMap = null)
+        Dictionary<string, int>? zOrderMap = null,
+        IProgress<double>? progress = null)
     {
         if (elements == null || canvasWidth <= 0 || canvasHeight <= 0)
         {
@@ -473,9 +474,14 @@ public static class RenderSegmentBuilder
 
         // Prepare bake tasks for all visualizer elements so they run in parallel.
         // Each task is independent (separate audio reader, separate FFmpeg process).
+        var vizElements = elements.OfType<VisualizerElement>().ToList();
         var bakeTasks = new List<Task<(VisualizerElement element, string? bakedPath, double vizStart, double vizEnd, string? vizTrackId)>>();
 
-        foreach (var element in elements.OfType<VisualizerElement>())
+        // Aggregate per-element progress into a single combined progress for the caller.
+        // Each element reports 0.0-1.0; combined = average across all elements.
+        var elementProgress = new double[Math.Max(1, vizElements.Count)];
+
+        foreach (var element in vizElements)
         {
             // If the visualizer is bound to a specific segment, limit its time range
             double vizStart = 0;
@@ -506,6 +512,18 @@ public static class RenderSegmentBuilder
             var capturedEnd = vizEnd;
             var capturedTrackId = vizTrackId;
             var capturedElement = element;
+            var taskIdx = bakeTasks.Count;
+
+            // Per-element progress aggregation → combined progress to caller
+            IProgress<double>? elementProg = progress != null
+                ? new Progress<double>(pct =>
+                {
+                    elementProgress[taskIdx] = pct;
+                    var avg = 0.0;
+                    for (int i = 0; i < vizElements.Count; i++) avg += elementProgress[i];
+                    progress.Report(avg / vizElements.Count);
+                })
+                : null;
 
             bakeTasks.Add(Task.Run(async () =>
             {
@@ -517,6 +535,7 @@ public static class RenderSegmentBuilder
                     capturedStart, capturedEnd,
                     frameRate,
                     ffmpegPath,
+                    elementProg,
                     ct);
                 return (capturedElement, path, capturedStart, capturedEnd, capturedTrackId);
             }, ct));
