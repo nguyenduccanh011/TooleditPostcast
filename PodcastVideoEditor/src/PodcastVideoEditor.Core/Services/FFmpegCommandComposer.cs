@@ -340,18 +340,17 @@ public static class FFmpegCommandComposer
         else
             Log.Information("Render: CPU-only pipeline, encoder {Encoder}", videoCodec);
 
-        // ── CUDA full-GPU pipeline ──────────────────────────────────────
-        // When the CUDA backend is available, keep frames as CUDA surfaces
-        // through scale AND overlay, only hwdownload once at the end.
-        // This eliminates N×2 PCIe round-trips (upload+download per segment)
-        // and keeps the entire compositing chain in VRAM.
-        //
-        // Pipeline:  base(CPU→hwupload)  +  each segment(CUDA surface)
-        //             → overlay_cuda (VRAM)  → ... → hwdownload (once)
-        //
-        // Alpha segments (PNG, fade) and zoompan are CPU-only; when encountered
-        // the chain transitions: hwdownload → CPU overlay → hwupload back.
-        var useCudaOverlay = gpuBackend == GpuFilterBackend.Cuda;
+        // ── GPU compositing policy ─────────────────────────────────────
+        // overlay_cuda does not support the 'enable' timeline option in current
+        // FFmpeg builds, so segment start/end timing is unreliable with it.
+        // CPU overlay (with enable='between(t,start,end)') is fully reliable and
+        // is the standard path used by CapCut, Premiere, etc.
+        // GPU acceleration is preserved where it matters most:
+        //   • Input decode  : -hwaccel cuda (CUDA) or -hwaccel d3d11va (all GPUs)
+        //   • Output encode : h264_nvenc / hevc_nvenc / h264_qsv (GPU encoder)
+        // Compositing (scale + overlay) runs on CPU, matching CapCut's CPU+GPU profile.
+        // Re-enable useCudaOverlay when overlay_cuda supports timeline expressions.
+        var useCudaOverlay = false;
 
         // Step 1: base canvas
         if (useCudaOverlay)
