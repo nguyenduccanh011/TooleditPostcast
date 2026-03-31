@@ -91,7 +91,7 @@ public static class MotionAnimator
             {
                 ScaleX = panScale,
                 ScaleY = panScale,
-                TranslateX = Lerp(-panRangeX, panRangeX, progress),
+                TranslateX = Lerp(-panRangeX, panRangeX, Ease(progress)),
                 TranslateY = 0
             },
 
@@ -100,7 +100,7 @@ public static class MotionAnimator
             {
                 ScaleX = panScale,
                 ScaleY = panScale,
-                TranslateX = Lerp(panRangeX, -panRangeX, progress),
+                TranslateX = Lerp(panRangeX, -panRangeX, Ease(progress)),
                 TranslateY = 0
             },
 
@@ -110,7 +110,7 @@ public static class MotionAnimator
                 ScaleX = panScale,
                 ScaleY = panScale,
                 TranslateX = 0,
-                TranslateY = Lerp(-panRangeY, panRangeY, progress)
+                TranslateY = Lerp(-panRangeY, panRangeY, Ease(progress))
             },
 
             // Pan down: camera moves top-to-bottom (image shifts up over time)
@@ -119,7 +119,7 @@ public static class MotionAnimator
                 ScaleX = panScale,
                 ScaleY = panScale,
                 TranslateX = 0,
-                TranslateY = Lerp(panRangeY, -panRangeY, progress)
+                TranslateY = Lerp(panRangeY, -panRangeY, Ease(progress))
             },
 
             // Zoom in + pan left: combines zoom-in with leftward camera movement
@@ -127,7 +127,7 @@ public static class MotionAnimator
             {
                 ScaleX = Lerp(1.0, maxZoom, progress),
                 ScaleY = Lerp(1.0, maxZoom, progress),
-                TranslateX = Lerp(-panRangeX, panRangeX, progress),
+                TranslateX = Lerp(-panRangeX, panRangeX, Ease(progress)),
                 TranslateY = 0
             },
 
@@ -136,7 +136,7 @@ public static class MotionAnimator
             {
                 ScaleX = Lerp(1.0, maxZoom, progress),
                 ScaleY = Lerp(1.0, maxZoom, progress),
-                TranslateX = Lerp(panRangeX, -panRangeX, progress),
+                TranslateX = Lerp(panRangeX, -panRangeX, Ease(progress)),
                 TranslateY = 0
             },
 
@@ -145,4 +145,7 @@ public static class MotionAnimator
     }
 
     private static double Lerp(double a, double b, double t) => a + (b - a) * t;
+
+    /// <summary>Cosine ease-in-out: smooth acceleration/deceleration matching FFmpeg render.</summary>
+    private static double Ease(double t) => 0.5 - 0.5 * Math.Cos(Math.PI * t);
 }
