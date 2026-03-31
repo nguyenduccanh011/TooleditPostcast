@@ -168,7 +168,7 @@
                         <RotateTransform Angle="{Binding Rotation}"/>
                     </TransformGroup>
                 </Grid.RenderTransform>
-                <Border Background="#222222"
+                <Border Background="Transparent"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2"
                         ClipToBounds="True">
@@ -252,7 +252,7 @@
                         <RotateTransform Angle="{Binding Rotation}"/>
                     </TransformGroup>
                 </Grid.RenderTransform>
-                <Border Background="#222222"
+                <Border Background="Transparent"
                         BorderBrush="{Binding IsSelected, Converter={StaticResource BoolToColorConverter}}"
                         BorderThickness="2">
                     <Grid>
