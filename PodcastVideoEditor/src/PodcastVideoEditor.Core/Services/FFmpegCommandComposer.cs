@@ -267,19 +267,37 @@ public static class FFmpegCommandComposer
 
         // Log GPU pipeline diagnostics
         if (cudaZeroCopy)
-            Log.Information("Render: CUDA zero-copy decode active — frames stay in VRAM, skip hwupload");
-        if (hasGpuFilters)
-            Log.Information("Render: GPU backend {Backend} for scale, encoder {Encoder}", gpuBackend, videoCodec);
+            Log.Information("Render: CUDA zero-copy decode — frames stay in VRAM");
+        if (gpuBackend == GpuFilterBackend.Cuda)
+            Log.Information("Render: CUDA full-GPU pipeline — scale_cuda + overlay_cuda, encoder {Encoder}", videoCodec);
+        else if (hasGpuFilters)
+            Log.Information("Render: GPU backend {Backend} for scale (overlay on CPU), encoder {Encoder}", gpuBackend, videoCodec);
         else
-            Log.Information("Render: CPU filters (no GPU backend), encoder {Encoder}", videoCodec);
+            Log.Information("Render: CPU-only pipeline, encoder {Encoder}", videoCodec);
 
-        // Step 1: base canvas — always CPU (lavfi source)
-        filter.Append($"[0:v]format=yuv420p,setsar=1[base];");
+        // ── CUDA full-GPU pipeline ──────────────────────────────────────
+        // When the CUDA backend is available, keep frames as CUDA surfaces
+        // through scale AND overlay, only hwdownload once at the end.
+        // This eliminates N×2 PCIe round-trips (upload+download per segment)
+        // and keeps the entire compositing chain in VRAM.
+        //
+        // Pipeline:  base(CPU→hwupload)  +  each segment(CUDA surface)
+        //             → overlay_cuda (VRAM)  → ... → hwdownload (once)
+        //
+        // Alpha segments (PNG, fade) and zoompan are CPU-only; when encountered
+        // the chain transitions: hwdownload → CPU overlay → hwupload back.
+        var useCudaOverlay = gpuBackend == GpuFilterBackend.Cuda;
+
+        // Step 1: base canvas
+        if (useCudaOverlay)
+            filter.Append($"[0:v]format=yuv420p,hwupload_cuda,setsar=1[base];");
+        else
+            filter.Append($"[0:v]format=yuv420p,setsar=1[base];");
+
+        // Track whether each scaled segment is a CUDA surface (true) or CPU frame (false).
+        var segOnGpu = new bool[visualSegments.Count];
 
         // Step 2: Scale + position each visual segment
-        // GPU path: video segments decoded on GPU → GPU scale → hwdownload → CPU overlay
-        // This avoids the expensive CPU libswscale while keeping full overlay flexibility
-        // (enable expressions, alpha blending, repeatlast, etc.).
         for (int i = 0; i < visualSegments.Count; i++)
         {
             var inputIdx = i + 1;
@@ -295,13 +313,16 @@ public static class FFmpegCommandComposer
 
             // Build optional fade-in/fade-out filter for this segment
             var fadeFilter = BuildFadeFilter(seg, invariant);
+            var hasFade = !string.IsNullOrEmpty(fadeFilter);
+
+            // Segments that MUST stay on CPU (alpha blending, zoompan, fade)
+            var forceCpu = needsAlpha || hasFade;
 
             if (seg.IsVideo)
             {
-                // GPU scale path for video: scale on GPU, then hwdownload to CPU
-                // for the overlay step (which needs enable expressions + alpha).
-                if (hasGpuFilters && !needsAlpha)
+                if (useCudaOverlay && !forceCpu)
                 {
+                    // CUDA path: keep as CUDA surface for overlay_cuda.
                     var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
                         ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                         : (config.ResolutionWidth, config.ResolutionHeight);
@@ -310,16 +331,28 @@ public static class FFmpegCommandComposer
                     filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     if (cudaZeroCopy)
                     {
-                        // CUDA zero-copy: frames are already CUDA surfaces from
-                        // -hwaccel_output_format cuda. Go directly to scale_cuda,
-                        // skipping format=yuv420p + hwupload_cuda (saves 1 PCIe transfer).
-                        filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                        // Frames are already CUDA surfaces from -hwaccel_output_format cuda.
+                        filter.Append($"{gpuScaleExact},setsar=1[{scaledLabel}];");
                     }
                     else
                     {
-                        // Non-CUDA GPU: frames are on CPU, need upload → GPU scale → download.
-                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                        filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
                     }
+                    segOnGpu[i] = true;
+                }
+                else if (hasGpuFilters && !needsAlpha)
+                {
+                    // GPU scale but download to CPU (has fade or non-CUDA backend).
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+
+                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    if (cudaZeroCopy)
+                        filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                    else
+                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
@@ -334,25 +367,33 @@ public static class FFmpegCommandComposer
             }
             else
             {
-                // Image/PNG inputs: GPU scale for non-alpha images, CPU for alpha or motion.
-                // scale_cuda/scale_qsv do not support RGBA, so alpha channels must stay on CPU.
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                     : BuildScalingFilter(config);
 
-                // Check for Ken Burns motion effect (zoom/pan) — CPU only, no GPU equivalent
+                // Check for Ken Burns motion effect (zoom/pan) — CPU only
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
                     config.ResolutionWidth, config.ResolutionHeight);
+
                 if (zoompanFilter != null)
                 {
-                    // Ken Burns: always CPU (zoompan filter has no GPU equivalent)
                     filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else if (useCudaOverlay && !forceCpu)
+                {
+                    // GPU scale for non-alpha images, keep as CUDA surface.
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
+                    segOnGpu[i] = true;
                 }
                 else if (hasGpuFilters && !needsAlpha)
                 {
-                    // GPU scale for non-alpha images (JPG, solid PNG).
-                    // Images are CPU-decoded so always need hwupload → GPU scale → hwdownload.
+                    // GPU scale but download to CPU (non-CUDA backend or has fade).
                     var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
                         ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                         : (config.ResolutionWidth, config.ResolutionHeight);
@@ -367,8 +408,12 @@ public static class FFmpegCommandComposer
             }
         }
 
-        // Step 3: Overlay each visual onto the base
+        // Step 3: Overlay chain with GPU-state tracking.
+        // currentOnGpu tracks whether the current composite is a CUDA surface.
+        // When both the composite and the overlay segment are CUDA → overlay_cuda.
+        // When transitioning GPU↔CPU, insert hwdownload or hwupload_cuda as needed.
         var currentVideo = "base";
+        var currentOnGpu = useCudaOverlay; // base was uploaded to CUDA above
         for (int i = 0; i < visualSegments.Count; i++)
         {
             var seg     = visualSegments[i];
@@ -378,24 +423,62 @@ public static class FFmpegCommandComposer
 
             var overlayX = seg.OverlayX ?? "0";
             var overlayY = seg.OverlayY ?? "0";
-            var overlayPos = $"x={overlayX}:y={overlayY}:";
 
-            // repeatlast=0: do not hold the last overlay frame after the overlay
-            // input ends — frees the overlay's decoded frame buffer immediately,
-            // reducing peak memory when many overlays share the timeline.
-            if (!seg.IsVideo)
+            var shiftedLabel = seg.IsVideo ? $"shifted{i}" : $"scaledpts{i}";
+            filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
+
+            if (currentOnGpu && segOnGpu[i])
             {
-                var scaledPtsLabel = $"scaledpts{i}";
-                filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{scaledPtsLabel}];");
-                filter.Append($"[{currentVideo}][{scaledPtsLabel}]overlay={overlayPos}format=auto:shortest=0:repeatlast=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                // Both on CUDA → overlay_cuda (fully in VRAM, no PCIe transfer)
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay_cuda=x={overlayX}:y={overlayY}:" +
+                              $"eof_action=pass:repeatlast=0:enable='between(t,{start},{end})'[{outLabel}];");
+                // result remains on GPU
             }
             else
             {
-                var shiftedLabel = $"shifted{i}";
-                filter.Append($"[scaled{i}]setpts=PTS+{start}/TB[{shiftedLabel}];");
-                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay={overlayPos}format=auto:shortest=0:repeatlast=0:eof_action=pass:enable='between(t,{start},{end})'[{outLabel}];");
+                // Need CPU overlay (alpha segment, or mixed GPU/CPU state).
+                // Ensure both inputs are on CPU.
+                if (currentOnGpu)
+                {
+                    // Download current composite from GPU to CPU.
+                    var dlLabel = $"dl{i}";
+                    filter.Append($"[{currentVideo}]hwdownload,format=yuv420p[{dlLabel}];");
+                    currentVideo = dlLabel;
+                    currentOnGpu = false;
+                }
+                // segOnGpu[i] shouldn't be true here (alpha/fade segments stay on CPU),
+                // but guard anyway.
+                if (segOnGpu[i])
+                {
+                    var dlSeg = $"dlseg{i}";
+                    filter.Append($"[{shiftedLabel}]hwdownload,format=yuv420p[{dlSeg}];");
+                    shiftedLabel = dlSeg;
+                }
+
+                filter.Append($"[{currentVideo}][{shiftedLabel}]overlay=x={overlayX}:y={overlayY}:" +
+                              $"format=auto:shortest=0:repeatlast=0:eof_action=pass:" +
+                              $"enable='between(t,{start},{end})'[{outLabel}];");
+
+                // After CPU overlay, upload back to CUDA if we're in CUDA pipeline
+                // and the NEXT segment is also GPU-eligible.
+                if (useCudaOverlay && i + 1 < visualSegments.Count && segOnGpu.AsSpan()[(i + 1)..].Contains(true))
+                {
+                    var upLabel = $"up{i}";
+                    filter.Append($"[{outLabel}]format=yuv420p,hwupload_cuda[{upLabel}];");
+                    outLabel = upLabel;
+                    currentOnGpu = true;
+                }
             }
             currentVideo = outLabel;
+        }
+
+        // Before text overlays (drawtext is CPU-only), download from GPU if needed.
+        if (currentOnGpu)
+        {
+            var dlFinal = "dlfinal";
+            filter.Append($"[{currentVideo}]hwdownload,format=yuv420p[{dlFinal}];");
+            currentVideo = dlFinal;
+            currentOnGpu = false;
         }
 
         // Resolve a default font once for all text segments
