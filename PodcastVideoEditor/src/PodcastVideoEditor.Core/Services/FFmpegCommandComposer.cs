@@ -33,6 +33,9 @@ public static class FFmpegCommandComposer
     /// <summary>GPU filter backends in preference order.</summary>
     public enum GpuFilterBackend { None, Cuda, Qsv, Vulkan, OpenCL }
 
+    /// <summary>GPU hardware vendor, detected via WMI to prioritise the correct encoder.</summary>
+    private enum GpuVendor { Unknown, Nvidia, Amd, Intel }
+
     private static GpuFilterBackend _gpuFilterBackend = GpuFilterBackend.None;
     private static bool _gpuFilterProbed;
 
@@ -118,16 +121,28 @@ public static class FFmpegCommandComposer
         string HevcEncoder,
         GpuFilterBackend FilterBackend)
     {
-        /// <summary>True when video encoding runs on GPU (NVENC / QSV / AMF).</summary>
-        public bool IsGpuEncoding => H264Encoder is "h264_nvenc" or "h264_qsv" or "h264_amf";
+        /// <summary>True when video encoding runs on GPU (NVENC / QSV / AMF — either H264 or HEVC).</summary>
+        public bool IsGpuEncoding =>
+            H264Encoder is "h264_nvenc" or "h264_qsv" or "h264_amf" ||
+            HevcEncoder is "hevc_nvenc" or "hevc_qsv" or "hevc_amf";
 
         /// <summary>True when compositing (scale + overlay) runs on GPU.</summary>
         public bool IsGpuFiltering => FilterBackend != GpuFilterBackend.None;
 
+        private string EncoderLabel => H264Encoder switch
+        {
+            "h264_amf"  => "AMD AMF",
+            "h264_nvenc" => "NVENC",
+            "h264_qsv"  => "Intel QSV",
+            _ => H264Encoder
+        };
+
         /// <summary>Human-readable status line shown in the render panel.</summary>
         public string StatusText => (IsGpuEncoding, IsGpuFiltering) switch
         {
-            (true,  true)  => $"GPU ({FilterBackend}): encode + composite ✓",
+            (true,  true)  => $"GPU full pipeline ({EncoderLabel} + {FilterBackend}): decode + composite + encode ✔",
+            // AMD AMF without full build: GPU encode/decode works, but composite falls back to CPU.
+            (true,  false) => $"GPU encode ({EncoderLabel}) + D3D11VA decode — CPU composite (upgrading FFmpeg for OpenCL…)",
             (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode — downloading compatible FFmpeg…",
             _              => "CPU encode + composite — no GPU acceleration detected",
         };
@@ -331,14 +346,19 @@ public static class FFmpegCommandComposer
         var hasGpuFilters = gpuBackend != GpuFilterBackend.None;
 
         // Log GPU pipeline diagnostics
+        var isGpuEncoder = videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase) ||
+                           videoCodec.Contains("qsv",   StringComparison.OrdinalIgnoreCase) ||
+                           videoCodec.Contains("amf",   StringComparison.OrdinalIgnoreCase);
         if (cudaZeroCopy)
             Log.Information("Render: CUDA zero-copy decode — frames stay in VRAM");
         if (gpuBackend == GpuFilterBackend.Cuda)
             Log.Information("Render: CUDA full-GPU pipeline — scale_cuda + overlay_cuda, encoder {Encoder}", videoCodec);
         else if (hasGpuFilters)
             Log.Information("Render: GPU backend {Backend} for scale (overlay on CPU), encoder {Encoder}", gpuBackend, videoCodec);
+        else if (isGpuEncoder)
+            Log.Information("Render: GPU encode ({Encoder}) + D3D11VA decode — CPU composite", videoCodec);
         else
-            Log.Information("Render: CPU-only pipeline, encoder {Encoder}", videoCodec);
+            Log.Information("Render: CPU-only pipeline (no GPU acceleration), encoder {Encoder}", videoCodec);
 
         // ── GPU compositing policy ─────────────────────────────────────
         // overlay_cuda does not support the 'enable' timeline option in current
@@ -347,7 +367,7 @@ public static class FFmpegCommandComposer
         // is the standard path used by CapCut, Premiere, etc.
         // GPU acceleration is preserved where it matters most:
         //   • Input decode  : -hwaccel cuda (CUDA) or -hwaccel d3d11va (all GPUs)
-        //   • Output encode : h264_nvenc / hevc_nvenc / h264_qsv (GPU encoder)
+        //   • Output encode : h264_nvenc / hevc_nvenc / h264_qsv / h264_amf (GPU encoder)
         // Compositing (scale + overlay) runs on CPU, matching CapCut's CPU+GPU profile.
         // Re-enable useCudaOverlay when overlay_cuda supports timeline expressions.
         var useCudaOverlay = false;
@@ -857,48 +877,66 @@ public static class FFmpegCommandComposer
                 var output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit(TimeSpan.FromSeconds(5));
 
-                if (output.Contains("h264_nvenc", StringComparison.OrdinalIgnoreCase))
-                    _preferredH264Encoder = "h264_nvenc";
-                else if (output.Contains("h264_qsv", StringComparison.OrdinalIgnoreCase))
-                    _preferredH264Encoder = "h264_qsv";
-                else if (output.Contains("h264_amf", StringComparison.OrdinalIgnoreCase))
-                    _preferredH264Encoder = "h264_amf";
-
-                if (output.Contains("hevc_nvenc", StringComparison.OrdinalIgnoreCase))
-                    _preferredHevcEncoder = "hevc_nvenc";
-                else if (output.Contains("hevc_qsv", StringComparison.OrdinalIgnoreCase))
-                    _preferredHevcEncoder = "hevc_qsv";
-                else if (output.Contains("hevc_amf", StringComparison.OrdinalIgnoreCase))
-                    _preferredHevcEncoder = "hevc_amf";
-
-                // ── Step 1b: validate GPU encoders with a 1-frame smoke test ──
-                // Some systems list nvenc/qsv/amf encoders but the driver version is
-                // too old for this FFmpeg build. Validate that they actually produce output.
-                // Fallback: GPU encoder → libx264/libx265 (CPU).
+                // ── Step 1b: probe + validate GPU encoders with a 1-frame smoke test ──
+                // FFmpeg lists ALL compiled encoders regardless of actual GPU hardware.
+                // E.g. an AMD-only machine still lists h264_nvenc in -encoders output.
+                // We must validate each candidate with a real encode attempt and cascade
+                // to the next one on failure, instead of falling straight to CPU.
                 // NOTE: h264_mf / hevc_mf (Media Foundation) are NOT GPU encoders —
                 // the inbox "H264 Encoder MFT" runs on CPU. We skip them entirely.
-                if (_preferredH264Encoder != "libx264" && !ValidateEncoder(ffmpegPath, _preferredH264Encoder, out var h264Err))
+
+                // Detect GPU vendor to prioritise the matching encoder first.
+                // This avoids ~1-2s wasted per failed validation of irrelevant encoders
+                // (e.g. testing h264_nvenc on an AMD-only machine).
+                var gpuVendor = DetectGpuVendor();
+                Log.Information("Detected GPU vendor: {Vendor}", gpuVendor);
+
+                string[] h264Candidates = gpuVendor switch
                 {
-                    Log.Warning("H264 GPU encoder '{Encoder}' listed but failed validation: {Error}. Falling back to libx264 (CPU).",
-                        _preferredH264Encoder, h264Err);
-                    if (_preferredH264Encoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
-                        Log.Warning("NVENC requires a newer driver API than this FFmpeg build supports. " +
-                                    "FFmpegUpdateService will download a compatible build automatically.");
-                    _preferredH264Encoder = "libx264";
+                    GpuVendor.Amd    => ["h264_amf",  "h264_nvenc", "h264_qsv"],
+                    GpuVendor.Intel  => ["h264_qsv",  "h264_nvenc", "h264_amf"],
+                    _                => ["h264_nvenc", "h264_qsv",  "h264_amf"],  // NVIDIA or unknown
+                };
+                foreach (var candidate in h264Candidates)
+                {
+                    if (!output.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (ValidateEncoder(ffmpegPath, candidate, out var h264Err))
+                    {
+                        _preferredH264Encoder = candidate;
+                        Log.Information("H264 GPU encoder '{Encoder}' validated successfully.", candidate);
+                        break;
+                    }
+                    Log.Warning("H264 GPU encoder '{Encoder}' listed but failed validation: {Error}. Trying next candidate…",
+                        candidate, h264Err);
                 }
-                if (_preferredHevcEncoder != "libx265" && !ValidateEncoder(ffmpegPath, _preferredHevcEncoder, out var hevcErr))
+
+                string[] hevcCandidates = gpuVendor switch
                 {
-                    Log.Warning("HEVC GPU encoder '{Encoder}' listed but failed validation: {Error}. Falling back to libx265 (CPU).",
-                        _preferredHevcEncoder, hevcErr);
-                    _preferredHevcEncoder = "libx265";
+                    GpuVendor.Amd    => ["hevc_amf",  "hevc_nvenc", "hevc_qsv"],
+                    GpuVendor.Intel  => ["hevc_qsv",  "hevc_nvenc", "hevc_amf"],
+                    _                => ["hevc_nvenc", "hevc_qsv",  "hevc_amf"],
+                };
+                foreach (var candidate in hevcCandidates)
+                {
+                    if (!output.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (ValidateEncoder(ffmpegPath, candidate, out var hevcErr))
+                    {
+                        _preferredHevcEncoder = candidate;
+                        Log.Information("HEVC GPU encoder '{Encoder}' validated successfully.", candidate);
+                        break;
+                    }
+                    Log.Warning("HEVC GPU encoder '{Encoder}' listed but failed validation: {Error}. Trying next candidate…",
+                        candidate, hevcErr);
                 }
 
                 Log.Information("Preferred encoders: H264={H264}, HEVC={HEVC}", _preferredH264Encoder, _preferredHevcEncoder);
 
                 // ── Step 2: probe GPU filter backends ──
                 // Run `ffmpeg -filters` and check for GPU-accelerated scale/overlay filters.
-                // Priority: CUDA > QSV > Vulkan > OpenCL (matches encoder priority: NVENC > QSV > AMF)
-                ProbeGpuFilterBackend(ffmpegPath);
+                // Priority is vendor-aware: AMD prefers OpenCL, NVIDIA prefers CUDA, Intel prefers QSV.
+                ProbeGpuFilterBackend(ffmpegPath, gpuVendor);
             }
             catch (Exception ex)
             {
@@ -915,8 +953,12 @@ public static class FFmpegCommandComposer
     /// Probe for GPU-accelerated filter support by checking <c>ffmpeg -filters</c> output.
     /// Then validate by running a tiny 1-frame encode with the GPU pipeline to confirm
     /// the driver actually works (some systems list filters but the driver is broken/old).
+    /// Probe order is vendor-aware so each GPU vendor finds its best backend first:
+    ///   NVIDIA: CUDA > QSV > Vulkan > OpenCL
+    ///   AMD:    OpenCL > Vulkan > CUDA > QSV   (OpenCL is AMD's strongest FFmpeg backend)
+    ///   Intel:  QSV > OpenCL > Vulkan > CUDA
     /// </summary>
-    private static void ProbeGpuFilterBackend(string ffmpegPath)
+    private static void ProbeGpuFilterBackend(string ffmpegPath, GpuVendor vendor)
     {
         try
         {
@@ -936,60 +978,46 @@ public static class FFmpegCommandComposer
             var filterOutput = filterProc.StandardOutput.ReadToEnd();
             filterProc.WaitForExit(TimeSpan.FromSeconds(5));
 
-            // Check for GPU filter availability in preference order.
-            // CUDA (NVIDIA) > QSV (Intel) > Vulkan (cross-vendor) > OpenCL (cross-vendor)
-            // Each backend needs BOTH a scale and overlay filter to be useful in the pipeline.
-            // Backends not present in the ffmpeg build simply won't match, no overhead.
-            if (filterOutput.Contains("scale_cuda", StringComparison.OrdinalIgnoreCase) &&
-                filterOutput.Contains("overlay_cuda", StringComparison.OrdinalIgnoreCase))
+            // Vendor-aware probe order.
+            // AMD: OpenCL is the strongest cross-vendor backend in FFmpeg for AMD.
+            //      CapCut/Premiere also use OpenCL on AMD for GPU compositing.
+            // NVIDIA: CUDA is native and lowest-latency.
+            // Intel: QSV is native with dedicated silicon.
+            string[] backendOrder = vendor switch
             {
-                if (ValidateGpuBackend(ffmpegPath, "cuda"))
-                {
-                    _gpuFilterBackend = GpuFilterBackend.Cuda;
-                    Log.Information("GPU filter backend: CUDA (NVIDIA) — scale_cuda + overlay_cuda");
-                    return;
-                }
-                Log.Information("GPU filter backend: CUDA listed but validation failed (driver issue?)");
-            }
+                GpuVendor.Amd   => ["opencl", "vulkan", "cuda", "qsv"],
+                GpuVendor.Intel => ["qsv", "opencl", "vulkan", "cuda"],
+                _               => ["cuda", "qsv", "vulkan", "opencl"],  // NVIDIA or unknown
+            };
 
-            if (filterOutput.Contains("scale_qsv", StringComparison.OrdinalIgnoreCase) &&
-                filterOutput.Contains("overlay_qsv", StringComparison.OrdinalIgnoreCase))
+            foreach (var backend in backendOrder)
             {
-                if (ValidateGpuBackend(ffmpegPath, "qsv"))
+                var (scaleName, overlayName, backendEnum, label) = backend switch
                 {
-                    _gpuFilterBackend = GpuFilterBackend.Qsv;
-                    Log.Information("GPU filter backend: QSV (Intel) — scale_qsv + overlay_qsv");
-                    return;
-                }
-                Log.Information("GPU filter backend: QSV listed but validation failed (driver issue?)");
-            }
+                    "cuda"   => ("scale_cuda",   "overlay_cuda",   GpuFilterBackend.Cuda,   "CUDA (NVIDIA)"),
+                    "qsv"    => ("scale_qsv",    "overlay_qsv",    GpuFilterBackend.Qsv,    "QSV (Intel)"),
+                    "vulkan" => ("scale_vulkan",  "overlay_vulkan", GpuFilterBackend.Vulkan, "Vulkan (cross-vendor)"),
+                    "opencl" => ("scale_opencl", "overlay_opencl", GpuFilterBackend.OpenCL, "OpenCL (cross-vendor)"),
+                    _ => ("", "", GpuFilterBackend.None, "")
+                };
 
-            // Vulkan: present in FFmpeg builds with --enable-libvulkan (less common)
-            if (filterOutput.Contains("scale_vulkan", StringComparison.OrdinalIgnoreCase) &&
-                filterOutput.Contains("overlay_vulkan", StringComparison.OrdinalIgnoreCase))
-            {
-                if (ValidateGpuBackend(ffmpegPath, "vulkan"))
-                {
-                    _gpuFilterBackend = GpuFilterBackend.Vulkan;
-                    Log.Information("GPU filter backend: Vulkan (cross-vendor) — scale_vulkan + overlay_vulkan");
-                    return;
-                }
-            }
+                if (string.IsNullOrEmpty(scaleName)) continue;
 
-            // OpenCL: present in FFmpeg builds with --enable-opencl (cross-vendor: NVIDIA/Intel/AMD)
-            if (filterOutput.Contains("scale_opencl", StringComparison.OrdinalIgnoreCase) &&
-                filterOutput.Contains("overlay_opencl", StringComparison.OrdinalIgnoreCase))
-            {
-                if (ValidateGpuBackend(ffmpegPath, "opencl"))
+                if (filterOutput.Contains(scaleName, StringComparison.OrdinalIgnoreCase) &&
+                    filterOutput.Contains(overlayName, StringComparison.OrdinalIgnoreCase))
                 {
-                    _gpuFilterBackend = GpuFilterBackend.OpenCL;
-                    Log.Information("GPU filter backend: OpenCL (cross-vendor) — scale_opencl + overlay_opencl");
-                    return;
+                    if (ValidateGpuBackend(ffmpegPath, backend))
+                    {
+                        _gpuFilterBackend = backendEnum;
+                        Log.Information("GPU filter backend: {Label} — {Scale} + {Overlay}", label, scaleName, overlayName);
+                        return;
+                    }
+                    Log.Information("GPU filter backend: {Label} listed but validation failed (driver issue?)", label);
                 }
             }
 
             Log.Information("GPU filter backend: None — CPU filters (scale + overlay). " +
-                "For AMD GPU acceleration, use an FFmpeg build with --enable-opencl or --enable-libvulkan.");
+                "For AMD GPU acceleration, use an FFmpeg build with --enable-opencl (e.g. full_build).");
         }
         catch (Exception ex)
         {
@@ -1055,6 +1083,55 @@ public static class FFmpegCommandComposer
     }
 
     // ── Filter helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Detect the primary GPU vendor via WMI (Win32_VideoController).
+    /// Used to prioritise the correct hardware encoder and avoid wasting
+    /// ~1-2 seconds per failed validation of an irrelevant vendor's encoder.
+    /// Falls back to <see cref="GpuVendor.Unknown"/> on error.
+    /// </summary>
+    private static GpuVendor DetectGpuVendor()
+    {
+        try
+        {
+            // Use 'wmic' rather than WMI COM interop to avoid a dependency on
+            // System.Management (which is not included in most .NET project templates).
+            var psi = new ProcessStartInfo
+            {
+                FileName = "wmic",
+                Arguments = "path win32_VideoController get Name /value",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc == null) return GpuVendor.Unknown;
+
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(TimeSpan.FromSeconds(3));
+
+            // Check for vendor keywords in GPU name(s).
+            // A system can have multiple GPUs (e.g. Intel iGPU + AMD dGPU).
+            // Prefer discrete GPU vendor: AMD/NVIDIA > Intel.
+            var upper = output.ToUpperInvariant();
+            bool hasNvidia = upper.Contains("NVIDIA") || upper.Contains("GEFORCE") || upper.Contains("RTX") || upper.Contains("GTX");
+            bool hasAmd    = upper.Contains("AMD") || upper.Contains("RADEON") || upper.Contains("RX ");
+            bool hasIntel  = upper.Contains("INTEL") || upper.Contains("UHD") || upper.Contains("IRIS");
+
+            if (hasNvidia && !hasAmd) return GpuVendor.Nvidia;
+            if (hasAmd && !hasNvidia) return GpuVendor.Amd;
+            if (hasNvidia && hasAmd)  return GpuVendor.Nvidia;  // dGPU wins
+            if (hasIntel)             return GpuVendor.Intel;
+            return GpuVendor.Unknown;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "GPU vendor detection failed, using default probe order");
+            return GpuVendor.Unknown;
+        }
+    }
 
     /// <summary>
     /// Run a 1-frame smoke test to verify a video encoder actually works.
@@ -1139,9 +1216,16 @@ public static class FFmpegCommandComposer
             };
         }
 
-        // AMF has no -preset; skip
+        // AMF quality presets: speed (fastest) > balanced > quality (best)
         if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
-            return string.Empty;
+        {
+            return quality switch
+            {
+                "Low"  => "speed",
+                "High" => "quality",
+                _      => "balanced",
+            };
+        }
 
         // Software encoders (libx264/libx265)
         var isSoftware = videoCodec is "libx264" or "libx265";
@@ -1158,7 +1242,8 @@ public static class FFmpegCommandComposer
 
     /// <summary>
     /// Returns the quality parameter string appropriate for the given video encoder.
-    /// NVENC uses <c>-cq</c>, QSV uses <c>-global_quality</c>, AMF uses <c>-qp_i/-qp_p</c>,
+    /// NVENC uses <c>-cq</c>, QSV uses <c>-global_quality</c>, AMF uses VBR peak
+    /// with pre-analysis + VBAQ (matching CapCut/Premiere quality-per-bit),
     /// software encoders use <c>-crf</c>.
     /// </summary>
     internal static string BuildQualityArgs(string videoCodec, int crfValue)
@@ -1177,7 +1262,21 @@ public static class FFmpegCommandComposer
         if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
             return $"-global_quality {crfValue} ";
         if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
-            return $"-rc cqp -qp_i {crfValue} -qp_p {crfValue} ";
+        {
+            // VBR peak rate control with pre-analysis and VBAQ for quality parity
+            // with NVENC.
+            // -rc vbr_peak: variable bitrate with peak constraint — better
+            //   quality-per-bit than constant QP (matches NVENC's vbr mode).
+            // -preanalysis true: AMF pre-analysis pass — scene-aware QP adjustment
+            //   analogous to NVENC's -rc-lookahead (10-20% better compression).
+            // -vbaq true: Variance-Based Adaptive Quantization — AMF's equivalent
+            //   of NVENC's -spatial-aq (allocates bits to complex regions).
+            // -enforce_hrd true: keeps bitrate within decoder buffer limits for
+            //   smooth playback on mobile/web (CapCut does this by default).
+            // -b:v 0: uncapped average bitrate, let QP target drive quality.
+            return $"-rc vbr_peak -qp_i {crfValue} -qp_p {crfValue} -b:v 0 " +
+                   $"-preanalysis true -vbaq true -enforce_hrd true ";
+        }
         // Software encoder (libx264, libx265)
         return $"-crf {crfValue} ";
     }

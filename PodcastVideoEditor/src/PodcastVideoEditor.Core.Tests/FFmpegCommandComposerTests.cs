@@ -44,12 +44,16 @@ public class FFmpegCommandComposerTests
     }
 
     [Theory]
-    [InlineData("h264_amf",   "Medium")]
-    [InlineData("hevc_amf",   "High")]
-    public void GetEncoderPreset_NoPresetEncoders_ReturnsEmpty(string codec, string quality)
+    [InlineData("h264_amf",   "Low",    "speed")]
+    [InlineData("h264_amf",   "Medium", "balanced")]
+    [InlineData("h264_amf",   "High",   "quality")]
+    [InlineData("hevc_amf",   "Low",    "speed")]
+    [InlineData("hevc_amf",   "Medium", "balanced")]
+    [InlineData("hevc_amf",   "High",   "quality")]
+    public void GetEncoderPreset_AmfEncoders_ReturnsCorrectPreset(string codec, string quality, string expectedPreset)
     {
         var result = FFmpegCommandComposer.GetEncoderPreset(codec, quality);
-        Assert.Equal(string.Empty, result);
+        Assert.Equal(expectedPreset, result);
     }
 
     [Theory]

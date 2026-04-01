@@ -10,16 +10,19 @@ using System.Threading.Tasks;
 namespace PodcastVideoEditor.Core.Services;
 
 /// <summary>
-/// Ensures the app always has a working GPU-encode FFmpeg regardless of which
-/// system FFmpeg is installed.
+/// Ensures the app always has the best available GPU-accelerated FFmpeg.
 ///
-/// Problem: gyan.dev ≥ 2025-08 builds link against NVIDIA Video Codec SDK 13.0
-/// which requires driver ≥ 570.0.  Users on driver 560.x only have NVENC API 12.2
-/// and fall back to libx264 (CPU).
+/// Problem 1: gyan.dev ≥ 2025-08 builds link against NVIDIA Video Codec SDK 13.0
+/// which requires driver ≥ 570.0.  Users on driver 560.x fall back to libx264 (CPU).
 ///
-/// Solution: When GPU-encoder probe fails, silently download the last gyan.dev
-/// FFmpeg 7.1 release (SDK 12.x) to %LOCALAPPDATA%\PodcastVideoEditor\ffmpeg-compat\
-/// and switch the path used by FFmpegService + FFmpegCommandComposer.
+/// Problem 2: The "essentials" build from gyan.dev lacks --enable-opencl, so
+/// AMD/Intel iGPU users get CPU compositing even though their hardware supports
+/// OpenCL.  The "full" build includes OpenCL, enabling GPU scale+overlay on
+/// ALL vendors — matching what CapCut/Premiere use on office machines.
+///
+/// Solution: Download the gyan.dev FFmpeg 7.1 **full** build (has OpenCL + CUDA
+/// + AMF + QSV) to %LOCALAPPDATA%\PodcastVideoEditor\ffmpeg-compat\ and redirect.
+/// Triggered when GPU encoding or GPU filtering is missing.
 /// </summary>
 public static class FFmpegUpdateService
 {
@@ -29,13 +32,13 @@ public static class FFmpegUpdateService
                      "PodcastVideoEditor", "ffmpeg-compat");
 
     public static string CompatFfmpegPath =>
-        Path.Combine(_compatDir, "ffmpeg-7.1-essentials_build", "bin", "ffmpeg.exe");
+        Path.Combine(_compatDir, "ffmpeg-7.1-full_build", "bin", "ffmpeg.exe");
 
     public static string CompatFfprobePath =>
-        Path.Combine(_compatDir, "ffmpeg-7.1-essentials_build", "bin", "ffprobe.exe");
+        Path.Combine(_compatDir, "ffmpeg-7.1-full_build", "bin", "ffprobe.exe");
 
     private const string DownloadUrl =
-        "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-essentials_build.zip";
+        "https://github.com/GyanD/codexffmpeg/releases/download/7.1/ffmpeg-7.1-full_build.zip";
 
     // ── state ────────────────────────────────────────────────────────────
     private static int _downloadInProgress;   // 0 = idle, 1 = running (Interlocked flag)
@@ -72,12 +75,19 @@ public static class FFmpegUpdateService
     /// </summary>
     public static async Task EnsureCompatibleFFmpegAsync(CancellationToken ct = default)
     {
-        // Nothing to do if GPU encoding already works.
-        if (FFmpegCommandComposer.GetGpuCapabilities().IsGpuEncoding)
+        var caps = FFmpegCommandComposer.GetGpuCapabilities();
+
+        // Nothing to do if both GPU encoding AND GPU filtering are active.
+        // If encoding works but filtering doesn't (AMD AMF + essentials build),
+        // we still want to upgrade to the full build for OpenCL composite support.
+        if (caps.IsGpuEncoding && caps.IsGpuFiltering)
         {
-            Log.Information("FFmpegUpdateService: GPU encoding already active – no action needed.");
+            Log.Information("FFmpegUpdateService: GPU encode + composite already active – no action needed.");
             return;
         }
+
+        if (caps.IsGpuEncoding && !caps.IsGpuFiltering)
+            Log.Information("FFmpegUpdateService: GPU encode active but no GPU composite — upgrading to full build for OpenCL support.");
 
         // Already downloaded → redirect immediately.
         if (IsCompatBinaryPresent)
@@ -130,7 +140,7 @@ public static class FFmpegUpdateService
             Log.Information("FFmpegUpdateService: Downloading compatible FFmpeg 7.1 from {Url}", DownloadUrl);
 
             Directory.CreateDirectory(_compatDir);
-            var zipPath = Path.Combine(_compatDir, "ffmpeg-7.1-essentials_build.zip");
+            var zipPath = Path.Combine(_compatDir, "ffmpeg-7.1-full_build.zip");
 
             // Download with progress.
             using (var client = new HttpClient())
