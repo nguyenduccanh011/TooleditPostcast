@@ -387,6 +387,14 @@
                                  TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
                                  VerticalContentAlignment="Top"
                                  ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
+                        <TextBlock Margin="0,6,0,0" FontSize="10">
+                            <Hyperlink NavigateUri="https://colab.research.google.com/drive/1dG_23gf-bMgmElPHaqUafGGUfeDo6eNJ#scrollTo=iaPfKnjMr3Lf" 
+                                       RequestNavigate="Hyperlink_RequestNavigate"
+                                       TextDecorations="Underline"
+                                       Foreground="#64b5f6">
+                                📝 Tạo script (Google Colab)
+                            </Hyperlink>
+                        </TextBlock>
                         <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
                                 HorizontalAlignment="Left" Margin="0,8,0,0"
                                 Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>

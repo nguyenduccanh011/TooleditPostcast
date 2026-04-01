@@ -8,6 +8,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.ComponentModel;
 using System.Globalization;
+using System.Diagnostics;
 
 namespace PodcastVideoEditor.Ui.Views;
 
@@ -430,6 +431,28 @@ public partial class ElementsMediaPanelView : UserControl
         foreach (var filePath in dialog.FileNames)
         {
             await mainVm.LibraryViewModel.ImportFileAsync(filePath, category);
+        }
+    }
+
+    /// <summary>
+    /// Handle hyperlink navigation to open URLs in default browser
+    /// </summary>
+    private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = e.Uri.AbsoluteUri,
+                UseShellExecute = true
+            });
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Không thể mở đường dẫn: {ex.Message}", "Lỗi",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+            e.Handled = true;
         }
     }
 
