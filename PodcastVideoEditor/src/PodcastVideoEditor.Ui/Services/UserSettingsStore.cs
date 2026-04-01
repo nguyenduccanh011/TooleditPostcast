@@ -1,6 +1,8 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PodcastVideoEditor.Core.Services.AI;
@@ -27,6 +29,25 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     public string YesScaleApiKey      { get; set; } = string.Empty;
     public string YesScaleBaseUrl     { get; set; } = "https://api.yescale.vip/v1";
     public string YesScaleModel       { get; set; } = "gpt-4o-mini";
+
+    /// <summary>Named API key profiles. Each key unlocks a different group of models.</summary>
+    public List<ApiKeyProfile> ApiKeyProfiles { get; set; } = new();
+    IReadOnlyList<ApiKeyProfile> IRuntimeApiSettings.ApiKeyProfiles => ApiKeyProfiles;
+
+    /// <summary>Profile ID of the API key used by the primary model.</summary>
+    public string PrimaryProfileId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Ordered fallback entries: model + profile ID.
+    /// When the primary model fails, the provider tries these in order using each entry's API key.
+    /// </summary>
+    public List<ModelFallbackEntry> FallbackEntries { get; set; } = new();
+    IReadOnlyList<ModelFallbackEntry> IRuntimeApiSettings.YesScaleFallbackEntries => FallbackEntries;
+
+    // Kept for backward-compat deserialization from old settings files.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public List<string>? FallbackModels { get; set; }
+
     public string FFmpegPath          { get; set; } = string.Empty;
     public DateTime? LastUpdateCheckUtc { get; set; }
 
@@ -45,7 +66,9 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
         try
         {
             var json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<UserSettingsStore>(json, _jsonOpts) ?? new UserSettingsStore();
+            var store = JsonSerializer.Deserialize<UserSettingsStore>(json, _jsonOpts) ?? new UserSettingsStore();
+            store.MigrateFromLegacy();
+            return store;
         }
         catch (Exception ex)
         {
@@ -124,19 +147,107 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
             var imported = JsonSerializer.Deserialize<UserSettingsStore>(json, _jsonOpts);
             if (imported is null) return false;
 
-            YesScaleApiKey  = imported.YesScaleApiKey;
-            YesScaleBaseUrl = imported.YesScaleBaseUrl;
-            YesScaleModel   = imported.YesScaleModel;
-            FFmpegPath      = imported.FFmpegPath;
-            PexelsApiKey    = imported.PexelsApiKey;
-            PixabayApiKey   = imported.PixabayApiKey;
-            UnsplashApiKey  = imported.UnsplashApiKey;
+            YesScaleApiKey    = imported.YesScaleApiKey;
+            YesScaleBaseUrl   = imported.YesScaleBaseUrl;
+            YesScaleModel     = imported.YesScaleModel;
+            ApiKeyProfiles    = imported.ApiKeyProfiles ?? new();
+            PrimaryProfileId  = imported.PrimaryProfileId ?? string.Empty;
+            FallbackEntries   = imported.FallbackEntries ?? new();
+            FallbackModels    = imported.FallbackModels;
+            FFmpegPath        = imported.FFmpegPath;
+            PexelsApiKey      = imported.PexelsApiKey;
+            PixabayApiKey     = imported.PixabayApiKey;
+            UnsplashApiKey    = imported.UnsplashApiKey;
+            MigrateFromLegacy();
             return true;
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to import settings from {Path}", filePath);
             return false;
+        }
+    }
+
+    // ── API key resolution ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Ensures at least one profile exists when a primary key is available.
+    /// Called after <see cref="ApplyFallbacks"/> so bundled keys from appsettings.json
+    /// get a proper "Default" profile on first run.
+    /// </summary>
+    public void EnsureProfilesInitialized()
+    {
+        if (ApiKeyProfiles.Count == 0 && !string.IsNullOrWhiteSpace(YesScaleApiKey))
+        {
+            ApiKeyProfiles.Add(new ApiKeyProfile
+            {
+                Id      = "default",
+                Name    = "Default",
+                ApiKey  = YesScaleApiKey,
+                Enabled = true
+            });
+            PrimaryProfileId = "default";
+        }
+
+        if (string.IsNullOrWhiteSpace(PrimaryProfileId) && ApiKeyProfiles.Count > 0)
+            PrimaryProfileId = ApiKeyProfiles[0].Id;
+    }
+
+    /// <summary>
+    /// Resolve the API key for a given profile ID.
+    /// Falls back to the primary API key if profile not found.
+    /// </summary>
+    public string ResolveApiKey(string profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+            return YesScaleApiKey;
+
+        var profile = ApiKeyProfiles.FirstOrDefault(
+            p => p.Id.Equals(profileId, StringComparison.OrdinalIgnoreCase) && p.Enabled);
+        return !string.IsNullOrWhiteSpace(profile?.ApiKey)
+            ? profile.ApiKey
+            : YesScaleApiKey;
+    }
+
+    // ── Migration ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Migrate from old single-key format to multi-profile format.
+    /// Creates a default profile from YesScaleApiKey if no profiles exist.
+    /// Converts old FallbackModels (string list) to FallbackEntries.
+    /// </summary>
+    private void MigrateFromLegacy()
+    {
+        // Auto-create a default profile from the main API key if no profiles exist
+        if (ApiKeyProfiles.Count == 0 && !string.IsNullOrWhiteSpace(YesScaleApiKey))
+        {
+            var defaultProfile = new ApiKeyProfile
+            {
+                Id      = "default",
+                Name    = "Default",
+                ApiKey  = YesScaleApiKey,
+                Enabled = true
+            };
+            ApiKeyProfiles.Add(defaultProfile);
+            PrimaryProfileId = defaultProfile.Id;
+            Log.Information("Migrated legacy API key to default profile");
+        }
+
+        // Ensure PrimaryProfileId points to a valid profile
+        if (string.IsNullOrWhiteSpace(PrimaryProfileId) && ApiKeyProfiles.Count > 0)
+            PrimaryProfileId = ApiKeyProfiles[0].Id;
+
+        // Migrate old FallbackModels (string[]) → FallbackEntries (ModelFallbackEntry[])
+        if (FallbackModels is { Count: > 0 } && FallbackEntries.Count == 0)
+        {
+            var defaultProfileId = PrimaryProfileId;
+            foreach (var modelId in FallbackModels)
+            {
+                if (!string.IsNullOrWhiteSpace(modelId))
+                    FallbackEntries.Add(new ModelFallbackEntry { ModelId = modelId, ProfileId = defaultProfileId });
+            }
+            FallbackModels = null; // clear legacy field
+            Log.Information("Migrated {Count} legacy fallback models to fallback entries", FallbackEntries.Count);
         }
     }
 }

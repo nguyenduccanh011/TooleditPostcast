@@ -50,6 +50,8 @@ public static class AppBootstrapper
             var store = UserSettingsStore.Load(appDataPath);
             var appConfig = sp.GetRequiredService<AppConfiguration>();
             store.ApplyFallbacks(appConfig);
+            // Re-run migration after fallbacks so bundled keys get a default profile
+            store.EnsureProfilesInitialized();
             return store;
         });
         services.AddSingleton<IRuntimeApiSettings>(sp => sp.GetRequiredService<UserSettingsStore>());

@@ -122,7 +122,7 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
         var batchResults = await Task.WhenAll(batchTasks);
         allResults.AddRange(batchResults.SelectMany(r => r));
 
-        // Step 3: retry segments that were missed (up to MaxRetries)
+        // Step 3: retry segments that were missed (up to MaxRetries), using batch parallelism
         var selectedIndexes = allResults.Select(r => r.SegmentIndex).ToHashSet();
         for (int retry = 0; retry < MaxRetries; retry++)
         {
@@ -134,15 +134,33 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
             if (missing.Length == 0) break;
 
             Log.Information("AI image selection retry {Retry}: {Count} segments missing", retry + 1, missing.Length);
-            var retryCandidates = missing.Select(i =>
-            {
-                var cands = candidatesPerSegment[i];
-                return new SegmentWithCandidates(i, TruncateContext(segments[i].Text, 300), cands);
-            }).ToArray();
 
-            var retryResults = await _aiProvider.SelectImagesAsync(retryCandidates, ct);
-            allResults.AddRange(retryResults);
-            foreach (var r in retryResults) selectedIndexes.Add(r.SegmentIndex);
+            // Batch missing segments and retry in parallel (same pattern as initial call)
+            var retryBatches = missing.Chunk(BatchSize).ToArray();
+            var retryTasks = retryBatches.Select(batch => Task.Run(async () =>
+            {
+                await sem.WaitAsync(ct);
+                try
+                {
+                    var retryCandidates = batch.Select(i =>
+                    {
+                        var cands = candidatesPerSegment[i];
+                        return new SegmentWithCandidates(i, TruncateContext(segments[i].Text, 300), cands);
+                    }).ToArray();
+                    return await _aiProvider.SelectImagesAsync(retryCandidates, ct);
+                }
+                finally
+                {
+                    sem.Release();
+                }
+            }, ct)).ToArray();
+
+            var retryBatchResults = await Task.WhenAll(retryTasks);
+            foreach (var retryResults in retryBatchResults)
+            {
+                allResults.AddRange(retryResults);
+                foreach (var r in retryResults) selectedIndexes.Add(r.SegmentIndex);
+            }
         }
 
         progress?.Report(new AIAnalysisProgressReport(4, 90, $"Đã chọn ảnh cho {allResults.Count}/{segments.Length} segment"));

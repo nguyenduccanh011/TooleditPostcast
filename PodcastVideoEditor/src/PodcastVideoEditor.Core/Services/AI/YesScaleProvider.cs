@@ -4,9 +4,27 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Globalization;
+using PodcastVideoEditor.Core.Utilities;
 using Serilog;
 
 namespace PodcastVideoEditor.Core.Services.AI;
+
+/// <summary>
+/// Represents the result of a single chat completion call, including finish metadata.
+/// </summary>
+internal record ChatResult(string Content, string FinishReason);
+
+/// <summary>
+/// Exception carrying the HTTP status code so retry logic can distinguish transient vs permanent failures.
+/// </summary>
+public sealed class ApiException : Exception
+{
+    public int StatusCode { get; }
+    public ApiException(int statusCode, string message) : base(message) => StatusCode = statusCode;
+    public ApiException(int statusCode, string message, Exception inner) : base(message, inner) => StatusCode = statusCode;
+    /// <summary>True for 429 (rate-limit) and 5xx server errors — safe to retry.</summary>
+    public bool IsTransient => StatusCode == 429 || StatusCode >= 500;
+}
 
 /// <summary>
 /// Calls the YesScale OpenAI-compatible API for both script analysis and image selection.
@@ -121,18 +139,38 @@ public sealed class YesScaleProvider : IAIProvider
 
     public async Task<string> NormalizeScriptAsync(string script, CancellationToken ct = default)
     {
-        var prompt = $"Normalize the following timestamped transcript. Fix ASR errors. Keep timestamps exactly as-is.\n\n{script}";
+        const string sysPrompt = "You are a transcript correction assistant. Fix speech recognition errors only. Return the corrected transcript with timestamps unchanged.";
+        const int maxTokens = 4096;
+
         try
         {
-            var result = await CallChatAsync(
-                systemPrompt: "You are a transcript correction assistant. Fix speech recognition errors only. Return the corrected transcript with timestamps unchanged.",
-                userPrompt: prompt,
-                model: _settings.YesScaleModel,
-                temperature: 0.3,
-                maxTokens: 4096,
-                timeoutSeconds: 60,
-                ct: ct);
-            return result;
+            // For short/clean scripts, skip normalization entirely — marginal benefit vs latency cost.
+            if (script.Length < 500)
+                return script;
+
+            var model = _settings.YesScaleModel;
+            var sysTokens = TokenEstimator.Estimate(sysPrompt);
+
+            // Chunk if the script is too large for a single normalize call.
+            var chunks = ScriptChunker.ChunkScript(script, sysTokens, maxTokens, model, overlapSegments: 0);
+
+            if (chunks.Count <= 1)
+            {
+                var prompt = $"Normalize the following timestamped transcript. Fix ASR errors. Keep timestamps exactly as-is.\n\n{script}";
+                var timeout = ComputeTimeout(prompt, baseSeconds: 60);
+                var result = await CallChatWithFallbackAsync(sysPrompt, prompt, model, 0.3, maxTokens, timeout, 1, ct);
+                return result.Content;
+            }
+
+            // Process chunks in parallel (normalization chunks are independent).
+            var tasks = chunks.Select(async chunk =>
+            {
+                var prompt = $"Normalize the following timestamped transcript. Fix ASR errors. Keep timestamps exactly as-is.\n\n{chunk}";
+                var timeout = ComputeTimeout(prompt, baseSeconds: 60);
+                return await CallChatWithFallbackAsync(sysPrompt, prompt, model, 0.3, maxTokens, timeout, 1, ct);
+            });
+            var results = await Task.WhenAll(tasks);
+            return string.Join("\n", results.Select(r => r.Content));
         }
         catch (Exception ex)
         {
@@ -143,30 +181,65 @@ public sealed class YesScaleProvider : IAIProvider
 
     public async Task<AIAnalysisResponse> AnalyzeScriptAsync(AIAnalysisRequest request, CancellationToken ct = default)
     {
-        var userPrompt = BuildScriptAnalysisUserPrompt(request.Script, request.AudioDuration);
         var systemPrompt = request.SystemPrompt ?? ScriptAnalysisSystemPrompt;
+        var model = request.Model ?? _settings.YesScaleModel;
+        var sysTokens = TokenEstimator.Estimate(systemPrompt);
+        var maxOutputTokens = request.MaxTokens;
 
-        var raw = await FetchWithRetryAsync(
-            () => CallChatAsync(systemPrompt, userPrompt, request.Model ?? _settings.YesScaleModel,
-                                request.Temperature, request.MaxTokens, 90, ct),
-            maxRetries: 1,
-            ct);
+        // Use lower temperature (0.3) for more deterministic structured JSON output.
+        var temperature = 0.3;
 
-        var segments = ParseAnalysisResponse(raw);
-        return new AIAnalysisResponse(segments, raw);
+        var chunks = ScriptChunker.ChunkScript(
+            request.Script, sysTokens, maxOutputTokens, model, overlapSegments: 1);
+
+        Log.Information("AnalyzeScriptAsync: script split into {ChunkCount} chunk(s) for model {Model}",
+            chunks.Count, model);
+
+        var allSegments = new List<AISegment>();
+        var allRaw = new StringBuilder();
+
+        foreach (var chunk in chunks)
+        {
+            var userPrompt = BuildScriptAnalysisUserPrompt(chunk, request.AudioDuration);
+            var timeoutSec = ComputeTimeout(userPrompt, baseSeconds: 90);
+
+            var result = await CallChatWithFallbackAsync(
+                systemPrompt, userPrompt, model,
+                temperature, maxOutputTokens, timeoutSec, 2, ct);
+
+            if (result.FinishReason == "length")
+                Log.Warning("AI output was truncated (finish_reason=length) for a script chunk — some segments may be missing");
+
+            allRaw.AppendLine(result.Content);
+            var parsed = ParseAnalysisResponseBestEffort(result.Content);
+            allSegments.AddRange(parsed);
+        }
+
+        // Deduplicate overlapping segments (from chunk overlap) by startTime.
+        var deduplicated = allSegments
+            .GroupBy(s => Math.Round(s.StartTime, 2))
+            .Select(g => g.First())
+            .OrderBy(s => s.StartTime)
+            .ToArray();
+
+        // Validate segment count vs input segment count.
+        var inputSegmentCount = ScriptChunker.SplitIntoSegmentLines(request.Script).Count;
+        if (deduplicated.Length < inputSegmentCount)
+            Log.Warning("AI returned {Returned} segments but input had {Expected} — {Missing} segment(s) missing",
+                deduplicated.Length, inputSegmentCount, inputSegmentCount - deduplicated.Length);
+
+        return new AIAnalysisResponse(deduplicated, allRaw.ToString());
     }
 
     public async Task<AIImageSelectionResultItem[]> SelectImagesAsync(
         SegmentWithCandidates[] segments, CancellationToken ct = default)
     {
         var userPrompt = BuildImageSelectionUserPrompt(segments);
-        var raw = await FetchWithRetryAsync(
-            () => CallChatAsync(ImageSelectionSystemPrompt, userPrompt, _settings.YesScaleModel,
-                                0.3, 2048, 120, ct),
-            maxRetries: 2,
-            ct);
+        var result = await CallChatWithFallbackAsync(
+            ImageSelectionSystemPrompt, userPrompt, _settings.YesScaleModel,
+            0.3, 2048, 120, 2, ct);
 
-        return ParseImageSelectionResponse(raw, segments);
+        return ParseImageSelectionResponse(result.Content, segments);
     }
 
     public async Task<bool> ValidateApiKeyAsync(CancellationToken ct = default)
@@ -218,10 +291,73 @@ public sealed class YesScaleProvider : IAIProvider
 
     // ── HTTP + retry ─────────────────────────────────────────────────────────
 
-    private async Task<string> CallChatAsync(
+    /// <summary>
+    /// Calls the chat completion API with fallback models.
+    /// First tries the primary model with retries. On transient failure, tries each
+    /// fallback entry from <see cref="IRuntimeApiSettings.YesScaleFallbackEntries"/> in order,
+    /// resolving the API key per entry via its profile.
+    /// </summary>
+    private async Task<ChatResult> CallChatWithFallbackAsync(
+        string systemPrompt, string userPrompt, string primaryModel,
+        double temperature, int maxTokens, int timeoutSeconds,
+        int maxRetries, CancellationToken ct)
+    {
+        // Build the ordered attempt list: (model, apiKey)
+        var primaryApiKey = _settings.ResolveApiKey(_settings.PrimaryProfileId);
+        var attempts = new List<(string Model, string ApiKey)> { (primaryModel, primaryApiKey) };
+
+        var fallbacks = _settings.YesScaleFallbackEntries;
+        if (fallbacks?.Count > 0)
+        {
+            foreach (var entry in fallbacks)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.ModelId) &&
+                    !entry.ModelId.Equals(primaryModel, StringComparison.OrdinalIgnoreCase))
+                {
+                    var apiKey = _settings.ResolveApiKey(entry.ProfileId);
+                    attempts.Add((entry.ModelId, apiKey));
+                }
+            }
+        }
+
+        Exception? lastException = null;
+        for (int i = 0; i < attempts.Count; i++)
+        {
+            var (model, apiKey) = attempts[i];
+            try
+            {
+                var result = await FetchWithRetryAsync(
+                    () => CallChatAsync(systemPrompt, userPrompt, model,
+                                        temperature, maxTokens, timeoutSeconds, apiKey, ct),
+                    maxRetries, ct);
+
+                if (i > 0)
+                    Log.Information("Fallback model {Model} succeeded (primary was {Primary})", model, primaryModel);
+
+                return result;
+            }
+            catch (ApiException aex) when (aex.IsTransient && i < attempts.Count - 1)
+            {
+                Log.Warning("Model {Model} failed with transient error {StatusCode}, trying fallback {Next}",
+                    model, aex.StatusCode, attempts[i + 1].Model);
+                lastException = aex;
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested && i < attempts.Count - 1)
+            {
+                Log.Warning("Model {Model} timed out, trying fallback {Next}",
+                    model, attempts[i + 1].Model);
+            }
+        }
+
+        if (lastException != null)
+            throw lastException;
+        throw new InvalidOperationException("All models failed");
+    }
+
+    private async Task<ChatResult> CallChatAsync(
         string systemPrompt, string userPrompt, string model,
         double temperature, int maxTokens, int timeoutSeconds,
-        CancellationToken ct)
+        string? apiKeyOverride, CancellationToken ct)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
@@ -245,21 +381,38 @@ public sealed class YesScaleProvider : IAIProvider
         {
             Content = content
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _settings.YesScaleApiKey);
+        var effectiveKey = apiKeyOverride ?? _settings.YesScaleApiKey;
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effectiveKey);
 
         var response = await _http.SendAsync(request, cts.Token);
         var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
         if (!response.IsSuccessStatusCode)
-            throw new InvalidOperationException($"YesScale API returned {(int)response.StatusCode}: {responseBody}");
+            throw new ApiException((int)response.StatusCode,
+                $"YesScale API returned {(int)response.StatusCode}: {responseBody}");
 
         var node = JsonNode.Parse(responseBody);
-        return node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
-               ?? throw new InvalidOperationException("Unexpected API response shape");
+        var text = node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
+                   ?? throw new InvalidOperationException("Unexpected API response shape");
+        var finishReason = node?["choices"]?[0]?["finish_reason"]?.GetValue<string>() ?? "unknown";
+
+        return new ChatResult(text, finishReason);
     }
 
-    private static async Task<string> FetchWithRetryAsync(
-        Func<Task<string>> action, int maxRetries, CancellationToken ct)
+    /// <summary>
+    /// Compute dynamic timeout: base + proportional to input size.
+    /// Longer prompts need more time for the model to process.
+    /// </summary>
+    private static int ComputeTimeout(string userPrompt, int baseSeconds)
+    {
+        var estimatedTokens = TokenEstimator.Estimate(userPrompt);
+        // ~5 extra seconds per 1000 tokens, capped at 5 minutes total.
+        var extra = (int)(estimatedTokens / 1000.0 * 5);
+        return Math.Min(baseSeconds + extra, 300);
+    }
+
+    private static async Task<ChatResult> FetchWithRetryAsync(
+        Func<Task<ChatResult>> action, int maxRetries, CancellationToken ct)
     {
         var delay = TimeSpan.FromSeconds(2);
         for (int attempt = 0; attempt <= maxRetries; attempt++)
@@ -267,6 +420,21 @@ public sealed class YesScaleProvider : IAIProvider
             try
             {
                 return await action();
+            }
+            catch (ApiException aex) when (!aex.IsTransient)
+            {
+                // Permanent error (400, 401, 403, 404) — fail immediately, do not retry.
+                Log.Error("AI call failed with non-retryable status {StatusCode}: {Message}", aex.StatusCode, aex.Message);
+                throw;
+            }
+            catch (ApiException aex) when (aex.StatusCode == 429 && attempt < maxRetries)
+            {
+                // Rate limited — use longer backoff.
+                var rateLimitDelay = delay * 3;
+                Log.Warning("AI call rate-limited (attempt {Attempt}/{Max}), retrying in {Delay}s",
+                    attempt + 1, maxRetries + 1, rateLimitDelay.TotalSeconds);
+                await Task.Delay(rateLimitDelay, ct);
+                delay *= 2;
             }
             catch (Exception ex) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
@@ -309,6 +477,105 @@ public sealed class YesScaleProvider : IAIProvider
             : baseUrl.Trim().TrimEnd('/');
 
     // ── Response parsers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Best-effort parser: extracts as many valid segments as possible from potentially
+    /// truncated or malformed AI responses instead of failing the entire batch.
+    /// </summary>
+    private static AISegment[] ParseAnalysisResponseBestEffort(string raw)
+    {
+        var segments = new List<AISegment>();
+
+        // Try the strict path first.
+        string json;
+        try
+        {
+            json = ExtractJsonPayload(raw, preferArray: true);
+        }
+        catch
+        {
+            // JSON payload couldn't be found/extracted at all.
+            // Try to salvage individual JSON objects from the raw text.
+            json = raw;
+        }
+
+        // Attempt full array deserialization first (fast path).
+        try
+        {
+            var arr = JsonSerializer.Deserialize<JsonElement[]>(json, _jsonOpts);
+            if (arr != null)
+            {
+                foreach (var el in arr)
+                {
+                    var seg = TryParseOneSegment(el);
+                    if (seg != null) segments.Add(seg);
+                }
+                if (segments.Count > 0)
+                    return [.. segments];
+            }
+        }
+        catch
+        {
+            // Full parse failed — fallback to incremental extraction.
+        }
+
+        // Incremental: find individual { ... } objects that look like valid segments.
+        var idx = 0;
+        while (idx < json.Length)
+        {
+            var objStart = json.IndexOf('{', idx);
+            if (objStart < 0) break;
+
+            var objEnd = FindJsonEnd(json[objStart..]);
+            if (objEnd < 0) break;
+
+            var objJson = json.Substring(objStart, objEnd + 1);
+            idx = objStart + objEnd + 1;
+
+            try
+            {
+                var el = JsonSerializer.Deserialize<JsonElement>(objJson, _jsonOpts);
+                var seg = TryParseOneSegment(el);
+                if (seg != null) segments.Add(seg);
+            }
+            catch
+            {
+                // skip malformed object
+            }
+        }
+
+        if (segments.Count == 0)
+            Log.Warning("ParseAnalysisResponseBestEffort: could not extract any segments from response ({Length} chars)", raw.Length);
+        else
+            Log.Information("ParseAnalysisResponseBestEffort: extracted {Count} segment(s)", segments.Count);
+
+        return [.. segments];
+    }
+
+    /// <summary>
+    /// Try to parse a single JsonElement into an AISegment. Returns null on failure.
+    /// </summary>
+    private static AISegment? TryParseOneSegment(JsonElement el)
+    {
+        try
+        {
+            if (!el.TryGetProperty("startTime", out _) || !el.TryGetProperty("endTime", out _))
+                return null;
+
+            return new AISegment(
+                StartTime: ReadDouble(el, "startTime"),
+                EndTime:   ReadDouble(el, "endTime"),
+                Text:      el.TryGetProperty("text", out var t) ? t.GetString() ?? string.Empty : string.Empty,
+                Keywords:  el.TryGetProperty("keywords", out var k)
+                             ? k.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Take(5).ToArray()
+                             : Array.Empty<string>()
+            );
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private static AISegment[] ParseAnalysisResponse(string raw)
     {
