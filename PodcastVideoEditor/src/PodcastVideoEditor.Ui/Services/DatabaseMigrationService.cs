@@ -98,11 +98,17 @@ internal static class DatabaseMigrationService
     /// Directly ALTER TABLE to add missing columns. Safe to call repeatedly —
     /// SQLite will throw "duplicate column" if already present, which we ignore.
     /// This is the last-resort guarantee that the schema matches the model.
+    /// Handles all critical columns added in migrations to ensure stale/corrupted
+    /// databases from other machines or old installations get repaired on startup.
     /// </summary>
     private static void EnsureColumnsExist(AppDbContext context)
     {
         var alterStatements = new[]
         {
+            // Tracks table columns
+            "ALTER TABLE Tracks ADD COLUMN TextStyleJson TEXT",
+            
+            // Assets table columns
             "ALTER TABLE Assets ADD COLUMN GlobalAssetId TEXT",
         };
 
