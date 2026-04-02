@@ -12,7 +12,7 @@ namespace PodcastVideoEditor.Core.Models
     {
         private string _imagePath = "";
         private double _opacity = 1.0;
-        private ScaleMode _scaleMode = ScaleMode.Fit;
+        private ScaleMode _scaleMode = ScaleMode.Fill;
 
         public override ElementType Type => ElementType.Logo;
 
@@ -51,7 +51,7 @@ namespace PodcastVideoEditor.Core.Models
             base.ResetToDefault();
             ImagePath = "";
             Opacity = 1.0;
-            ScaleMode = ScaleMode.Fit;
+            ScaleMode = ScaleMode.Fill;
         }
 
         public override CanvasElement Clone() =>
@@ -394,7 +394,7 @@ namespace PodcastVideoEditor.Core.Models
     {
         private string _filePath = "";
         private double _opacity = 1.0;
-        private ScaleMode _scaleMode = ScaleMode.Fit;
+        private ScaleMode _scaleMode = ScaleMode.Fill;
 
         // Motion preview transforms (set by CanvasViewModel preview pipeline each frame)
         private double _motionScaleX = 1.0;

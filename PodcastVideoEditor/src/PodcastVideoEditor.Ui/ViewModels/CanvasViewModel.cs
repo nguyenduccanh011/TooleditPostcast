@@ -1342,6 +1342,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     _timelineViewModel.ScriptApplied -= OnScriptApplied;
                     _timelineViewModel.ScrubCompleted -= OnScrubCompleted;
+                    _timelineViewModel.TrackScaleModeApplied -= OnTrackScaleModeApplied;
                 }
                 if (_projectViewModel != null && _projectPropertyChangedHandler != null)
                     _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;

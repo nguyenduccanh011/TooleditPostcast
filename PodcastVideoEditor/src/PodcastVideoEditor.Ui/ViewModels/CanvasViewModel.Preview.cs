@@ -1,6 +1,7 @@
 // CanvasViewModel.Preview.cs — Preview pipeline: attach wiring, change reactions, composition.
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.Helpers;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -48,6 +49,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _timelineViewModel.PropertyChanged -= _timelinePropertyChangedHandler;
                 _timelineViewModel.ScriptApplied -= OnScriptApplied;
                 _timelineViewModel.ScrubCompleted -= OnScrubCompleted;
+                _timelineViewModel.TrackScaleModeApplied -= OnTrackScaleModeApplied;
             }
 
             if (_projectViewModel != null && _projectPropertyChangedHandler != null)
@@ -64,6 +66,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _timelineViewModel.PropertyChanged += _timelinePropertyChangedHandler;
             _timelineViewModel.ScriptApplied += OnScriptApplied;
             _timelineViewModel.ScrubCompleted += OnScrubCompleted;
+            _timelineViewModel.TrackScaleModeApplied += OnTrackScaleModeApplied;
             _projectViewModel.PropertyChanged += _projectPropertyChangedHandler;
 
             _tracksCollectionChangedHandler ??= OnTracksCollectionChanged;
@@ -617,6 +620,43 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 imgEl.OverlayColorHex = effectiveColor;
                 imgEl.OverlayOpacity = effectiveOpacity;
             }
+        }
+
+        /// <summary>
+        /// Batch-apply ScaleMode to all ImageElement/LogoElement instances linked to segments in the given track.
+        /// Fired from TrackEditorPanel via TimelineViewModel.TrackScaleModeApplied event.
+        /// </summary>
+        private void OnTrackScaleModeApplied(string trackId, ScaleMode scaleMode)
+        {
+            if (_timelineViewModel == null) return;
+
+            var track = _timelineViewModel.Tracks.FirstOrDefault(t =>
+                string.Equals(t.Id, trackId, StringComparison.Ordinal));
+            if (track?.Segments == null) return;
+
+            var segmentIds = new HashSet<string>(
+                track.Segments.Select(s => s.Id), StringComparer.Ordinal);
+
+            int count = 0;
+            foreach (var element in Elements)
+            {
+                if (element.SegmentId == null || !segmentIds.Contains(element.SegmentId))
+                    continue;
+
+                if (element is ImageElement img)
+                {
+                    img.ScaleMode = scaleMode;
+                    count++;
+                }
+                else if (element is LogoElement logo)
+                {
+                    logo.ScaleMode = scaleMode;
+                    count++;
+                }
+            }
+
+            Log.Debug("TrackScaleModeApplied: set {Mode} on {Count} element(s) in track {TrackId}",
+                scaleMode, count, trackId);
         }
 
         /// <summary>

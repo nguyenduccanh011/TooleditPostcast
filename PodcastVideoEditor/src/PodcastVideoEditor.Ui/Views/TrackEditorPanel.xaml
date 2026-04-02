@@ -159,6 +159,36 @@
                                    TextWrapping="Wrap"
                                    FontSize="11"/>
                     </Border>
+
+                    <!-- Scale Mode (batch apply to all segments) -->
+                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="🖼  Chế độ co giãn ảnh (Scale Mode):" Foreground="#b0bec5" FontWeight="Bold"
+                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+
+                    <ComboBox x:Name="ScaleModeCombo"
+                              Background="#2a2a2a" Foreground="#e0e0e0"
+                              BorderBrush="#546e7a" BorderThickness="1"
+                              Padding="8,5" Margin="0,0,0,8"
+                              SelectionChanged="ScaleModeCombo_SelectionChanged">
+                        <ComboBoxItem Content="Fill  (lấp đầy, có thể crop)" Tag="Fill" IsSelected="True"/>
+                        <ComboBoxItem Content="Fit  (vừa khung, giữ tỉ lệ)" Tag="Fit"/>
+                        <ComboBoxItem Content="Stretch  (kéo giãn, có thể méo)" Tag="Stretch"/>
+                    </ComboBox>
+
+                    <Button x:Name="ApplyScaleModeBtn"
+                            Content="Áp dụng cho toàn bộ segment"
+                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Padding="10,6" Cursor="Hand" HorizontalAlignment="Left"
+                            Click="ApplyScaleModeBtn_Click"/>
+
+                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,8,0,12">
+                        <TextBlock Text="Chọn chế độ co giãn rồi nhấn nút để áp dụng cho tất cả ảnh trong track này."
+                                   Foreground="#7a8a96"
+                                   FontStyle="Italic"
+                                   TextWrapping="Wrap"
+                                   FontSize="11"/>
+                    </Border>
                 </StackPanel>
 
                 <!-- Lock / Visibility -->

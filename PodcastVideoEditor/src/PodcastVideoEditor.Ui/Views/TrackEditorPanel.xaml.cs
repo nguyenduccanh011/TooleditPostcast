@@ -269,4 +269,31 @@ public partial class TrackEditorPanel : UserControl
         OverlayColorPicker.ColorChanged -= OnOverlayColorChanged;
         OverlayColorPopup.Closed -= OnOverlayPopupClosed;
     }
+
+    // ── Scale Mode (batch apply) ────────────────────────────
+
+    private void ScaleModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // No-op: the actual apply happens on button click.
+    }
+
+    private void ApplyScaleModeBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel?.SelectedTrack == null) return;
+
+        var selected = ScaleModeCombo.SelectedItem as ComboBoxItem;
+        if (selected?.Tag is not string tag) return;
+
+        var scaleMode = tag switch
+        {
+            "Fill" => ScaleMode.Fill,
+            "Fit" => ScaleMode.Fit,
+            "Stretch" => ScaleMode.Stretch,
+            _ => ScaleMode.Fill
+        };
+
+        _viewModel.ApplyScaleModeToTrack(_viewModel.SelectedTrack, scaleMode);
+        Log.Information("Track '{Name}' ScaleMode batch-applied from UI: {Mode}",
+            _viewModel.SelectedTrack.Name, scaleMode);
+    }
 }
