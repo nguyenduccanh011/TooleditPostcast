@@ -1029,7 +1029,9 @@
                                 <Setter TargetName="Bd" Property="Background" Value="#2A2D2E"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2,0,0,0"/>
                                 <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                             <MultiTrigger>
@@ -1037,7 +1039,9 @@
                                     <Condition Property="IsSelected" Value="True"/>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#1177BB"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="2,0,0,0"/>
                                 <Setter Property="Foreground" Value="#FFFFFF"/>
                             </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
