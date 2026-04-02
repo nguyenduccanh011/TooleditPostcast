@@ -882,28 +882,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
             var orphaned = RemoveOrphanedElements(e.ReplacedSegmentIds);
 
             // Create an interactive TextElement for each new segment, positioned at subtitle area (center-bottom)
-            double subtitleX = Math.Max(0, (CanvasWidth - 600) / 2);
-            double subtitleY = Math.Max(0, CanvasHeight - 160);
+            // NOTE: LoadTracksFromProject() triggers OnTracksCollectionChanged → UpdateActivePreview
+            //       → EnsureTextElementForSegment which may have already created some elements.
+            //       Use GetOrCreateTextElement to avoid duplicates.
+            int created = 0;
             foreach (var segment in e.NewSegments)
             {
-                var label = segment.Text.Length > 20 ? segment.Text[..20] + "…" : segment.Text;
-                var element = new TextOverlayElement
-                {
-                    Name = label,
-                    Content = segment.Text,
-                    X = subtitleX,
-                    Y = subtitleY,
-                    Width = 600,
-                    Height = 80,
-                    ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id)),
-                    SegmentId = segment.Id
-                };
-                Elements.Add(element);
+                if (string.IsNullOrWhiteSpace(segment.Id)) continue;
+
+                // Skip if element already exists (created by UpdateActivePreview during LoadTracksFromProject)
+                bool alreadyExists = Elements.Any(el =>
+                    string.Equals(el.SegmentId, segment.Id, StringComparison.Ordinal));
+                if (alreadyExists) continue;
+
+                GetOrCreateTextElement(segment.Id);
+                created++;
             }
 
-            LogMessage($"Canvas: created {e.NewSegments.Count} text element(s) from script");
-            Log.Information("Canvas elements synced after script apply: {Count} new, {Removed} removed",
-                e.NewSegments.Count, orphaned.Count);
+            LogMessage($"Canvas: created {created} text element(s) from script");
+            Log.Information("Canvas elements synced after script apply: {Created} new, {Removed} removed, {Skipped} already existed",
+                created, orphaned.Count, e.NewSegments.Count - created);
 
             RebuildSegmentSubscriptions();
             UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
