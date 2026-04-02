@@ -30,8 +30,10 @@ namespace PodcastVideoEditor.Ui.Views
         // Resize state
         private double _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH;
         private double _resizeAspectRatio;
+        private double _resizeOrigFontSize; // Text element: original font size for proportional corner scaling
+        private TextSizingMode _resizeOrigSizingMode; // Text element: original sizing mode
         // Track sibling text elements for synchronized resize
-        private List<(TextOverlayElement element, double origX, double origY, double origW, double origH)>? _resizeSiblings;
+        private List<(TextOverlayElement element, double origX, double origY, double origW, double origH, double origFontSize, TextSizingMode origSizingMode)>? _resizeSiblings;
         // Rotation state
         private double _rotationOrigAngle;
         private Point _rotationCenter;
@@ -448,17 +450,24 @@ namespace PodcastVideoEditor.Ui.Views
             _resizeOrigH = el.Height;
             _resizeAspectRatio = el.Width / Math.Max(el.Height, 1);
 
+            // Capture text-specific state for font scaling
+            if (el is TextOverlayElement textEl)
+            {
+                _resizeOrigFontSize = textEl.FontSize;
+                _resizeOrigSizingMode = textEl.SizingMode;
+            }
+
             // Capture sibling state for synchronized resize on text tracks
             _resizeSiblings = null;
-            if (el is TextOverlayElement textEl && _viewModel != null)
+            if (el is TextOverlayElement primaryText && _viewModel != null)
             {
-                var track = _viewModel.FindOwnerTrack(textEl);
+                var track = _viewModel.FindOwnerTrack(primaryText);
                 if (track != null)
                 {
                     var siblings = _viewModel.GetTrackSiblingTextElements(track);
                     _resizeSiblings = siblings
-                        .Where(s => !ReferenceEquals(s, textEl))
-                        .Select(s => (s, s.X, s.Y, s.Width, s.Height))
+                        .Where(s => !ReferenceEquals(s, primaryText))
+                        .Select(s => (s, s.X, s.Y, s.Width, s.Height, s.FontSize, s.SizingMode))
                         .ToList();
                 }
             }
@@ -466,7 +475,8 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Handle DragDelta on corner/edge resize handles.
-        /// Corner handles resize proportionally; MiddleLeft/MiddleRight adjust width only.
+        /// For text elements: corner handles scale font proportionally, edge handles reflow text.
+        /// For other elements: corner handles resize proportionally, edge handles adjust single axis.
         /// </summary>
         private void OnResizeHandleDrag(object sender, DragDeltaEventArgs e)
         {
@@ -480,13 +490,171 @@ namespace PodcastVideoEditor.Ui.Views
 
             var tag = thumb.Tag as string ?? "";
             const double minSize = 20;
-            bool lockAspect = (Keyboard.Modifiers & ModifierKeys.Shift) == 0; // Shift = free resize
+            bool isTextElement = el is TextOverlayElement;
+            bool isCorner = tag is "TopLeft" or "TopRight" or "BottomLeft" or "BottomRight";
+            bool isHorizontalEdge = tag is "MiddleLeft" or "MiddleRight";
 
+            // ── Text element: special resize behavior ──
+            if (isTextElement && el is TextOverlayElement textEl)
+            {
+                if (isCorner)
+                {
+                    // Corner handles → proportional font scaling (like CapCut/Canva)
+                    ResizeTextCorner(textEl, tag, e, minSize);
+                }
+                else if (isHorizontalEdge)
+                {
+                    // Horizontal edge → width-only, height auto-reflows
+                    ResizeTextHorizontalEdge(textEl, tag, e, minSize);
+                }
+                else
+                {
+                    // Vertical edge (MiddleTop/MiddleBottom) → fixed height mode
+                    ResizeGeneric(el, tag, e, minSize, lockAspect: false);
+                }
+
+                // Synchronize siblings
+                SyncTextSiblings(textEl);
+            }
+            else
+            {
+                // ── Non-text elements: original behavior ──
+                bool lockAspect = (Keyboard.Modifiers & ModifierKeys.Shift) == 0;
+                ResizeGeneric(el, tag, e, minSize, lockAspect);
+
+                if (_resizeSiblings != null)
+                {
+                    foreach (var (sibling, _, _, _, _, _, _) in _resizeSiblings)
+                    {
+                        sibling.X = el.X;
+                        sibling.Y = el.Y;
+                        sibling.Width = el.Width;
+                        sibling.Height = el.Height;
+                    }
+                }
+            }
+
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Corner resize for text: scale FontSize proportionally with bounding box.
+        /// Maintains aspect ratio of text appearance (font grows/shrinks with frame).
+        /// </summary>
+        private void ResizeTextCorner(TextOverlayElement el, string tag, DragDeltaEventArgs e, double minSize)
+        {
+            // Compute proportional scale from corner drag delta
+            double newW, newH, dx = 0, dy = 0;
+            var delta = tag switch
+            {
+                "TopLeft" => (e.HorizontalChange + e.VerticalChange) / 2,
+                "TopRight" => (e.HorizontalChange - e.VerticalChange) / 2,
+                "BottomLeft" => (-e.HorizontalChange + e.VerticalChange) / 2,
+                "BottomRight" => (e.HorizontalChange + e.VerticalChange) / 2,
+                _ => 0.0
+            };
+
+            bool growsFromDelta = tag is "BottomRight" or "TopRight" or "BottomLeft";
+            bool shrinks = tag is "TopLeft";
+
+            // Calculate new width based on corner direction
+            if (tag is "TopLeft" or "BottomLeft")
+                newW = Math.Max(minSize, _resizeOrigW - delta);
+            else
+                newW = Math.Max(minSize, _resizeOrigW + delta);
+
+            newW = Math.Min(newW, _viewModel!.CanvasWidth - (tag.Contains("Left") ? 0 : el.X));
+
+            // Scale factor relative to original width
+            var scaleFactor = newW / _resizeOrigW;
+            newH = _resizeOrigH * scaleFactor;
+            if (newH < minSize) { newH = minSize; scaleFactor = newH / _resizeOrigH; newW = _resizeOrigW * scaleFactor; }
+
+            // Scale font size proportionally, clamped to [8, 200]
+            var newFontSize = Math.Clamp(_resizeOrigFontSize * scaleFactor, 8, 200);
+
+            // Compute position offset for anchored corners
+            switch (tag)
+            {
+                case "TopLeft":
+                    dx = _resizeOrigW - newW;
+                    dy = _resizeOrigH - newH;
+                    el.X = Math.Max(0, _resizeOrigX + dx);
+                    el.Y = Math.Max(0, _resizeOrigY + dy);
+                    break;
+                case "TopRight":
+                    dy = _resizeOrigH - newH;
+                    el.Y = Math.Max(0, _resizeOrigY + dy);
+                    break;
+                case "BottomLeft":
+                    dx = _resizeOrigW - newW;
+                    el.X = Math.Max(0, _resizeOrigX + dx);
+                    break;
+                case "BottomRight":
+                    // Anchored at top-left, no position change
+                    break;
+            }
+
+            el.Width = newW;
+            el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+            el.FontSize = newFontSize;
+        }
+
+        /// <summary>
+        /// Horizontal edge resize for text: changes width only, keeps AutoHeight mode
+        /// so text reflows and height adjusts automatically to fit wrapped lines.
+        /// </summary>
+        private void ResizeTextHorizontalEdge(TextOverlayElement el, string tag, DragDeltaEventArgs e, double minSize)
+        {
             switch (tag)
             {
                 case "MiddleLeft":
                 {
-                    // Horizontal-only: shrink/expand from left edge
+                    var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
+                    var widthDelta = el.Width - newW;
+                    el.X = Math.Max(0, el.X + widthDelta);
+                    el.Width = newW;
+                    break;
+                }
+                case "MiddleRight":
+                {
+                    var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
+                    newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
+                    el.Width = newW;
+                    break;
+                }
+            }
+
+            // Keep AutoHeight so WPF layout auto-adjusts height for word-wrap reflow
+            el.SizingMode = TextSizingMode.AutoHeight;
+        }
+
+        /// <summary>
+        /// Sync sibling text elements with current element's size, position, and font.
+        /// </summary>
+        private void SyncTextSiblings(TextOverlayElement source)
+        {
+            if (_resizeSiblings == null) return;
+            foreach (var (sibling, _, _, _, _, _, _) in _resizeSiblings)
+            {
+                sibling.X = source.X;
+                sibling.Y = source.Y;
+                sibling.Width = source.Width;
+                sibling.Height = source.Height;
+                sibling.FontSize = source.FontSize;
+                sibling.SizingMode = source.SizingMode;
+            }
+        }
+
+        /// <summary>
+        /// Generic resize logic for non-text elements (images, visualizers, etc.).
+        /// </summary>
+        private void ResizeGeneric(CanvasElement el, string tag, DragDeltaEventArgs e, double minSize, bool lockAspect)
+        {
+            switch (tag)
+            {
+                case "MiddleLeft":
+                {
                     var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
                     var dx = el.Width - newW;
                     el.X = Math.Max(0, el.X + dx);
@@ -495,9 +663,8 @@ namespace PodcastVideoEditor.Ui.Views
                 }
                 case "MiddleRight":
                 {
-                    // Horizontal-only: expand/shrink from right edge
                     var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
-                    newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                    newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
                     el.Width = newW;
                     break;
                 }
@@ -533,7 +700,7 @@ namespace PodcastVideoEditor.Ui.Views
                     {
                         var delta = (e.HorizontalChange - e.VerticalChange) / 2;
                         var newW = Math.Max(minSize, el.Width + delta);
-                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
                         var newH = newW / _resizeAspectRatio;
                         if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
                         var dy = el.Height - newH;
@@ -544,7 +711,7 @@ namespace PodcastVideoEditor.Ui.Views
                     else
                     {
                         var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
-                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
                         var newH = Math.Max(minSize, el.Height - e.VerticalChange);
                         el.Y = Math.Max(0, el.Y + (el.Height - newH));
                         el.Width = newW;
@@ -563,13 +730,13 @@ namespace PodcastVideoEditor.Ui.Views
                         var dx = el.Width - newW;
                         el.X = Math.Max(0, el.X + dx);
                         el.Width = newW;
-                        el.Height = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                        el.Height = Math.Min(newH, _viewModel!.CanvasHeight - el.Y);
                     }
                     else
                     {
                         var newW = Math.Max(minSize, el.Width - e.HorizontalChange);
                         var newH = Math.Max(minSize, el.Height + e.VerticalChange);
-                        newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                        newH = Math.Min(newH, _viewModel!.CanvasHeight - el.Y);
                         el.X = Math.Max(0, el.X + (el.Width - newW));
                         el.Width = newW;
                         el.Height = newH;
@@ -582,7 +749,7 @@ namespace PodcastVideoEditor.Ui.Views
                     {
                         var delta = (e.HorizontalChange + e.VerticalChange) / 2;
                         var newW = Math.Max(minSize, el.Width + delta);
-                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
                         var newH = newW / _resizeAspectRatio;
                         if (newH < minSize) { newH = minSize; newW = newH * _resizeAspectRatio; }
                         el.Width = newW;
@@ -591,7 +758,7 @@ namespace PodcastVideoEditor.Ui.Views
                     else
                     {
                         var newW = Math.Max(minSize, el.Width + e.HorizontalChange);
-                        newW = Math.Min(newW, _viewModel.CanvasWidth - el.X);
+                        newW = Math.Min(newW, _viewModel!.CanvasWidth - el.X);
                         var newH = Math.Max(minSize, el.Height + e.VerticalChange);
                         newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
                         el.Width = newW;
@@ -610,29 +777,17 @@ namespace PodcastVideoEditor.Ui.Views
                 case "MiddleBottom":
                 {
                     var newH = Math.Max(minSize, el.Height + e.VerticalChange);
-                    newH = Math.Min(newH, _viewModel.CanvasHeight - el.Y);
+                    newH = Math.Min(newH, _viewModel!.CanvasHeight - el.Y);
                     el.Height = newH;
                     break;
                 }
             }
-
-            // Synchronize sibling text elements with new size/position during resize
-            if (_resizeSiblings != null)
-            {
-                foreach (var (sibling, _, _, _, _) in _resizeSiblings)
-                {
-                    sibling.X = el.X;
-                    sibling.Y = el.Y;
-                    sibling.Width = el.Width;
-                    sibling.Height = el.Height;
-                }
-            }
-
-            e.Handled = true;
         }
 
         /// <summary>
         /// Record undo action when resize is completed.
+        /// For text elements: uses TextElementResizedAction to also track FontSize + SizingMode.
+        /// Corner resize preserves current SizingMode; horizontal edge keeps AutoHeight.
         /// </summary>
         private void OnResizeHandleCompleted(object sender, DragCompletedEventArgs e)
         {
@@ -640,42 +795,70 @@ namespace PodcastVideoEditor.Ui.Views
             var el = thumb.DataContext as CanvasElement;
             if (el == null || _viewModel == null) return;
 
-            // Only record if something actually changed
-            if (Math.Abs(el.X - _resizeOrigX) > 0.5 || Math.Abs(el.Y - _resizeOrigY) > 0.5 ||
-                Math.Abs(el.Width - _resizeOrigW) > 0.5 || Math.Abs(el.Height - _resizeOrigH) > 0.5)
+            var tag = thumb.Tag as string ?? "";
+            bool changed = Math.Abs(el.X - _resizeOrigX) > 0.5 || Math.Abs(el.Y - _resizeOrigY) > 0.5 ||
+                           Math.Abs(el.Width - _resizeOrigW) > 0.5 || Math.Abs(el.Height - _resizeOrigH) > 0.5;
+
+            if (changed)
             {
-                // When the user manually resizes a text element, lock to Fixed mode so the
-                // chosen size is preserved (AutoHeight would immediately override it).
                 if (el is TextOverlayElement resizedText)
                 {
-                    resizedText.SizingMode = TextSizingMode.Fixed;
-                    foreach (var (sibling, _, _, _, _) in _resizeSiblings ?? [])
-                        if (sibling is TextOverlayElement sibText)
-                            sibText.SizingMode = TextSizingMode.Fixed;
-                }
-                if (_resizeSiblings != null && _resizeSiblings.Count > 0)
-                {
-                    // Group undo: primary element + all siblings
-                    var actions = new List<IUndoableAction>();
-                    actions.Add(new ElementResizedAction(el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH, el.X, el.Y, el.Width, el.Height));
-                    foreach (var (sibling, origX, origY, origW, origH) in _resizeSiblings)
-                        actions.Add(new ElementResizedAction(sibling, origX, origY, origW, origH, sibling.X, sibling.Y, sibling.Width, sibling.Height));
-                    _viewModel.UndoRedoService?.Record(new CompoundAction($"Resize text elements on track", actions));
+                    // Determine final SizingMode based on which handle was used:
+                    // - Corner handles: keep current mode (font scaled, no overflow possible)
+                    // - Horizontal edge: AutoHeight (already set during drag)
+                    // - Vertical edge (MiddleTop/MiddleBottom): Fixed (user explicitly set height)
+                    bool isVerticalEdge = tag is "MiddleTop" or "MiddleBottom";
+                    if (isVerticalEdge)
+                    {
+                        resizedText.SizingMode = TextSizingMode.Fixed;
+                        foreach (var (sibling, _, _, _, _, _, _) in _resizeSiblings ?? [])
+                            sibling.SizingMode = TextSizingMode.Fixed;
+                    }
 
-                    // Update track template
-                    if (el is TextOverlayElement textEl)
-                        _viewModel.PropagateTextElementStyle(textEl);
+                    // Record text-specific undo with FontSize + SizingMode
+                    if (_resizeSiblings != null && _resizeSiblings.Count > 0)
+                    {
+                        var actions = new List<IUndoableAction>();
+                        actions.Add(new TextElementResizedAction(resizedText,
+                            _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH, _resizeOrigFontSize, _resizeOrigSizingMode,
+                            el.X, el.Y, el.Width, el.Height, resizedText.FontSize, resizedText.SizingMode));
+                        foreach (var (sibling, origX, origY, origW, origH, origFontSize, origSizingMode) in _resizeSiblings)
+                            actions.Add(new TextElementResizedAction(sibling,
+                                origX, origY, origW, origH, origFontSize, origSizingMode,
+                                sibling.X, sibling.Y, sibling.Width, sibling.Height, sibling.FontSize, sibling.SizingMode));
+                        _viewModel.UndoRedoService?.Record(new CompoundAction("Resize text elements on track", actions));
+                        _viewModel.PropagateTextElementStyle(resizedText);
+                    }
+                    else
+                    {
+                        _viewModel.UndoRedoService?.Record(new TextElementResizedAction(resizedText,
+                            _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH, _resizeOrigFontSize, _resizeOrigSizingMode,
+                            el.X, el.Y, el.Width, el.Height, resizedText.FontSize, resizedText.SizingMode));
+                    }
                 }
                 else
                 {
-                    _viewModel.UndoRedoService?.Record(new ElementResizedAction(
-                        el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH,
-                        el.X, el.Y, el.Width, el.Height));
+                    // Non-text element: original undo logic
+                    if (_resizeSiblings != null && _resizeSiblings.Count > 0)
+                    {
+                        var actions = new List<IUndoableAction>();
+                        actions.Add(new ElementResizedAction(el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH, el.X, el.Y, el.Width, el.Height));
+                        foreach (var (sibling, origX, origY, origW, origH, _, _) in _resizeSiblings)
+                            actions.Add(new ElementResizedAction(sibling, origX, origY, origW, origH, sibling.X, sibling.Y, sibling.Width, sibling.Height));
+                        _viewModel.UndoRedoService?.Record(new CompoundAction("Resize elements on track", actions));
+                    }
+                    else
+                    {
+                        _viewModel.UndoRedoService?.Record(new ElementResizedAction(
+                            el, _resizeOrigX, _resizeOrigY, _resizeOrigW, _resizeOrigH,
+                            el.X, el.Y, el.Width, el.Height));
+                    }
                 }
             }
 
             // Reset for next resize
             _resizeOrigX = _resizeOrigY = _resizeOrigW = _resizeOrigH = 0;
+            _resizeOrigFontSize = 0;
             _resizeSiblings = null;
             e.Handled = true;
         }

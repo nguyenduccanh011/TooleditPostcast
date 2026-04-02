@@ -98,10 +98,8 @@ public static class TextRasterizer
         var lineHeight = paint.FontSpacing * options.LineHeightMultiplier;
         var totalTextHeight = lines.Count * lineHeight;
 
-        // Vertical centering (matches WPF VerticalAlignment="Center")
-        var startY = padY + (height - 2 * padY - totalTextHeight) / 2f + (-paint.FontMetrics.Ascent);
-        if (startY < padY + (-paint.FontMetrics.Ascent))
-            startY = padY + (-paint.FontMetrics.Ascent);
+        // Top-aligned rendering (matches WPF VerticalAlignment="Top")
+        var startY = padY + (-paint.FontMetrics.Ascent);
 
         // Pre-allocate shadow & outline paints once (reused across all lines)
         SKPaint? shadowPaint = null;

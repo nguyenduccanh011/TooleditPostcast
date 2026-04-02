@@ -258,6 +258,28 @@ public sealed class ElementResizedAction : IUndoableAction
     public void Redo() { _el.X = _nx; _el.Y = _ny; _el.Width = _nw; _el.Height = _nh; }
 }
 
+/// <summary>A text element was resized with font-size scaling (corner handles).</summary>
+public sealed class TextElementResizedAction : IUndoableAction
+{
+    private readonly TextOverlayElement _el;
+    private readonly double _ox, _oy, _ow, _oh, _nx, _ny, _nw, _nh;
+    private readonly double _oldFontSize, _newFontSize;
+    private readonly TextSizingMode _oldSizingMode, _newSizingMode;
+
+    public TextElementResizedAction(TextOverlayElement el,
+        double oldX, double oldY, double oldW, double oldH, double oldFontSize, TextSizingMode oldSizingMode,
+        double newX, double newY, double newW, double newH, double newFontSize, TextSizingMode newSizingMode)
+    {
+        _el = el;
+        _ox = oldX; _oy = oldY; _ow = oldW; _oh = oldH; _oldFontSize = oldFontSize; _oldSizingMode = oldSizingMode;
+        _nx = newX; _ny = newY; _nw = newW; _nh = newH; _newFontSize = newFontSize; _newSizingMode = newSizingMode;
+    }
+
+    public string Description => $"Resize text '{_el.Name}'";
+    public void Undo() { _el.X = _ox; _el.Y = _oy; _el.Width = _ow; _el.Height = _oh; _el.FontSize = _oldFontSize; _el.SizingMode = _oldSizingMode; }
+    public void Redo() { _el.X = _nx; _el.Y = _ny; _el.Width = _nw; _el.Height = _nh; _el.FontSize = _newFontSize; _el.SizingMode = _newSizingMode; }
+}
+
 /// <summary>A canvas element was rotated on the canvas.</summary>
 public sealed class ElementRotatedAction : IUndoableAction
 {

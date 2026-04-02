@@ -24,6 +24,9 @@ public sealed class TextStyleTemplate
     public double Width { get; set; } = 600;
     public double Height { get; set; } = 80;
 
+    // ── Sizing ────────────────────────────────────────────────────────────
+    public TextSizingMode SizingMode { get; set; } = TextSizingMode.AutoHeight;
+
     // ── Font ─────────────────────────────────────────────────────────────
     public string FontFamily { get; set; } = "Arial";
     public double FontSize { get; set; } = 32;
@@ -70,6 +73,8 @@ public sealed class TextStyleTemplate
             Y = element.Y,
             Width = element.Width,
             Height = element.Height,
+            // Sizing
+            SizingMode = element.SizingMode,
             // Font
             FontFamily = element.FontFamily,
             FontSize = element.FontSize,
@@ -112,6 +117,8 @@ public sealed class TextStyleTemplate
         element.Y = Y;
         element.Width = Width;
         element.Height = Height;
+        // Sizing
+        element.SizingMode = SizingMode;
         // Font
         element.FontFamily = FontFamily;
         element.FontSize = FontSize;
