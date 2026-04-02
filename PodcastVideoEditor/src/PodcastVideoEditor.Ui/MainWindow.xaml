@@ -393,132 +393,172 @@
 
                         <Border Margin="0,24,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
-                                <TextBlock Text="AI Analysis" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
-                                <TextBlock Text="Shared YesScale configuration used by all projects on this machine profile." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
+                                <TextBlock Text="AI Analysis (YeScale)" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="Add API keys and select a model for AI-powered script analysis." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
 
-                                <TextBlock Text="Base URL (dùng chung cho tất cả key)" Margin="0,0,0,6" />
-                                <TextBox Height="32" Padding="8"
-                                         Text="{Binding YesScaleBaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                <!-- ═══ STEP 1: Add API Key ═══ -->
+                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="Add API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" />
+                                        <TextBlock Text="Get your key at yescale.vip. Each key gives access to a group of models." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <!-- Labels row -->
+                                            <TextBlock Text="Name" Foreground="#888888" FontSize="10" Margin="4,0,0,2" />
+                                            <TextBlock Grid.Column="1" Text="API Key" Foreground="#888888" FontSize="10" Margin="10,0,0,2" />
+                                            <!-- Inputs row -->
+                                            <TextBox Grid.Row="1" Height="32" Padding="6,6"
+                                                     Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                     ToolTip="e.g. Primary, Backup-1" />
+                                            <TextBox Grid.Row="1" Grid.Column="1" Height="32" Padding="6,6" Margin="6,0,0,0"
+                                                     Text="{Binding NewProfileApiKey, UpdateSourceTrigger=PropertyChanged}"
+                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                     ToolTip="Paste your YeScale API key" />
+                                            <Button Grid.Row="1" Grid.Column="2" Height="32" Width="80" Margin="6,0,0,0"
+                                                    Content="+ Add"
+                                                    Command="{Binding AddProfileCommand}"
+                                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                    ToolTip="Add this API key" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                <TextBlock Text="Primary API Key (dùng cho model chính)" Margin="0,12,0,6" />
-                                <TextBox Height="32" Padding="8"
-                                         Text="{Binding YesScaleApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
-
-                                <!-- API Key Profiles -->
-                                <TextBlock Text="API Key Profiles (mỗi key hỗ trợ nhóm model khác nhau)" Margin="0,18,0,6" FontWeight="SemiBold" />
-                                <TextBlock Text="Thêm key để mở rộng danh sách model có thể dùng. Model sẽ được tổng hợp từ tất cả key."
-                                           Margin="0,0,0,8" Foreground="#999999" FontSize="11.5" TextWrapping="Wrap" />
-
-                                <ListBox Height="100"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                <!-- ═══ STEP 2: Configured Keys List ═══ -->
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Your API Keys" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1" Height="24" Padding="10,0" FontSize="11"
+                                            Content="Delete Selected"
+                                            Command="{Binding RemoveProfileCommand}"
+                                            Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0"
+                                            ToolTip="Remove the selected key from the list" />
+                                </Grid>
+                                <ListBox Height="90"
+                                         Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
                                          ItemsSource="{Binding Profiles}"
                                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                                <TextBlock Text=" — " Foreground="#777777" />
-                                                <TextBlock Text="{Binding MaskedKey}" Foreground="#999999" />
-                                            </StackPanel>
+                                            <Grid Margin="4,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="60" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding MaskedKey}" Foreground="#999999" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="●" Foreground="#4EC9B0" TextAlignment="Right" VerticalAlignment="Center" />
+                                            </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
+                                <TextBlock Margin="0,4,0,0" Foreground="#666666" FontSize="10" FontStyle="Italic"
+                                           Text="Models from all keys are merged. The first key is used as the primary key for API calls." TextWrapping="Wrap" />
 
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Height="28" Padding="6,4"
-                                             Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                             Tag="Profile name" />
-                                    <TextBox Grid.Column="1" Height="28" Padding="6,4" Margin="6,0,0,0"
-                                             Text="{Binding NewProfileApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                             Tag="API Key" />
-                                    <Button Grid.Column="2" Width="70" Height="28" Margin="6,0,0,0" Content="+ Thêm"
-                                            Command="{Binding AddProfileCommand}"
-                                            Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" />
-                                    <Button Grid.Column="3" Width="60" Height="28" Margin="6,0,0,0" Content="Xoá"
-                                            Command="{Binding RemoveProfileCommand}"
-                                            Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
-                                </Grid>
+                                <!-- ═══ STEP 3: Select Model ═══ -->
+                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Select Model" FontWeight="SemiBold" Margin="0,0,0,6" Foreground="#FFFFFF" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                      Height="32"
+                                                      IsEditable="True"
+                                                      ItemsSource="{Binding AvailableYesScaleModels}"
+                                                      Text="{Binding YesScaleModel, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedItem="{Binding YesScaleModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                            <Button Grid.Column="1"
+                                                    Width="90" Height="32" Margin="8,0,0,0"
+                                                    Content="↻ Refresh"
+                                                    Command="{Binding RefreshYesScaleModelsCommand}"
+                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    ToolTip="Reload available models from all configured keys" />
+                                        </Grid>
+                                        <TextBlock Margin="0,6,0,0" Foreground="#888888" FontSize="10"
+                                                   Text="{Binding YesScaleModelStatus}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
 
-                                <TextBlock Text="Default Model" Margin="0,18,0,6" />
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0"
-                                              Height="32"
-                                              IsEditable="True"
-                                              ItemsSource="{Binding AvailableYesScaleModels}"
-                                              Text="{Binding YesScaleModel, UpdateSourceTrigger=PropertyChanged}"
-                                              SelectedItem="{Binding YesScaleModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    <Button Grid.Column="1"
-                                            Width="90"
-                                            Height="32"
-                                            Margin="10,0,0,0"
-                                            Content="Refresh"
-                                            Command="{Binding RefreshYesScaleModelsCommand}"
-                                            Background="#3E3E42"
-                                            Foreground="#FFFFFF"
-                                            BorderThickness="0" />
-                                </Grid>
-                                <TextBlock Margin="0,8,0,0"
-                                           Foreground="#BBBBBB"
-                                           Text="{Binding YesScaleModelStatus}"
-                                           TextWrapping="Wrap" />
+                                <!-- ═══ Fallback Models (collapsed by default) ═══ -->
+                                <Expander IsExpanded="False" Margin="0,12,0,0" Foreground="#FFFFFF">
+                                    <Expander.Header>
+                                        <TextBlock Text="Fallback Models (Optional)" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="13" />
+                                    </Expander.Header>
+                                    <Border Padding="10" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,6,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="If the primary model fails, these are tried in order." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                            <ListBox Height="80"
+                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                     ItemsSource="{Binding FallbackEntries}"
+                                                     SelectedItem="{Binding SelectedFallbackEntry, Mode=TwoWay}">
+                                                <ListBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Display}" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="4,2" />
+                                                    </DataTemplate>
+                                                </ListBox.ItemTemplate>
+                                            </ListBox>
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox Grid.Column="0" Height="28"
+                                                          ItemsSource="{Binding Profiles}"
+                                                          SelectedItem="{Binding SelectedFallbackProfile, Mode=TwoWay}"
+                                                          DisplayMemberPath="Name"
+                                                          Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                          ToolTip="Select which API key to use for this fallback" />
+                                                <Button Grid.Column="1" Width="70" Height="28" Margin="6,0,0,0" Content="+ Add"
+                                                        Command="{Binding AddFallbackEntryCommand}"
+                                                        Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                        ToolTip="Add current model + selected key as fallback" />
+                                                <Button Grid.Column="2" Width="65" Height="28" Margin="6,0,0,0" Content="Remove"
+                                                        Command="{Binding RemoveFallbackEntryCommand}"
+                                                        Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0" />
+                                                <Button Grid.Column="3" Width="32" Height="28" Margin="4,0,0,0" Content="↑"
+                                                        Command="{Binding MoveFallbackEntryUpCommand}"
+                                                        Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
+                                                <Button Grid.Column="4" Width="32" Height="28" Margin="4,0,0,0" Content="↓"
+                                                        Command="{Binding MoveFallbackEntryDownCommand}"
+                                                        Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </Expander>
 
-                                <!-- Fallback Models with per-entry profile -->
-                                <TextBlock Text="Fallback Models (thử lần lượt nếu model chính lỗi)" Margin="0,16,0,6" FontWeight="SemiBold" />
-                                <TextBlock Text="Mỗi mục gồm model + profile key để gọi. Sắp xếp theo thứ tự ưu tiên."
-                                           Margin="0,0,0,8" Foreground="#999999" FontSize="11.5" TextWrapping="Wrap" />
-                                <ListBox Height="120"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                         ItemsSource="{Binding FallbackEntries}"
-                                         SelectedItem="{Binding SelectedFallbackEntry, Mode=TwoWay}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding Display}" Foreground="#FFFFFF" />
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <Grid Margin="0,6,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0" Width="160" Height="28"
-                                              ItemsSource="{Binding Profiles}"
-                                              SelectedItem="{Binding SelectedFallbackProfile, Mode=TwoWay}"
-                                              DisplayMemberPath="Name"
-                                              ToolTip="Chọn profile (key) cho model fallback" />
-                                    <Button Grid.Column="1" Width="80" Height="28" Margin="6,0,0,0" Content="+ Thêm"
-                                            Command="{Binding AddFallbackEntryCommand}"
-                                            Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
-                                            ToolTip="Thêm model đang chọn ở trên + profile này vào danh sách fallback" />
-                                    <Button Grid.Column="2" Width="60" Height="28" Margin="6,0,0,0" Content="Xoá"
-                                            Command="{Binding RemoveFallbackEntryCommand}"
-                                            Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
-                                    <Button Grid.Column="3" Width="36" Height="28" Margin="6,0,0,0" Content="▲"
-                                            Command="{Binding MoveFallbackEntryUpCommand}"
-                                            Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
-                                            ToolTip="Tăng ưu tiên" />
-                                    <Button Grid.Column="4" Width="36" Height="28" Margin="6,0,0,0" Content="▼"
-                                            Command="{Binding MoveFallbackEntryDownCommand}"
-                                            Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
-                                            ToolTip="Giảm ưu tiên" />
-                                </Grid>
+                                <!-- ═══ Base URL (collapsed by default) ═══ -->
+                                <Expander IsExpanded="False" Margin="0,8,0,0" Foreground="#FFFFFF">
+                                    <Expander.Header>
+                                        <TextBlock Text="Base URL (Advanced)" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="13" />
+                                    </Expander.Header>
+                                    <StackPanel Margin="0,6,0,0">
+                                        <TextBox Height="32" Padding="8"
+                                                 Text="{Binding YesScaleBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                        <TextBlock Margin="0,4,0,0" Foreground="#888888" FontSize="10" FontStyle="Italic">
+                                            Default: https://api.yescale.vip/v1
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Expander>
                             </StackPanel>
                         </Border>
 

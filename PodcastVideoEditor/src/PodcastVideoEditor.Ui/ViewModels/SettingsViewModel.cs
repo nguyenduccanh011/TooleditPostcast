@@ -97,6 +97,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         NewProfileName  = string.Empty;
         NewProfileApiKey = string.Empty;
 
+        // Sync primary key from the first profile so API calls use it
+        SyncPrimaryKeyFromProfiles();
+
         // Reload models to include models from the new profile
         QueueYesScaleModelReload();
     }
@@ -110,6 +113,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         // Remove fallback entries that reference this profile
         var toRemove = FallbackEntries.Where(f => f.ProfileId == id).ToList();
         foreach (var e in toRemove) FallbackEntries.Remove(e);
+
+        // Keep primary key in sync with remaining profiles
+        SyncPrimaryKeyFromProfiles();
         QueueYesScaleModelReload();
     }
 
@@ -401,6 +407,19 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (!ct.IsCancellationRequested)
                 IsLoadingYesScaleModels = false;
         }
+    }
+
+    /// <summary>
+    /// Keep YesScaleApiKey in sync with the first enabled profile's key.
+    /// This ensures API calls always use a valid key without a separate "Primary Key" field.
+    /// </summary>
+    private void SyncPrimaryKeyFromProfiles()
+    {
+        var firstEnabled = Profiles.FirstOrDefault(p => p.Enabled && !string.IsNullOrWhiteSpace(p.ApiKey));
+        if (firstEnabled != null)
+            YesScaleApiKey = firstEnabled.ApiKey;
+        else if (Profiles.Count == 0)
+            YesScaleApiKey = string.Empty;
     }
 
     private static string NormalizeBaseUrl(string baseUrl)
