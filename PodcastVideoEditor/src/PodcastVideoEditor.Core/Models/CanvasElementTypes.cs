@@ -12,7 +12,7 @@ namespace PodcastVideoEditor.Core.Models
     {
         private string _imagePath = "";
         private double _opacity = 1.0;
-        private ScaleMode _scaleMode = ScaleMode.Fit;
+        private ScaleMode _scaleMode = ScaleMode.Fill;
 
         public override ElementType Type => ElementType.Logo;
 
@@ -51,7 +51,7 @@ namespace PodcastVideoEditor.Core.Models
             base.ResetToDefault();
             ImagePath = "";
             Opacity = 1.0;
-            ScaleMode = ScaleMode.Fit;
+            ScaleMode = ScaleMode.Fill;
         }
 
         public override CanvasElement Clone() =>
@@ -394,7 +394,7 @@ namespace PodcastVideoEditor.Core.Models
     {
         private string _filePath = "";
         private double _opacity = 1.0;
-        private ScaleMode _scaleMode = ScaleMode.Fit;
+        private ScaleMode _scaleMode = ScaleMode.Fill;
 
         // Motion preview transforms (set by CanvasViewModel preview pipeline each frame)
         private double _motionScaleX = 1.0;
@@ -629,7 +629,11 @@ namespace PodcastVideoEditor.Core.Models
         public string Content
         {
             get => _content;
-            set => SetProperty(ref _content, value ?? string.Empty);
+            set
+            {
+                if (SetProperty(ref _content, value ?? string.Empty))
+                    EnsureMinimumHeight();
+            }
         }
 
         /// <summary>
@@ -656,7 +660,11 @@ namespace PodcastVideoEditor.Core.Models
         public double FontSize
         {
             get => _fontSize;
-            set => SetProperty(ref _fontSize, Math.Clamp(value, 8, 200));
+            set
+            {
+                if (SetProperty(ref _fontSize, Math.Clamp(value, 8, 200)))
+                    EnsureMinimumHeight();
+            }
         }
 
         [PropertyMetadata(Group = "✍️ Text", Order = 103, IsColor = true)]
@@ -699,7 +707,11 @@ namespace PodcastVideoEditor.Core.Models
         public double LineHeight
         {
             get => _lineHeight;
-            set => SetProperty(ref _lineHeight, Math.Clamp(value, 0.5, 5.0));
+            set
+            {
+                if (SetProperty(ref _lineHeight, Math.Clamp(value, 0.5, 5.0)))
+                    EnsureMinimumHeight();
+            }
         }
 
         /// <summary>Extra spacing between characters in pixels (negative = tighter).</summary>
@@ -853,6 +865,33 @@ namespace PodcastVideoEditor.Core.Models
                     BackgroundOpacity = 0.85; BackgroundPadding = 12; BackgroundCornerRadius = 4;
                     break;
             }
+        }
+
+        // ── Auto-height ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Ensures Height is large enough to display the text content at the current
+        /// FontSize and LineHeight. Only grows — never shrinks — to avoid unexpected
+        /// layout jumps when the user edits text.
+        /// </summary>
+        private void EnsureMinimumHeight()
+        {
+            // Count explicit line breaks; word-wrap lines depend on Width which
+            // is expensive to calculate without a layout pass, so we only account
+            // for explicit \n breaks here.  The vertical padding mirrors the WPF
+            // template Padding="8,4" (4 top + 4 bottom = 8).
+            int lineCount = 1;
+            if (!string.IsNullOrEmpty(_content))
+            {
+                for (int i = 0; i < _content.Length; i++)
+                    if (_content[i] == '\n') lineCount++;
+            }
+
+            const double verticalPadding = 8; // 4 top + 4 bottom
+            double minHeight = _fontSize * _lineHeight * lineCount + verticalPadding;
+
+            if (Height < minHeight)
+                Height = Math.Ceiling(minHeight);
         }
 
         // ── CanvasElement overrides ───────────────────────────────────────────

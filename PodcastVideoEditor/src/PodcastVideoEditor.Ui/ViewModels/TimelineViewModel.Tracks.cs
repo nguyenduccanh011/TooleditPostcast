@@ -75,6 +75,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void RequestProjectSave() => _ = _projectViewModel.SaveProjectAsync();
 
         /// <summary>
+        /// Raised when the user applies a ScaleMode to all segments in a track from the Track Properties panel.
+        /// CanvasViewModel subscribes to update matching ImageElement/LogoElement instances.
+        /// </summary>
+        public event Action<string, ScaleMode>? TrackScaleModeApplied;
+
+        /// <summary>
+        /// Apply a ScaleMode to all image/logo elements belonging to a track's segments.
+        /// </summary>
+        public void ApplyScaleModeToTrack(Track track, ScaleMode scaleMode)
+        {
+            if (track == null) return;
+            TrackScaleModeApplied?.Invoke(track.Id, scaleMode);
+            RequestProjectSave();
+            Log.Information("Track '{Name}' ScaleMode batch-applied: {Mode}", track.Name, scaleMode);
+        }
+
+        /// <summary>
         /// Remove a track (must be empty — no segments). Audio tracks with waveform-only are removable.
         /// Awaits DB deletion to prevent race conditions with autosave/navigation reload.
         /// Rolls back in-memory removal on DB failure so UI stays consistent with DB.
