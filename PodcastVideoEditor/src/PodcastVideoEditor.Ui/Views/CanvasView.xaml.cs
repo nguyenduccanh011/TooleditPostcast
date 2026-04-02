@@ -644,6 +644,15 @@ namespace PodcastVideoEditor.Ui.Views
             if (Math.Abs(el.X - _resizeOrigX) > 0.5 || Math.Abs(el.Y - _resizeOrigY) > 0.5 ||
                 Math.Abs(el.Width - _resizeOrigW) > 0.5 || Math.Abs(el.Height - _resizeOrigH) > 0.5)
             {
+                // When the user manually resizes a text element, lock to Fixed mode so the
+                // chosen size is preserved (AutoHeight would immediately override it).
+                if (el is TextOverlayElement resizedText)
+                {
+                    resizedText.SizingMode = TextSizingMode.Fixed;
+                    foreach (var (sibling, _, _, _, _) in _resizeSiblings ?? [])
+                        if (sibling is TextOverlayElement sibText)
+                            sibText.SizingMode = TextSizingMode.Fixed;
+                }
                 if (_resizeSiblings != null && _resizeSiblings.Count > 0)
                 {
                     // Group undo: primary element + all siblings
@@ -672,6 +681,43 @@ namespace PodcastVideoEditor.Ui.Views
         }
 
         // ─── Rotation handle ──────────────────────────────────────────────
+
+        // ─── Text element auto-sizing ──────────────────────────────────────
+
+        /// <summary>
+        /// Fires when the DataTemplate root Grid for a TextOverlayElement changes size.
+        /// In AutoHeight mode the Grid is un-constrained, so its ActualHeight equals the
+        /// measured content height — we write that back to the model so the rest of the
+        /// pipeline (render, hit-testing, etc.) stays consistent with what the user sees.
+        /// </summary>
+        private void OnTextElementGridSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (sender is FrameworkElement fe
+                && fe.DataContext is TextOverlayElement el
+                && el.SizingMode == TextSizingMode.AutoHeight
+                && e.NewSize.Height > 0
+                && !double.IsNaN(e.NewSize.Height)
+                && Math.Abs(e.NewSize.Height - el.Height) > 0.5)
+            {
+                el.Height = Math.Ceiling(e.NewSize.Height);
+            }
+        }
+
+        /// <summary>
+        /// Fires when the TextBlock inside a TextOverlayElement template changes size.
+        /// In Fixed mode this lets us detect whether content overflows the box and show
+        /// the overflow indicator without a costly visual-tree traversal.
+        /// </summary>
+        private void OnTextBlockSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (sender is FrameworkElement fe
+                && fe.DataContext is TextOverlayElement el
+                && el.SizingMode == TextSizingMode.Fixed)
+            {
+                // Padding="8,4" contributes 8px total vertical padding
+                el.IsOverflowing = e.NewSize.Height + 8 > el.Height;
+            }
+        }
 
         /// <summary>
         /// Handle DragDelta on the rotation handle. Computes angle from element center to mouse.

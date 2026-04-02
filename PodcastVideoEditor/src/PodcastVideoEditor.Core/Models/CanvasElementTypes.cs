@@ -582,6 +582,18 @@ namespace PodcastVideoEditor.Core.Models
     }
 
     /// <summary>
+    /// Controls how <see cref="TextOverlayElement"/> determines its bounding-box height.
+    /// </summary>
+    public enum TextSizingMode
+    {
+        /// <summary>Height automatically expands to fit the rendered text content.
+        /// WPF layout reports the actual size back to the model.</summary>
+        AutoHeight,
+        /// <summary>Height is fixed; excess text is clipped and an overflow indicator is shown.</summary>
+        Fixed
+    }
+
+    /// <summary>
     /// Unified, feature-rich text overlay element.
     /// Supports shadow, outline, background box, line-height, and letter-spacing.
     /// </summary>
@@ -590,6 +602,10 @@ namespace PodcastVideoEditor.Core.Models
         // ── Content ──────────────────────────────────────────────────────────
         private string _content = "";
         private TextStyle _style = TextStyle.Custom;
+
+        // ── Sizing ───────────────────────────────────────────────────────────
+        private TextSizingMode _sizingMode = TextSizingMode.AutoHeight;
+        private bool _isOverflowing;
 
         // ── Font ─────────────────────────────────────────────────────────────
         private string _fontFamily = "Arial";
@@ -645,6 +661,34 @@ namespace PodcastVideoEditor.Core.Models
         {
             get => _style;
             set => SetProperty(ref _style, value);
+        }
+
+        // ── Sizing ───────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Controls whether the element's height grows automatically with the text content
+        /// (<see cref="TextSizingMode.AutoHeight"/>) or stays fixed and clips overflow
+        /// (<see cref="TextSizingMode.Fixed"/>).
+        /// </summary>
+        [PropertyMetadata(Group = "✍️ Text", Order = 108)]
+        public TextSizingMode SizingMode
+        {
+            get => _sizingMode;
+            set
+            {
+                if (SetProperty(ref _sizingMode, value) && value == TextSizingMode.Fixed)
+                    IsOverflowing = false; // reset; WPF will re-evaluate after layout
+            }
+        }
+
+        /// <summary>
+        /// Set by the canvas layout engine: true when content is taller than the fixed Height.
+        /// Not persisted; recalculated each layout cycle.
+        /// </summary>
+        public bool IsOverflowing
+        {
+            get => _isOverflowing;
+            set => SetProperty(ref _isOverflowing, value);
         }
 
         // ── Font ─────────────────────────────────────────────────────────────
@@ -900,6 +944,7 @@ namespace PodcastVideoEditor.Core.Models
         {
             base.ResetToDefault();
             Content = ""; Style = TextStyle.Custom;
+            SizingMode = TextSizingMode.AutoHeight;
             FontFamily = "Arial"; FontSize = 32; ColorHex = "#FFFFFF";
             IsBold = false; IsItalic = false; IsUnderline = false;
             Alignment = TextAlignment.Center; LineHeight = 1.2; LetterSpacing = 0;
@@ -919,6 +964,7 @@ namespace PodcastVideoEditor.Core.Models
                 ZIndex = ZIndex, IsVisible = IsVisible,
                 SegmentId = null,
                 Content = Content, Style = TextStyle.Custom,
+                SizingMode = SizingMode,
                 FontFamily = FontFamily, FontSize = FontSize, ColorHex = ColorHex,
                 IsBold = IsBold, IsItalic = IsItalic, IsUnderline = IsUnderline,
                 Alignment = Alignment, LineHeight = LineHeight, LetterSpacing = LetterSpacing,

@@ -400,4 +400,50 @@ namespace PodcastVideoEditor.Ui.Converters
             return value is TextDecorationCollection col && col.Count > 0;
         }
     }
+
+    /// <summary>
+    /// IMultiValueConverter: converts FontSize × LineHeight-multiplier → WPF LineHeight in pixels.
+    /// values[0] = FontSize (double), values[1] = LineHeight multiplier (double).
+    /// </summary>
+    public class FontLineHeightConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length >= 2
+                && values[0] is double fontSize
+                && values[1] is double multiplier
+                && fontSize > 0 && multiplier > 0)
+            {
+                return Math.Max(1.0, fontSize * multiplier);
+            }
+            return 20.0;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// IMultiValueConverter: controls the bounding-box height of a TextOverlayElement container.
+    /// values[0] = TextSizingMode, values[1] = Height (double).
+    /// Returns <see cref="double.NaN"/> (WPF auto-size) when AutoHeight; otherwise returns the fixed height.
+    /// </summary>
+    public class TextElementHeightConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length >= 1
+                && values[0] is Core.Models.TextSizingMode mode
+                && mode == Core.Models.TextSizingMode.AutoHeight)
+            {
+                return double.NaN;
+            }
+            if (values.Length >= 2 && values[1] is double h)
+                return h;
+            return double.NaN;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
 }

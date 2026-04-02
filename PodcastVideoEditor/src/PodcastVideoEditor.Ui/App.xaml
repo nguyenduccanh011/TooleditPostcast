@@ -21,6 +21,8 @@
         <converters:NullOrEmptyToCollapsedConverter x:Key="NullOrEmptyToCollapsedConverter"/>
         <converters:IsEqualConverter x:Key="IsEqualConverter"/>
         <converters:BoolToUnderlineConverter x:Key="BoolToUnderlineConverter"/>
+        <converters:FontLineHeightConverter x:Key="FontLineHeightConverter"/>
+        <converters:TextElementHeightConverter x:Key="TextElementHeightConverter"/>
 
         <!--
         ══════════════════════════════════════════════════════════════
