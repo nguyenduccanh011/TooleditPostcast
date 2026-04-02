@@ -535,7 +535,15 @@ public partial class MainWindow : Window
             CheckFileExists = true
         };
 
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() != true) return;
+
+        var confirm = System.Windows.MessageBox.Show(
+            "Importing will overwrite ALL current settings (API keys, models, fallback chain, paths).\n\nContinue?",
+            "Confirm Import",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirm == MessageBoxResult.Yes)
             _settingsViewModel.ImportSettings(dialog.FileName);
     }
 

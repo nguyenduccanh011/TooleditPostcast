@@ -33,6 +33,26 @@ public sealed class AIAnalysisDefaults
     public string YesScaleApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string DefaultModel { get; set; } = string.Empty;
+
+    /// <summary>Pre-configured API key profiles for release builds.</summary>
+    public List<BundledProfileEntry> ApiKeyProfiles { get; set; } = new();
+
+    /// <summary>Pre-configured fallback entries for release builds.</summary>
+    public List<BundledFallbackConfig> FallbackEntries { get; set; } = new();
+}
+
+/// <summary>Bundled profile: Name + ApiKey (bound from appsettings.json).</summary>
+public sealed class BundledProfileEntry
+{
+    public string Name   { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+}
+
+/// <summary>Bundled fallback: ModelId + ProfileName (bound from appsettings.json).</summary>
+public sealed class BundledFallbackConfig
+{
+    public string ModelId     { get; set; } = string.Empty;
+    public string ProfileName { get; set; } = string.Empty;
 }
 
 public sealed class ImageSearchDefaults

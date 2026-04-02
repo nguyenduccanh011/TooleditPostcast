@@ -98,6 +98,7 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     /// Fills in any empty API-key fields from the bundled <c>appsettings.json</c> defaults.
     /// This lets the release builder pre-configure keys so new installs work immediately.
     /// User-supplied values always take priority.
+    /// Also merges bundled API key profiles and fallback entries when user has none configured.
     /// </summary>
     public void ApplyFallbacks(AppConfiguration appConfig)
     {
@@ -114,6 +115,50 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
         {
             if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.DefaultModel))
                 YesScaleModel = appConfig.AIAnalysis.DefaultModel;
+        }
+
+        // Merge bundled API key profiles (only if user has no profiles yet)
+        var bundledProfiles = appConfig.AIAnalysis.ApiKeyProfiles;
+        if (ApiKeyProfiles.Count == 0 && bundledProfiles.Count > 0)
+        {
+            foreach (var bp in bundledProfiles)
+            {
+                if (string.IsNullOrWhiteSpace(bp.Name) || string.IsNullOrWhiteSpace(bp.ApiKey))
+                    continue;
+
+                ApiKeyProfiles.Add(new ApiKeyProfile
+                {
+                    Id      = Guid.NewGuid().ToString("N")[..8],
+                    Name    = bp.Name,
+                    ApiKey  = bp.ApiKey,
+                    Enabled = true
+                });
+            }
+
+            if (ApiKeyProfiles.Count > 0)
+                PrimaryProfileId = ApiKeyProfiles[0].Id;
+        }
+
+        // Merge bundled fallback entries (only if user has no fallback entries yet)
+        var bundledFallbacks = appConfig.AIAnalysis.FallbackEntries;
+        if (FallbackEntries.Count == 0 && bundledFallbacks.Count > 0 && ApiKeyProfiles.Count > 0)
+        {
+            foreach (var bf in bundledFallbacks)
+            {
+                if (string.IsNullOrWhiteSpace(bf.ModelId)) continue;
+
+                // Resolve profile by name (bundled config uses names, not IDs)
+                var matchedProfile = ApiKeyProfiles.FirstOrDefault(
+                    p => p.Name.Equals(bf.ProfileName, StringComparison.OrdinalIgnoreCase));
+
+                if (matchedProfile == null) continue;
+
+                FallbackEntries.Add(new ModelFallbackEntry
+                {
+                    ModelId   = bf.ModelId,
+                    ProfileId = matchedProfile.Id
+                });
+            }
         }
 
         if (string.IsNullOrWhiteSpace(PexelsApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PexelsApiKey))

@@ -392,6 +392,13 @@
                         </Border>
 
                         <Border Margin="0,24,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                            <Border.Resources>
+                                <CollectionViewSource x:Key="GroupedModelsView" Source="{Binding GroupedModels}">
+                                    <CollectionViewSource.GroupDescriptions>
+                                        <PropertyGroupDescription PropertyName="ProfileName" />
+                                    </CollectionViewSource.GroupDescriptions>
+                                </CollectionViewSource>
+                            </Border.Resources>
                             <StackPanel>
                                 <TextBlock Text="AI Analysis (YeScale)" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
                                 <TextBlock Text="Add API keys and select a model for AI-powered script analysis." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
@@ -467,10 +474,12 @@
                                 <TextBlock Margin="0,4,0,0" Foreground="#666666" FontSize="10" FontStyle="Italic"
                                            Text="Models from all keys are merged. The first key is used as the primary key for API calls." TextWrapping="Wrap" />
 
-                                <!-- ═══ STEP 3: Select Model ═══ -->
+                                <!-- ═══ STEP 3: Select Model + Fallback (unified) ═══ -->
                                 <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="Select Model" FontWeight="SemiBold" Margin="0,0,0,6" Foreground="#FFFFFF" />
+                                        <!-- Primary Model selection -->
+                                        <TextBlock Text="⭐ Primary Model" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
+                                        <TextBlock Text="Main model used for AI analysis. Pick from the list or type a model ID." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -495,55 +504,141 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- ═══ Fallback Models (collapsed by default) ═══ -->
-                                <Expander IsExpanded="False" Margin="0,12,0,0" Foreground="#FFFFFF">
-                                    <Expander.Header>
-                                        <TextBlock Text="Fallback Models (Optional)" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="13" />
-                                    </Expander.Header>
-                                    <Border Padding="10" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,6,0,0">
-                                        <StackPanel>
-                                            <TextBlock Text="If the primary model fails, these are tried in order." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
-                                            <ListBox Height="80"
-                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                                     ItemsSource="{Binding FallbackEntries}"
-                                                     SelectedItem="{Binding SelectedFallbackEntry, Mode=TwoWay}">
-                                                <ListBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding Display}" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="4,2" />
-                                                    </DataTemplate>
-                                                </ListBox.ItemTemplate>
-                                            </ListBox>
-                                            <Grid Margin="0,8,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <ComboBox Grid.Column="0" Height="28"
-                                                          ItemsSource="{Binding Profiles}"
-                                                          SelectedItem="{Binding SelectedFallbackProfile, Mode=TwoWay}"
-                                                          DisplayMemberPath="Name"
-                                                          Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
-                                                          ToolTip="Select which API key to use for this fallback" />
-                                                <Button Grid.Column="1" Width="70" Height="28" Margin="6,0,0,0" Content="+ Add"
-                                                        Command="{Binding AddFallbackEntryCommand}"
-                                                        Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
-                                                        ToolTip="Add current model + selected key as fallback" />
-                                                <Button Grid.Column="2" Width="65" Height="28" Margin="6,0,0,0" Content="Remove"
-                                                        Command="{Binding RemoveFallbackEntryCommand}"
-                                                        Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0" />
-                                                <Button Grid.Column="3" Width="32" Height="28" Margin="4,0,0,0" Content="↑"
-                                                        Command="{Binding MoveFallbackEntryUpCommand}"
-                                                        Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
-                                                <Button Grid.Column="4" Width="32" Height="28" Margin="4,0,0,0" Content="↓"
-                                                        Command="{Binding MoveFallbackEntryDownCommand}"
-                                                        Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
-                                            </Grid>
+                                <!-- ═══ Grouped Model Browser (models grouped by API key) ═══ -->
+                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="All Models by API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
+                                        <TextBlock Text="Click ☆ to add/remove a model from the fallback chain. Models are grouped by the API key that provides them." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+
+                                        <ListBox Height="200"
+                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                 ItemsSource="{Binding Source={StaticResource GroupedModelsView}}"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.GroupStyle>
+                                                <GroupStyle>
+                                                    <GroupStyle.HeaderTemplate>
+                                                        <DataTemplate>
+                                                            <Border Background="#2D2D30" Padding="8,4" Margin="0,2,0,0">
+                                                                <TextBlock Text="{Binding Name}" Foreground="#4EC9B0" FontWeight="Bold" FontSize="12" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </GroupStyle.HeaderTemplate>
+                                                </GroupStyle>
+                                            </ListBox.GroupStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="4,1" ToolTip="{Binding ProfileName}">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Width="24" Height="22" Padding="0" Margin="0,0,6,0"
+                                                                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                                Command="{Binding DataContext.ToggleFallbackCommand, ElementName=SettingsPanel}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip="Toggle fallback">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Setter Property="Content" Value="☆" />
+                                                                    <Setter Property="Foreground" Value="#666666" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsInFallback}" Value="True">
+                                                                            <Setter Property="Content" Value="★" />
+                                                                            <Setter Property="Foreground" Value="#FFD700" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="#FFFFFF" VerticalAlignment="Center" FontSize="12" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding ProfileName}" Foreground="#666666" VerticalAlignment="Center" FontSize="10" Margin="8,0,4,0" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ═══ Fallback Chain ═══ -->
+                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Fallback Chain" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
+                                        <TextBlock Text="If the primary model fails, these are tried in order. Click ★ above or use the picker below to add." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+
+                                        <ListBox Height="90" Margin="0,0,0,8"
+                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                 ItemsSource="{Binding FallbackEntries}"
+                                                 SelectedItem="{Binding SelectedFallbackEntry, Mode=TwoWay}"
+                                                 AlternationCount="999">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="4,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="24" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Foreground="#888888" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"
+                                                                   Text="{Binding Path=(ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}, StringFormat={}{0}.}" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="#FFFFFF" VerticalAlignment="Center" FontSize="12" />
+                                                        <Border Grid.Column="2" Background="#2D2D30" CornerRadius="3" Padding="6,2" Margin="8,0,4,0">
+                                                            <TextBlock Text="{Binding ProfileName}" Foreground="#4EC9B0" VerticalAlignment="Center" FontSize="10" />
+                                                        </Border>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <!-- Fallback picker: profile → filtered model list → Add -->
+                                        <TextBlock Text="Add fallback manually:" Foreground="#888888" FontSize="11" Margin="0,0,0,4" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="140" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <!-- Labels -->
+                                            <TextBlock Text="API Key" Foreground="#666666" FontSize="10" Margin="2,0,0,2" />
+                                            <TextBlock Grid.Column="1" Text="Model (filtered)" Foreground="#666666" FontSize="10" Margin="8,0,0,2" />
+                                            <!-- Inputs -->
+                                            <ComboBox Grid.Row="1" Height="28"
+                                                      ItemsSource="{Binding Profiles}"
+                                                      SelectedItem="{Binding SelectedFallbackProfile, Mode=TwoWay}"
+                                                      DisplayMemberPath="Name"
+                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                      ToolTip="Select an API key — models will be filtered to only those this key supports" />
+                                            <ComboBox Grid.Row="1" Grid.Column="1" Height="28" Margin="6,0,0,0"
+                                                      IsEditable="True"
+                                                      ItemsSource="{Binding FallbackAvailableModels}"
+                                                      Text="{Binding SelectedFallbackModel, UpdateSourceTrigger=PropertyChanged}"
+                                                      SelectedItem="{Binding SelectedFallbackModel, Mode=TwoWay}"
+                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                      ToolTip="Only models available with the selected API key are shown" />
+                                            <Button Grid.Row="1" Grid.Column="2" Width="70" Height="28" Margin="6,0,0,0" Content="+ Add"
+                                                    Command="{Binding AddFallbackEntryCommand}"
+                                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                    ToolTip="Add this model as a fallback" />
+                                        </Grid>
+
+                                        <!-- Fallback management buttons -->
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                            <Button Width="70" Height="26" Content="Remove"
+                                                    Command="{Binding RemoveFallbackEntryCommand}"
+                                                    Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,4,0" />
+                                            <Button Width="32" Height="26" Content="↑"
+                                                    Command="{Binding MoveFallbackEntryUpCommand}"
+                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" Margin="0,0,4,0" />
+                                            <Button Width="32" Height="26" Content="↓"
+                                                    Command="{Binding MoveFallbackEntryDownCommand}"
+                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
                                         </StackPanel>
-                                    </Border>
-                                </Expander>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- ═══ Base URL (collapsed by default) ═══ -->
                                 <Expander IsExpanded="False" Margin="0,8,0,0" Foreground="#FFFFFF">
@@ -584,23 +679,64 @@
                             </StackPanel>
                         </Border>
 
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                            <Button Width="120" Height="34"
-                                    Content="Save Settings"
-                                    Command="{Binding SaveSettingsCommand}"
-                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" />
-                            <Button Width="120" Height="34" Margin="10,0,0,0"
-                                    Content="Export Settings"
-                                    Click="ExportSettings_Click"
-                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
-                            <Button Width="120" Height="34" Margin="10,0,0,0"
-                                    Content="Import Settings"
-                                    Click="ImportSettings_Click"
-                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" />
-                            <TextBlock Margin="12,8,0,0"
+                        <!-- ═══ Actions ═══ -->
+                        <Grid Margin="0,16,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Primary action -->
+                            <StackPanel Orientation="Horizontal">
+                                <Button Width="140" Height="36"
+                                        Content="💾  Save Settings"
+                                        Command="{Binding SaveSettingsCommand}"
+                                        Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                        FontWeight="SemiBold" FontSize="13" />
+                            </StackPanel>
+
+                            <!-- Status message -->
+                            <TextBlock Grid.Row="1" Margin="0,8,0,0"
                                        Text="{Binding StatusMessage}"
-                                       Foreground="#CCCCCC" />
-                        </StackPanel>
+                                       FontSize="12" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#4EC9B0" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsStatusError}" Value="True">
+                                                <Setter Property="Foreground" Value="#F44747" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!-- Secondary actions: Export / Import -->
+                            <Expander Grid.Row="2" IsExpanded="False" Margin="0,12,0,0" Foreground="#FFFFFF">
+                                <Expander.Header>
+                                    <TextBlock Text="Export / Import Settings" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="12" />
+                                </Expander.Header>
+                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,6,0,0">
+                                    <StackPanel>
+                                        <TextBlock Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
+                                                   Text="Export saves all settings (API keys, models, fallback chain) to a JSON file. Import overwrites ALL current settings with the file contents." />
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Width="120" Height="30"
+                                                    Content="📤  Export"
+                                                    Click="ExportSettings_Click"
+                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    ToolTip="Save all settings to a JSON file for backup or sharing" />
+                                            <Button Width="120" Height="30" Margin="10,0,0,0"
+                                                    Content="📥  Import"
+                                                    Click="ImportSettings_Click"
+                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    ToolTip="Load settings from a JSON file — this will overwrite all current settings" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+                        </Grid>
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />

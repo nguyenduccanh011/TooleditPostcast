@@ -6,12 +6,29 @@ using PodcastVideoEditor.Ui.Services;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Ui.ViewModels;
+
+/// <summary>
+/// A model ID enriched with its source profile info, used for grouped display.
+/// </summary>
+public sealed partial class ModelDisplayItem : ObservableObject
+{
+    public string ModelId     { get; init; } = string.Empty;
+    public string ProfileId   { get; init; } = string.Empty;
+    public string ProfileName { get; init; } = string.Empty;
+    public string Display     => ModelId;
+    public string Group       => $"{ProfileName} ({ProfileId})";
+
+    [ObservableProperty] private bool isInFallback;
+
+    public override string ToString() => ModelId;
+}
 
 /// <summary>
 /// Display wrapper for a <see cref="ModelFallbackEntry"/> that includes the resolved profile name.
@@ -53,6 +70,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private FallbackEntryDisplay? selectedFallbackEntry;
     [ObservableProperty] private ApiKeyProfile? selectedFallbackProfile;
 
+    // ── Fallback model picker (separate from primary) ────────────────────────
+    [ObservableProperty] private string fallbackModelFilter = string.Empty;
+
     // ── Image Search ─────────────────────────────────────────────────────────
     [ObservableProperty] private string pexelsApiKey   = string.Empty;
     [ObservableProperty] private string pixabayApiKey  = string.Empty;
@@ -63,6 +83,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty] private bool   isStatusError;
 
     public ObservableCollection<string> AvailableYesScaleModels { get; } = new();
+
+    /// <summary>Grouped model list: each ModelDisplayItem carries its source profile info.</summary>
+    public ObservableCollection<ModelDisplayItem> GroupedModels { get; } = new();
+
+    /// <summary>Models filtered by the selected fallback profile, for the fallback picker ComboBox.</summary>
+    public ObservableCollection<string> FallbackAvailableModels { get; } = new();
+
+    /// <summary>Selected model in the fallback picker ComboBox.</summary>
+    [ObservableProperty] private string? selectedFallbackModel;
+
+    /// <summary>Per-profile model mapping built during refresh.</summary>
+    private Dictionary<string, List<string>> _profileModelMap = new();
 
     public SettingsViewModel(UserSettingsStore store, IAIProvider aiProvider, string appDataPath)
     {
@@ -121,32 +153,93 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     // ── Fallback entry CRUD ──────────────────────────────────────────────────
 
+    /// <summary>When fallback profile changes, filter models to only those belonging to that profile.</summary>
+    partial void OnSelectedFallbackProfileChanged(ApiKeyProfile? value)
+    {
+        FallbackAvailableModels.Clear();
+        SelectedFallbackModel = null;
+        if (value == null) return;
+
+        if (_profileModelMap.TryGetValue(value.Id, out var models))
+        {
+            foreach (var m in models.OrderBy(x => x, StringComparer.OrdinalIgnoreCase))
+                FallbackAvailableModels.Add(m);
+        }
+    }
+
     [RelayCommand]
     private void AddFallbackEntry()
     {
-        if (string.IsNullOrWhiteSpace(YesScaleModel)) return;
+        // Use the separate fallback picker model, NOT the primary model
+        var modelId = SelectedFallbackModel;
+        if (string.IsNullOrWhiteSpace(modelId)) return;
         var profile = SelectedFallbackProfile ?? Profiles.FirstOrDefault();
         if (profile == null) return;
 
         // Don't add exact duplicates (same model + same profile)
         if (FallbackEntries.Any(e =>
-            e.ModelId.Equals(YesScaleModel, StringComparison.OrdinalIgnoreCase) &&
+            e.ModelId.Equals(modelId, StringComparison.OrdinalIgnoreCase) &&
             e.ProfileId == profile.Id))
             return;
 
         FallbackEntries.Add(new FallbackEntryDisplay
         {
-            ModelId     = YesScaleModel,
+            ModelId     = modelId,
             ProfileId   = profile.Id,
             ProfileName = profile.Name
         });
+
+        // Sync the star indicators on the grouped model list
+        SyncFallbackStars();
+    }
+
+    /// <summary>Toggle a model in/out of the fallback chain directly from the grouped model list.</summary>
+    [RelayCommand]
+    private void ToggleFallback(ModelDisplayItem? item)
+    {
+        if (item == null) return;
+
+        var existing = FallbackEntries.FirstOrDefault(e =>
+            e.ModelId.Equals(item.ModelId, StringComparison.OrdinalIgnoreCase) &&
+            e.ProfileId == item.ProfileId);
+
+        if (existing != null)
+        {
+            FallbackEntries.Remove(existing);
+        }
+        else
+        {
+            var profile = Profiles.FirstOrDefault(p => p.Id == item.ProfileId);
+            FallbackEntries.Add(new FallbackEntryDisplay
+            {
+                ModelId     = item.ModelId,
+                ProfileId   = item.ProfileId,
+                ProfileName = profile?.Name ?? item.ProfileName
+            });
+        }
+
+        SyncFallbackStars();
+    }
+
+    /// <summary>Update IsInFallback flags on all GroupedModels to reflect current FallbackEntries.</summary>
+    private void SyncFallbackStars()
+    {
+        foreach (var m in GroupedModels)
+        {
+            m.IsInFallback = FallbackEntries.Any(e =>
+                e.ModelId.Equals(m.ModelId, StringComparison.OrdinalIgnoreCase) &&
+                e.ProfileId == m.ProfileId);
+        }
     }
 
     [RelayCommand]
     private void RemoveFallbackEntry()
     {
         if (SelectedFallbackEntry != null)
+        {
             FallbackEntries.Remove(SelectedFallbackEntry);
+            SyncFallbackStars();
+        }
     }
 
     [RelayCommand]
@@ -339,22 +432,20 @@ public sealed partial class SettingsViewModel : ObservableObject
             if (!skipDebounce)
                 await Task.Delay(700, ct);
 
-            // Collect all API keys to query: main key + all enabled profiles
-            var keysToQuery = new List<string>();
-            var mainKey = YesScaleApiKey.Trim();
-            if (!string.IsNullOrWhiteSpace(mainKey))
-                keysToQuery.Add(mainKey);
+            // Build list of (profileId, profileName, apiKey) to query
+            EnsurePrimaryProfile();
+            var profilesToQuery = Profiles
+                .Where(p => p.Enabled && !string.IsNullOrWhiteSpace(p.ApiKey))
+                .Select(p => (p.Id, p.Name, p.ApiKey))
+                .GroupBy(p => p.ApiKey)
+                .Select(g => g.First())
+                .ToList();
 
-            foreach (var p in Profiles)
-            {
-                if (p.Enabled && !string.IsNullOrWhiteSpace(p.ApiKey) &&
-                    !keysToQuery.Contains(p.ApiKey, StringComparer.Ordinal))
-                    keysToQuery.Add(p.ApiKey);
-            }
-
-            if (keysToQuery.Count == 0)
+            if (profilesToQuery.Count == 0)
             {
                 AvailableYesScaleModels.Clear();
+                GroupedModels.Clear();
+                _profileModelMap.Clear();
                 YesScaleModelStatus = "Enter a YesScale API key to load models.";
                 IsLoadingYesScaleModels = false;
                 return;
@@ -365,15 +456,29 @@ public sealed partial class SettingsViewModel : ObservableObject
 
             var baseUrl = NormalizeBaseUrl(YesScaleBaseUrl);
 
-            // Query all keys in parallel, merge results
-            var tasks = keysToQuery.Select(key =>
-                _aiProvider.GetAvailableModelsAsync(key, baseUrl, ct));
+            // Query all keys in parallel, keep results per profile
+            var tasks = profilesToQuery.Select(async p =>
+            {
+                var models = await _aiProvider.GetAvailableModelsAsync(p.ApiKey, baseUrl, ct);
+                return (p.Id, p.Name, Models: models);
+            });
             var results = await Task.WhenAll(tasks);
 
             if (ct.IsCancellationRequested) return;
 
+            // Build profile → models map
+            var newMap = new Dictionary<string, List<string>>();
+            foreach (var (profileId, profileName, models) in results)
+            {
+                newMap[profileId] = models
+                    .OrderBy(m => m, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            _profileModelMap = newMap;
+
+            // Flat deduplicated list (backward compat for primary model ComboBox)
             var allModels = results
-                .SelectMany(r => r)
+                .SelectMany(r => r.Models)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -381,6 +486,28 @@ public sealed partial class SettingsViewModel : ObservableObject
             AvailableYesScaleModels.Clear();
             foreach (var modelId in allModels)
                 AvailableYesScaleModels.Add(modelId);
+
+            // Build grouped model list
+            GroupedModels.Clear();
+            foreach (var (profileId, profileName, models) in results)
+            {
+                foreach (var modelId in models.OrderBy(m => m, StringComparer.OrdinalIgnoreCase))
+                {
+                    GroupedModels.Add(new ModelDisplayItem
+                    {
+                        ModelId     = modelId,
+                        ProfileId   = profileId,
+                        ProfileName = profileName
+                    });
+                }
+            }
+
+            // Sync star indicators
+            SyncFallbackStars();
+
+            // Refresh fallback profile filter if one is selected
+            if (SelectedFallbackProfile != null)
+                OnSelectedFallbackProfileChanged(SelectedFallbackProfile);
 
             if (AvailableYesScaleModels.Count == 0)
             {
@@ -391,7 +518,9 @@ public sealed partial class SettingsViewModel : ObservableObject
                 if (string.IsNullOrWhiteSpace(YesScaleModel) || !AvailableYesScaleModels.Contains(YesScaleModel))
                     YesScaleModel = AvailableYesScaleModels.First();
 
-                YesScaleModelStatus = $"Loaded {AvailableYesScaleModels.Count} model(s) from {keysToQuery.Count} key(s).";
+                var totalModels = GroupedModels.Count;
+                var uniqueModels = AvailableYesScaleModels.Count;
+                YesScaleModelStatus = $"Loaded {uniqueModels} unique model(s) from {profilesToQuery.Count} key(s) ({totalModels} total incl. overlaps).";
             }
         }
         catch (OperationCanceledException)
@@ -400,6 +529,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         catch (Exception ex)
         {
             AvailableYesScaleModels.Clear();
+            GroupedModels.Clear();
+            _profileModelMap.Clear();
             YesScaleModelStatus = $"Could not load models: {ex.Message}";
         }
         finally
