@@ -103,7 +103,8 @@ public static class AppBootstrapper
             new SettingsViewModel(
                 sp.GetRequiredService<UserSettingsStore>(),
                 sp.GetRequiredService<IAIProvider>(),
-                appDataPath));
+                appDataPath,
+                sp.GetRequiredService<AppConfiguration>()));
         services.AddSingleton<AudioPlayerViewModel>(sp =>
             new AudioPlayerViewModel(sp.GetRequiredService<IAudioPlaybackService>()));
         services.AddSingleton<TimelineViewModel>();

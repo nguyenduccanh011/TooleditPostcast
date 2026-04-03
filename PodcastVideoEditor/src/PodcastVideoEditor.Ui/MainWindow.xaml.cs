@@ -119,6 +119,7 @@ public partial class MainWindow : Window
         MainTabControl.SelectedIndex = 0;
 
         AppDataPathText.Text = _appDataPath;
+        LogPathText.Text = Path.Combine(_appDataPath, "Logs");
         PopulateBuildInfo();
         await LoadProjectsSafeAsync();
         await InitializeFfmpegStatusAsync();
@@ -510,6 +511,13 @@ public partial class MainWindow : Window
         if (result.IsValid && !string.IsNullOrWhiteSpace(result.FFmpegPath))
             _settingsViewModel.FfmpegPath = result.FFmpegPath;
         FFmpegStatusText.Text = result.Message;
+    }
+
+    private void OpenLogFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var logsPath = Path.Combine(_appDataPath, "Logs");
+        Directory.CreateDirectory(logsPath);
+        System.Diagnostics.Process.Start("explorer.exe", logsPath);
     }
 
     private void ExportSettings_Click(object sender, RoutedEventArgs e)

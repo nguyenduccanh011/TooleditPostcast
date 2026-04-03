@@ -105,13 +105,15 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
         if (string.IsNullOrWhiteSpace(YesScaleApiKey) && !string.IsNullOrWhiteSpace(appConfig.AIAnalysis.YesScaleApiKey))
             YesScaleApiKey = appConfig.AIAnalysis.YesScaleApiKey;
 
-        if (string.IsNullOrWhiteSpace(YesScaleBaseUrl) || YesScaleBaseUrl == "https://api.yescale.vip/v1")
+        if (string.IsNullOrWhiteSpace(YesScaleBaseUrl))
         {
             if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.BaseUrl))
                 YesScaleBaseUrl = appConfig.AIAnalysis.BaseUrl;
+            else
+                YesScaleBaseUrl = "https://api.yescale.vip/v1";
         }
 
-        if (string.IsNullOrWhiteSpace(YesScaleModel) || YesScaleModel == "gpt-4o-mini")
+        if (string.IsNullOrWhiteSpace(YesScaleModel))
         {
             if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.DefaultModel))
                 YesScaleModel = appConfig.AIAnalysis.DefaultModel;

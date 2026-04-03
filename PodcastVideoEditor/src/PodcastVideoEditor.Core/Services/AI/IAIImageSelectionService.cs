@@ -14,7 +14,7 @@ public interface IAIImageSelectionService
 
     /// <summary>
     /// For all segments: fetch candidates in parallel, then call AI selection in batches of 10
-    /// with max 3 concurrent batches.  Retries up to 5 times for segments without a selection.
+    /// with max 3 concurrent batches.  Retries up to 2 times for segments without a selection.
     /// Returns selection results AND a pre-built candidateId→url map so callers do not
     /// need to re-fetch candidates to obtain download URLs.
     /// </summary>

@@ -97,7 +97,8 @@ public static class ScriptChunker
         int systemPromptTokens,
         int maxOutputTokens,
         string? model,
-        int overlapSegments = 1)
+        int overlapSegments = 1,
+        int maxSegmentsPerChunk = 0)
     {
         var budget = GetAvailableInputTokens(systemPromptTokens, maxOutputTokens, model);
 
@@ -106,6 +107,21 @@ public static class ScriptChunker
 
         if (segmentLines.Count == 0)
             return [script];
+
+        // Force chunking by segment count for parallel performance,
+        // even when total tokens fit within budget.
+        if (maxSegmentsPerChunk > 0 && segmentLines.Count > maxSegmentsPerChunk)
+        {
+            var segChunks = new List<string>();
+            for (int i = 0; i < segmentLines.Count; i += maxSegmentsPerChunk)
+            {
+                var start = Math.Max(0, i - (i > 0 ? overlapSegments : 0));
+                var end = Math.Min(i + maxSegmentsPerChunk, segmentLines.Count);
+                var chunk = string.Join(Environment.NewLine, segmentLines.GetRange(start, end - start));
+                segChunks.Add(chunk);
+            }
+            return segChunks;
+        }
 
         // If it all fits, return as-is
         var totalTokens = TokenEstimator.Estimate(script);
@@ -186,6 +202,38 @@ public static class ScriptChunker
 
         if (current != null)
             result.Add(current.ToString());
+
+        return result;
+    }
+
+    /// <summary>
+    /// Regex that captures start, end, and text from a timestamp line: [0.00 → 6.04] text
+    /// </summary>
+    private static readonly Regex TimestampCapture = new(
+        @"^\s*\[\s*(?<start>\d+\.?\d*)\s*→\s*(?<end>\d+\.?\d*)\]\s*(?<text>.*)",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// Parse script text into (startTime, endTime, text) tuples — one per original transcript line.
+    /// </summary>
+    public static List<(double Start, double End, string Text)> ParseTimestampedLines(string script)
+    {
+        var result = new List<(double, double, string)>();
+        if (string.IsNullOrWhiteSpace(script)) return result;
+
+        foreach (var rawLine in script.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var m = TimestampCapture.Match(rawLine.TrimStart());
+            if (!m.Success) continue;
+
+            if (double.TryParse(m.Groups["start"].Value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var start)
+                && double.TryParse(m.Groups["end"].Value, System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var end))
+            {
+                result.Add((start, end, m.Groups["text"].Value.Trim()));
+            }
+        }
 
         return result;
     }

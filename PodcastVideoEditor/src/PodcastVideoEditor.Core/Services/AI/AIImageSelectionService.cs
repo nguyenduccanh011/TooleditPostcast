@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Serilog;
 
 namespace PodcastVideoEditor.Core.Services.AI;
@@ -7,10 +8,10 @@ namespace PodcastVideoEditor.Core.Services.AI;
 /// </summary>
 public sealed class AIImageSelectionService : IAIImageSelectionService
 {
-    private const int BatchSize   = 10;
-    private const int MaxConcurrent = 3;
-    private const int MaxConcurrentFetch = 4;
-    private const int MaxRetries  = 5;
+    private const int BatchSize   = 15;
+    private const int MaxConcurrent = 4;
+    private const int MaxConcurrentFetch = 8;
+    private const int MaxRetries  = 2;
     private const int PerProvider = 6; // images per provider per keyword query (6×3=18 candidates total)
 
     private readonly IReadOnlyList<IImageSearchProvider> _providers;
@@ -62,6 +63,9 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
     {
         // Step 1: fetch candidates for all segments in parallel
         progress?.Report(new AIAnalysisProgressReport(3, 50, $"Tìm kiếm ảnh cho {segments.Length} segment..."));
+        var fetchSw = Stopwatch.StartNew();
+        Log.Information("[AI-IMG] fetch candidates: {Segments} segments × {Providers} providers",
+            segments.Length, _providers.Count);
 
         using var fetchSem = new SemaphoreSlim(MaxConcurrentFetch);
         var fetchTasks = segments.Select(async (seg, idx) =>
@@ -84,9 +88,15 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
 
         var fetched = await Task.WhenAll(fetchTasks);
         var candidatesPerSegment = fetched.ToDictionary(r => r.idx, r => r.Item2);
+        fetchSw.Stop();
+        var totalCandidates = candidatesPerSegment.Values.Sum(c => c.Length);
+        var emptySeg = candidatesPerSegment.Values.Count(c => c.Length == 0);
+        Log.Information("[AI-IMG] fetch done in {Elapsed}s — {Total} candidates, {Empty} segments with no candidates",
+            fetchSw.Elapsed.TotalSeconds.ToString("F1"), totalCandidates, emptySeg);
 
         // Step 2: slice into batches, call AI with concurrency limit
         progress?.Report(new AIAnalysisProgressReport(4, 60, "AI đang chọn ảnh..."));
+        var selectSw = Stopwatch.StartNew();
 
         var allResults = new List<AIImageSelectionResultItem>();
         var sem = new SemaphoreSlim(MaxConcurrent);
@@ -95,7 +105,7 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
             .Chunk(BatchSize)
             .ToArray();
 
-        var batchTasks = batches.Select(batch => Task.Run(async () =>
+        var batchTasks = batches.Select((batch, batchIdx) => Task.Run(async () =>
         {
             await sem.WaitAsync(ct);
             try
@@ -110,7 +120,12 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
                     .Where(s => s.Candidates.Length > 0)
                     .ToArray();
 
-                if (swcArr.Length == 0) return Array.Empty<AIImageSelectionResultItem>();
+                if (swcArr.Length == 0)
+                {
+                    Log.Warning("[AI-IMG] batch {Idx}: all {Count} segments had no candidates — skipping",
+                        batchIdx + 1, batch.Length);
+                    return Array.Empty<AIImageSelectionResultItem>();
+                }
                 return await _aiProvider.SelectImagesAsync(swcArr, ct);
             }
             finally
@@ -121,6 +136,9 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
 
         var batchResults = await Task.WhenAll(batchTasks);
         allResults.AddRange(batchResults.SelectMany(r => r));
+        selectSw.Stop();
+        Log.Information("[AI-IMG] initial selection in {Elapsed}s — {Selected}/{Total} segments selected",
+            selectSw.Elapsed.TotalSeconds.ToString("F1"), allResults.Count, segments.Length);
 
         // Step 3: retry segments that were missed (up to MaxRetries), using batch parallelism
         var selectedIndexes = allResults.Select(r => r.SegmentIndex).ToHashSet();
@@ -133,7 +151,8 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
 
             if (missing.Length == 0) break;
 
-            Log.Information("AI image selection retry {Retry}: {Count} segments missing", retry + 1, missing.Length);
+            Log.Warning("[AI-IMG] retry {Retry}/{Max}: {Count} segments still unselected — segment indices: [{Indices}]",
+                retry + 1, MaxRetries, missing.Length, string.Join(",", missing));
 
             // Batch missing segments and retry in parallel (same pattern as initial call)
             var retryBatches = missing.Chunk(BatchSize).ToArray();
@@ -162,6 +181,11 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
                 foreach (var r in retryResults) selectedIndexes.Add(r.SegmentIndex);
             }
         }
+
+        var finalUnselected = Enumerable.Range(0, segments.Length).Except(selectedIndexes).ToArray();
+        if (finalUnselected.Length > 0)
+            Log.Warning("[AI-IMG] {Count} segments have NO image after all retries: [{Indices}]",
+                finalUnselected.Length, string.Join(",", finalUnselected));
 
         progress?.Report(new AIAnalysisProgressReport(4, 90, $"Đã chọn ảnh cho {allResults.Count}/{segments.Length} segment"));
 

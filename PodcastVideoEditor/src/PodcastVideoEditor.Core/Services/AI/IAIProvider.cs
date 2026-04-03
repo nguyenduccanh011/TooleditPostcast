@@ -22,9 +22,9 @@ public interface IAIProvider
     Task<string> NormalizeScriptAsync(string script, CancellationToken ct = default);
 
     /// <summary>
-    /// Analyze the normalized script and produce one AISegment per timestamp block.
-    /// Each segment has 5 English keywords for image search.
-    /// Uses temperature=0.7, maxTokens=8192, timeout 90 s.
+    /// Analyze the script and produce one AISegment per timestamp block.
+    /// Includes ASR correction. Each segment has 3 English keywords for image search.
+    /// Uses temperature=0.3, maxTokens=8192, timeout 90 s.
     /// </summary>
     Task<AIAnalysisResponse> AnalyzeScriptAsync(AIAnalysisRequest request, CancellationToken ct = default);
 

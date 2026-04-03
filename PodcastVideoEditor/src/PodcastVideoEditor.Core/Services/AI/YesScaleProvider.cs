@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -24,6 +25,8 @@ public sealed class ApiException : Exception
     public ApiException(int statusCode, string message, Exception inner) : base(message, inner) => StatusCode = statusCode;
     /// <summary>True for 429 (rate-limit) and 5xx server errors — safe to retry.</summary>
     public bool IsTransient => StatusCode == 429 || StatusCode >= 500;
+    /// <summary>True when the API key does not have access to this model (permanent config error — never retry).</summary>
+    public bool IsChannelError => StatusCode == 503 && Message.Contains("No available channel");
 }
 
 /// <summary>
@@ -36,54 +39,50 @@ public sealed class YesScaleProvider : IAIProvider
     // ── System prompts ───────────────────────────────────────────────────────
 
     private const string ScriptAnalysisSystemPrompt = """
-        You are an AI assistant that analyzes podcast transcripts for a financial/investment video editor.
+        # Role
+        You are a Vietnamese podcast video editor. You group transcript lines into visual SCENES for background image changes.
 
-        Your task:
-        1. You will receive a timestamped script in the format [start → end] text
-        2. Fix obvious ASR (speech recognition) errors, especially Vietnamese names, financial terms, and numbers
-        3. For each segment, generate exactly 5 English keywords suitable for stock image search
-        4. Keywords must be relevant to the content: financial, business, market themes
-        5. Return a JSON array — no markdown, no extra text
+        # Task
+        Given a timestamped transcript in [start → end] format:
+        1. Fix ASR errors — especially Vietnamese proper nouns, financial terms (cổ phiếu, trái phiếu, VN-Index…), and numbers
+        2. Keep the original language (Vietnamese) — do NOT translate
+        3. **MERGE adjacent lines into SCENES**: each scene should be 10–15 seconds long, covering 2–5 consecutive transcript lines that share the same topic/idea
+        4. Each scene = 1 background image change in the video
+        5. Generate exactly 3 English keywords per scene for stock image search
 
-        Output format (strict JSON array):
-        [
-          {
-            "startTime": 0.0,
-            "endTime": 6.04,
-            "text": "corrected transcript text",
-            "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
-          }
-        ]
+        # Scene merging rules
+        - Target duration: 10–15 seconds per scene. Minimum 6s, maximum 20s
+        - Group lines by topic continuity — when the speaker changes subject, start a new scene
+        - startTime = first line's start, endTime = last line's end
+        - Combine all text from merged lines into one "text" field (keep Vietnamese)
+        - Do NOT create 1-line scenes unless a single line is already ≥10s
 
-        Rules:
-        - Timestamps must be contiguous (each segment's startTime = previous endTime)
-        - Preserve all original segments — do not merge or split
-        - Keywords must be English, concrete, visually searchable (avoid abstract concepts)
-        - Prefer financial/business imagery: charts, trading floors, documents, professionals
+        # Output
+        Return ONLY a JSON array — no markdown fences, no explanation:
+        [{"startTime":0.0,"endTime":12.38,"text":"combined corrected text of all merged lines","keywords":["kw1","kw2","kw3"]}]
+
+        # Keyword rules
+        - English only, concrete, visually searchable nouns/phrases
+        - Prefer: charts, trading floor, stock market, business meeting, financial report, economy, investment, money, bankruptcy, lottery, wealth
+        - Avoid: abstract concepts, emotions, verbs
         """;
 
     private const string ImageSelectionSystemPrompt = """
-        Bạn là AI chuyên chọn ảnh nền phù hợp cho video podcast tài chính/đầu tư.
+        # Role
+        Bạn chọn ảnh nền phù hợp nhất cho từng segment trong video podcast tài chính.
 
-        Nhiệm vụ: Với mỗi segment, chọn 1 ảnh chính (chosen) và 2-3 ảnh dự phòng (backups) từ danh sách candidates.
+        # Task
+        Với mỗi segment, bạn nhận nội dung đoạn văn + danh sách candidate IDs kèm mô tả.
+        Chọn 1 ảnh phù hợp nhất dựa trên mô tả text (bạn không nhìn thấy ảnh).
 
-        Tiêu chí chọn ảnh:
-        - Phải liên quan đến nội dung đoạn văn
-        - Ưu tiên ảnh có tính chuyên nghiệp, phù hợp video tài chính
-        - Tránh ảnh có watermark, logo, text overlay
-        - Ưu tiên ảnh portrait/vertical orientation
+        # Tiêu chí
+        - Mô tả ảnh phải liên quan đến nội dung segment
+        - Ưu tiên mô tả chứa từ khóa tài chính, kinh doanh, chuyên nghiệp
+        - Chỉ dùng các ID có trong danh sách candidates
 
-        Output format (strict JSON array, không có markdown):
-        [
-          {
-            "segmentIndex": 0,
-            "chosenId": "pexels:12345",
-            "backupIds": ["pixabay:67890", "unsplash:11111"],
-            "reason": "Lý do ngắn gọn tại sao chọn ảnh này"
-          }
-        ]
-
-        Lưu ý: chỉ dùng các ID có trong danh sách candidates được cung cấp.
+        # Output
+        Trả về ONLY JSON array — không markdown, không giải thích:
+        [{"segmentIndex":0,"chosenId":"pexels:12345"}]
         """;
 
     // ── Fields ───────────────────────────────────────────────────────────────
@@ -190,26 +189,51 @@ public sealed class YesScaleProvider : IAIProvider
         var temperature = 0.3;
 
         var chunks = ScriptChunker.ChunkScript(
-            request.Script, sysTokens, maxOutputTokens, model, overlapSegments: 1);
+            request.Script, sysTokens, maxOutputTokens, model, overlapSegments: 1,
+            maxSegmentsPerChunk: 60);
 
-        Log.Information("AnalyzeScriptAsync: script split into {ChunkCount} chunk(s) for model {Model}",
-            chunks.Count, model);
+        Log.Information("[AI-ANALYZE] model={Model} chunks={Chunks} inputSegments={InputSegs}",
+            model, chunks.Count, ScriptChunker.SplitIntoSegmentLines(request.Script).Count);
 
         var allSegments = new List<AISegment>();
         var allRaw = new StringBuilder();
 
-        foreach (var chunk in chunks)
+        // Process chunks in parallel — each chunk covers a different timestamp range
+        // and deduplication by startTime handles the overlap segments.
+        var sem = new SemaphoreSlim(3); // limit concurrent API calls
+        var chunkTasks = chunks.Select(async (chunk, idx) =>
         {
-            var userPrompt = BuildScriptAnalysisUserPrompt(chunk, request.AudioDuration);
-            var timeoutSec = ComputeTimeout(userPrompt, baseSeconds: 90);
+            await sem.WaitAsync(ct);
+            var chunkSw = Stopwatch.StartNew();
+            try
+            {
+                var userPrompt = BuildScriptAnalysisUserPrompt(chunk, request.AudioDuration);
+                var timeoutSec = ComputeTimeout(userPrompt, baseSeconds: 90);
+                Log.Information("[AI-ANALYZE] chunk {Idx}/{Total} → sending ({Tokens} tokens, timeout={Timeout}s)",
+                    idx + 1, chunks.Count, TokenEstimator.Estimate(userPrompt), timeoutSec);
 
-            var result = await CallChatWithFallbackAsync(
-                systemPrompt, userPrompt, model,
-                temperature, maxOutputTokens, timeoutSec, 2, ct);
+                var result = await CallChatWithFallbackAsync(
+                    systemPrompt, userPrompt, model,
+                    temperature, maxOutputTokens, timeoutSec, 2, ct);
 
-            if (result.FinishReason == "length")
-                Log.Warning("AI output was truncated (finish_reason=length) for a script chunk — some segments may be missing");
+                chunkSw.Stop();
+                if (result.FinishReason == "length")
+                    Log.Warning("[AI-ANALYZE] chunk {Idx} TRUNCATED (finish_reason=length) in {Elapsed}s", idx + 1, chunkSw.Elapsed.TotalSeconds.ToString("F1"));
+                else
+                    Log.Information("[AI-ANALYZE] chunk {Idx}/{Total} ✔ — {Chars} chars in {Elapsed}s",
+                        idx + 1, chunks.Count, result.Content.Length, chunkSw.Elapsed.TotalSeconds.ToString("F1"));
 
+                return result;
+            }
+            finally
+            {
+                sem.Release();
+            }
+        }).ToArray();
+
+        var chunkResults = await Task.WhenAll(chunkTasks);
+        foreach (var result in chunkResults)
+        {
             allRaw.AppendLine(result.Content);
             var parsed = ParseAnalysisResponseBestEffort(result.Content);
             allSegments.AddRange(parsed);
@@ -222,11 +246,10 @@ public sealed class YesScaleProvider : IAIProvider
             .OrderBy(s => s.StartTime)
             .ToArray();
 
-        // Validate segment count vs input segment count.
+        // Validate: scenes should be fewer than input lines (merged) but non-zero.
         var inputSegmentCount = ScriptChunker.SplitIntoSegmentLines(request.Script).Count;
-        if (deduplicated.Length < inputSegmentCount)
-            Log.Warning("AI returned {Returned} segments but input had {Expected} — {Missing} segment(s) missing",
-                deduplicated.Length, inputSegmentCount, inputSegmentCount - deduplicated.Length);
+        Log.Information("AI returned {Returned} scenes from {InputLines} transcript lines",
+            deduplicated.Length, inputSegmentCount);
 
         return new AIAnalysisResponse(deduplicated, allRaw.ToString());
     }
@@ -235,11 +258,16 @@ public sealed class YesScaleProvider : IAIProvider
         SegmentWithCandidates[] segments, CancellationToken ct = default)
     {
         var userPrompt = BuildImageSelectionUserPrompt(segments);
+        Log.Information("[AI-IMGSEL] selecting images for {Count} segments", segments.Length);
+        var sw = Stopwatch.StartNew();
         var result = await CallChatWithFallbackAsync(
             ImageSelectionSystemPrompt, userPrompt, _settings.YesScaleModel,
-            0.3, 2048, 120, 2, ct);
-
-        return ParseImageSelectionResponse(result.Content, segments);
+            0.3, 1024, 90, 2, ct);
+        sw.Stop();
+        var parsed = ParseImageSelectionResponse(result.Content, segments);
+        Log.Information("[AI-IMGSEL] ✔ got {Selected}/{Total} selections in {Elapsed}s",
+            parsed.Length, segments.Length, sw.Elapsed.TotalSeconds.ToString("F1"));
+        return parsed;
     }
 
     public async Task<bool> ValidateApiKeyAsync(CancellationToken ct = default)
@@ -264,28 +292,36 @@ public sealed class YesScaleProvider : IAIProvider
 
     private static string BuildScriptAnalysisUserPrompt(string script, double? audioDuration)
     {
-        var durationNote = audioDuration.HasValue
-            ? $"Total audio duration: {audioDuration:F2} seconds.\n"
-            : string.Empty;
-        return $"{durationNote}Analyze this timestamped podcast transcript and return the JSON array:\n\n{script}";
+        var sb = new StringBuilder();
+        if (audioDuration.HasValue)
+        {
+            sb.AppendLine($"Audio duration: {audioDuration:F1}s");
+            var targetScenes = Math.Max(3, (int)Math.Round(audioDuration.Value / 12.0));
+            sb.AppendLine($"Target: ~{targetScenes} scenes (each 10-15s). Merge adjacent lines by topic.");
+        }
+        else
+        {
+            var segCount = ScriptChunker.SplitIntoSegmentLines(script).Count;
+            var targetScenes = Math.Max(3, segCount / 4);
+            sb.AppendLine($"Input has {segCount} transcript lines. Merge into ~{targetScenes} scenes (each 10-15s, 2-5 lines per scene).");
+        }
+        sb.AppendLine();
+        sb.Append(script);
+        return sb.ToString();
     }
 
     private static string BuildImageSelectionUserPrompt(SegmentWithCandidates[] segments)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Chọn ảnh nền cho các segment sau:");
-        sb.AppendLine();
+        sb.AppendLine($"Chọn ảnh cho {segments.Length} segment:");
 
         foreach (var s in segments)
         {
-            sb.AppendLine($"Segment {s.SegmentIndex}: \"{s.Context}\"");
-            sb.AppendLine("Candidates:");
+            sb.AppendLine($"\n[{s.SegmentIndex}] \"{s.Context}\"");
             foreach (var c in s.Candidates)
-                sb.AppendLine($"  - {c.Id}: {c.Semantic}");
-            sb.AppendLine();
+                sb.AppendLine($"  {c.Id}: {c.Semantic}");
         }
 
-        sb.AppendLine("Trả về JSON array theo đúng format đã mô tả.");
         return sb.ToString();
     }
 
@@ -336,10 +372,14 @@ public sealed class YesScaleProvider : IAIProvider
 
                 return result;
             }
-            catch (ApiException aex) when (aex.IsTransient && i < attempts.Count - 1)
+            catch (ApiException aex) when ((aex.IsTransient || aex.IsChannelError) && i < attempts.Count - 1)
             {
-                Log.Warning("Model {Model} failed with transient error {StatusCode}, trying fallback {Next}",
-                    model, aex.StatusCode, attempts[i + 1].Model);
+                if (aex.IsChannelError)
+                    Log.Warning("Model {Model} not available for this API key, trying fallback {Next}",
+                        model, attempts[i + 1].Model);
+                else
+                    Log.Warning("Model {Model} failed with transient error {StatusCode}, trying fallback {Next}",
+                        model, aex.StatusCode, attempts[i + 1].Model);
                 lastException = aex;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested && i < attempts.Count - 1)
@@ -361,6 +401,12 @@ public sealed class YesScaleProvider : IAIProvider
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
+
+        // Log full prompt to ai-prompts-*.txt for analysis
+        var aiLog = Log.ForContext("AICall", true);
+        aiLog.Debug("[PROMPT] model={Model} temp={Temp} maxTokens={MaxTokens}{NewLine}" +
+                    "=== SYSTEM ===\n{System}\n=== USER ===\n{User}",
+            model, temperature, maxTokens, Environment.NewLine, systemPrompt, userPrompt);
 
         var body = new
         {
@@ -384,17 +430,33 @@ public sealed class YesScaleProvider : IAIProvider
         var effectiveKey = apiKeyOverride ?? _settings.YesScaleApiKey;
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", effectiveKey);
 
+        var httpSw = Stopwatch.StartNew();
         var response = await _http.SendAsync(request, cts.Token);
         var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
+        httpSw.Stop();
 
         if (!response.IsSuccessStatusCode)
+        {
+            Log.Warning("[AI-HTTP] {Model} \u2717 HTTP {Status} in {Elapsed}s — {Body}",
+                model, (int)response.StatusCode, httpSw.Elapsed.TotalSeconds.ToString("F1"),
+                responseBody.Length > 200 ? responseBody[..200] : responseBody);
+            aiLog.Debug("[RESPONSE-ERROR] model={Model} HTTP {Status} in {Elapsed}s{NewLine}=== ERROR BODY ===\n{Body}",
+                model, (int)response.StatusCode, httpSw.Elapsed.TotalSeconds.ToString("F1"), Environment.NewLine, responseBody);
             throw new ApiException((int)response.StatusCode,
                 $"YesScale API returned {(int)response.StatusCode}: {responseBody}");
+        }
+
+        Log.Information("[AI-HTTP] {Model} \u2714 HTTP {Status} in {Elapsed}s ({ResponseLen} chars)",
+            model, (int)response.StatusCode, httpSw.Elapsed.TotalSeconds.ToString("F1"), responseBody.Length);
 
         var node = JsonNode.Parse(responseBody);
         var text = node?["choices"]?[0]?["message"]?["content"]?.GetValue<string>()
                    ?? throw new InvalidOperationException("Unexpected API response shape");
         var finishReason = node?["choices"]?[0]?["finish_reason"]?.GetValue<string>() ?? "unknown";
+
+        // Log raw response to ai-prompts-*.txt for analysis
+        aiLog.Debug("[RESPONSE] model={Model} finish={Finish} elapsed={Elapsed}s{NewLine}=== RESPONSE ===\n{Response}",
+            model, finishReason, httpSw.Elapsed.TotalSeconds.ToString("F1"), Environment.NewLine, text);
 
         return new ChatResult(text, finishReason);
     }
@@ -420,6 +482,11 @@ public sealed class YesScaleProvider : IAIProvider
             try
             {
                 return await action();
+            }
+            catch (ApiException aex) when (aex.IsChannelError)
+            {
+                // Channel not available for this API key — will never succeed on retry, fall through to next model immediately.
+                throw;
             }
             catch (ApiException aex) when (!aex.IsTransient)
             {
@@ -567,7 +634,7 @@ public sealed class YesScaleProvider : IAIProvider
                 EndTime:   ReadDouble(el, "endTime"),
                 Text:      el.TryGetProperty("text", out var t) ? t.GetString() ?? string.Empty : string.Empty,
                 Keywords:  el.TryGetProperty("keywords", out var k)
-                             ? k.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Take(5).ToArray()
+                             ? k.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Take(3).ToArray()
                              : Array.Empty<string>()
             );
         }
@@ -592,7 +659,7 @@ public sealed class YesScaleProvider : IAIProvider
                 Text:      el.GetProperty("text").GetString() ?? string.Empty,
                 Keywords:  el.GetProperty("keywords").EnumerateArray()
                              .Select(k => k.GetString() ?? string.Empty)
-                             .Take(5).ToArray()
+                             .Take(3).ToArray()
             )).ToArray();
         }
         catch (Exception ex)
@@ -609,6 +676,19 @@ public sealed class YesScaleProvider : IAIProvider
             .SelectMany(s => s.Candidates.Select(c => c.Id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Build position→globalIndex map.
+        // AI often returns 0-based batch-local indices (0,1,2…) even though
+        // the prompt uses global segment indices.  Map both so either works:
+        //   position 0 → segments[0].SegmentIndex (global)
+        //   position 1 → segments[1].SegmentIndex (global)  etc.
+        var globalIndexByPosition = new Dictionary<int, int>();
+        var globalIndexSet = new HashSet<int>();
+        for (int i = 0; i < segments.Length; i++)
+        {
+            globalIndexByPosition[i] = segments[i].SegmentIndex;
+            globalIndexSet.Add(segments[i].SegmentIndex);
+        }
+
         try
         {
             var arr = JsonSerializer.Deserialize<JsonElement[]>(json, _jsonOpts)
@@ -617,22 +697,44 @@ public sealed class YesScaleProvider : IAIProvider
             var results = new List<AIImageSelectionResultItem>();
             foreach (var el in arr)
             {
-                var idx     = el.GetProperty("segmentIndex").GetInt32();
+                var rawIdx  = el.GetProperty("segmentIndex").GetInt32();
+
+                // Determine the correct global segment index:
+                // AI models (especially lighter ones) commonly return 0-based
+                // batch-local positions even when the prompt shows global indices.
+                // Priority:
+                //   1) rawIdx < batch size → treat as batch-local position (most common)
+                //   2) rawIdx matches a global index in this batch → use as global
+                //   3) Otherwise → skip
+                int globalIdx;
+                if (rawIdx >= 0 && rawIdx < segments.Length)
+                    globalIdx = segments[rawIdx].SegmentIndex;
+                else if (globalIndexSet.Contains(rawIdx))
+                    globalIdx = rawIdx;
+                else
+                {
+                    Log.Warning("AI returned out-of-range segmentIndex {Idx} — skipping", rawIdx);
+                    continue;
+                }
+
                 var chosen  = el.GetProperty("chosenId").GetString() ?? string.Empty;
-                var backups = el.GetProperty("backupIds").EnumerateArray()
-                               .Select(k => k.GetString() ?? string.Empty)
-                               .Where(id => validIds.Contains(id))
-                               .ToArray();
+                // backupIds and reason are optional — prompt no longer requests them
+                var backups = el.TryGetProperty("backupIds", out var bArr)
+                               ? bArr.EnumerateArray()
+                                     .Select(k => k.GetString() ?? string.Empty)
+                                     .Where(id => validIds.Contains(id))
+                                     .ToArray()
+                               : [];
                 var reason  = el.TryGetProperty("reason", out var r) ? r.GetString() ?? string.Empty : string.Empty;
 
                 // Validate chosen ID exists in candidates
                 if (!validIds.Contains(chosen))
                 {
-                    Log.Warning("AI returned invalid chosenId '{Id}' for segment {Idx} — skipping", chosen, idx);
+                    Log.Warning("AI returned invalid chosenId '{Id}' for segment {Idx} — skipping", chosen, globalIdx);
                     continue;
                 }
 
-                results.Add(new AIImageSelectionResultItem(idx, chosen, backups, reason));
+                results.Add(new AIImageSelectionResultItem(globalIdx, chosen, backups, reason));
             }
             return [.. results];
         }

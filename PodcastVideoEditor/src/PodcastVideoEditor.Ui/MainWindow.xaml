@@ -694,6 +694,12 @@
                                         Command="{Binding SaveSettingsCommand}"
                                         Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
                                         FontWeight="SemiBold" FontSize="13" />
+                                <Button Width="160" Height="36" Margin="10,0,0,0"
+                                        Content="↺  Reset AI Defaults"
+                                        Command="{Binding ResetAIDefaultsCommand}"
+                                        Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                        FontSize="13"
+                                        ToolTip="Xóa cấu hình AI hiện tại và khôi phục về mặc định từ appsettings.json (model, API keys, fallback chain)" />
                             </StackPanel>
 
                             <!-- Status message -->
@@ -737,6 +743,26 @@
                                 </Border>
                             </Expander>
                         </Grid>
+
+                        <StackPanel Margin="0,20,0,0">
+                            <TextBlock Text="Diagnostics" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
+                            <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
+                                <StackPanel>
+                                    <TextBlock Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                               Text="Log file ghi toàn bộ hoạt động của app, bao gồm timing từng bước AI (AI-PIPELINE, AI-HTTP). File ai-prompts-*.txt chứa đầy đủ prompt gửi đi và response nhận về từ AI. Sau khi chạy phân tích AI, mở thư mục Logs để xem chi tiết." />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock x:Name="LogPathText" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"
+                                                   FontFamily="Consolas" Margin="0,0,10,0" />
+                                        <Button Width="100" Height="26"
+                                                Content="📂  Mở Logs"
+                                                x:Name="OpenLogFolderBtn"
+                                                Click="OpenLogFolder_Click"
+                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                ToolTip="Mở thư mục chứa log file trong Explorer" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />

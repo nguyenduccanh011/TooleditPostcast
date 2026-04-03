@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Services.AI;
+using PodcastVideoEditor.Ui.Configuration;
 using PodcastVideoEditor.Ui.Services;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
@@ -49,6 +50,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly UserSettingsStore _store;
     private readonly IAIProvider _aiProvider;
     private readonly string _appDataPath;
+    private readonly AppConfiguration _appConfig;
     private CancellationTokenSource? _loadModelsCts;
 
     // ── YesScale ─────────────────────────────────────────────────────────────
@@ -96,11 +98,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Per-profile model mapping built during refresh.</summary>
     private Dictionary<string, List<string>> _profileModelMap = new();
 
-    public SettingsViewModel(UserSettingsStore store, IAIProvider aiProvider, string appDataPath)
+    public SettingsViewModel(UserSettingsStore store, IAIProvider aiProvider, string appDataPath, AppConfiguration appConfig)
     {
         _store       = store;
         _aiProvider  = aiProvider;
         _appDataPath = appDataPath;
+        _appConfig   = appConfig;
         LoadFromStore();
         QueueYesScaleModelReload();
     }
@@ -265,6 +268,32 @@ public sealed partial class SettingsViewModel : ObservableObject
         _loadModelsCts?.Dispose();
         _loadModelsCts = new CancellationTokenSource();
         await LoadYesScaleModelsAsync(_loadModelsCts.Token, skipDebounce: true);
+    }
+
+    [RelayCommand]
+    private void ResetAIDefaults()
+    {
+        try
+        {
+            // Clear ALL AI-specific user settings so ApplyFallbacks can fill them from appsettings.json
+            _store.YesScaleApiKey    = string.Empty;
+            _store.YesScaleBaseUrl   = string.Empty;
+            _store.YesScaleModel     = string.Empty;
+            _store.ApiKeyProfiles.Clear();
+            _store.FallbackEntries.Clear();
+            _store.PrimaryProfileId  = string.Empty;
+            _store.ApplyFallbacks(_appConfig);
+            _store.Save(_appDataPath);
+            LoadFromStore();
+            QueueYesScaleModelReload();
+            IsStatusError = false;
+            StatusMessage = "AI settings reset to defaults.";
+        }
+        catch (Exception ex)
+        {
+            IsStatusError = true;
+            StatusMessage = $"Reset failed: {ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -515,8 +544,21 @@ public sealed partial class SettingsViewModel : ObservableObject
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(YesScaleModel) || !AvailableYesScaleModels.Contains(YesScaleModel))
-                    YesScaleModel = AvailableYesScaleModels.First();
+                if (string.IsNullOrWhiteSpace(YesScaleModel)
+                    || !AvailableYesScaleModels.Any(m => m.Equals(YesScaleModel, StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Prefer keeping the configured default from appsettings.json
+                    var defaultModel = _appConfig.AIAnalysis.DefaultModel;
+                    if (!string.IsNullOrWhiteSpace(defaultModel)
+                        && AvailableYesScaleModels.Any(m => m.Equals(defaultModel, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        YesScaleModel = AvailableYesScaleModels.First(m => m.Equals(defaultModel, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
+                    {
+                        YesScaleModel = AvailableYesScaleModels.First();
+                    }
+                }
 
                 var totalModels = GroupedModels.Count;
                 var uniqueModels = AvailableYesScaleModels.Count;

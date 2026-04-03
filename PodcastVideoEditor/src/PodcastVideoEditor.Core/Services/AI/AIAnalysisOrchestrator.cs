@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
@@ -8,12 +9,10 @@ namespace PodcastVideoEditor.Core.Services.AI;
 
 /// <summary>
 /// Executes the full AI processing pipeline:
-/// 1. Normalize script (10%)
-/// 2. Analyze script → AISegment[] with keywords (40%)
-/// 3. Fetch ~60 image candidates per segment from 3 providers (70%)
-/// 4. AI selects best image per segment (90%)
-/// 5. Download chosen images → register as Assets (95%)
-/// 6. Build text + visual Segment objects ready for DB (100%)
+/// 1. Analyze script → AISegment[] with keywords + ASR correction (40%)
+/// 2. Fetch ~60 image candidates per segment from 3 providers + AI select (90%)
+/// 3. Download chosen images → register as Assets (95%)
+/// 4. Build text + visual Segment objects ready for DB (100%)
 /// </summary>
 public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
 {
@@ -42,29 +41,40 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         CancellationToken ct = default,
         bool closeGaps = true)
     {
+        var totalSw = Stopwatch.StartNew();
+        var segLineCount = PodcastVideoEditor.Core.Utilities.ScriptChunker.SplitIntoSegmentLines(script).Count;
+        Log.Information("[AI-PIPELINE] ▶ START — project={ProjectId} transcriptLines={LineCount} audioDuration={Duration}s",
+            project.Id, segLineCount, audioDuration?.ToString("F1") ?? "?");
+
         Report(progress, 1, 5, "Chuẩn bị…");
 
-        // ── Step 1: Normalize ──────────────────────────────────────────────
-        Report(progress, 1, 10, "Đang chuẩn hóa script…");
-        var normalizedScript = await _aiProvider.NormalizeScriptAsync(script, ct);
-
-        // ── Step 2: Analyze → AISegment[] ─────────────────────────────────
-        Report(progress, 2, 20, "AI đang phân tích script…");
-        var analysisReq = new AIAnalysisRequest(normalizedScript, audioDuration);
+        // ── Step 1: Analyze → AISegment[] ─────────────────────────────────
+        // AnalyzeScript prompt already includes ASR correction, so separate
+        // NormalizeScript step is redundant and removed for speed.
+        Report(progress, 1, 10, "AI đang phân tích script…");
+        var sw1 = Stopwatch.StartNew();
+        var analysisReq = new AIAnalysisRequest(script, audioDuration);
         var analysisResp = await _aiProvider.AnalyzeScriptAsync(analysisReq, ct);
         var aiSegments  = analysisResp.Segments;
-        Report(progress, 2, 40, $"Phân tích xong: {aiSegments.Length} segment");
+        sw1.Stop();
+        Log.Information("[AI-PIPELINE] ✔ Step1/AnalyzeScript — scenes={Scenes} fromLines={Lines} elapsed={Elapsed}s",
+            aiSegments.Length, segLineCount, sw1.Elapsed.TotalSeconds.ToString("F1"));
+        Report(progress, 1, 40, $"Phân tích xong: {aiSegments.Length} phân cảnh");
 
-        // ── Step 3+4: Fetch candidates + AI select ─────────────────────────
-        Report(progress, 3, 50, "Đang tìm kiếm ảnh…");
+        // ── Step 2: Fetch candidates + AI select ───────────────────────
+        Report(progress, 2, 50, "Đang tìm kiếm ảnh…");
+        var sw2 = Stopwatch.StartNew();
         var (selectionResults, candidateUrlMap) = await _imageSelection.RunSelectBackgroundsAsync(aiSegments, progress, ct);
-        Report(progress, 4, 90, "Đã chọn ảnh xong");
+        sw2.Stop();
+        Log.Information("[AI-PIPELINE] ✔ Step2/ImageSelect — selected={Selected}/{Total} elapsed={Elapsed}s",
+            selectionResults.Length, aiSegments.Length, sw2.Elapsed.TotalSeconds.ToString("F1"));
+        Report(progress, 2, 90, "Đã chọn ảnh xong");
 
         // Build lookup: segmentIndex → chosen candidate ID
         var selectionMap = selectionResults.ToDictionary(r => r.SegmentIndex);
 
-        // ── Step 5: Download images + register as assets ──────────────────
-        Report(progress, 5, 90, "Đang tải ảnh về…");
+        // ── Step 3: Download images + register as assets ──────────────
+        Report(progress, 3, 90, "Đang tải ảnh về…");
         var textTrackId   = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text)?.Id
                             ?? throw new InvalidOperationException("No text track in project");
         var visualTrackId = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Visual)?.Id
@@ -73,6 +83,7 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         var registeredAssetIds = new List<string>();
         var segmentAssetMap = new Dictionary<int, string>();
         var preparedAssets = new ConcurrentDictionary<int, PreparedDownload>();
+        var sw3 = Stopwatch.StartNew();
         try
         {
             await Parallel.ForEachAsync(
@@ -106,31 +117,42 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
             foreach (var prepared in preparedAssets.Values)
                 TryDeleteFile(prepared.FilePath);
         }
+        sw3.Stop();
+        Log.Information("[AI-PIPELINE] ✔ Step3/DownloadImages — downloaded={Downloaded}/{Selected} elapsed={Elapsed}s",
+            registeredAssetIds.Count, selectionResults.Length, sw3.Elapsed.TotalSeconds.ToString("F1"));
 
-        Report(progress, 5, 95, $"Đã tải {registeredAssetIds.Count} ảnh");
+        Report(progress, 3, 95, $"Đã tải {registeredAssetIds.Count} ảnh");
 
-        // ── Step 6: Build Segment objects ─────────────────────────────────
-        Report(progress, 6, 98, "Xây dựng segment…");
+        // ── Step 4: Build Segment objects ─────────────────────────────
+        // Text segments: per-sentence from original script (subtitle-style)
+        // Visual segments: merged scenes from AI analysis (1 image per scene)
+        Report(progress, 4, 98, "Xây dựng segment…");
         var textSegments   = new List<Segment>();
         var visualSegments = new List<Segment>();
 
-        for (int i = 0; i < aiSegments.Length; i++)
+        // 4a: Text segments from original script lines (per-sentence)
+        var scriptLines = PodcastVideoEditor.Core.Utilities.ScriptChunker.ParseTimestampedLines(script);
+        for (int i = 0; i < scriptLines.Count; i++)
         {
-            var ai = aiSegments[i];
-
+            var (start, end, text) = scriptLines[i];
             textSegments.Add(new Segment
             {
                 ProjectId          = project.Id,
                 TrackId            = textTrackId,
-                StartTime          = Math.Round(ai.StartTime, 2),
-                EndTime            = Math.Round(ai.EndTime,   2),
-                Text               = ai.Text,
+                StartTime          = Math.Round(start, 2),
+                EndTime            = Math.Round(end,   2),
+                Text               = text,
                 Kind               = SegmentKind.Text,
                 TransitionType     = "fade",
                 TransitionDuration = 0.5,
                 Order              = i
             });
+        }
 
+        // 4b: Visual segments from AI scenes (merged, 10-15s each)
+        for (int i = 0; i < aiSegments.Length; i++)
+        {
+            var ai = aiSegments[i];
             var assetId = segmentAssetMap.TryGetValue(i, out var id) ? id : null;
             visualSegments.Add(new Segment
             {
@@ -147,13 +169,26 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
             });
         }
 
-        // ── Step 6b: Close gaps between segments ─────────────────────────────
+        // ── Step 4c: Close gaps between segments ─────────────────────
         // ASR timestamps often have small gaps (e.g. 2.42→2.74). Extend each
         // segment's EndTime to the next segment's StartTime so scenes are seamless.
+        // Close gaps independently since text and visual have different segment counts.
         if (closeGaps)
-            CloseGapsService.CloseGapsPaired(textSegments, visualSegments);
+        {
+            CloseGapsService.CloseGaps(textSegments);
+            CloseGapsService.CloseGaps(visualSegments);
+        }
 
-        Report(progress, 6, 100, $"Hoàn thành! {textSegments.Count} segment, {registeredAssetIds.Count} ảnh");
+        totalSw.Stop();
+        Log.Information("[AI-PIPELINE] ■ DONE — segments={Segments} images={Images} total={Total}s  " +
+            "(analyze={A}s  imageSelect={B}s  download={C}s)",
+            textSegments.Count, registeredAssetIds.Count,
+            totalSw.Elapsed.TotalSeconds.ToString("F1"),
+            sw1.Elapsed.TotalSeconds.ToString("F1"),
+            sw2.Elapsed.TotalSeconds.ToString("F1"),
+            sw3.Elapsed.TotalSeconds.ToString("F1"));
+
+        Report(progress, 4, 100, $"Hoàn thành! {textSegments.Count} segment, {registeredAssetIds.Count} ảnh");
 
         return new OrchestratorResult(
             [.. textSegments],

@@ -18,16 +18,29 @@ public static class LoggingConfiguration
         Directory.CreateDirectory(logsPath);
 
         Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            // Console logging disabled for production (uncomment for debugging)
-            // .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-            .WriteTo.File(
-                path: Path.Combine(logsPath, "app-.txt"),
-                rollingInterval: RollingInterval.Day,
-                outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",
-                retainedFileCountLimit: 30,
-                fileSizeLimitBytes: 10_485_760 // 10 MB
-            )
+            .MinimumLevel.Debug()
+            // Main log: Information+ for all messages
+            .WriteTo.Logger(lc => lc
+                .MinimumLevel.Information()
+                .WriteTo.File(
+                    path: Path.Combine(logsPath, "app-.txt"),
+                    rollingInterval: RollingInterval.Day,
+                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                    retainedFileCountLimit: 30,
+                    fileSizeLimitBytes: 10_485_760 // 10 MB
+                ))
+            // AI debug log: Debug+ filtered to events tagged with AICall property.
+            // Contains full prompts and raw responses for prompt analysis/improvement.
+            .WriteTo.Logger(lc => lc
+                .MinimumLevel.Debug()
+                .Filter.ByIncludingOnly(e => e.Properties.ContainsKey("AICall"))
+                .WriteTo.File(
+                    path: Path.Combine(logsPath, "ai-prompts-.txt"),
+                    rollingInterval: RollingInterval.Day,
+                    outputTemplate: "──────────────────────────────────────────{NewLine}[{Timestamp:HH:mm:ss.fff}] [{Level:u3}] {Message:lj}{NewLine}{Exception}",
+                    retainedFileCountLimit: 14,
+                    fileSizeLimitBytes: 52_428_800 // 50 MB
+                ))
             .CreateLogger();
 
         Log.Information("Application started - AppDataPath: {AppDataPath}", appDataPath);
