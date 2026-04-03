@@ -294,7 +294,7 @@ public static class FFmpegFilterGraphBuilder
 
         string? resolvedDefaultFont = FFmpegCodecHelper.ResolveDefaultFontPath();
 
-        var textTempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text");
+        var textTempDir = Path.Combine(Path.GetTempPath(), "pve", "rt");
         Directory.CreateDirectory(textTempDir);
 
         for (int i = 0; i < textSegments.Count; i++)
@@ -456,8 +456,7 @@ public static class FFmpegFilterGraphBuilder
 
     private static string WriteFilterScript(string filterStr, string outputPath)
     {
-        var filterScriptPath = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor",
-            $"filter_{Path.GetFileNameWithoutExtension(outputPath)}.txt");
+        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
         Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);

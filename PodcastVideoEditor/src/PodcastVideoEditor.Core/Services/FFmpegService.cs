@@ -598,30 +598,35 @@ public static class FFmpegService
     {
         try
         {
-            var tempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor");
-
-            // Delete filter script
-            var filterScript = Path.Combine(tempDir,
-                $"filter_{Path.GetFileNameWithoutExtension(outputPath)}.txt");
-            if (File.Exists(filterScript))
-                File.Delete(filterScript);
-
-            // Delete text segment temp files (drawtext input)
-            var textDir = Path.Combine(tempDir, "render_text");
-            if (Directory.Exists(textDir))
-                Directory.Delete(textDir, recursive: true);
-
-            // Delete rasterized text PNG images (unique per-render dirs: render_text_img_*)
-            foreach (var dir in Directory.EnumerateDirectories(tempDir, "render_text_img*"))
+            // Clean short-path temp dir (pve/)
+            var pveDir = Path.Combine(Path.GetTempPath(), "pve");
+            if (Directory.Exists(pveDir))
             {
-                try { Directory.Delete(dir, recursive: true); }
-                catch { /* still locked by FFmpeg — will be cleaned on next render */ }
+                // Delete filter script
+                var filterScript = Path.Combine(pveDir, "fc.txt");
+                if (File.Exists(filterScript))
+                    File.Delete(filterScript);
+
+                // Delete drawtext temp files
+                var rtDir = Path.Combine(pveDir, "rt");
+                if (Directory.Exists(rtDir))
+                    Directory.Delete(rtDir, recursive: true);
+
+                // Delete rasterized text PNG images (unique per-render dirs: ri*)
+                foreach (var dir in Directory.EnumerateDirectories(pveDir, "ri*"))
+                {
+                    try { Directory.Delete(dir, recursive: true); }
+                    catch { /* still locked by FFmpeg — will be cleaned on next render */ }
+                }
             }
 
-            // Delete baked visualizer video files
-            var vizDir = Path.Combine(tempDir, "visualizer_bake");
-            if (Directory.Exists(vizDir))
-                Directory.Delete(vizDir, recursive: true);
+            // Legacy path cleanup (from older versions)
+            var legacyDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor");
+            if (Directory.Exists(legacyDir))
+            {
+                try { Directory.Delete(legacyDir, recursive: true); }
+                catch { /* best-effort */ }
+            }
         }
         catch (Exception ex)
         {
@@ -660,6 +665,18 @@ public static class FFmpegService
     {
         try
         {
+            // Windows CreateProcess limit: 32,767 chars for the full command line.
+            // Log the length and fail early with a clear message if exceeded.
+            var totalCmdLen = ffmpegPath.Length + 3 + args.Length; // "path" + space + args
+            Log.Information("FFmpeg command line length: {Len} chars", totalCmdLen);
+            if (totalCmdLen > 32_000)
+            {
+                Log.Error("FFmpeg command line too long ({Len} chars, limit ~32,767). " +
+                          "Reduce the number of timeline segments or use shorter file paths.", totalCmdLen);
+                return (false, $"Render failed: FFmpeg command line is too long ({totalCmdLen} chars). " +
+                               "Try reducing the number of text/visual segments on the timeline.");
+            }
+
             var processInfo = new ProcessStartInfo
             {
                 FileName = ffmpegPath,

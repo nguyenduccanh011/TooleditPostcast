@@ -268,10 +268,11 @@ public static class RenderSegmentBuilder
         Log.Information("BuildRasterizedTextSegments: {TrackCount} text tracks, {SegCount} total segments, {ElCount} snapshot elements",
             textTracks.Count, totalTextSegs, elements?.Count ?? 0);
 
-        // Create temp directory for rasterized text images
-        // Use a unique temp directory per render to avoid file-lock conflicts
-        // when a previous FFmpeg process still holds earlier PNGs open.
-        var textImageDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text_img_" + Guid.NewGuid().ToString("N")[..8]);
+        // Create temp directory for rasterized text images.
+        // Use SHORT paths to keep total FFmpeg command-line under Windows'
+        // 32,767-char CreateProcess limit when there are many text segments.
+        // Each -i "path" on the command line adds ~(60 + path_length) chars.
+        var textImageDir = Path.Combine(Path.GetTempPath(), "pve", "ri" + Guid.NewGuid().ToString("N")[..6]);
         Directory.CreateDirectory(textImageDir);
 
         // First pass: collect all work items with pre-assigned indices (needed for
@@ -387,7 +388,7 @@ public static class RenderSegmentBuilder
         Parallel.For(0, workItems.Count, i =>
         {
             var item = workItems[i];
-            var imagePath = Path.Combine(textImageDir, $"text_{item.index}.png");
+            var imagePath = Path.Combine(textImageDir, $"t{item.index}.png");
             try
             {
                 TextRasterizer.RenderToFile(item.options, imagePath);

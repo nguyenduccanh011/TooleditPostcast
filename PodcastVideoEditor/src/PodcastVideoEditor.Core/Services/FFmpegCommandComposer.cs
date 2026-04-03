@@ -572,7 +572,7 @@ public static class FFmpegCommandComposer
         string? resolvedDefaultFont = ResolveDefaultFontPath();
 
         // Step 4: Text overlays via drawtext
-        var textTempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "render_text");
+        var textTempDir = Path.Combine(Path.GetTempPath(), "pve", "rt");
         if (textSegments.Count > 0)
             Directory.CreateDirectory(textTempDir);
 
@@ -583,7 +583,7 @@ public static class FFmpegCommandComposer
             var end   = ts.EndTime.ToString("F3", invariant);
             var outLabel = $"t{i}";
 
-            var textFilePath = Path.Combine(textTempDir, $"seg_{i}.txt");
+            var textFilePath = Path.Combine(textTempDir, $"s{i}.txt");
             File.WriteAllText(textFilePath, ts.Text, new UTF8Encoding(false));
 
             var fontPath = ts.FontFilePath;
@@ -658,9 +658,8 @@ public static class FFmpegCommandComposer
 
         var filterStr = filter.ToString().TrimEnd(';');
 
-        // Write filter to a temp script file
-        var filterScriptPath = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor",
-            $"filter_{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt");
+        // Write filter to a temp script file (short path to save command-line chars)
+        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
         Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);

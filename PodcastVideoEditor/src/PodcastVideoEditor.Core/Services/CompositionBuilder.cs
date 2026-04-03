@@ -80,7 +80,7 @@ public class CompositionBuilder : ICompositionBuilder
             .OrderByDescending(t => t.Order) // background first → low z → overlaid first
             .ToList() ?? [];
 
-        var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "PodcastVideoEditor", "render_text_img");
+        var textImageDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "pve", "ri");
         System.IO.Directory.CreateDirectory(textImageDir);
         int textIndex = 0;
 
@@ -294,7 +294,7 @@ public class CompositionBuilder : ICompositionBuilder
         options.Width = imgWidth;
         options.Height = imgHeight;
 
-        var imagePath = System.IO.Path.Combine(textImageDir, $"text_{textIndex}.png");
+        var imagePath = System.IO.Path.Combine(textImageDir, $"t{textIndex}.png");
         try
         {
             TextRasterizer.RenderToFile(options, imagePath);

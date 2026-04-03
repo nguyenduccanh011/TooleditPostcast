@@ -113,7 +113,7 @@ public static class OfflineVisualizerBaker
         };
 
         // ── Prepare temp output file ────────────────────────────────────────
-        var tempDir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "visualizer_bake");
+        var tempDir = Path.Combine(Path.GetTempPath(), "pve", "vb");
         Directory.CreateDirectory(tempDir);
         var outputPath = Path.Combine(tempDir,
             $"viz_{element.Id}_{DateTime.Now:yyyyMMddHHmmssff}.mov");
