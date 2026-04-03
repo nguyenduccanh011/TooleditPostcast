@@ -30,10 +30,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 8 SDK
+      - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: 9.0.x
 
       - name: Install packaging dependencies
         run: |
@@ -42,15 +42,41 @@ jobs:
 
       - name: Resolve FFmpeg bundle directory
         run: |
-          $ffmpegBinDir = "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin"
-          if (-not (Test-Path (Join-Path $ffmpegBinDir "ffmpeg.exe"))) {
-            throw "Expected ffmpeg.exe at $ffmpegBinDir"
+          # Refresh PATH so choco-installed tools are visible
+          $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
+
+          # Search common Chocolatey layouts and PATH
+          $candidates = @(
+            "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin",
+            "C:\ProgramData\chocolatey\lib\ffmpeg\tools",
+            "C:\ProgramData\chocolatey\bin"
+          )
+
+          $cmd = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
+          if ($cmd) { $candidates += (Split-Path -Parent $cmd.Source) }
+
+          # Also scan any nested bin dirs under the chocolatey ffmpeg lib
+          $chocoFfmpegRoot = "C:\ProgramData\chocolatey\lib\ffmpeg\tools"
+          if (Test-Path $chocoFfmpegRoot) {
+            Get-ChildItem -Path $chocoFfmpegRoot -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue |
+              ForEach-Object { $candidates += $_.DirectoryName }
           }
 
-          if (-not (Test-Path (Join-Path $ffmpegBinDir "ffprobe.exe"))) {
-            throw "Expected ffprobe.exe at $ffmpegBinDir"
+          $ffmpegBinDir = $null
+          foreach ($dir in $candidates | Select-Object -Unique) {
+            if ((Test-Path (Join-Path $dir "ffmpeg.exe")) -and (Test-Path (Join-Path $dir "ffprobe.exe"))) {
+              $ffmpegBinDir = $dir
+              break
+            }
           }
 
+          if (-not $ffmpegBinDir) {
+            Write-Host "Searched candidates:"
+            $candidates | ForEach-Object { Write-Host "  - $_" }
+            throw "Could not find ffmpeg.exe + ffprobe.exe in any known location."
+          }
+
+          Write-Host "Found FFmpeg at: $ffmpegBinDir"
           "FFMPEG_BIN_DIR=$ffmpegBinDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Resolve release version

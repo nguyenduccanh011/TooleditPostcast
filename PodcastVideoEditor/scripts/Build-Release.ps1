@@ -44,6 +44,19 @@ function Resolve-FFmpegDirectory([string]$repoRoot, [string]$requestedDirectory)
 
     $candidates += (Join-Path $repoRoot "third_party\ffmpeg\bin")
 
+    # Common Chocolatey layouts (path structure varies across package versions)
+    $chocoBase = "C:\ProgramData\chocolatey"
+    $candidates += (Join-Path $chocoBase "lib\ffmpeg\tools\ffmpeg\bin")
+    $candidates += (Join-Path $chocoBase "lib\ffmpeg\tools")
+    $candidates += (Join-Path $chocoBase "bin")
+
+    # Recursively scan Chocolatey ffmpeg package directory
+    $chocoFfmpegRoot = Join-Path $chocoBase "lib\ffmpeg\tools"
+    if (Test-Path $chocoFfmpegRoot) {
+        Get-ChildItem -Path $chocoFfmpegRoot -Filter "ffmpeg.exe" -Recurse -ErrorAction SilentlyContinue |
+            ForEach-Object { $candidates += $_.DirectoryName }
+    }
+
     $ffmpegCommand = Get-Command ffmpeg -ErrorAction SilentlyContinue
     if ($ffmpegCommand) {
         $candidates += (Split-Path -Parent $ffmpegCommand.Source)
@@ -57,6 +70,8 @@ function Resolve-FFmpegDirectory([string]$repoRoot, [string]$requestedDirectory)
         }
     }
 
+    Write-Host "Searched the following candidate directories:"
+    $candidates | ForEach-Object { Write-Host "  - $_" }
     throw "Could not resolve an FFmpeg bundle directory. Provide -FfmpegBinDir or place ffmpeg.exe and ffprobe.exe under third_party\ffmpeg\bin."
 }
 

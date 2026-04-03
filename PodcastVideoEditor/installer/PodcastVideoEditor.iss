@@ -38,7 +38,7 @@ UninstallDisplayIcon={app}\PodcastVideoEditor.Ui.exe
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}.0
 VersionInfoDescription=Podcast Video Editor Installer
 
 [Tasks]
