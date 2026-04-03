@@ -40,14 +40,37 @@ jobs:
 
       - name: Download FFmpeg
         run: |
-          $ffmpegVersion = "7.1"
-          $archiveName = "ffmpeg-$ffmpegVersion-essentials_build.zip"
-          $url = "https://www.gyan.dev/ffmpeg/builds/packages/$archiveName"
-          $downloadPath = Join-Path $env:RUNNER_TEMP $archiveName
           $extractPath = Join-Path $env:RUNNER_TEMP "ffmpeg"
 
-          Write-Host "Downloading FFmpeg $ffmpegVersion from $url"
-          Invoke-WebRequest -Uri $url -OutFile $downloadPath -UseBasicParsing
+          # Primary: BtbN GitHub releases (GitHub-to-GitHub, most reliable in Actions)
+          $sources = @(
+            @{
+              Url  = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+              Name = "ffmpeg-btbn.zip"
+            },
+            @{
+              Url  = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+              Name = "ffmpeg-gyan.zip"
+            }
+          )
+
+          $downloaded = $false
+          foreach ($src in $sources) {
+            $downloadPath = Join-Path $env:RUNNER_TEMP $src.Name
+            Write-Host "Trying: $($src.Url)"
+            try {
+              Invoke-WebRequest -Uri $src.Url -OutFile $downloadPath -UseBasicParsing -TimeoutSec 120
+              Write-Host "Downloaded successfully ($([math]::Round((Get-Item $downloadPath).Length / 1MB, 1)) MB)"
+              $downloaded = $true
+              break
+            } catch {
+              Write-Warning "Failed: $($_.Exception.Message)"
+            }
+          }
+
+          if (-not $downloaded) {
+            throw "All FFmpeg download sources failed."
+          }
 
           Write-Host "Extracting to $extractPath"
           Expand-Archive -Path $downloadPath -DestinationPath $extractPath -Force
@@ -57,7 +80,13 @@ jobs:
             Select-Object -First 1 | ForEach-Object { $_.DirectoryName }
 
           if (-not $binDir) {
-            throw "ffmpeg.exe not found after extracting $archiveName"
+            Get-ChildItem -Path $extractPath -Recurse | Select-Object -First 30 | ForEach-Object { Write-Host $_.FullName }
+            throw "ffmpeg.exe not found after extraction"
+          }
+
+          # Verify ffprobe.exe is also present
+          if (-not (Test-Path (Join-Path $binDir "ffprobe.exe"))) {
+            throw "ffprobe.exe not found at $binDir"
           }
 
           Write-Host "FFmpeg binaries at: $binDir"
