@@ -235,16 +235,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                // Get duration from audio service; if no main audio loaded, compute
-                // from the latest segment end time so the timeline is still usable.
-                // Always use the maximum of the two so segments can always extend freely.
-                var audioDuration = _audioService.GetDuration();
-                if (audioDuration > 0)
-                    TotalDuration = audioDuration;
-                else
-                    RecalculateDurationAndZoomToFit();
-                // PPS already recalculated by OnTotalDurationChanged / RecalculateDurationAndZoomToFit above
-
                 // Load tracks ordered by Order (display order)
                 var sortedTracks = _projectViewModel.CurrentProject.Tracks
                     .OrderBy(t => t.Order)
@@ -257,6 +247,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         track.Segments = new ObservableCollection<Segment>(track.Segments ?? Array.Empty<Segment>());
                     Tracks.Add(track);
                 }
+
+                // Calculate duration AFTER loading tracks so ComputeMaxSegmentEndTime sees real segment data.
+                // AI analysis may create segments that extend well beyond the loaded audio file's duration;
+                // moving this block here ensures TotalDuration = max(audioDuration, segmentEndTime + buffer).
+                var audioDuration = _audioService.GetDuration();
+                if (audioDuration > 0)
+                    RecalculateDurationFromSegments(); // max(audio, segments) — segments from AI may exceed audio
+                else
+                    RecalculateDurationAndZoomToFit(); // no audio: derive from segments and zoom to fit
 
                 // Set default selected track (first visual track or first track if none)
                 SelectedTrack = sortedTracks.FirstOrDefault(t => t.TrackType == TrackTypes.Visual) ?? sortedTracks.FirstOrDefault();
