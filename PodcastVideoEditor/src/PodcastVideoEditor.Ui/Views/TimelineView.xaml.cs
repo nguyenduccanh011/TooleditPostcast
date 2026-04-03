@@ -374,7 +374,7 @@ namespace PodcastVideoEditor.Ui.Views
 
         /// <summary>
         /// Update playhead position based on ViewModel's PlayheadPosition.
-        /// When playing, auto-scrolls the viewport to keep the playhead visible.
+        /// When playing or dragging, auto-scrolls the viewport to keep the playhead visible.
         /// </summary>
         private void UpdatePlayheadPosition()
         {
@@ -384,24 +384,50 @@ namespace PodcastVideoEditor.Ui.Views
             double pixelX = _viewModel.TimeToPixels(_viewModel.PlayheadPosition);
             Canvas.SetLeft(PlayheadLine, pixelX);
 
-            // Auto-scroll to follow playhead during playback.
-            // Margins scale with viewport so behaviour is consistent at every zoom level.
-            if (_viewModel.IsPlaying && TimelineScroller != null && !_isDraggingPlayhead)
-            {
-                double viewportWidth = TimelineScroller.ViewportWidth;
-                double offset = TimelineScroller.HorizontalOffset;
-                double rightMargin = Math.Max(40, viewportWidth * 0.10);  // 10% of viewport
-                double leftMargin  = Math.Max(20, viewportWidth * 0.05);  //  5% of viewport
+            // Auto-scroll to follow playhead during playback (not during drag — drag has its own auto-scroll).
+            if (_viewModel.IsPlaying && !_isDraggingPlayhead)
+                AutoScrollToPlayhead(pixelX);
+        }
 
-                if (pixelX > offset + viewportWidth - rightMargin)
+        /// <summary>
+        /// Scroll <see cref="TimelineScroller"/> so that <paramref name="pixelX"/> stays within the
+        /// visible viewport. Called during playback auto-scroll AND during playhead drag.
+        /// During drag the scroll is smooth/incremental so the user keeps visual feedback;
+        /// during playback we page-jump so the UI doesn't continuously scroll.
+        /// </summary>
+        private void AutoScrollToPlayhead(double pixelX, bool isDrag = false)
+        {
+            if (TimelineScroller == null) return;
+
+            double viewportWidth = TimelineScroller.ViewportWidth;
+            double offset = TimelineScroller.HorizontalOffset;
+            double rightMargin = Math.Max(40, viewportWidth * 0.10);  // 10% of viewport
+            double leftMargin  = Math.Max(20, viewportWidth * 0.05);  //  5% of viewport
+
+            if (pixelX > offset + viewportWidth - rightMargin)
+            {
+                if (isDrag)
                 {
-                    // Playhead approaching right edge → page-scroll so playhead is at left quarter
+                    // Smooth incremental scroll: shift by the amount the playhead exceeds the margin
+                    double overshoot = pixelX - (offset + viewportWidth - rightMargin);
+                    TimelineScroller.ScrollToHorizontalOffset(offset + overshoot);
+                }
+                else
+                {
+                    // Playback: page-scroll so playhead is at left quarter
                     double newOffset = pixelX - viewportWidth * 0.25;
                     TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, newOffset));
                 }
-                else if (pixelX < offset + leftMargin)
+            }
+            else if (pixelX < offset + leftMargin)
+            {
+                if (isDrag)
                 {
-                    // Playhead behind left edge (e.g. loop restart)
+                    double overshoot = (offset + leftMargin) - pixelX;
+                    TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, offset - overshoot));
+                }
+                else
+                {
                     double newOffset = pixelX - leftMargin;
                     TimelineScroller.ScrollToHorizontalOffset(Math.Max(0, newOffset));
                 }
@@ -1165,8 +1191,13 @@ namespace PodcastVideoEditor.Ui.Views
                 _lastScrubPreviewTime = now;
             }
 
-            double newTime = _viewModel.PixelsToTime(Math.Max(0, pixelX));
+            double clampedX = Math.Max(0, pixelX);
+            double newTime = _viewModel.PixelsToTime(clampedX);
             _viewModel.PreviewPlayhead(newTime);
+
+            // Auto-scroll the viewport so the playhead stays visible while dragging
+            if (_isDraggingPlayhead)
+                AutoScrollToPlayhead(_viewModel.TimeToPixels(newTime), isDrag: true);
         }
 
         /// <summary>
