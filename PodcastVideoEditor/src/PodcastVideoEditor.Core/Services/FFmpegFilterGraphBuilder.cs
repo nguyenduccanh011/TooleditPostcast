@@ -91,6 +91,13 @@ public static class FFmpegFilterGraphBuilder
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
+        // Threading: reserve 2 cores for OS/UI, scale filter threads to CPU count.
+        var logicalCores = Environment.ProcessorCount;
+        var renderThreads = Math.Max(2, logicalCores - 2);
+        var filterThreads = Math.Max(2, logicalCores / 2);
+        args.Append($"-threads {renderThreads} ");
+        args.Append($"-filter_threads {filterThreads} ");
+        args.Append($"-filter_complex_threads {filterThreads} ");
         args.Append("-movflags +faststart ");
 
         if (!hasPrimaryAudio)

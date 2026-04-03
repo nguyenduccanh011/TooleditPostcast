@@ -127,7 +127,14 @@ public static class FFmpegCommandComposer
             HevcEncoder is "hevc_nvenc" or "hevc_qsv" or "hevc_amf";
 
         /// <summary>True when compositing (scale + overlay) runs on GPU.</summary>
-        public bool IsGpuFiltering => FilterBackend != GpuFilterBackend.None;
+        /// <summary>
+        /// True when GPU compositing (scale + overlay) is ACTUALLY used during rendering.
+        /// Currently always false because overlay_cuda/overlay_qsv do not support
+        /// timeline 'enable' expressions required for segment timing.
+        /// The detected FilterBackend is still probed and stored so it can be
+        /// re-enabled in the future when FFmpeg adds timeline support.
+        /// </summary>
+        public bool IsGpuFiltering => false; // FilterBackend != GpuFilterBackend.None — re-enable when useCudaOverlay is enabled
 
         private string EncoderLabel => H264Encoder switch
         {
@@ -141,9 +148,8 @@ public static class FFmpegCommandComposer
         public string StatusText => (IsGpuEncoding, IsGpuFiltering) switch
         {
             (true,  true)  => $"GPU full pipeline ({EncoderLabel} + {FilterBackend}): decode + composite + encode ✔",
-            // AMD AMF without full build: GPU encode/decode works, but composite falls back to CPU.
-            (true,  false) => $"GPU encode ({EncoderLabel}) + D3D11VA decode — CPU composite (upgrading FFmpeg for OpenCL…)",
-            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode — downloading compatible FFmpeg…",
+            (true,  false) => $"GPU encode ({EncoderLabel}) + auto decode — CPU composite",
+            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode",
             _              => "CPU encode + composite — no GPU acceleration detected",
         };
 
@@ -213,6 +219,9 @@ public static class FFmpegCommandComposer
         var encPreset = GetEncoderPreset(videoCodec, config.Quality);
         var presetArg = !string.IsNullOrEmpty(encPreset) ? $"-preset {encPreset} " : "";
 
+        var logicalCores = Environment.ProcessorCount;
+        var renderThreads = Math.Max(2, logicalCores - 2);
+
         return $"-loop 1 " +
                $"-i \"{config.ImagePath}\" " +
                $"-i \"{config.AudioPath}\" " +
@@ -223,6 +232,7 @@ public static class FFmpegCommandComposer
                "-pix_fmt yuv420p " +
                $"-r {config.FrameRate} " +
                $"-c:a {audioCodec} " +
+               $"-threads {renderThreads} " +
                "-movflags +faststart " +
                $"-shortest " +
                $"-y " +
@@ -238,7 +248,22 @@ public static class FFmpegCommandComposer
 
         // Detect GPU backend once
         var gpuBackend = DetectedGpuBackend;
-        var useGpuDecode = gpuBackend != GpuFilterBackend.None;
+
+        // ── GPU compositing policy ─────────────────────────────────────
+        // overlay_cuda does not support the 'enable' timeline option in current
+        // FFmpeg builds, so segment start/end timing is unreliable with it.
+        // When overlay runs on CPU, CUDA filter init wastes VRAM (causes
+        // CUDA_ERROR_OUT_OF_MEMORY on consumer GPUs) and GPU scale + hwdownload
+        // is slower than CPU scale due to PCIe round-trip overhead.
+        //
+        // Strategy: GPU decode (auto) + GPU encode (nvenc) + CPU composite.
+        // Re-enable useCudaOverlay when overlay_cuda supports timeline expressions.
+        var useCudaOverlay = false;
+        // GPU decode is independent of filter backend. D3D11VA works on virtually
+        // ALL Windows 10+ GPUs (NVIDIA/AMD/Intel, even integrated). Using -hwaccel
+        // auto lets FFmpeg try d3d11va → dxva2 → software, ensuring the best
+        // decode path on every machine without hard failures.
+        var useGpuDecode = true;
 
         var visualSegments = (config.VisualSegments ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
@@ -265,10 +290,11 @@ public static class FFmpegCommandComposer
 
         var args = new StringBuilder();
 
-        // ── GPU hardware device init (when available) ──
-        // Placed before all inputs so that -hwaccel can reference the device.
-        // This lets decode → scale run on the same GPU without CPU round-trip.
-        if (useGpuDecode)
+        // ── GPU hardware device init ──
+        // Only needed when GPU compositing (overlay_cuda) is active.
+        // When useCudaOverlay=false, d3d11va decode + nvenc encode work without
+        // a CUDA filter context, avoiding VRAM exhaustion.
+        if (useGpuDecode && useCudaOverlay)
         {
             var (initHwDevice, _, _, _, _) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
             if (!string.IsNullOrEmpty(initHwDevice))
@@ -288,7 +314,7 @@ public static class FFmpegCommandComposer
         // ── Inputs 1..N : visual sources
         // -thread_queue_size 512: prevents buffer underrun when many inputs compete
         // for decode bandwidth. Default (8) is too small for 10+ concurrent inputs.
-        var cudaZeroCopy = gpuBackend == GpuFilterBackend.Cuda;
+        var cudaZeroCopy = useCudaOverlay && gpuBackend == GpuFilterBackend.Cuda;
 
         foreach (var seg in visualSegments)
         {
@@ -301,8 +327,10 @@ public static class FFmpegCommandComposer
                 }
                 else
                 {
-                    // D3D11VA: works on ALL modern Windows 10+ GPUs (NVIDIA/AMD/Intel).
-                    args.Append($"-thread_queue_size 512 -hwaccel d3d11va -i \"{seg.SourcePath}\" ");
+                    // -hwaccel auto: FFmpeg tries d3d11va → dxva2 → software.
+                    // Safer than hard-coding d3d11va — graceful fallback for
+                    // unsupported codecs (VP9/AV1 on older GPUs) or Windows 7.
+                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
                 }
             }
             else
@@ -330,34 +358,22 @@ public static class FFmpegCommandComposer
         // ── filter_complex
         var filter = new StringBuilder();
         var (_, _, gpuHwupload, gpuScale, gpuOverlay) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
-        var hasGpuFilters = gpuBackend != GpuFilterBackend.None;
+        var hasGpuFilters = useCudaOverlay && gpuBackend != GpuFilterBackend.None;
 
         // Log GPU pipeline diagnostics
         var isGpuEncoder = videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("qsv",   StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("amf",   StringComparison.OrdinalIgnoreCase);
-        if (cudaZeroCopy)
-            Log.Information("Render: CUDA zero-copy decode — frames stay in VRAM");
-        if (gpuBackend == GpuFilterBackend.Cuda)
+        if (hasGpuFilters && cudaZeroCopy)
             Log.Information("Render: CUDA full-GPU pipeline — scale_cuda + overlay_cuda, encoder {Encoder}", videoCodec);
         else if (hasGpuFilters)
             Log.Information("Render: GPU backend {Backend} for scale (overlay on CPU), encoder {Encoder}", gpuBackend, videoCodec);
         else if (isGpuEncoder)
-            Log.Information("Render: GPU encode ({Encoder}) + D3D11VA decode — CPU composite", videoCodec);
+            Log.Information("Render: GPU encode ({Encoder}) + auto decode — CPU composite", videoCodec);
         else
             Log.Information("Render: CPU-only pipeline (no GPU acceleration), encoder {Encoder}", videoCodec);
 
-        // ── GPU compositing policy ─────────────────────────────────────
-        // overlay_cuda does not support the 'enable' timeline option in current
-        // FFmpeg builds, so segment start/end timing is unreliable with it.
-        // CPU overlay (with enable='between(t,start,end)') is fully reliable and
-        // is the standard path used by CapCut, Premiere, etc.
-        // GPU acceleration is preserved where it matters most:
-        //   • Input decode  : -hwaccel cuda (CUDA) or -hwaccel d3d11va (all GPUs)
-        //   • Output encode : h264_nvenc / hevc_nvenc / h264_qsv / h264_amf (GPU encoder)
-        // Compositing (scale + overlay) runs on CPU, matching CapCut's CPU+GPU profile.
-        // Re-enable useCudaOverlay when overlay_cuda supports timeline expressions.
-        var useCudaOverlay = false;
+        // useCudaOverlay policy is declared above (before input declarations).
 
         // Step 1: base canvas
         if (useCudaOverlay)
@@ -666,16 +682,28 @@ public static class FFmpegCommandComposer
         args.Append("-pix_fmt yuv420p ");
         args.Append($"-r {config.FrameRate} ");
         args.Append($"-c:a {audioCodec} ");
-        // -threads 0: auto-detect optimal thread count for encoder.
-        // -filter_threads 4: parallelize individual filter operations (overlay, scale)
+        // Thread management: reserve 2 logical cores for OS/UI responsiveness.
+        // Commercial editors (DaVinci, Premiere) cap render threads to ~75% of
+        // available cores. Combined with BelowNormal process priority, this
+        // ensures the system stays usable during long renders.
+        var logicalCores = Environment.ProcessorCount;
+        var renderThreads = Math.Max(2, logicalCores - 2);
+        var filterThreads = Math.Max(2, logicalCores / 2);
+        args.Append($"-threads {renderThreads} ");
+        // -filter_threads: parallelize individual filter operations (overlay, scale)
         //   that are normally single-threaded. Significantly reduces wall time when
         //   the filter graph has many overlay chains.
-        // -filter_complex_threads 4: parallelize independent filter graph branches
+        // -filter_complex_threads: parallelize independent filter graph branches
         //   (e.g. separate visual segment scale+motion operations run concurrently).
-        args.Append("-threads 0 ");
-        args.Append("-filter_threads 4 ");
-        args.Append("-filter_complex_threads 4 ");
+        args.Append($"-filter_threads {filterThreads} ");
+        args.Append($"-filter_complex_threads {filterThreads} ");
+        Log.Information("Render threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
+            renderThreads, logicalCores, filterThreads);
         args.Append("-movflags +faststart ");
+        // Prevent "Too many packets buffered for output stream" on long timelines
+        // with many audio/video inputs. Default (128) is too small for podcasts
+        // with 10+ segments and 30+ minute durations.
+        args.Append("-max_muxing_queue_size 4096 ");
         // Always add -t flag so FFmpeg stops at the timeline end, not at the end of
         // the (potentially longer) audio file.
         {
@@ -835,9 +863,18 @@ public static class FFmpegCommandComposer
             _preferredHevcEncoder = "libx265";
 
             var ffmpegPath = FFmpegService.GetFFmpegPath();
+            Log.Information("GPU probe: FFmpeg path = '{Path}', exists = {Exists}",
+                ffmpegPath ?? "(null)", !string.IsNullOrWhiteSpace(ffmpegPath) && File.Exists(ffmpegPath!));
             if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
             {
-                _gpuFilterProbed = true;
+                // Do NOT set _gpuFilterProbed = true here!
+                // FFmpegService may not be initialized yet (race condition at startup).
+                // By leaving _gpuFilterProbed = false, the next call will re-probe
+                // after FFmpegService has been initialized with a valid path.
+                // Also reset the encoder names so the outer check doesn't short-circuit.
+                _preferredH264Encoder = null;
+                _preferredHevcEncoder = null;
+                Log.Warning("GPU probe skipped: FFmpeg path not available yet. Will re-probe when path is set.");
                 return;
             }
 

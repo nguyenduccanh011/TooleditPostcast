@@ -557,6 +557,13 @@ public static class FFmpegService
                     normalizedConfig.TextSegments?.Count ?? 0,
                     normalizedConfig.AudioSegments?.Count ?? 0);
 
+                // Log GPU pipeline status for diagnostics
+                var gpuCaps = FFmpegCommandComposer.GetGpuCapabilities();
+                Log.Information("GPU pipeline: {Status}", gpuCaps.StatusText);
+                Log.Information("GPU encode: {GpuEncode}, GPU filter: {GpuFilter}, H264: {H264}, HEVC: {HEVC}",
+                    gpuCaps.IsGpuEncoding, gpuCaps.IsGpuFiltering,
+                    gpuCaps.H264Encoder, gpuCaps.HevcEncoder);
+
                 // Execute FFmpeg
                 var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken);
 
@@ -697,6 +704,42 @@ public static class FFmpegService
             _currentRenderProcess = Process.Start(processInfo);
             if (_currentRenderProcess == null)
                 return (false, "Failed to start FFmpeg process");
+
+            // ── CPU throttling: BelowNormal priority + Processor Affinity ──
+            // BelowNormal priority alone does NOT reduce CPU% — it only changes
+            // scheduling preference. The process still uses all cores at full load.
+            // To actually prevent 100% CPU and system lag, we ALSO set processor
+            // affinity to exclude 2 cores (reserved for OS/UI).
+            // Commercial editors (DaVinci Resolve, Premiere Pro) use similar
+            // techniques — DaVinci uses GPU for most work, Premiere uses
+            // BelowNormal + thread pool limits.
+            try
+            {
+                _currentRenderProcess.PriorityClass = ProcessPriorityClass.BelowNormal;
+
+                // Reserve 2 logical cores for OS/UI.  On a 16-core system this
+                // creates a bitmask like 0x3FFC (cores 2-15), leaving cores 0-1 free.
+                var logicalCores = Environment.ProcessorCount;
+                if (logicalCores > 4)
+                {
+                    // Build affinity mask: use cores 2..(N-1), skip cores 0 and 1
+                    var coresToUse = logicalCores - 2;
+                    nint affinityMask = ((nint)1 << coresToUse) - 1;  // e.g. 0x3FFF for 14 cores
+                    affinityMask <<= 2;  // shift to skip cores 0-1
+                    _currentRenderProcess.ProcessorAffinity = affinityMask;
+                    Log.Information("FFmpeg process: BelowNormal priority, affinity={Affinity:X} ({Used}/{Total} cores, PID {Pid})",
+                        affinityMask, coresToUse, logicalCores, _currentRenderProcess.Id);
+                }
+                else
+                {
+                    Log.Information("FFmpeg process: BelowNormal priority, all {Cores} cores (PID {Pid})",
+                        logicalCores, _currentRenderProcess.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not set FFmpeg process priority/affinity");
+            }
 
             // Read stdout fully in background (usually empty for FFmpeg)
             var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);

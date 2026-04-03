@@ -110,8 +110,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // is populated shortly after the render panel first appears.
             // If NVENC fails, EnsureCompatibleFFmpegAsync will download FFmpeg 7.1
             // and fire CompatBinaryReady which refreshes the badge automatically.
+            // NOTE: FFmpegService may not be initialized yet when the constructor
+            // runs, so we wait briefly for it to become available before probing.
             _ = Task.Run(async () =>
             {
+                // Wait for FFmpegService to initialize (up to 5s)
+                for (int i = 0; i < 50 && !FFmpegService.IsInitialized(); i++)
+                    await Task.Delay(100).ConfigureAwait(false);
+
                 var caps = FFmpegCommandComposer.GetGpuCapabilities();
                 RefreshGpuBadge(caps);
 
