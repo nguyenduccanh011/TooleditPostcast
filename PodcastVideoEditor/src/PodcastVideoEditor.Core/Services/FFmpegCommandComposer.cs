@@ -864,7 +864,8 @@ public static class FFmpegCommandComposer
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
                 };
 
                 using var process = Process.Start(psi);
@@ -969,7 +970,8 @@ public static class FFmpegCommandComposer
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
             };
 
             using var filterProc = Process.Start(filterPsi);
@@ -1056,7 +1058,8 @@ public static class FFmpegCommandComposer
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
             };
 
             using var proc = Process.Start(validatePsi);
@@ -1152,7 +1155,8 @@ public static class FFmpegCommandComposer
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
             };
 
             using var proc = Process.Start(psi);

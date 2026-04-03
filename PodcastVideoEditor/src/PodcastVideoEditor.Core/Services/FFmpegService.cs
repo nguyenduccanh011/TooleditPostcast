@@ -240,7 +240,8 @@ public static class FFmpegService
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(_ffmpegPath) ?? ""
             };
 
             using var process = Process.Start(psi);
@@ -386,7 +387,8 @@ public static class FFmpegService
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(_ffmpegPath) ?? ""
             }
         };
         process.Start();
@@ -666,7 +668,8 @@ public static class FFmpegService
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
             };
 
             _currentRenderProcess = Process.Start(processInfo);

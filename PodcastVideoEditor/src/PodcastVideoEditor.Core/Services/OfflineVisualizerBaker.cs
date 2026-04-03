@@ -184,7 +184,8 @@ public static class OfflineVisualizerBaker
             RedirectStandardInput  = true,
             RedirectStandardError  = true,
             UseShellExecute        = false,
-            CreateNoWindow         = true
+            CreateNoWindow         = true,
+            WorkingDirectory       = Path.GetDirectoryName(ffmpegPath) ?? ""
         };
 
         using var ffmpegProcess = Process.Start(psi)
