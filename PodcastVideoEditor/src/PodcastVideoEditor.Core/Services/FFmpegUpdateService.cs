@@ -75,6 +75,15 @@ public static class FFmpegUpdateService
     /// </summary>
     public static async Task EnsureCompatibleFFmpegAsync(CancellationToken ct = default)
     {
+        // When the app ships with a bundled FFmpeg (e.g. BtbN GPL build),
+        // it already includes full GPU support (NVENC, AMF, QSV, OpenCL).
+        // Skip the compat download entirely to avoid overriding a working binary.
+        if (FFmpegService.GetBundledFfmpegPath() is not null)
+        {
+            Log.Information("FFmpegUpdateService: Bundled FFmpeg present – skipping compat check.");
+            return;
+        }
+
         var caps = FFmpegCommandComposer.GetGpuCapabilities();
 
         // Nothing to do if both GPU encoding AND GPU filtering are active.

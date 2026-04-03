@@ -64,11 +64,10 @@ public static class FFmpegService
                 };
             }
 
-            // 2.5. Prefer the locally-cached compat build (FFmpeg 7.1, NVENC SDK 12.x).
-            //      Checked BEFORE system PATH because the system FFmpeg may require a
-            //      newer driver than available (e.g., SDK 13.0 needs driver 570.0+).
-            //      Once the compat binary exists it is always preferred until deleted.
-            if (FFmpegUpdateService.IsCompatBinaryPresent)
+            // 2.5. Use the locally-cached compat build ONLY when no bundled FFmpeg is
+            //      available.  The bundled build (BtbN GPL) already has full GPU support;
+            //      the compat download exists as a fallback for system-FFmpeg setups.
+            if (string.IsNullOrWhiteSpace(_ffmpegPath) && FFmpegUpdateService.IsCompatBinaryPresent)
             {
                 _ffmpegPath  = FFmpegUpdateService.CompatFfmpegPath;
                 _ffprobePath = FFmpegUpdateService.CompatFfprobePath;
