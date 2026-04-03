@@ -401,8 +401,8 @@ namespace PodcastVideoEditor.Ui.Views
 
             double viewportWidth = TimelineScroller.ViewportWidth;
             double offset = TimelineScroller.HorizontalOffset;
-            double rightMargin = Math.Max(40, viewportWidth * 0.10);  // 10% of viewport
-            double leftMargin  = Math.Max(20, viewportWidth * 0.05);  //  5% of viewport
+            double rightMargin = isDrag ? Math.Max(16, viewportWidth * 0.03) : Math.Max(40, viewportWidth * 0.10);
+            double leftMargin  = isDrag ? Math.Max(12, viewportWidth * 0.02) : Math.Max(20, viewportWidth * 0.05);
 
             if (pixelX > offset + viewportWidth - rightMargin)
             {
