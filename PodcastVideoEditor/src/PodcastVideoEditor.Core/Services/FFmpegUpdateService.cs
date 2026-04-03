@@ -75,20 +75,18 @@ public static class FFmpegUpdateService
     /// </summary>
     public static async Task EnsureCompatibleFFmpegAsync(CancellationToken ct = default)
     {
-        // When the app ships with a bundled FFmpeg (e.g. BtbN GPL build),
-        // it already includes full GPU support (NVENC, AMF, QSV, OpenCL).
-        // Skip the compat download entirely to avoid overriding a working binary.
-        if (FFmpegService.GetBundledFfmpegPath() is not null)
+        // When the app already has a working FFmpeg (bundled or system),
+        // never override it with the compat download.
+        if (FFmpegService.IsInitialized())
         {
-            Log.Information("FFmpegUpdateService: Bundled FFmpeg present – skipping compat check.");
+            Log.Information("FFmpegUpdateService: FFmpeg already initialized at {Path} – skipping compat check.",
+                FFmpegService.GetFFmpegPath());
             return;
         }
 
         var caps = FFmpegCommandComposer.GetGpuCapabilities();
 
         // Nothing to do if both GPU encoding AND GPU filtering are active.
-        // If encoding works but filtering doesn't (AMD AMF + essentials build),
-        // we still want to upgrade to the full build for OpenCL composite support.
         if (caps.IsGpuEncoding && caps.IsGpuFiltering)
         {
             Log.Information("FFmpegUpdateService: GPU encode + composite already active – no action needed.");
@@ -115,6 +113,10 @@ public static class FFmpegUpdateService
     /// </summary>
     public static void TryRedirectIfAvailable()
     {
+        // Never override an already-working FFmpeg.
+        if (FFmpegService.IsInitialized())
+            return;
+
         if (IsCompatBinaryPresent)
             RedirectToCompatBinary();
     }
@@ -127,6 +129,33 @@ public static class FFmpegUpdateService
     /// </summary>
     private static void RedirectToCompatBinary()
     {
+        // Validate the compat binary can actually start before overriding.
+        try
+        {
+            using var proc = new System.Diagnostics.Process();
+            proc.StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = CompatFfmpegPath,
+                Arguments = "-version",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            proc.Start();
+            proc.WaitForExit(5000);
+            if (proc.ExitCode != 0)
+            {
+                Log.Warning("FFmpegUpdateService: Compat binary exited with code {Code}, skipping redirect.", proc.ExitCode);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "FFmpegUpdateService: Compat binary at {Path} failed to start, skipping redirect.", CompatFfmpegPath);
+            return;
+        }
+
         FFmpegService.OverridePath(CompatFfmpegPath, CompatFfprobePath);
         FFmpegCommandComposer.InvalidateEncoderCache();
         Log.Information("FFmpegUpdateService: Redirected to FFmpeg 7.1 at {Path}", CompatFfmpegPath);
