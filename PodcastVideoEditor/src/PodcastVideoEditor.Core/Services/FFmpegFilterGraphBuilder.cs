@@ -135,9 +135,8 @@ public static class FFmpegFilterGraphBuilder
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}" +
                     $":r={config.FrameRate}:d=86400\" ");
 
-        // Inputs 1..N: video-only visual sources (images use movie= in filter graph)
+        // Inputs 1..N: visual sources
         var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
-        int nextInputIdx = 1;
         foreach (var seg in visualSegments)
         {
             if (seg.IsVideo)
@@ -146,27 +145,26 @@ public static class FFmpegFilterGraphBuilder
                     args.Append($"-hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
                 else
                     args.Append($"-hwaccel d3d11va -i \"{seg.SourcePath}\" ");
-                nextInputIdx++;
             }
-            // images: handled via movie= in filter graph (no -i arg)
+            else
+            {
+                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", Inv);
+                args.Append($"-loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
+            }
         }
 
         // Input N+1: primary audio
         hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
-        primaryAudioIndex = nextInputIdx;
-        nextInputIdx++;
+        primaryAudioIndex = visualSegments.Count + 1;
         if (hasPrimaryAudio)
             args.Append($"-i \"{config.AudioPath}\" ");
         else
             args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
 
         // Extra audio inputs
-        extraAudioStartIndex = nextInputIdx;
+        extraAudioStartIndex = primaryAudioIndex + 1;
         foreach (var aseg in audioSegments)
-        {
             args.Append($"-i \"{aseg.SourcePath}\" ");
-            nextInputIdx++;
-        }
     }
 
     // ─── Visual scale filters ──────────────────────────────────────────────
@@ -180,19 +178,9 @@ public static class FFmpegFilterGraphBuilder
         var hasGpu = gpuBackend != FFmpegCommandComposer.GpuFilterBackend.None;
         var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
 
-        // Build input index map: only video segments get -i args
-        int nextInputIdx = 1;
-        var inputIdxMap = new int[visualSegments.Count];
         for (int i = 0; i < visualSegments.Count; i++)
         {
-            if (visualSegments[i].IsVideo)
-                inputIdxMap[i] = nextInputIdx++;
-            else
-                inputIdxMap[i] = -1;
-        }
-
-        for (int i = 0; i < visualSegments.Count; i++)
-        {
+            var inputIdx = i + 1;
             var seg = visualSegments[i];
             var duration = (seg.EndTime - seg.StartTime).ToString("F3", Inv);
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", Inv);
@@ -203,7 +191,6 @@ public static class FFmpegFilterGraphBuilder
 
             if (seg.IsVideo && hasGpu && !needsAlpha)
             {
-                var inputIdx = inputIdxMap[i];
                 var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
                     ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                     : (config.ResolutionWidth, config.ResolutionHeight);
@@ -218,7 +205,6 @@ public static class FFmpegFilterGraphBuilder
             else if (seg.IsVideo)
             {
                 // CPU fallback for video (alpha-needed or no GPU)
-                var inputIdx = inputIdxMap[i];
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
@@ -228,27 +214,19 @@ public static class FFmpegFilterGraphBuilder
             }
             else
             {
-                // Image/PNG: use movie= source (paths go into filter script, not command line)
-                var moviePath = FFmpegCommandComposer.EscapeFilterPath(seg.SourcePath);
-                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", Inv);
-                var movieSrc = $"movie='{moviePath}':loop=0,setpts=N/{config.FrameRate}/TB,trim=duration={loopDur},setpts=PTS-STARTPTS";
+                // Image/PNG input (added as -i with -loop 1 -t)
+                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                    ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                    : BuildScalingFilter(config);
 
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
                     config.ResolutionWidth, config.ResolutionHeight);
 
                 if (zoompanFilter != null)
-                {
-                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
-                    filter.Append($"{movieSrc},format={pixFmt},{zoompanFilter},setsar=1");
-                }
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1");
                 else
-                {
-                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
-                    var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
-                        : BuildScalingFilter(config);
-                    filter.Append($"{movieSrc},format={pixFmt},{scaleFilter},setsar=1");
-                }
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1");
             }
 
             // Apply color overlay tint (darken/tint effect) when opacity > 0

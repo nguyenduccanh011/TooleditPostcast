@@ -527,25 +527,28 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
 
-        var (ffmpegArgs, normalizedConfig) = FFmpegCommandComposer.Build(config);
-
-        // Ensure output directory exists
-        var outputDir = Path.GetDirectoryName(normalizedConfig.OutputPath);
-        if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
-        {
-            Directory.CreateDirectory(outputDir);
-        }
-
         return await Task.Run(async () =>
         {
+            // Build() runs inside Task.Run so it never blocks the UI thread.
+            // EnsurePreferredEncodersInitialized() (called lazily from Build) can
+            // probe GPU encoders with synchronous FFmpeg sub-processes; keeping
+            // that work on the thread-pool avoids UI freezes.
+            progress?.Report(new RenderProgress
+            {
+                ProgressPercentage = 0,
+                Message = "Preparing render...",
+                IsComplete = false
+            });
+
+            var (ffmpegArgs, normalizedConfig) = FFmpegCommandComposer.Build(config);
+
+            // Ensure output directory exists
+            var outputDir = Path.GetDirectoryName(normalizedConfig.OutputPath);
+            if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
+
             try
             {
-                progress?.Report(new RenderProgress
-                {
-                    ProgressPercentage = 0,
-                    Message = "Preparing render...",
-                    IsComplete = false
-                });
 
                 Log.Information("Starting render: {OutputPath}", normalizedConfig.OutputPath);
                 Log.Information("FFmpeg command: ffmpeg {Args}", ffmpegArgs);
@@ -663,6 +666,9 @@ public static class FFmpegService
         IProgress<RenderProgress>? progress,
         CancellationToken cancellationToken)
     {
+        // Declared outside try so catch/finally blocks can access it.
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task? heartbeatTask = null;
         try
         {
             // Windows CreateProcess limit: 32,767 chars for the full command line.
@@ -707,14 +713,55 @@ public static class FFmpegService
             int inputHeaderCount = 0;
 
             // Track encoding phase vs finalization (faststart) phase
-            bool encodingFinished = false;
+            bool encodingStarted = false;
+            bool firstFrameReceived = false;
             var encodingStopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            // Heartbeat task: fires every second while FFmpeg has printed "Press [q]"
+            // but no frame= line has appeared yet (GPU encoder init / movie= input
+            // probing can pin FFmpeg silent for 10-60s on complex timelines).
+            heartbeatTask = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!heartbeatCts.Token.IsCancellationRequested)
+                    {
+                        await Task.Delay(1000, heartbeatCts.Token).ConfigureAwait(false);
+                        if (encodingStarted && !firstFrameReceived)
+                        {
+                            var elapsed = (int)encodingStopwatch.Elapsed.TotalSeconds;
+                            progress?.Report(new RenderProgress
+                            {
+                                ProgressPercentage = 1,
+                                Message = $"Opening inputs… {elapsed}s (large projects may take up to 60s)",
+                                IsComplete = false
+                            });
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { /* normal shutdown */ }
+            }, heartbeatCts.Token);
 
             var stderrReader = _currentRenderProcess.StandardError;
             string? line;
             while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
             {
                 stderrLines.Add(line);
+
+                // Detect the moment FFmpeg finishes building its filter graph and is
+                // about to start encoding.  FFmpeg prints "Press [q] to stop" as the
+                // very last status line before the first frame= progress line appears.
+                if (!encodingStarted && line.StartsWith("Press [q]", StringComparison.Ordinal))
+                {
+                    encodingStarted = true;
+                    encodingStopwatch.Restart(); // measure time until first frame
+                    progress?.Report(new RenderProgress
+                    {
+                        ProgressPercentage = 1,
+                        Message = "FFmpeg initialized — opening inputs...",
+                        IsComplete = false
+                    });
+                }
 
                 // Collect Duration: headers from all inputs to find the longest real one.
                 // Skip N/A and very short durations (images report 00:00:00.04 etc.).
@@ -761,6 +808,15 @@ public static class FFmpegService
                             ? (int)Math.Min(90, encodedSeconds / effectiveDuration * 90)
                             : 50;
 
+                        // First frame received — stop the heartbeat.
+                        if (!firstFrameReceived)
+                        {
+                            firstFrameReceived = true;
+                            heartbeatCts.Cancel();
+                            Log.Information("First frame received {Elapsed:F1}s after FFmpeg init",
+                                encodingStopwatch.Elapsed.TotalSeconds);
+                        }
+
                         progress?.Report(new RenderProgress
                         {
                             ProgressPercentage = pct,
@@ -773,7 +829,7 @@ public static class FFmpegService
 
             // Encoding phase finished (stderr closed). Now FFmpeg may be doing
             // movflags +faststart (MOOV atom relocation) which produces no output.
-            encodingFinished = true;
+            heartbeatCts.Cancel();
             progress?.Report(new RenderProgress
             {
                 ProgressPercentage = 95,
@@ -781,6 +837,7 @@ public static class FFmpegService
                 IsComplete = false
             });
 
+            await heartbeatTask.ConfigureAwait(false);
             await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             var stdout = await outputTask.ConfigureAwait(false);
 
@@ -799,6 +856,9 @@ public static class FFmpegService
         }
         finally
         {
+            heartbeatCts.Cancel();
+            if (heartbeatTask != null)
+                await heartbeatTask.ConfigureAwait(false);
             _currentRenderProcess?.Dispose();
             _currentRenderProcess = null;
         }

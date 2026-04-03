@@ -285,27 +285,15 @@ public static class FFmpegCommandComposer
         var canvasDuration = (int)Math.Ceiling(maxEndTime) + 1;
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
-        // ── Inputs 1..N : visual sources (video only as -i args)
-        // Image inputs use the FFmpeg movie= source inside the filter graph
-        // instead of -i args. This moves file paths from the command line
-        // (limited to 32,767 chars on Windows) into the filter script file
-        // (no length limit), matching the approach used by Kdenlive/MLT.
-        //
+        // ── Inputs 1..N : visual sources
         // -thread_queue_size 512: prevents buffer underrun when many inputs compete
         // for decode bandwidth. Default (8) is too small for 10+ concurrent inputs.
         var cudaZeroCopy = gpuBackend == GpuFilterBackend.Cuda;
 
-        // Build input index map: only video segments get command-line -i args.
-        // Image segments use movie= source in the filter graph (inputIdx = -1).
-        var inputIdxMap = new int[visualSegments.Count];
-        int nextInputIdx = 1; // input 0 = canvas
-
-        for (int i = 0; i < visualSegments.Count; i++)
+        foreach (var seg in visualSegments)
         {
-            var seg = visualSegments[i];
             if (seg.IsVideo)
             {
-                inputIdxMap[i] = nextInputIdx++;
                 if (cudaZeroCopy)
                 {
                     // CUDA zero-copy: decode on GPU, keep frames in VRAM.
@@ -319,26 +307,25 @@ public static class FFmpegCommandComposer
             }
             else
             {
-                inputIdxMap[i] = -1; // image: handled via movie= in filter_complex
+                // Image input: use -loop 1 -t to create a finite looped stream.
+                // Duration is segment length + 0.5s safety margin.
+                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
+                args.Append($"-thread_queue_size 512 -loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
             }
         }
 
         // ── Primary audio or silent placeholder
         var hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
-        var primaryAudioIndex = nextInputIdx;
-        nextInputIdx++;
+        var primaryAudioIndex = visualSegments.Count + 1;
         if (hasPrimaryAudio)
             args.Append($"-i \"{config.AudioPath}\" ");
         else
             args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
 
         // ── Extra audio clip inputs
-        var extraAudioStartIndex = nextInputIdx;
+        var extraAudioStartIndex = primaryAudioIndex + 1;
         foreach (var aseg in audioSegments)
-        {
             args.Append($"-i \"{aseg.SourcePath}\" ");
-            nextInputIdx++;
-        }
 
         // ── filter_complex
         var filter = new StringBuilder();
@@ -384,6 +371,7 @@ public static class FFmpegCommandComposer
         // Step 2: Scale + position each visual segment
         for (int i = 0; i < visualSegments.Count; i++)
         {
+            var inputIdx = i + 1;
             var seg = visualSegments[i];
             var start    = seg.StartTime.ToString("F3", invariant);
             var end      = seg.EndTime.ToString("F3", invariant);
@@ -403,7 +391,6 @@ public static class FFmpegCommandComposer
 
             if (seg.IsVideo)
             {
-                var inputIdx = inputIdxMap[i];
                 if (useCudaOverlay && !forceCpu)
                 {
                     // CUDA path: keep as CUDA surface for overlay_cuda.
@@ -451,15 +438,7 @@ public static class FFmpegCommandComposer
             }
             else
             {
-                // ── Image segment: use movie= source in filter graph ──
-                // Instead of adding -i "path" to the command line (which counts
-                // against the 32K Windows char limit), load the image directly
-                // inside the filter graph via the movie= source filter.
-                // The path goes into the filter script file → no length limit.
-                var moviePath = EscapeFilterPath(seg.SourcePath);
-                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
-                var movieSrc = $"movie='{moviePath}':loop=0,setpts=N/{config.FrameRate}/TB,trim=duration={loopDur},setpts=PTS-STARTPTS";
-
+                // ── Image segment: use standard -i input ──
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
@@ -471,11 +450,32 @@ public static class FFmpegCommandComposer
 
                 if (zoompanFilter != null)
                 {
-                    filter.Append($"{movieSrc},format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else if (useCudaOverlay && !forceCpu)
+                {
+                    // GPU scale for non-alpha images, keep as CUDA surface.
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
+                    segOnGpu[i] = true;
+                }
+                else if (hasGpuFilters && !needsAlpha)
+                {
+                    // GPU scale but download to CPU (non-CUDA backend or has fade).
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
-                    filter.Append($"{movieSrc},format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
             }
         }
