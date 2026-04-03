@@ -233,7 +233,7 @@ public class FFmpegCommandComposerTests
     // ═══════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void Build_VideoSegment_ContainsHwaccelD3d11va()
+    public void Build_VideoSegment_ContainsHwaccelAuto()
     {
         var tempMp4 = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(), $"test_{System.Guid.NewGuid():N}.mp4");
@@ -262,8 +262,9 @@ public class FFmpegCommandComposerTests
                 AudioSegments    = []
             };
             var (args, _) = FFmpegCommandComposer.Build(config);
-            // Non-CUDA path uses D3D11VA (Windows OS API) for hardware-accelerated decode.
-            Assert.Contains("-hwaccel d3d11va", args);
+            // Uses -hwaccel auto to let FFmpeg pick best decoder (d3d11va → dxva2 → sw)
+            // across all Windows GPUs without hard-coding a specific backend.
+            Assert.Contains("-hwaccel auto", args);
         }
         finally
         {
