@@ -135,8 +135,9 @@ public static class FFmpegFilterGraphBuilder
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}" +
                     $":r={config.FrameRate}:d=86400\" ");
 
-        // Inputs 1..N: visual sources
+        // Inputs 1..N: video-only visual sources (images use movie= in filter graph)
         var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
+        int nextInputIdx = 1;
         foreach (var seg in visualSegments)
         {
             if (seg.IsVideo)
@@ -145,23 +146,27 @@ public static class FFmpegFilterGraphBuilder
                     args.Append($"-hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
                 else
                     args.Append($"-hwaccel d3d11va -i \"{seg.SourcePath}\" ");
+                nextInputIdx++;
             }
-            else
-                args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
+            // images: handled via movie= in filter graph (no -i arg)
         }
 
         // Input N+1: primary audio
         hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
-        primaryAudioIndex = visualSegments.Count + 1;
+        primaryAudioIndex = nextInputIdx;
+        nextInputIdx++;
         if (hasPrimaryAudio)
             args.Append($"-i \"{config.AudioPath}\" ");
         else
             args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
 
         // Extra audio inputs
-        extraAudioStartIndex = primaryAudioIndex + 1;
+        extraAudioStartIndex = nextInputIdx;
         foreach (var aseg in audioSegments)
+        {
             args.Append($"-i \"{aseg.SourcePath}\" ");
+            nextInputIdx++;
+        }
     }
 
     // ─── Visual scale filters ──────────────────────────────────────────────
@@ -175,9 +180,19 @@ public static class FFmpegFilterGraphBuilder
         var hasGpu = gpuBackend != FFmpegCommandComposer.GpuFilterBackend.None;
         var cudaZeroCopy = gpuBackend == FFmpegCommandComposer.GpuFilterBackend.Cuda;
 
+        // Build input index map: only video segments get -i args
+        int nextInputIdx = 1;
+        var inputIdxMap = new int[visualSegments.Count];
         for (int i = 0; i < visualSegments.Count; i++)
         {
-            var inputIdx = i + 1;
+            if (visualSegments[i].IsVideo)
+                inputIdxMap[i] = nextInputIdx++;
+            else
+                inputIdxMap[i] = -1;
+        }
+
+        for (int i = 0; i < visualSegments.Count; i++)
+        {
             var seg = visualSegments[i];
             var duration = (seg.EndTime - seg.StartTime).ToString("F3", Inv);
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", Inv);
@@ -188,6 +203,7 @@ public static class FFmpegFilterGraphBuilder
 
             if (seg.IsVideo && hasGpu && !needsAlpha)
             {
+                var inputIdx = inputIdxMap[i];
                 var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
                     ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                     : (config.ResolutionWidth, config.ResolutionHeight);
@@ -202,6 +218,7 @@ public static class FFmpegFilterGraphBuilder
             else if (seg.IsVideo)
             {
                 // CPU fallback for video (alpha-needed or no GPU)
+                var inputIdx = inputIdxMap[i];
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
@@ -211,34 +228,26 @@ public static class FFmpegFilterGraphBuilder
             }
             else
             {
-                // Image/PNG: GPU scale for non-alpha images; CPU for alpha (RGBA) or no GPU.
-                // Ken Burns zoompan has no GPU equivalent, so always CPU for motion.
+                // Image/PNG: use movie= source (paths go into filter script, not command line)
+                var moviePath = FFmpegCommandComposer.EscapeFilterPath(seg.SourcePath);
+                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", Inv);
+                var movieSrc = $"movie='{moviePath}':loop=0,setpts=N/{config.FrameRate}/TB,trim=duration={loopDur},setpts=PTS-STARTPTS";
+
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
                     config.ResolutionWidth, config.ResolutionHeight);
 
                 if (zoompanFilter != null)
                 {
-                    // Ken Burns: CPU only
                     var pixFmt = needsAlpha ? "rgba" : "yuv420p";
-                    filter.Append($"[{inputIdx}:v]format={pixFmt},{zoompanFilter},setsar=1");
-                }
-                else if (hasGpu && !needsAlpha)
-                {
-                    // GPU scale for non-alpha images (JPG, solid PNG)
-                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
-                        : (config.ResolutionWidth, config.ResolutionHeight);
-                    var gpuScaleExact = FFmpegCommandComposer.BuildGpuScaleExact(scaleW, scaleH);
-                    filter.Append($"[{inputIdx}:v]format=yuv420p,{FFmpegCommandComposer.GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
+                    filter.Append($"{movieSrc},format={pixFmt},{zoompanFilter},setsar=1");
                 }
                 else
                 {
-                    // CPU fallback: alpha PNG or no GPU backend
                     var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                         ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                         : BuildScalingFilter(config);
-                    filter.Append($"[{inputIdx}:v]format={pixFmt},{scaleFilter},setsar=1");
+                    filter.Append($"{movieSrc},format={pixFmt},{scaleFilter},setsar=1");
                 }
             }
 
