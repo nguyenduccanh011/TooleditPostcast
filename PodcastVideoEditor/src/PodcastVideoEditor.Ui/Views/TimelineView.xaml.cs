@@ -470,6 +470,64 @@ namespace PodcastVideoEditor.Ui.Views
             }
         }
 
+        // ─── Drop visual helpers (guide line, ghost preview) ───
+
+        private static readonly SolidColorBrush _dropGhostNormalBg;
+        private static readonly SolidColorBrush _dropGhostNormalBorder;
+        private static readonly SolidColorBrush _dropGhostCollisionBg;
+        private static readonly SolidColorBrush _dropGhostCollisionBorder;
+
+        /// <summary>
+        /// Show the vertical drop guide line at the given pixel X position.
+        /// </summary>
+        private void UpdateDropGuideLine(double pixelX)
+        {
+            if (DropGuideLine == null) return;
+            Canvas.SetLeft(DropGuideLine, pixelX);
+            DropGuideLine.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Show the ghost preview rectangle at the drop position.
+        /// Changes color when a collision is detected (segment will be placed on a new auto-created track).
+        /// </summary>
+        private void UpdateDropGhostPreview(double pixelX, double durationSeconds, string label, bool wouldCollide)
+        {
+            if (DropGhostPreview == null || _viewModel == null) return;
+
+            double widthPx = _viewModel.TimeToPixels(durationSeconds);
+            DropGhostPreview.Width = Math.Max(20, widthPx);
+            Canvas.SetLeft(DropGhostPreview, pixelX);
+            Canvas.SetTop(DropGhostPreview, 4);
+            DropGhostPreview.Visibility = Visibility.Visible;
+
+            if (wouldCollide)
+            {
+                DropGhostPreview.Background = _dropGhostCollisionBg;
+                DropGhostPreview.BorderBrush = _dropGhostCollisionBorder;
+                if (DropGhostLabel != null)
+                    DropGhostLabel.Text = $"+ {label}";
+            }
+            else
+            {
+                DropGhostPreview.Background = _dropGhostNormalBg;
+                DropGhostPreview.BorderBrush = _dropGhostNormalBorder;
+                if (DropGhostLabel != null)
+                    DropGhostLabel.Text = label;
+            }
+        }
+
+        /// <summary>
+        /// Hide all drop visual indicators (guide line + ghost preview).
+        /// </summary>
+        private void HideDropVisuals()
+        {
+            if (DropGuideLine != null)
+                DropGuideLine.Visibility = Visibility.Collapsed;
+            if (DropGhostPreview != null)
+                DropGhostPreview.Visibility = Visibility.Collapsed;
+        }
+
         /// <summary>
         /// Update segment vertical centering within tracks.
         /// Horizontal position (Canvas.Left) and width are handled by data binding
@@ -1274,11 +1332,22 @@ namespace PodcastVideoEditor.Ui.Views
             _dropHighlightBrush.Freeze();
             _dropInvalidBrush.Freeze();
             _trackNormalBg.Freeze();
+
+            // Ghost preview brushes
+            _dropGhostNormalBg = new SolidColorBrush(Color.FromArgb(0x33, 0x00, 0xBC, 0xD4));       // cyan tint
+            _dropGhostNormalBorder = new SolidColorBrush(Color.FromRgb(0x00, 0xBC, 0xD4));           // cyan
+            _dropGhostCollisionBg = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0x98, 0x00));     // orange tint
+            _dropGhostCollisionBorder = new SolidColorBrush(Color.FromRgb(0xFF, 0x98, 0x00));        // orange
+            _dropGhostNormalBg.Freeze();
+            _dropGhostNormalBorder.Freeze();
+            _dropGhostCollisionBg.Freeze();
+            _dropGhostCollisionBorder.Freeze();
         }
 
         /// <summary>
         /// Validate drag-over on a track canvas. Shows visual feedback for compatible/incompatible drops.
         /// Supports both asset drag (PVE_Asset) and element drag (PVE_ElementType).
+        /// Shows a vertical drop guide line and ghost preview at the drop position.
         /// </summary>
         private void TrackCanvas_DragOver(object sender, DragEventArgs e)
         {
@@ -1292,24 +1361,34 @@ namespace PodcastVideoEditor.Ui.Views
                 return;
 
             bool compatible = false;
+            double dropDuration = 5.0; // default preview duration
+            string dropLabel = "";
 
             if (e.Data.GetDataPresent("PVE_Asset"))
             {
                 var asset = e.Data.GetData("PVE_Asset") as Asset;
                 if (asset != null)
+                {
                     compatible = TimelineViewModel.IsAssetCompatibleWithTrack(asset, track);
+                    dropDuration = asset.Duration > 0 ? asset.Duration.Value : 5.0;
+                    dropLabel = asset.Name ?? "Asset";
+                }
             }
             else if (e.Data.GetDataPresent("PVE_GlobalAsset"))
             {
                 // Global library assets are always images → compatible with visual tracks
                 var trackType = track.TrackType?.ToLowerInvariant() ?? "";
                 compatible = trackType == TrackTypes.Visual;
+                dropLabel = "Image";
             }
             else if (e.Data.GetDataPresent("PVE_ElementType"))
             {
                 var elementType = e.Data.GetData("PVE_ElementType") as string;
                 if (!string.IsNullOrEmpty(elementType))
+                {
                     compatible = IsElementCompatibleWithTrack(elementType, track);
+                    dropLabel = elementType;
+                }
             }
             else
             {
@@ -1320,10 +1399,24 @@ namespace PodcastVideoEditor.Ui.Views
             {
                 e.Effects = DragDropEffects.Copy;
                 canvas.Background = _dropHighlightBrush;
+
+                // Show drop guide line and ghost preview
+                if (_viewModel != null)
+                {
+                    var dropPoint = e.GetPosition(canvas);
+                    double dropTimeSec = _viewModel.PixelsToTime(Math.Max(0, dropPoint.X));
+                    double pixelX = _viewModel.TimeToPixels(dropTimeSec);
+
+                    UpdateDropGuideLine(pixelX);
+
+                    bool wouldCollide = _viewModel.WouldCollideOnDrop(track, dropTimeSec, dropDuration);
+                    UpdateDropGhostPreview(pixelX, dropDuration, dropLabel, wouldCollide);
+                }
             }
             else
             {
                 canvas.Background = _dropInvalidBrush;
+                HideDropVisuals();
             }
 
             e.Handled = true;
@@ -1351,16 +1444,20 @@ namespace PodcastVideoEditor.Ui.Views
         {
             if (sender is Canvas canvas)
                 canvas.Background = _trackNormalBg;
+            HideDropVisuals();
         }
 
         /// <summary>
         /// Handle drop of an asset or element onto a track canvas.
         /// Asset drops create media segments; element drops create text/visualizer elements.
+        /// When a collision is detected, a new track is auto-created above the target.
         /// </summary>
         private void TrackCanvas_Drop(object sender, DragEventArgs e)
         {
             if (sender is Canvas canvas)
                 canvas.Background = _trackNormalBg;
+
+            HideDropVisuals();
 
             if (_viewModel == null)
                 return;
@@ -1379,7 +1476,7 @@ namespace PodcastVideoEditor.Ui.Views
             {
                 var asset = e.Data.GetData("PVE_Asset") as Asset;
                 if (asset != null && TimelineViewModel.IsAssetCompatibleWithTrack(asset, track))
-                    added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, asset);
+                    added = _viewModel.AddSegmentWithAutoTrack(track, dropTimeSeconds, asset) != null;
             }
             else if (e.Data.GetDataPresent("PVE_GlobalAsset"))
             {
@@ -1472,11 +1569,11 @@ namespace PodcastVideoEditor.Ui.Views
                     projectAsset = imported;
                 }
 
-                // Now add a segment using the project-local asset
+                // Now add a segment using the project-local asset (auto-creates track if collision)
                 Dispatcher.Invoke(() =>
                 {
-                    var added = _viewModel.AddSegmentAtPositionOnTrack(track, dropTimeSeconds, projectAsset);
-                    if (added)
+                    var resultTrack = _viewModel.AddSegmentWithAutoTrack(track, dropTimeSeconds, projectAsset);
+                    if (resultTrack != null)
                     {
                         UpdateSegmentLayout();
                         UpdateSegmentSelection();

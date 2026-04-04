@@ -559,6 +559,31 @@
                                  Canvas.Left="0" Canvas.Top="0"
                                  Visibility="Collapsed"
                                  Opacity="0.85"/>
+                            <!-- Drop guide line: cyan dashed vertical line follows mouse during external drag-drop -->
+                            <Line x:Name="DropGuideLine"
+                                 X1="0" Y1="0" X2="0" Y2="10000"
+                                 Stroke="#00BCD4" StrokeThickness="1"
+                                 Canvas.Left="0" Canvas.Top="0"
+                                 Visibility="Collapsed"
+                                 Opacity="0.75"
+                                 StrokeDashArray="4 2"/>
+                            <!-- Drop ghost preview: semi-transparent rectangle showing where the segment will land -->
+                            <Border x:Name="DropGhostPreview"
+                                    Visibility="Collapsed"
+                                    IsHitTestVisible="False"
+                                    Height="40"
+                                    Background="#3300BCD4"
+                                    BorderBrush="#00BCD4"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Opacity="0.7">
+                                <TextBlock x:Name="DropGhostLabel"
+                                           Foreground="#B0BEC5"
+                                           FontSize="10"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           Text=""/>
+                            </Border>
                         </Canvas>
                     </Grid>
                 </ScrollViewer>

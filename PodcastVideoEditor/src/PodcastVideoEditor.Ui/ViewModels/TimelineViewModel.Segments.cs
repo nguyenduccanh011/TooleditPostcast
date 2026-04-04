@@ -282,6 +282,84 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Add a segment at a position, auto-creating a new track if collision occurs.
+        /// This is the preferred drop method for commercial-grade UX: if the target track
+        /// already has a segment at the drop position, a new track of the same type is
+        /// inserted just above the target track and the segment is placed there instead.
+        /// Returns the track the segment was actually added to (or null on failure).
+        /// </summary>
+        public Track? AddSegmentWithAutoTrack(Track track, double timeSeconds, Asset asset)
+        {
+            if (_projectViewModel.CurrentProject == null || track == null || asset == null)
+                return null;
+
+            try
+            {
+                string kind = track.TrackType?.ToLowerInvariant() switch
+                {
+                    "audio" => SegmentKinds.Audio,
+                    "effect" => SegmentKinds.Effect,
+                    "text" => SegmentKinds.Text,
+                    _ => SegmentKinds.Visual
+                };
+
+                double duration = asset.Duration > 0 ? asset.Duration.Value : 5.0;
+                double startTime = SnapToGrid(Math.Max(0, timeSeconds));
+                double endTime = SnapToGrid(startTime + duration);
+
+                var newSegment = BuildSegment(track, startTime, endTime, kind, asset.Name ?? "Segment", asset.Id);
+
+                // Try target track first
+                if (CommitSegmentToTrack(track, newSegment, $"Dropped '{asset.Name}' at {startTime:F2}s"))
+                {
+                    Log.Information("Segment dropped: asset {AssetId} at {StartTime}s on track {TrackId}", asset.Id, startTime, track.Id);
+                    return track;
+                }
+
+                // Collision detected — auto-create a new track above the target
+                var trackType = track.TrackType ?? TrackTypes.Visual;
+                var newTrack = InsertTrackAt(track.Order, trackType);
+                if (newTrack == null)
+                {
+                    StatusMessage = "Failed to create new track for drop";
+                    return null;
+                }
+
+                // Rebuild the segment for the new track
+                newSegment = BuildSegment(newTrack, startTime, endTime, kind, asset.Name ?? "Segment", asset.Id);
+                if (CommitSegmentToTrack(newTrack, newSegment, $"Dropped '{asset.Name}' on new track at {startTime:F2}s"))
+                {
+                    Log.Information("Segment auto-dropped: asset {AssetId} at {StartTime}s on auto-created track {TrackId}",
+                        asset.Id, startTime, newTrack.Id);
+                    return newTrack;
+                }
+
+                StatusMessage = "Failed to add segment even on new track";
+                return null;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error dropping asset: {ex.Message}";
+                Log.Error(ex, "Error adding segment from drag-drop");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Check if dropping a segment at the given time on a track would cause a collision.
+        /// Used by view layer for ghost preview visual feedback.
+        /// </summary>
+        public bool WouldCollideOnDrop(Track track, double timeSeconds, double duration)
+        {
+            if (track == null) return false;
+            double startTime = SnapToGrid(Math.Max(0, timeSeconds));
+            double endTime = SnapToGrid(startTime + duration);
+            // Create a temporary segment to check collision
+            var tempSegment = new Segment { StartTime = startTime, EndTime = endTime };
+            return CheckCollisionInTrack(tempSegment, track.Id);
+        }
+
+        /// <summary>
         /// Check if an asset type is compatible with a track type.
         /// Audio assets go to audio tracks, image/video to visual tracks.
         /// </summary>
@@ -379,10 +457,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
             };
             var newSegment = BuildSegment(targetTrack, snappedStart, snappedEnd, kind, text);
 
-            if (!CommitSegmentToTrack(targetTrack, newSegment, $"Dropped element at {snappedStart:F2}s"))
+            if (CommitSegmentToTrack(targetTrack, newSegment, $"Dropped element at {snappedStart:F2}s"))
+            {
+                Log.Information("Created element segment '{Text}' on {TrackType} track at {Start}s-{End}s (drag-drop)", text, trackType, snappedStart, snappedEnd);
+                return newSegment;
+            }
+
+            // Collision — auto-create a new track above target
+            var autoTrack = InsertTrackAt(targetTrack.Order, targetTrack.TrackType ?? trackType);
+            if (autoTrack == null)
                 return null;
 
-            Log.Information("Created element segment '{Text}' on {TrackType} track at {Start}s-{End}s (drag-drop)", text, trackType, snappedStart, snappedEnd);
+            newSegment = BuildSegment(autoTrack, snappedStart, snappedEnd, kind, text);
+            if (!CommitSegmentToTrack(autoTrack, newSegment, $"Dropped element on new track at {snappedStart:F2}s"))
+                return null;
+
+            Log.Information("Created element segment '{Text}' on auto-created {TrackType} track at {Start}s-{End}s (drag-drop)", text, trackType, snappedStart, snappedEnd);
             return newSegment;
         }
 
@@ -604,9 +694,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (!string.Equals(segment.Kind, targetTrack.TrackType, StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            // Check collision on target track
+            // Check collision on target track — if collision, auto-create a new track
+            Track actualTarget = targetTrack;
             if (CheckCollisionInTrack(segment, targetTrack.Id, segment))
-                return false;
+            {
+                var autoTrack = InsertTrackAt(targetTrack.Order, targetTrack.TrackType ?? segment.Kind);
+                if (autoTrack == null)
+                    return false;
+                actualTarget = autoTrack;
+            }
 
             // Remove from source track
             var sourceTrack = Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
@@ -616,9 +712,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // Add to target track — update BOTH FK and navigation property.
             // If segment.Track stays stale, EF Core relationship fixup during autosave
             // will use the old navigation to overwrite TrackId, reverting the move.
-            segment.TrackId = targetTrack.Id;
-            segment.Track = targetTrack;
-            if (targetTrack.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> targetSegs)
+            segment.TrackId = actualTarget.Id;
+            segment.Track = actualTarget;
+            if (actualTarget.Segments is System.Collections.ObjectModel.ObservableCollection<Segment> targetSegs)
                 targetSegs.Add(segment);
 
             InvalidateActiveSegmentsCache();

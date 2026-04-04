@@ -379,10 +379,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 }
                 CurrentProject.RenderSettings = _renderViewModel.BuildProjectRenderSettings();
 
-                // Save canvas elements to DB
-                await _canvasViewModel.SaveElementsAsync(_projectService);
-
+                // Save project (tracks, segments) BEFORE elements so that FK
+                // references from Element.SegmentId to Segment.Id are satisfied.
                 await _projectService.UpdateProjectAsync(CurrentProject);
+
+                // Save canvas elements to DB (after segments exist in DB)
+                await _canvasViewModel.SaveElementsAsync(_projectService);
                 StatusMessage = $"Project '{CurrentProject.Name}' saved successfully";
                 Log.Information("Project saved: {ProjectId}", CurrentProject.Id);
             }

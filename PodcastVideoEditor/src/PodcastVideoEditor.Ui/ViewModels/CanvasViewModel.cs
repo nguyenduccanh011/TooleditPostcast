@@ -1397,6 +1397,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
+                // Remove canvas elements referencing deleted segments before saving.
+                // Without this, elements with stale SegmentId cause FK constraint failures
+                // because the segment was already deleted from DB by UpdateProjectAsync.
+                ValidateElementSegmentIds();
+
                 var projectId = _projectViewModel.CurrentProject.Id;
                 var dbElements = ElementMapper.ToElements(Elements, projectId);
                 await projectService.ReplaceElementsAsync(projectId, dbElements);

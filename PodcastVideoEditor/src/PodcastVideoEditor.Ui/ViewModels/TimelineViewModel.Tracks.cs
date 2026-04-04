@@ -53,6 +53,49 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Log.Information("Track added: {Name} ({Type}) at Order {Order}", track.Name, trackType, maxOrder);
         }
 
+        /// <summary>
+        /// Insert a new track at a specific order position, shifting existing tracks down.
+        /// Used by auto-track-creation when dropping a segment onto an occupied position.
+        /// Returns the newly created track.
+        /// </summary>
+        public Track? InsertTrackAt(int orderIndex, string trackType, string? name = null)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return null;
+
+            // Shift all tracks at or after orderIndex down by 1
+            foreach (var t in Tracks.Where(t => t.Order >= orderIndex))
+                t.Order++;
+
+            var typeName = trackType switch
+            {
+                TrackTypes.Text => "Text",
+                TrackTypes.Visual => "Visual",
+                TrackTypes.Audio => "Audio",
+                TrackTypes.Effect => "Effect",
+                _ => trackType
+            };
+
+            var track = new Track
+            {
+                ProjectId = _projectViewModel.CurrentProject.Id,
+                Order = orderIndex,
+                TrackType = trackType,
+                Name = name ?? $"{typeName} {Tracks.Count(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase)) + 1}",
+                IsVisible = true,
+                IsLocked = false,
+                Segments = new ObservableCollection<Segment>()
+            };
+
+            Tracks.Add(track);
+            _projectViewModel.CurrentProject.Tracks ??= new List<Track>();
+            _projectViewModel.CurrentProject.Tracks.Add(track);
+
+            RebuildTrackCollectionOrder();
+            Log.Information("Track inserted: {Name} ({Type}) at Order {Order}", track.Name, trackType, orderIndex);
+            return track;
+        }
+
         /// <summary>Toggle IsLocked on a track. Called from track header lock button.</summary>
         public void ToggleTrackLock(Track? track)
         {

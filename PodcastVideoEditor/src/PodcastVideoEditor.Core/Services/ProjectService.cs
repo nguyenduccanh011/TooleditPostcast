@@ -717,25 +717,38 @@ namespace PodcastVideoEditor.Core.Services
                 ICollection<Element> elementsSnapshot = project.Elements;
                 project.Elements = [];
 
-                context.Projects.Update(project);
+                Exception? saveError = null;
+                try
+                {
+                    context.Projects.Update(project);
 
-                // Restore the in-memory collection so callers still see the full project.
-                project.Elements = elementsSnapshot;
+                    // Fix up any brand-new entities that were incorrectly
+                    // stamped Modified by the graph walk above.
+                    FixNewEntities(context, project.BgmTracks, existingBgmIds, b => b.Id);
+                    FixNewEntities(context, project.Tracks, existingTrackIds, t => t.Id);
+                    if (project.Tracks != null)
+                        foreach (var track in project.Tracks)
+                            FixNewEntities(context, track.Segments, existingSegmentIds, s => s.Id);
 
-                // Fix up any brand-new entities that were incorrectly
-                // stamped Modified by the graph walk above.
-                FixNewEntities(context, project.BgmTracks, existingBgmIds, b => b.Id);
-                FixNewEntities(context, project.Tracks, existingTrackIds, t => t.Id);
-                if (project.Tracks != null)
-                    foreach (var track in project.Tracks)
-                        FixNewEntities(context, track.Segments, existingSegmentIds, s => s.Id);
+                    await context.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    saveError = ex;
+                }
+                finally
+                {
+                    // Restore the in-memory collection so callers still see the full project.
+                    // Must be AFTER SaveChangesAsync — if restored before, EF Core's DetectChanges
+                    // re-discovers the elements in the navigation and tries to INSERT them,
+                    // causing UNIQUE constraint failures.
+                    project.Elements = elementsSnapshot;
+                }
 
-                await context.SaveChangesAsync();
-
-                // Delete orphaned entities AFTER SaveChangesAsync via direct SQL.
-                // This avoids EF Core relationship-fixup side-effects (Find()-loaded
-                // orphan entities could be re-added to tracked ObservableCollections
-                // by the change tracker, causing deleted segments to reappear in the UI).
+                // Delete orphaned entities via direct SQL regardless of SaveChangesAsync
+                // outcome. ExecuteDeleteAsync bypasses the change tracker, so it works
+                // even when SaveChangesAsync failed. This ensures deleted segments are
+                // removed from the DB and won't reappear on next project load.
                 if (orphanSegmentIds.Count > 0)
                 {
                     await context.Segments
@@ -759,6 +772,11 @@ namespace PodcastVideoEditor.Core.Services
                 }
 
                 Log.Information("Project updated: {ProjectId}", project.Id);
+
+                // If SaveChangesAsync failed, re-throw after orphan cleanup completed.
+                if (saveError != null)
+                    throw saveError;
+
                 return project;
             }
             catch (Exception ex)
