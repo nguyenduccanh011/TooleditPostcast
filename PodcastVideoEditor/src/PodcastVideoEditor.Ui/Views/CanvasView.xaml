@@ -593,6 +593,9 @@
                                 Background="Transparent"
                                 Width="{Binding CanvasWidth}"
                                 Height="{Binding CanvasHeight}"
+                                AllowDrop="True"
+                                DragOver="MainCanvas_DragOver"
+                                Drop="MainCanvas_Drop"
                                 MouseDown="OnCanvasMouseDown">
                             <!-- Video preview: participates in unified z-order -->
                             <Border Canvas.Left="{Binding ActiveVisualX}"

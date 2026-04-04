@@ -804,6 +804,71 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public void AddVisualizerElement() => AddVisualizerElementAt();
 
         /// <summary>
+        /// Handle an asset (image/video) dropped onto the preview canvas.
+        /// Creates a full-span overlay segment (0 → project end) on a new track
+        /// and an ImageElement at the drop position. Used for logos, watermarks,
+        /// and other persistent overlay elements.
+        /// </summary>
+        public bool AddOverlayFromAssetDrop(Asset asset, double canvasX, double canvasY)
+        {
+            if (asset == null || _timelineViewModel == null)
+                return false;
+
+            var assetType = asset.Type?.ToLowerInvariant() ?? "";
+            if (assetType is not ("image" or "video"))
+                return false;
+
+            _isCreatingElement = true;
+            try
+            {
+                // Create full-span segment on a new visual track
+                Segment? segment = _timelineViewModel.CreateFullSpanOverlaySegment(
+                    TrackTypes.Visual, asset.Name ?? "Overlay", asset.Id);
+
+                if (segment == null)
+                    return false;
+
+                // Compute element rect from the source image, then offset to the drop position
+                var (elemX, elemY, elemW, elemH) = ComputeFitRect(asset.FilePath, CanvasWidth, CanvasHeight);
+
+                // If the asset is small (e.g., a logo), position at the drop point;
+                // if it's full-frame, use the computed fit position.
+                bool isSmallOverlay = elemW < CanvasWidth * 0.5 && elemH < CanvasHeight * 0.5;
+                double finalX = isSmallOverlay ? Math.Max(0, Math.Min(canvasX, CanvasWidth - elemW)) : elemX;
+                double finalY = isSmallOverlay ? Math.Max(0, Math.Min(canvasY, CanvasHeight - elemH)) : elemY;
+
+                var element = new ImageElement
+                {
+                    Name = asset.Name ?? Path.GetFileNameWithoutExtension(asset.FilePath) ?? "Overlay",
+                    FilePath = asset.FilePath,
+                    X = finalX,
+                    Y = finalY,
+                    Width = elemW,
+                    Height = elemH,
+                    ZIndex = ComputeZIndexForTrack(FindTrackForSegment(segment.Id)),
+                    SegmentId = segment.Id
+                };
+
+                Elements.Add(element);
+                SelectElement(element);
+
+                var segAction = _undoRedo?.PopLast();
+                var elAction = new ElementAddedAction(Elements, element);
+                if (segAction != null)
+                    _undoRedo?.Record(new CompoundAction($"Add overlay {element.Name}", new[] { segAction, elAction }));
+                else
+                    _undoRedo?.Record(elAction);
+
+                LogMessage($"Added full-span overlay '{element.Name}'");
+                return true;
+            }
+            finally
+            {
+                _isCreatingElement = false;
+            }
+        }
+
+        /// <summary>
         /// Add an element at a specific time position on the timeline (for drag-drop).
         /// Creates a segment at the given startTime instead of the playhead position.
         /// </summary>

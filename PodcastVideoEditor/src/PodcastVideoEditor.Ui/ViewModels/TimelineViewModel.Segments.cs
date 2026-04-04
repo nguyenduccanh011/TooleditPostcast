@@ -511,6 +511,43 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Create a full-span overlay segment on a NEW track. The segment starts at 0
+        /// and stretches to the end of the project (max of all existing segments / audio).
+        /// Ideal for logos, watermarks, and other elements that should persist across
+        /// the entire video. The asset is linked via <see cref="Segment.BackgroundAssetId"/>.
+        /// </summary>
+        public Segment? CreateFullSpanOverlaySegment(string trackType, string text, string? assetId = null)
+        {
+            if (_projectViewModel?.CurrentProject == null)
+                return null;
+
+            double projectEnd = GetProjectDuration();
+
+            // Insert at the top (Order 0) so overlays render above existing content
+            var newTrack = InsertTrackAt(0, trackType, name: text);
+            if (newTrack == null)
+                return null;
+
+            double startTime = 0.0;
+            double endTime = SnapToGrid(projectEnd);
+
+            string kind = trackType.ToLowerInvariant() switch
+            {
+                TrackTypes.Audio  => SegmentKinds.Audio,
+                TrackTypes.Effect => SegmentKinds.Effect,
+                TrackTypes.Text   => SegmentKinds.Text,
+                _                 => SegmentKinds.Visual
+            };
+            var newSegment = BuildSegment(newTrack, startTime, endTime, kind, text, assetId);
+            if (!CommitSegmentToTrack(newTrack, newSegment, $"Created full-span overlay on new track"))
+                return null;
+
+            Log.Information("Created full-span overlay '{Text}' on NEW {TrackType} track (0s-{End}s, asset={AssetId})",
+                text, trackType, endTime, assetId ?? "(none)");
+            return newSegment;
+        }
+
+        /// <summary>
         /// Returns the total duration of the current project in seconds.
         /// Computed as the maximum of all track-segment end times and the project audio file length.
         /// Falls back to a 30-second minimum so a freshly-created project yields a sensible range.

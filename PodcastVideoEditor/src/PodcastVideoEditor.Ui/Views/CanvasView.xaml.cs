@@ -1033,5 +1033,43 @@ namespace PodcastVideoEditor.Ui.Views
                 }
             }
         }
+
+        // ── Drag-drop from Media Panel onto Preview Canvas ───────────────────
+
+        private void MainCanvas_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent("PVE_Asset"))
+            {
+                var asset = e.Data.GetData("PVE_Asset") as Asset;
+                var assetType = asset?.Type?.ToLowerInvariant() ?? "";
+                if (assetType is "image" or "video")
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void MainCanvas_Drop(object sender, DragEventArgs e)
+        {
+            if (_viewModel == null)
+                return;
+
+            if (e.Data.GetDataPresent("PVE_Asset"))
+            {
+                var asset = e.Data.GetData("PVE_Asset") as Asset;
+                if (asset != null)
+                {
+                    var dropPoint = e.GetPosition(_mainCanvas);
+                    _viewModel.AddOverlayFromAssetDrop(asset, dropPoint.X, dropPoint.Y);
+                }
+            }
+
+            e.Handled = true;
+        }
     }
 }
