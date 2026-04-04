@@ -60,21 +60,27 @@ public sealed class YesScaleProvider : IAIProvider
         2. Keep the original language (Vietnamese) — do NOT translate
         3. **MERGE adjacent lines into SCENES**: each scene should be 10–15 seconds long, covering 2–5 consecutive transcript lines that share the same topic/idea
         4. Each scene = 1 background image change in the video
-        5. Generate exactly 3 English keywords per scene for stock image search
+        5. Generate exactly 5 English keywords per scene for stock image search — keywords MUST be unique across scenes (do NOT repeat the same keyword set for different scenes)
 
         # Scene merging rules
         - Target duration: 10–15 seconds per scene. Minimum 6s, maximum 20s
+        - **CRITICAL: NEVER create a scene longer than 20 seconds. If a topic spans >20s, split it into multiple scenes.**
         - Group lines by topic continuity — when the speaker changes subject, start a new scene
         - startTime = first line's start, endTime = last line's end
         - Combine all text from merged lines into one "text" field (keep Vietnamese)
         - Do NOT create 1-line scenes unless a single line is already ≥10s
+        - You MUST cover ALL transcript lines — every line must belong to a scene. Do NOT skip any lines.
 
         # Output
         Return ONLY a JSON array — no markdown fences, no explanation:
-        [{"startTime":0.0,"endTime":12.38,"text":"combined corrected text of all merged lines","keywords":["kw1","kw2","kw3"]}]
+        [{"startTime":0.0,"endTime":12.38,"text":"combined corrected text of all merged lines","keywords":["kw1","kw2","kw3","kw4","kw5"]}]
 
         # Keyword rules
         - English only, concrete, visually searchable nouns/phrases
+        - 5 keywords per scene, ordered by specificity (most specific first)
+        - First 2 keywords: SPECIFIC to this scene's topic (e.g. "lottery winner", "VN-Index chart", "bankruptcy court")
+        - Last 3 keywords: broader related terms for image search variety
+        - CRITICAL: adjacent scenes MUST have DIFFERENT first 2 keywords — do NOT use the same generic terms like "stock market" for every scene
         - Prefer: charts, trading floor, stock market, business meeting, financial report, economy, investment, money, bankruptcy, lottery, wealth
         - Avoid: abstract concepts, emotions, verbs
         """;
@@ -91,10 +97,14 @@ public sealed class YesScaleProvider : IAIProvider
         - Mô tả ảnh phải liên quan đến nội dung segment
         - Ưu tiên mô tả chứa từ khóa tài chính, kinh doanh, chuyên nghiệp
         - Chỉ dùng các ID có trong danh sách candidates
+        - **QUAN TRỌNG: Mỗi segment PHẢI chọn chosenId KHÁC NHAU — KHÔNG được dùng cùng 1 ID cho 2 segment**
+        - Nếu nhiều segment có cùng pool candidates, hãy phân bổ đều — mỗi ảnh chỉ dùng 1 lần
 
         # Output
         Trả về ONLY JSON array — không markdown, không giải thích:
-        [{"segmentIndex":0,"chosenId":"pexels:12345"}]
+        [{"segmentIndex":0,"chosenId":"pexels:12345","backupIds":["pexels:12346","pixabay:67890"]}]
+
+        backupIds: 2–3 ảnh dự phòng (khác chosenId VÀ khác chosenId của các segment khác, ưu tiên khác provider)
         """;
 
     // ── Fields ───────────────────────────────────────────────────────────────
@@ -258,12 +268,196 @@ public sealed class YesScaleProvider : IAIProvider
             .OrderBy(s => s.StartTime)
             .ToArray();
 
-        // Validate: scenes should be fewer than input lines (merged) but non-zero.
-        var inputSegmentCount = ScriptChunker.SplitIntoSegmentLines(request.Script).Count;
-        Log.Information("AI returned {Returned} scenes from {InputLines} transcript lines",
-            deduplicated.Length, inputSegmentCount);
+        // Post-process: split segments longer than MaxSceneDuration.
+        var scriptLines = ScriptChunker.ParseTimestampedLines(request.Script);
+        var postProcessed = SplitLongSegments(deduplicated, scriptLines);
 
-        return new AIAnalysisResponse(deduplicated, allRaw.ToString());
+        // Post-process: fill gaps between consecutive segments.
+        postProcessed = FillGaps(postProcessed, scriptLines);
+
+        var inputSegmentCount = ScriptChunker.SplitIntoSegmentLines(request.Script).Count;
+        Log.Information("AI returned {Returned} scenes (post-processed from {Raw}) from {InputLines} transcript lines",
+            postProcessed.Length, deduplicated.Length, inputSegmentCount);
+
+        return new AIAnalysisResponse(postProcessed, allRaw.ToString());
+    }
+
+    private const double MaxSceneDuration = 20.0;
+    private const double MinSceneDuration = 6.0;
+    private const double TargetSceneDuration = 12.0;
+    private const double GapThreshold = 2.0; // fill gaps larger than 2s
+
+    /// <summary>
+    /// Split any AI segment longer than MaxSceneDuration into sub-segments
+    /// using original transcript line boundaries.
+    /// </summary>
+    private static AISegment[] SplitLongSegments(
+        AISegment[] segments,
+        List<(double Start, double End, string Text)> scriptLines)
+    {
+        var result = new List<AISegment>();
+        foreach (var seg in segments)
+        {
+            var duration = seg.EndTime - seg.StartTime;
+            if (duration <= MaxSceneDuration)
+            {
+                result.Add(seg);
+                continue;
+            }
+
+            // Find all script lines that fall within this segment
+            var linesInSeg = scriptLines
+                .Where(l => l.Start >= seg.StartTime - 0.5 && l.End <= seg.EndTime + 0.5)
+                .OrderBy(l => l.Start)
+                .ToList();
+
+            if (linesInSeg.Count <= 1)
+            {
+                // Can't split further, keep as-is
+                result.Add(seg);
+                continue;
+            }
+
+            // Group lines into sub-segments of ~TargetSceneDuration
+            var subStart = linesInSeg[0].Start;
+            var textAccum = new List<string>();
+            for (int i = 0; i < linesInSeg.Count; i++)
+            {
+                textAccum.Add(linesInSeg[i].Text);
+                var subEnd = linesInSeg[i].End;
+                var subDuration = subEnd - subStart;
+                var isLast = i == linesInSeg.Count - 1;
+
+                // Create a sub-segment when we've accumulated enough duration,
+                // or when we're at the last line.
+                if (subDuration >= TargetSceneDuration - 1.0 || isLast)
+                {
+                    result.Add(new AISegment(
+                        StartTime: Math.Round(subStart, 2),
+                        EndTime: Math.Round(subEnd, 2),
+                        Text: string.Join(" ", textAccum),
+                        Keywords: seg.Keywords // inherit parent's keywords
+                    ));
+                    if (!isLast)
+                    {
+                        subStart = linesInSeg[i + 1].Start;
+                        textAccum.Clear();
+                    }
+                }
+            }
+
+            Log.Information("[AI-SPLIT] segment {Start:F1}→{End:F1} ({Duration:F1}s) split into {Count} sub-segments",
+                seg.StartTime, seg.EndTime, duration, result.Count - result.IndexOf(result[^1]));
+        }
+        return [.. result];
+    }
+
+    /// <summary>
+    /// Fill gaps between consecutive segments using original transcript lines.
+    /// </summary>
+    private static AISegment[] FillGaps(
+        AISegment[] segments,
+        List<(double Start, double End, string Text)> scriptLines)
+    {
+        if (segments.Length == 0) return segments;
+
+        var result = new List<AISegment>();
+
+        // Fill gap before the first segment (if script starts earlier)
+        if (scriptLines.Count > 0 && scriptLines[0].Start < segments[0].StartTime - GapThreshold)
+        {
+            var gapLines = scriptLines
+                .Where(l => l.End <= segments[0].StartTime + 0.5)
+                .OrderBy(l => l.Start)
+                .ToList();
+            if (gapLines.Count > 0)
+            {
+                var fillers = CreateFillSegments(gapLines);
+                result.AddRange(fillers);
+                Log.Information("[AI-FILL] filled leading gap 0→{End:F1}s with {Count} segments",
+                    segments[0].StartTime, fillers.Length);
+            }
+        }
+
+        for (int i = 0; i < segments.Length; i++)
+        {
+            result.Add(segments[i]);
+
+            if (i < segments.Length - 1)
+            {
+                var gap = segments[i + 1].StartTime - segments[i].EndTime;
+                if (gap > GapThreshold)
+                {
+                    var gapLines = scriptLines
+                        .Where(l => l.Start >= segments[i].EndTime - 0.5 &&
+                                    l.End <= segments[i + 1].StartTime + 0.5)
+                        .OrderBy(l => l.Start)
+                        .ToList();
+                    if (gapLines.Count > 0)
+                    {
+                        var fillers = CreateFillSegments(gapLines);
+                        result.AddRange(fillers);
+                        Log.Information("[AI-FILL] filled gap {Start:F1}→{End:F1}s ({Gap:F1}s) with {Count} segments",
+                            segments[i].EndTime, segments[i + 1].StartTime, gap, fillers.Length);
+                    }
+                }
+            }
+        }
+
+        // Fill gap after the last segment
+        if (scriptLines.Count > 0 && scriptLines[^1].End > segments[^1].EndTime + GapThreshold)
+        {
+            var gapLines = scriptLines
+                .Where(l => l.Start >= segments[^1].EndTime - 0.5)
+                .OrderBy(l => l.Start)
+                .ToList();
+            if (gapLines.Count > 0)
+            {
+                var fillers = CreateFillSegments(gapLines);
+                result.AddRange(fillers);
+                Log.Information("[AI-FILL] filled trailing gap {Start:F1}→end with {Count} segments",
+                    segments[^1].EndTime, fillers.Length);
+            }
+        }
+
+        return [.. result.OrderBy(s => s.StartTime)];
+    }
+
+    /// <summary>
+    /// Create fill segments from transcript lines, grouping into ~TargetSceneDuration each.
+    /// </summary>
+    private static AISegment[] CreateFillSegments(List<(double Start, double End, string Text)> lines)
+    {
+        if (lines.Count == 0) return [];
+
+        var result = new List<AISegment>();
+        var subStart = lines[0].Start;
+        var textAccum = new List<string>();
+
+        for (int i = 0; i < lines.Count; i++)
+        {
+            textAccum.Add(lines[i].Text);
+            var subEnd = lines[i].End;
+            var subDuration = subEnd - subStart;
+            var isLast = i == lines.Count - 1;
+
+            if (subDuration >= TargetSceneDuration - 1.0 || isLast)
+            {
+                result.Add(new AISegment(
+                    StartTime: Math.Round(subStart, 2),
+                    EndTime: Math.Round(subEnd, 2),
+                    Text: string.Join(" ", textAccum),
+                    Keywords: ["finance", "investment", "business", "economy", "podcast"]
+                ));
+                if (!isLast)
+                {
+                    subStart = lines[i + 1].Start;
+                    textAccum.Clear();
+                }
+            }
+        }
+
+        return [.. result];
     }
 
     public async Task<AIImageSelectionResultItem[]> SelectImagesAsync(
@@ -274,7 +468,7 @@ public sealed class YesScaleProvider : IAIProvider
         var sw = Stopwatch.StartNew();
         var result = await CallChatWithFallbackAsync(
             ImageSelectionSystemPrompt, userPrompt, _settings.YesScaleModel,
-            0.3, 1024, 90, 2, ct);
+            0.3, 2048, 90, 2, ct);
         sw.Stop();
         var parsed = ParseImageSelectionResponse(result.Content, segments);
         Log.Information("[AI-IMGSEL] ✔ got {Selected}/{Total} selections in {Elapsed}s",
@@ -305,18 +499,22 @@ public sealed class YesScaleProvider : IAIProvider
     private static string BuildScriptAnalysisUserPrompt(string script, double? audioDuration)
     {
         var sb = new StringBuilder();
-        if (audioDuration.HasValue)
-        {
-            sb.AppendLine($"Audio duration: {audioDuration:F1}s");
-            var targetScenes = Math.Max(3, (int)Math.Round(audioDuration.Value / 12.0));
-            sb.AppendLine($"Target: ~{targetScenes} scenes (each 10-15s). Merge adjacent lines by topic.");
-        }
+
+        // Calculate chunk-specific duration from timestamps in the chunk.
+        // This avoids sending the full audio duration to each chunk (which causes
+        // the AI to create too few scenes when the chunk spans more time than audioDuration).
+        var chunkLines = ScriptChunker.ParseTimestampedLines(script);
+        double chunkDuration;
+        if (chunkLines.Count >= 2)
+            chunkDuration = chunkLines[^1].End - chunkLines[0].Start;
+        else if (audioDuration.HasValue)
+            chunkDuration = audioDuration.Value;
         else
-        {
-            var segCount = ScriptChunker.SplitIntoSegmentLines(script).Count;
-            var targetScenes = Math.Max(3, segCount / 4);
-            sb.AppendLine($"Input has {segCount} transcript lines. Merge into ~{targetScenes} scenes (each 10-15s, 2-5 lines per scene).");
-        }
+            chunkDuration = chunkLines.Count * 3.0; // rough fallback
+
+        var targetScenes = Math.Max(3, (int)Math.Round(chunkDuration / 12.0));
+        sb.AppendLine($"This chunk spans {chunkDuration:F1}s of audio ({chunkLines.Count} transcript lines).");
+        sb.AppendLine($"Target: ~{targetScenes} scenes (each 10-15s). Merge adjacent lines by topic.");
         sb.AppendLine();
         sb.Append(script);
         return sb.ToString();
@@ -869,7 +1067,7 @@ public sealed class YesScaleProvider : IAIProvider
                 EndTime:   ReadDouble(el, "endTime"),
                 Text:      el.TryGetProperty("text", out var t) ? t.GetString() ?? string.Empty : string.Empty,
                 Keywords:  el.TryGetProperty("keywords", out var k)
-                             ? k.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Take(3).ToArray()
+                             ? k.EnumerateArray().Select(x => x.GetString() ?? string.Empty).Take(5).ToArray()
                              : Array.Empty<string>()
             );
         }
@@ -894,7 +1092,7 @@ public sealed class YesScaleProvider : IAIProvider
                 Text:      el.GetProperty("text").GetString() ?? string.Empty,
                 Keywords:  el.GetProperty("keywords").EnumerateArray()
                              .Select(k => k.GetString() ?? string.Empty)
-                             .Take(3).ToArray()
+                             .Take(5).ToArray()
             )).ToArray();
         }
         catch (Exception ex)
@@ -906,7 +1104,6 @@ public sealed class YesScaleProvider : IAIProvider
     private static AIImageSelectionResultItem[] ParseImageSelectionResponse(
         string raw, SegmentWithCandidates[] segments)
     {
-        var json = ExtractJsonPayload(raw, preferArray: true);
         var validIds = segments
             .SelectMany(s => s.Candidates.Select(c => c.Id))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -926,6 +1123,7 @@ public sealed class YesScaleProvider : IAIProvider
 
         try
         {
+            var json = ExtractJsonPayload(raw, preferArray: true);
             var arr = JsonSerializer.Deserialize<JsonElement[]>(json, _jsonOpts)
                       ?? [];
 
@@ -975,7 +1173,8 @@ public sealed class YesScaleProvider : IAIProvider
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to parse image selection response — returning empty");
+            Log.Warning(ex, "Failed to parse image selection response ({RawLen} chars) — returning empty. Raw: {Raw}",
+                raw.Length, raw.Length > 500 ? raw[..500] : raw);
             return [];
         }
     }
@@ -1012,9 +1211,68 @@ public sealed class YesScaleProvider : IAIProvider
         var slice = trimmed[start..];
         var end = FindJsonEnd(slice);
         if (end < 0)
+        {
+            // Attempt truncation recovery: close unclosed brackets
+            var repaired = TryRepairTruncatedJson(slice);
+            if (repaired != null)
+            {
+                Log.Warning("JSON payload was truncated ({Len} chars) — attempted repair", slice.Length);
+                return repaired;
+            }
             throw new InvalidOperationException("Could not find the end of the JSON payload in AI response");
+        }
 
         return slice[..(end + 1)].Trim();
+    }
+
+    /// <summary>
+    /// Best-effort repair of truncated JSON by removing the last incomplete element
+    /// and closing unclosed brackets/braces.
+    /// </summary>
+    private static string? TryRepairTruncatedJson(string json)
+    {
+        // Find the last complete object boundary ("},") and truncate there
+        var lastComplete = json.LastIndexOf("},", StringComparison.Ordinal);
+        if (lastComplete < 0) return null;
+
+        var truncated = json[..(lastComplete + 1)]; // include the "}"
+
+        // Count unclosed brackets
+        int openBrackets = 0, openBraces = 0;
+        bool inString = false, escaped = false;
+        foreach (var ch in truncated)
+        {
+            if (inString)
+            {
+                if (escaped) { escaped = false; continue; }
+                if (ch == '\\') { escaped = true; continue; }
+                if (ch == '"') inString = false;
+                continue;
+            }
+            if (ch == '"') { inString = true; continue; }
+            if (ch == '[') openBrackets++;
+            else if (ch == ']') openBrackets--;
+            else if (ch == '{') openBraces++;
+            else if (ch == '}') openBraces--;
+        }
+
+        // Close unclosed brackets
+        var sb = new StringBuilder(truncated);
+        for (int i = 0; i < openBraces; i++) sb.Append('}');
+        for (int i = 0; i < openBrackets; i++) sb.Append(']');
+
+        var repaired = sb.ToString();
+
+        // Validate it's actually parseable
+        try
+        {
+            JsonDocument.Parse(repaired);
+            return repaired;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string? TryExtractFencedCodeBlock(string text)

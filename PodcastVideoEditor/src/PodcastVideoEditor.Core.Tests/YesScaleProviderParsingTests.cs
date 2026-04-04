@@ -29,7 +29,7 @@ public class YesScaleProviderParsingTests
         Assert.Single(result);
         Assert.Equal(0.0, result[0].StartTime);
         Assert.Equal(6.04, result[0].EndTime);
-        Assert.Equal(3, result[0].Keywords.Length);
+        Assert.Equal(5, result[0].Keywords.Length);
     }
 
     [Fact]

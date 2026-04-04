@@ -161,8 +161,13 @@ Copy-Item (Join-Path $resolvedFfmpegDir "ffmpeg.exe") $ffmpegOutputDir -Force
 Copy-Item (Join-Path $resolvedFfmpegDir "ffprobe.exe") $ffmpegOutputDir -Force
 
 Copy-Item $noticesPath (Join-Path $publishDir "THIRD_PARTY_NOTICES.md") -Force
-New-Item -ItemType Directory -Force -Path (Join-Path $publishDir "docs") | Out-Null
-Copy-Item $installGuidePath (Join-Path $publishDir "docs\INSTALL-UPDATE-GUIDE.md") -Force
+
+if (Test-Path $installGuidePath) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $publishDir "docs") | Out-Null
+    Copy-Item $installGuidePath (Join-Path $publishDir "docs\INSTALL-UPDATE-GUIDE.md") -Force
+} else {
+    Write-Host "Warning: INSTALL-UPDATE-GUIDE.md not found at $installGuidePath, skipping..."
+}
 
 if (Test-Path $portableZipPath) {
     Remove-Item -LiteralPath $portableZipPath -Force
@@ -198,3 +203,18 @@ Write-Host "Wrote checksums to $checksumPath"
 Write-Host ""
 Write-Host "Release artifacts are ready:"
 Get-ChildItem $packageDir | ForEach-Object { Write-Host " - $($_.FullName)" }
+
+Write-Host ""
+Write-Host "Pushing tag v$Version to GitHub..."
+try {
+    Push-Location $repoRoot
+    & git tag "v$Version" 2>&1 | Out-Null
+    & git push origin "v$Version" 2>&1 | Out-Null
+    Write-Host "[OK] Tag v$Version pushed to GitHub successfully"
+}
+catch {
+    Write-Host "[Warning] Could not push tag to GitHub: $_"
+}
+finally {
+    Pop-Location
+}
