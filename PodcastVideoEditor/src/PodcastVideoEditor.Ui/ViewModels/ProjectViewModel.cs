@@ -497,5 +497,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _thumbnailService.Stop();
             _saveSemaphore.Dispose();
         }
+
+        /// <summary>
+        /// Deletes asset files (disk + DB) that are no longer referenced by any segment.
+        /// Safe to call after AI re-analysis. Returns purge count.
+        /// </summary>
+        public Task<int> PurgeUnusedProjectAssetsAsync(string projectId)
+            => _projectService.PurgeUnusedAssetsAsync(projectId);
     }
 }

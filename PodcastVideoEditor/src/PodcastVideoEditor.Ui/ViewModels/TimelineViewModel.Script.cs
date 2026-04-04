@@ -196,6 +196,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (visualTrack != null)
                     await _projectViewModel.ReplaceSegmentsForTrackAsync(visualTrack.Id, result.VisualSegments);
 
+                // Purge asset files that are no longer referenced by any segment
+                // (handles re-analysis scenario where old images become orphaned)
+                var purged = await _projectViewModel.PurgeUnusedProjectAssetsAsync(project.Id);
+                if (purged > 0)
+                    Log.Information("Purged {Count} unused asset(s) after AI analysis for project {Id}", purged, project.Id);
+
                 LoadTracksFromProject();
                 ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(
                     oldSegmentIds, result.TextSegments));

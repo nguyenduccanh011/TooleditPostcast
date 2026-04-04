@@ -745,6 +745,65 @@
                         </Grid>
 
                         <StackPanel Margin="0,20,0,0">
+                            <TextBlock Text="Quản lý dung lượng" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
+                            <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
+                                <StackPanel>
+                                    <TextBlock Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
+                                               Text="Ảnh AI tải về được lưu trong AppData theo từng dự án. Khi re-analyze hoặc xoá dự án, dữ liệu cũ có thể tồn đọng. Dọn dẹp định kỳ để giải phóng dung lượng." />
+
+                                    <!-- Storage info row -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Foreground="#AAAAAA" FontSize="11">
+                                                <Run Text="Project assets: " />
+                                                <Run Text="{Binding AssetsStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                            </TextBlock>
+                                            <TextBlock Foreground="#AAAAAA" FontSize="11" Margin="0,3,0,0">
+                                                <Run Text="Video thumbnails: " />
+                                                <Run Text="{Binding ThumbnailStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                            </TextBlock>
+                                            <TextBlock Foreground="#AAAAAA" FontSize="11" Margin="0,3,0,0">
+                                                <Run Text="Audio cache: " />
+                                                <Run Text="{Binding AudioCacheStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Width="80" Height="26" Content="🔄 Refresh"
+                                                Command="{Binding RefreshStorageInfoCommand}"
+                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" VerticalAlignment="Top"
+                                                ToolTip="Cập nhật lại thông tin dung lượng" />
+                                    </Grid>
+
+                                    <!-- Action buttons -->
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Width="160" Height="30" Margin="0,0,8,6"
+                                                Content="🗑  Dọn thumbnail"
+                                                Command="{Binding CleanupThumbnailsCommand}"
+                                                Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                                ToolTip="Xoá toàn bộ thumbnail video đã cache (sẽ tự tạo lại khi cần)" />
+                                        <Button Width="160" Height="30" Margin="0,0,8,6"
+                                                Content="🗑  Dọn audio cache"
+                                                Command="{Binding CleanupAudioCacheCommand}"
+                                                Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                                ToolTip="Xoá file WAV cache của audio (sẽ tự tạo lại khi phát)" />
+                                        <Button Width="160" Height="30" Margin="0,0,0,6"
+                                                Content="📂  Mở AppData"
+                                                Command="{Binding OpenAppDataFolderCommand}"
+                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                ToolTip="Mở thư mục AppData\PodcastVideoEditor trong Explorer" />
+                                    </WrapPanel>
+
+                                    <TextBlock Text="{Binding StorageStatusMessage}" Foreground="#4EC9B0" FontSize="11" Margin="0,6,0,0"
+                                               Visibility="{Binding StorageStatusMessage, Converter={StaticResource NullOrEmptyToCollapsedConverter}}"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="Diagnostics" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
                             <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
                                 <StackPanel>

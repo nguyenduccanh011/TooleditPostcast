@@ -22,6 +22,7 @@ namespace PodcastVideoEditor.Core.Services
         // ── Asset ────────────────────────────────────────────────────────────────────
         Task<Asset> AddAssetAsync(string projectId, string sourceFilePath, string type = "Image");
         Task<Asset?> GetAssetByIdAsync(string assetId);
+        Task<int> PurgeUnusedAssetsAsync(string projectId);
 
         // ── Track ────────────────────────────────────────────────────────────────────
         Task<List<Track>> GetTracksAsync(string projectId);

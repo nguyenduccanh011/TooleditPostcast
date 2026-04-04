@@ -801,6 +801,7 @@ namespace PodcastVideoEditor.Core.Services
 
         /// <summary>
         /// Delete project by ID.
+        /// Also deletes all asset files on disk under AppData/PodcastVideoEditor/assets/{projectId}.
         /// </summary>
         public async Task DeleteProjectAsync(string projectId)
         {
@@ -814,12 +815,81 @@ namespace PodcastVideoEditor.Core.Services
                 context.Projects.Remove(project);
                 await context.SaveChangesAsync();
 
+                // Delete asset files from disk after DB removal succeeds
+                var assetDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "PodcastVideoEditor", "assets", projectId);
+                if (Directory.Exists(assetDir))
+                {
+                    try
+                    {
+                        Directory.Delete(assetDir, recursive: true);
+                        Log.Information("Deleted asset folder for project {ProjectId}: {Path}", projectId, assetDir);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Could not delete asset folder for project {ProjectId}: {Path}", projectId, assetDir);
+                    }
+                }
+
                 Log.Information("Project deleted: {ProjectId}", projectId);
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error deleting project {ProjectId}", projectId);
                 throw;
+            }
+        }
+
+        /// <summary>
+        /// Deletes project assets (DB records + disk files) that are no longer referenced
+        /// by any visual segment. Safe to call after AI re-analysis.
+        /// Returns the number of assets purged.
+        /// </summary>
+        public async Task<int> PurgeUnusedAssetsAsync(string projectId)
+        {
+            try
+            {
+                using var context = _contextFactory.CreateDbContext();
+
+                // Collect asset IDs referenced by any segment in this project
+                var referencedAssetIds = await context.Tracks
+                    .Where(t => t.ProjectId == projectId)
+                    .SelectMany(t => t.Segments)
+                    .Where(s => s.BackgroundAssetId != null)
+                    .Select(s => s.BackgroundAssetId!)
+                    .Distinct()
+                    .ToListAsync();
+
+                // Find assets in this project that are not referenced
+                var unusedAssets = await context.Assets
+                    .Where(a => a.ProjectId == projectId && !referencedAssetIds.Contains(a.Id))
+                    .ToListAsync();
+
+                if (unusedAssets.Count == 0)
+                    return 0;
+
+                // Delete disk files first (best-effort)
+                foreach (var asset in unusedAssets)
+                {
+                    if (!string.IsNullOrWhiteSpace(asset.FilePath) && File.Exists(asset.FilePath))
+                    {
+                        try { File.Delete(asset.FilePath); }
+                        catch (Exception ex) { Log.Warning(ex, "Could not delete asset file {Path}", asset.FilePath); }
+                    }
+                }
+
+                // Remove DB records
+                context.Assets.RemoveRange(unusedAssets);
+                await context.SaveChangesAsync();
+
+                Log.Information("Purged {Count} unused asset(s) for project {ProjectId}", unusedAssets.Count, projectId);
+                return unusedAssets.Count;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error purging unused assets for project {ProjectId}", projectId);
+                return 0;
             }
         }
 

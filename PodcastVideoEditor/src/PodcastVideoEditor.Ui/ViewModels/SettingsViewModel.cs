@@ -106,6 +106,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         _appConfig   = appConfig;
         LoadFromStore();
         QueueYesScaleModelReload();
+        RefreshStorageInfo();
     }
 
     partial void OnYesScaleApiKeyChanged(string value) => QueueYesScaleModelReload();
@@ -602,5 +603,82 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         var fallback = _appConfig.AIAnalysis.BaseUrl is { Length: > 0 } u ? u : "https://api.yescale.vip/v1";
         return string.IsNullOrWhiteSpace(baseUrl) ? fallback : baseUrl.Trim().TrimEnd('/');
+    }
+
+    // ── Storage Management ────────────────────────────────────────────────────
+
+    [ObservableProperty] private string assetsStorageText     = "...";
+    [ObservableProperty] private string thumbnailStorageText  = "...";
+    [ObservableProperty] private string audioCacheStorageText = "...";
+    [ObservableProperty] private string storageStatusMessage  = string.Empty;
+
+    [RelayCommand]
+    private void RefreshStorageInfo()
+    {
+        AssetsStorageText     = FormatFolderSize(Path.Combine(_appDataPath, "assets"));
+        ThumbnailStorageText  = FormatFolderSize(Path.Combine(_appDataPath, "thumbnails"));
+        AudioCacheStorageText = FormatFolderSize(Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "AudioCache"));
+        StorageStatusMessage  = string.Empty;
+    }
+
+    [RelayCommand]
+    private void CleanupThumbnails()
+    {
+        var dir = Path.Combine(_appDataPath, "thumbnails");
+        var deleted = DeleteFilesInFolder(dir);
+        StorageStatusMessage = deleted >= 0 ? $"Đã xoá {deleted} thumbnail." : "Không thể xoá một số file.";
+        RefreshStorageInfo();
+    }
+
+    [RelayCommand]
+    private void CleanupAudioCache()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "PodcastVideoEditor", "AudioCache");
+        var deleted = DeleteFilesInFolder(dir);
+        StorageStatusMessage = deleted >= 0 ? $"Đã xoá {deleted} file audio cache." : "Không thể xoá một số file.";
+        RefreshStorageInfo();
+    }
+
+    [RelayCommand]
+    private void OpenAppDataFolder()
+    {
+        try
+        {
+            if (!Directory.Exists(_appDataPath))
+                Directory.CreateDirectory(_appDataPath);
+            System.Diagnostics.Process.Start("explorer.exe", _appDataPath);
+        }
+        catch { /* best-effort */ }
+    }
+
+    private static string FormatFolderSize(string folder)
+    {
+        if (!Directory.Exists(folder)) return "0 B";
+        try
+        {
+            var bytes = new DirectoryInfo(folder)
+                .EnumerateFiles("*", SearchOption.AllDirectories)
+                .Sum(f => f.Length);
+            return bytes switch
+            {
+                < 1024 => $"{bytes} B",
+                < 1024 * 1024 => $"{bytes / 1024.0:F1} KB",
+                < 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
+                _ => $"{bytes / (1024.0 * 1024 * 1024):F2} GB"
+            };
+        }
+        catch { return "?"; }
+    }
+
+    private static int DeleteFilesInFolder(string folder)
+    {
+        if (!Directory.Exists(folder)) return 0;
+        int count = 0;
+        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+        {
+            try { File.Delete(file); count++; }
+            catch { count = -1; }
+        }
+        return count;
     }
 }
