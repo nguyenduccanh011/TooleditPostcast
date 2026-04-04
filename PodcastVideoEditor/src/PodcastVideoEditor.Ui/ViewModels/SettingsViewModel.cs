@@ -388,9 +388,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void FlushToStore()
     {
+        var defaultBaseUrl  = _appConfig.AIAnalysis.BaseUrl is { Length: > 0 } u ? u : "https://api.yescale.vip/v1";
+        var defaultModel    = _appConfig.AIAnalysis.DefaultModel is { Length: > 0 } m ? m : "gemini-2.5-flash-lite-nothinking";
+
         _store.YesScaleApiKey  = YesScaleApiKey.Trim();
-        _store.YesScaleBaseUrl = string.IsNullOrWhiteSpace(YesScaleBaseUrl) ? "https://api.yescale.vip/v1" : YesScaleBaseUrl.Trim();
-        _store.YesScaleModel   = string.IsNullOrWhiteSpace(YesScaleModel) ? "gpt-4o-mini" : YesScaleModel.Trim();
+        _store.YesScaleBaseUrl = string.IsNullOrWhiteSpace(YesScaleBaseUrl) ? defaultBaseUrl : YesScaleBaseUrl.Trim();
+        _store.YesScaleModel   = string.IsNullOrWhiteSpace(YesScaleModel)   ? defaultModel   : YesScaleModel.Trim();
         _store.FFmpegPath      = FfmpegPath.Trim();
         _store.PexelsApiKey    = PexelsApiKey.Trim();
         _store.PixabayApiKey   = PixabayApiKey.Trim();
@@ -595,8 +598,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             YesScaleApiKey = string.Empty;
     }
 
-    private static string NormalizeBaseUrl(string baseUrl)
-        => string.IsNullOrWhiteSpace(baseUrl)
-            ? "https://api.yescale.vip/v1"
-            : baseUrl.Trim().TrimEnd('/');
+    private string NormalizeBaseUrl(string baseUrl)
+    {
+        var fallback = _appConfig.AIAnalysis.BaseUrl is { Length: > 0 } u ? u : "https://api.yescale.vip/v1";
+        return string.IsNullOrWhiteSpace(baseUrl) ? fallback : baseUrl.Trim().TrimEnd('/');
+    }
 }

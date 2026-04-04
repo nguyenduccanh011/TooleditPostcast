@@ -40,4 +40,11 @@ public interface IAIProvider
     /// Returns true when the server responds 200 within 30 s.
     /// </summary>
     Task<bool> ValidateApiKeyAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Run a lightweight health check on all configured models (primary + fallbacks).
+    /// Dead models are cached so the fallback chain skips them instantly for subsequent calls.
+    /// Call this once before starting a pipeline to avoid wasting time on dead models.
+    /// </summary>
+    Task RunModelHealthCheckAsync(CancellationToken ct = default);
 }

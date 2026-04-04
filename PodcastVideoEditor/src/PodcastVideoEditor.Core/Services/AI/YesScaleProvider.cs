@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -36,6 +37,17 @@ public sealed class YesScaleProvider : IAIProvider
 {
     // Shared static HttpClient — do NOT dispose; lives for app lifetime.
     private static readonly HttpClient _sharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
+
+    // ── Model health tracking ────────────────────────────────────────────────
+    // After a model fails, remember it so subsequent requests skip it immediately
+    // instead of wasting 10-30s on the fallback chain each time.
+    private static readonly ConcurrentDictionary<string, DateTimeOffset> _deadModels = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan DeadModelCooldown = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan HedgeDelay = TimeSpan.FromSeconds(7);
+
+    // Round-robin counter for distributing requests across healthy models to prevent rate-limiting
+    private int _roundRobinCounter;
+
     // ── System prompts ───────────────────────────────────────────────────────
 
     private const string ScriptAnalysisSystemPrompt = """
@@ -190,7 +202,7 @@ public sealed class YesScaleProvider : IAIProvider
 
         var chunks = ScriptChunker.ChunkScript(
             request.Script, sysTokens, maxOutputTokens, model, overlapSegments: 1,
-            maxSegmentsPerChunk: 60);
+            maxSegmentsPerChunk: 90);
 
         Log.Information("[AI-ANALYZE] model={Model} chunks={Chunks} inputSegments={InputSegs}",
             model, chunks.Count, ScriptChunker.SplitIntoSegmentLines(request.Script).Count);
@@ -328,19 +340,87 @@ public sealed class YesScaleProvider : IAIProvider
     // ── HTTP + retry ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Calls the chat completion API with fallback models.
-    /// First tries the primary model with retries. On transient failure, tries each
-    /// fallback entry from <see cref="IRuntimeApiSettings.YesScaleFallbackEntries"/> in order,
-    /// resolving the API key per entry via its profile.
+    /// Returns true if a model is currently considered dead (failed recently).
+    /// Models are automatically revived after <see cref="DeadModelCooldown"/>.
     /// </summary>
-    private async Task<ChatResult> CallChatWithFallbackAsync(
-        string systemPrompt, string userPrompt, string primaryModel,
-        double temperature, int maxTokens, int timeoutSeconds,
-        int maxRetries, CancellationToken ct)
+    private static bool IsModelDead(string model)
     {
-        // Build the ordered attempt list: (model, apiKey)
+        if (_deadModels.TryGetValue(model, out var deadSince))
+        {
+            if (DateTimeOffset.UtcNow - deadSince < DeadModelCooldown)
+                return true;
+            // Cooldown expired — give it another chance.
+            _deadModels.TryRemove(model, out _);
+        }
+        return false;
+    }
+
+    private static void MarkModelDead(string model)
+    {
+        _deadModels[model] = DateTimeOffset.UtcNow;
+        Log.Warning("[AI-HEALTH] Model {Model} marked dead — will skip for {Cooldown}m", model, DeadModelCooldown.TotalMinutes);
+    }
+
+    private static void MarkModelAlive(string model)
+    {
+        if (_deadModels.TryRemove(model, out _))
+            Log.Information("[AI-HEALTH] Model {Model} recovered — marking alive", model);
+    }
+
+    /// <summary>
+    /// Run a lightweight health check against each model in the fallback chain.
+    /// Dead models are pre-marked so the fallback chain skips them instantly.
+    /// </summary>
+    public async Task RunModelHealthCheckAsync(CancellationToken ct = default)
+    {
         var primaryApiKey = _settings.ResolveApiKey(_settings.PrimaryProfileId);
-        var attempts = new List<(string Model, string ApiKey)> { (primaryModel, primaryApiKey) };
+        var models = new List<(string Model, string ApiKey)> { (_settings.YesScaleModel, primaryApiKey) };
+
+        var fallbacks = _settings.YesScaleFallbackEntries;
+        if (fallbacks?.Count > 0)
+        {
+            foreach (var entry in fallbacks)
+            {
+                if (!string.IsNullOrWhiteSpace(entry.ModelId))
+                    models.Add((entry.ModelId, _settings.ResolveApiKey(entry.ProfileId)));
+            }
+        }
+
+        Log.Information("[AI-HEALTH] Starting health check for {Count} models...", models.Count);
+        var tasks = models.Select(async m =>
+        {
+            try
+            {
+                var result = await CallChatAsync(
+                    "Reply OK", "test", m.Model, 0.1, 10, 15, m.ApiKey, ct);
+                MarkModelAlive(m.Model);
+                Log.Information("[AI-HEALTH] ✔ {Model} — healthy", m.Model);
+                return (m.Model, Healthy: true);
+            }
+            catch (Exception ex)
+            {
+                MarkModelDead(m.Model);
+                Log.Warning("[AI-HEALTH] ✘ {Model} — {Error}", m.Model, ex.Message.Length > 100 ? ex.Message[..100] : ex.Message);
+                return (m.Model, Healthy: false);
+            }
+        }).ToArray();
+        var results = await Task.WhenAll(tasks);
+        var healthy = results.Count(r => r.Healthy);
+        Log.Information("[AI-HEALTH] Health check complete: {Healthy}/{Total} models healthy", healthy, results.Length);
+    }
+
+    /// <summary>
+    /// Builds the ordered list of (model, apiKey) attempts, skipping models
+    /// currently marked dead. The primary model always comes first if alive.
+    /// </summary>
+    private List<(string Model, string ApiKey)> BuildAttemptList(string primaryModel)
+    {
+        var primaryApiKey = _settings.ResolveApiKey(_settings.PrimaryProfileId);
+        var attempts = new List<(string Model, string ApiKey)>();
+
+        // Add primary only if alive
+        if (!IsModelDead(primaryModel))
+            attempts.Add((primaryModel, primaryApiKey));
 
         var fallbacks = _settings.YesScaleFallbackEntries;
         if (fallbacks?.Count > 0)
@@ -348,7 +428,8 @@ public sealed class YesScaleProvider : IAIProvider
             foreach (var entry in fallbacks)
             {
                 if (!string.IsNullOrWhiteSpace(entry.ModelId) &&
-                    !entry.ModelId.Equals(primaryModel, StringComparison.OrdinalIgnoreCase))
+                    !entry.ModelId.Equals(primaryModel, StringComparison.OrdinalIgnoreCase) &&
+                    !IsModelDead(entry.ModelId))
                 {
                     var apiKey = _settings.ResolveApiKey(entry.ProfileId);
                     attempts.Add((entry.ModelId, apiKey));
@@ -356,24 +437,112 @@ public sealed class YesScaleProvider : IAIProvider
             }
         }
 
+        // If ALL models are dead, reset and try everything (last resort).
+        if (attempts.Count == 0)
+        {
+            Log.Warning("[AI-HEALTH] All models dead — resetting cooldowns for last-resort attempt");
+            _deadModels.Clear();
+            attempts.Add((primaryModel, primaryApiKey));
+            if (fallbacks?.Count > 0)
+            {
+                foreach (var entry in fallbacks)
+                {
+                    if (!string.IsNullOrWhiteSpace(entry.ModelId) &&
+                        !entry.ModelId.Equals(primaryModel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        attempts.Add((entry.ModelId, _settings.ResolveApiKey(entry.ProfileId)));
+                    }
+                }
+            }
+        }
+
+        return attempts;
+    }
+
+    /// <summary>
+    /// Picks a model from the attempt list using round-robin distribution.
+    /// Returns the reordered list starting from the picked model, preserving
+    /// fallback order for the rest. This spreads concurrent requests across
+    /// multiple models to prevent rate-limiting any single one.
+    /// </summary>
+    private List<(string Model, string ApiKey)> DistributeAttemptList(List<(string Model, string ApiKey)> attempts)
+    {
+        if (attempts.Count <= 1) return attempts;
+
+        var startIdx = Interlocked.Increment(ref _roundRobinCounter) % attempts.Count;
+        if (startIdx < 0) startIdx += attempts.Count; // handle negative wrap
+
+        var reordered = new List<(string Model, string ApiKey)>(attempts.Count);
+        for (int i = 0; i < attempts.Count; i++)
+            reordered.Add(attempts[(startIdx + i) % attempts.Count]);
+        return reordered;
+    }
+
+    /// <summary>
+    /// Calls the chat completion API with fallback models and hedged requests.
+    /// 
+    /// Strategy:
+    /// 1. Build attempt list skipping dead models (from health cache).
+    /// 2. Distribute via round-robin to spread load across models.
+    /// 3. For each model: start primary request. If no response within HedgeDelay,
+    ///    fire a "hedge" request to the next model in parallel. First response wins.
+    /// 4. On transient failure, mark model dead and try next fallback.
+    /// </summary>
+    private async Task<ChatResult> CallChatWithFallbackAsync(
+        string systemPrompt, string userPrompt, string primaryModel,
+        double temperature, int maxTokens, int timeoutSeconds,
+        int maxRetries, CancellationToken ct)
+    {
+        var attempts = BuildAttemptList(primaryModel);
+        attempts = DistributeAttemptList(attempts);
+
         Exception? lastException = null;
         for (int i = 0; i < attempts.Count; i++)
         {
             var (model, apiKey) = attempts[i];
             try
             {
-                var result = await FetchWithRetryAsync(
+                // Start the primary request
+                var primaryTask = FetchWithRetryAsync(
                     () => CallChatAsync(systemPrompt, userPrompt, model,
                                         temperature, maxTokens, timeoutSeconds, apiKey, ct),
                     maxRetries, ct);
 
+                // Hedged request: if primary takes longer than HedgeDelay and we have
+                // more models available, fire a parallel request to the next model.
+                // Whichever finishes first wins; the other is abandoned (CTS cancelled).
+                if (i < attempts.Count - 1)
+                {
+                    var result = await TryWithHedgeAsync(
+                        primaryTask, systemPrompt, userPrompt,
+                        attempts[i + 1].Model, attempts[i + 1].ApiKey,
+                        temperature, maxTokens, timeoutSeconds, maxRetries, ct);
+
+                    if (result.UsedHedge)
+                    {
+                        // Hedge won — the primary model was too slow; mark it for awareness
+                        Log.Information("[AI-HEDGE] Hedge model {HedgeModel} beat primary {PrimaryModel}",
+                            attempts[i + 1].Model, model);
+                        i++; // skip the next model since we already used it as hedge
+                    }
+
+                    MarkModelAlive(result.UsedHedge ? attempts[i].Model : model);
+                    if (!result.UsedHedge && i > 0)
+                        Log.Information("Fallback model {Model} succeeded (primary was {Primary})", model, primaryModel);
+
+                    return result.Result;
+                }
+
+                // Last model — no hedge available, just await directly
+                var directResult = await primaryTask;
+                MarkModelAlive(model);
                 if (i > 0)
                     Log.Information("Fallback model {Model} succeeded (primary was {Primary})", model, primaryModel);
-
-                return result;
+                return directResult;
             }
             catch (ApiException aex) when ((aex.IsTransient || aex.IsChannelError) && i < attempts.Count - 1)
             {
+                MarkModelDead(model);
                 if (aex.IsChannelError)
                     Log.Warning("Model {Model} not available for this API key, trying fallback {Next}",
                         model, attempts[i + 1].Model);
@@ -384,6 +553,7 @@ public sealed class YesScaleProvider : IAIProvider
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested && i < attempts.Count - 1)
             {
+                MarkModelDead(model);
                 Log.Warning("Model {Model} timed out, trying fallback {Next}",
                     model, attempts[i + 1].Model);
             }
@@ -393,6 +563,71 @@ public sealed class YesScaleProvider : IAIProvider
             throw lastException;
         throw new InvalidOperationException("All models failed");
     }
+
+    /// <summary>
+    /// Races the primary task against a hedged request to a different model.
+    /// If the primary completes within HedgeDelay, returns immediately.
+    /// Otherwise fires a hedge request and returns whichever finishes first.
+    /// </summary>
+    private async Task<HedgeResult> TryWithHedgeAsync(
+        Task<ChatResult> primaryTask,
+        string systemPrompt, string userPrompt,
+        string hedgeModel, string hedgeApiKey,
+        double temperature, int maxTokens, int timeoutSeconds,
+        int maxRetries, CancellationToken ct)
+    {
+        // Wait for the primary to either complete or for the hedge delay to expire
+        var hedgeDelayTask = Task.Delay(HedgeDelay, ct);
+        var firstDone = await Task.WhenAny(primaryTask, hedgeDelayTask);
+
+        if (firstDone == primaryTask)
+        {
+            // Primary finished before hedge delay — use it directly
+            var result = await primaryTask; // re-await to propagate exceptions
+            return new HedgeResult(result, UsedHedge: false);
+        }
+
+        // Primary is slow — fire a hedge request to the next model
+        Log.Information("[AI-HEDGE] Primary slow after {Delay}s — hedging with {HedgeModel}",
+            HedgeDelay.TotalSeconds, hedgeModel);
+
+        var hedgeTask = FetchWithRetryAsync(
+            () => CallChatAsync(systemPrompt, userPrompt, hedgeModel,
+                                temperature, maxTokens, timeoutSeconds, hedgeApiKey, ct),
+            maxRetries, ct);
+
+        // Race: whoever finishes first wins
+        var winner = await Task.WhenAny(primaryTask, hedgeTask);
+
+        if (winner == primaryTask)
+        {
+            try
+            {
+                var result = await primaryTask;
+                return new HedgeResult(result, UsedHedge: false);
+            }
+            catch
+            {
+                // Primary failed after hedge was started — wait for hedge
+                return new HedgeResult(await hedgeTask, UsedHedge: true);
+            }
+        }
+        else
+        {
+            try
+            {
+                var result = await hedgeTask;
+                return new HedgeResult(result, UsedHedge: true);
+            }
+            catch
+            {
+                // Hedge failed — fall back to primary
+                return new HedgeResult(await primaryTask, UsedHedge: false);
+            }
+        }
+    }
+
+    private sealed record HedgeResult(ChatResult Result, bool UsedHedge);
 
     private async Task<ChatResult> CallChatAsync(
         string systemPrompt, string userPrompt, string model,

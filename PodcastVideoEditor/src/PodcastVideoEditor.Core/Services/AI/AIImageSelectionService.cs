@@ -9,7 +9,7 @@ namespace PodcastVideoEditor.Core.Services.AI;
 public sealed class AIImageSelectionService : IAIImageSelectionService
 {
     private const int BatchSize   = 15;
-    private const int MaxConcurrent = 4;
+    private const int MaxConcurrent = 2;  // Reduced from 4 to prevent rate-limiting when using fewer models
     private const int MaxConcurrentFetch = 8;
     private const int MaxRetries  = 2;
     private const int PerProvider = 6; // images per provider per keyword query (6×3=18 candidates total)

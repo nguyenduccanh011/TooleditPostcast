@@ -30,6 +30,11 @@ public sealed class AppConfiguration
 
 public sealed class AIAnalysisDefaults
 {
+    /// <summary>
+    /// Bumping this number forces all existing users to re-apply AI defaults on next startup.
+    /// Increment whenever you change models, API keys, or fallback chain in appsettings.json.
+    /// </summary>
+    public int DefaultsVersion { get; set; } = 0;
     public string YesScaleApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
     public string DefaultModel { get; set; } = string.Empty;

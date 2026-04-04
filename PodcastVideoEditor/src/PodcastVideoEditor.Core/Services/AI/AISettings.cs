@@ -91,7 +91,7 @@ public record AIAnalysisSettings
 {
     public string YesScaleApiKey { get; init; } = string.Empty;
     public string BaseUrl { get; init; } = "https://api.yescale.vip/v1";
-    public string DefaultModel { get; init; } = "gpt-4o-mini";
+    public string DefaultModel { get; init; } = "gemini-2.5-flash-lite-nothinking";
 }
 
 /// <summary>

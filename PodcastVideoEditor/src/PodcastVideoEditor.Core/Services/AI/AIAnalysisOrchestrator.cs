@@ -46,7 +46,19 @@ public sealed class AIAnalysisOrchestrator : IAIAnalysisOrchestrator
         Log.Information("[AI-PIPELINE] ▶ START — project={ProjectId} transcriptLines={LineCount} audioDuration={Duration}s",
             project.Id, segLineCount, audioDuration?.ToString("F1") ?? "?");
 
-        Report(progress, 1, 5, "Chuẩn bị…");
+        Report(progress, 1, 5, "Kiểm tra model AI…");
+
+        // ── Pre-flight: Health check models ───────────────────────────────
+        // Quick probe of all models to mark dead ones before wasting time
+        // on the fallback chain during the actual pipeline.
+        try
+        {
+            await _aiProvider.RunModelHealthCheckAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[AI-PIPELINE] Health check failed — proceeding with default fallback chain");
+        }
 
         // ── Step 1: Analyze → AISegment[] ─────────────────────────────────
         // AnalyzeScript prompt already includes ASR correction, so separate

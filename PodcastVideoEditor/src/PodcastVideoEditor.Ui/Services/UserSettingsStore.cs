@@ -28,7 +28,14 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     // ── AI Analysis ──────────────────────────────────────────────────────────
     public string YesScaleApiKey      { get; set; } = string.Empty;
     public string YesScaleBaseUrl     { get; set; } = "https://api.yescale.vip/v1";
-    public string YesScaleModel       { get; set; } = "gpt-4o-mini";
+    public string YesScaleModel       { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Tracks which DefaultsVersion from appsettings.json was last applied.
+    /// When this is less than <c>AIAnalysisDefaults.DefaultsVersion</c>, AI defaults
+    /// are re-applied automatically on the next startup (transparent update for all users).
+    /// </summary>
+    public int AppliedDefaultsVersion { get; set; } = 0;
 
     /// <summary>Named API key profiles. Each key unlocks a different group of models.</summary>
     public List<ApiKeyProfile> ApiKeyProfiles { get; set; } = new();
@@ -95,39 +102,58 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
     private static string FilePath(string appDataPath) => Path.Combine(appDataPath, FileName);
 
     /// <summary>
-    /// Fills in any empty API-key fields from the bundled <c>appsettings.json</c> defaults.
-    /// This lets the release builder pre-configure keys so new installs work immediately.
-    /// User-supplied values always take priority.
-    /// Also merges bundled API key profiles and fallback entries when user has none configured.
+    /// Single-source-of-truth default application from <c>appsettings.json</c>.
+    /// <para>
+    /// Handles three scenarios with a single method:<br/>
+    /// • <b>New install</b> — all fields are empty, everything is filled from appsettings.<br/>
+    /// • <b>Version bump</b> — <c>DefaultsVersion</c> in appsettings is higher than
+    ///   <c>AppliedDefaultsVersion</c> stored here → AI settings (model, profiles, fallback chain)
+    ///   are replaced with the new bundled defaults automatically on next startup.<br/>
+    /// • <b>Explicit reset</b> — caller clears fields before calling; behaves like new install.
+    /// </para>
+    /// Image search keys are always only filled when empty (user may have their own keys).
     /// </summary>
     public void ApplyFallbacks(AppConfiguration appConfig)
     {
-        if (string.IsNullOrWhiteSpace(YesScaleApiKey) && !string.IsNullOrWhiteSpace(appConfig.AIAnalysis.YesScaleApiKey))
-            YesScaleApiKey = appConfig.AIAnalysis.YesScaleApiKey;
+        var ai = appConfig.AIAnalysis;
+        bool versionOutdated = AppliedDefaultsVersion < ai.DefaultsVersion;
+        bool noProfiles      = ApiKeyProfiles.Count == 0;
+        bool noFallbacks     = FallbackEntries.Count == 0;
 
-        if (string.IsNullOrWhiteSpace(YesScaleBaseUrl))
-        {
-            if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.BaseUrl))
-                YesScaleBaseUrl = appConfig.AIAnalysis.BaseUrl;
-            else
-                YesScaleBaseUrl = "https://api.yescale.vip/v1";
-        }
+        // ── AI model + base URL ─────────────────────────────────────────────
+        // Always override when version changed; fill-if-empty for first run.
+        if (versionOutdated || string.IsNullOrWhiteSpace(YesScaleApiKey))
+            if (!string.IsNullOrWhiteSpace(ai.YesScaleApiKey))
+                YesScaleApiKey = ai.YesScaleApiKey;
 
-        if (string.IsNullOrWhiteSpace(YesScaleModel))
-        {
-            if (!string.IsNullOrWhiteSpace(appConfig.AIAnalysis.DefaultModel))
-                YesScaleModel = appConfig.AIAnalysis.DefaultModel;
-        }
+        if (versionOutdated || string.IsNullOrWhiteSpace(YesScaleBaseUrl))
+            YesScaleBaseUrl = !string.IsNullOrWhiteSpace(ai.BaseUrl)
+                ? ai.BaseUrl
+                : "https://api.yescale.vip/v1";
 
-        // Merge bundled API key profiles (only if user has no profiles yet)
-        var bundledProfiles = appConfig.AIAnalysis.ApiKeyProfiles;
-        if (ApiKeyProfiles.Count == 0 && bundledProfiles.Count > 0)
+        if (versionOutdated || string.IsNullOrWhiteSpace(YesScaleModel))
+            if (!string.IsNullOrWhiteSpace(ai.DefaultModel))
+                YesScaleModel = ai.DefaultModel;
+
+        // ── API key profiles ────────────────────────────────────────────────
+        // Rebuild from bundled config when version changed or no profiles exist.
+        if ((versionOutdated || noProfiles) && ai.ApiKeyProfiles.Count > 0)
         {
-            foreach (var bp in bundledProfiles)
+            // Preserve any extra profiles the user added manually (those not in bundled list)
+            var bundledNames = ai.ApiKeyProfiles
+                .Select(bp => bp.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var userExtra = ApiKeyProfiles
+                .Where(p => !bundledNames.Contains(p.Name))
+                .ToList();
+
+            ApiKeyProfiles.Clear();
+
+            foreach (var bp in ai.ApiKeyProfiles)
             {
                 if (string.IsNullOrWhiteSpace(bp.Name) || string.IsNullOrWhiteSpace(bp.ApiKey))
                     continue;
-
                 ApiKeyProfiles.Add(new ApiKeyProfile
                 {
                     Id      = Guid.NewGuid().ToString("N")[..8],
@@ -137,22 +163,25 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
                 });
             }
 
+            // Re-append user's own extra profiles after the bundled ones
+            foreach (var extra in userExtra)
+                ApiKeyProfiles.Add(extra);
+
             if (ApiKeyProfiles.Count > 0)
                 PrimaryProfileId = ApiKeyProfiles[0].Id;
         }
 
-        // Merge bundled fallback entries (only if user has no fallback entries yet)
-        var bundledFallbacks = appConfig.AIAnalysis.FallbackEntries;
-        if (FallbackEntries.Count == 0 && bundledFallbacks.Count > 0 && ApiKeyProfiles.Count > 0)
+        // ── Fallback entries ────────────────────────────────────────────────
+        // Rebuild from bundled config when version changed or no entries exist.
+        if ((versionOutdated || noFallbacks) && ai.FallbackEntries.Count > 0 && ApiKeyProfiles.Count > 0)
         {
-            foreach (var bf in bundledFallbacks)
+            FallbackEntries.Clear();
+            foreach (var bf in ai.FallbackEntries)
             {
                 if (string.IsNullOrWhiteSpace(bf.ModelId)) continue;
 
-                // Resolve profile by name (bundled config uses names, not IDs)
                 var matchedProfile = ApiKeyProfiles.FirstOrDefault(
                     p => p.Name.Equals(bf.ProfileName, StringComparison.OrdinalIgnoreCase));
-
                 if (matchedProfile == null) continue;
 
                 FallbackEntries.Add(new ModelFallbackEntry
@@ -163,12 +192,16 @@ public sealed class UserSettingsStore : IRuntimeApiSettings
             }
         }
 
-        if (string.IsNullOrWhiteSpace(PexelsApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PexelsApiKey))
-            PexelsApiKey = appConfig.ImageSearch.PexelsApiKey;
+        // Record that we've applied this version.
+        if (versionOutdated || noProfiles || noFallbacks)
+            AppliedDefaultsVersion = ai.DefaultsVersion;
 
-        if (string.IsNullOrWhiteSpace(PixabayApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PixabayApiKey))
-            PixabayApiKey = appConfig.ImageSearch.PixabayApiKey;
-
+        // ── Image search keys ───────────────────────────────────────────────
+        // Always fill-if-empty only (user may supply their own keys).
+        if (string.IsNullOrWhiteSpace(PexelsApiKey)   && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PexelsApiKey))
+            PexelsApiKey   = appConfig.ImageSearch.PexelsApiKey;
+        if (string.IsNullOrWhiteSpace(PixabayApiKey)  && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.PixabayApiKey))
+            PixabayApiKey  = appConfig.ImageSearch.PixabayApiKey;
         if (string.IsNullOrWhiteSpace(UnsplashApiKey) && !string.IsNullOrWhiteSpace(appConfig.ImageSearch.UnsplashApiKey))
             UnsplashApiKey = appConfig.ImageSearch.UnsplashApiKey;
     }
