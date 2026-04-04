@@ -398,10 +398,15 @@
                         <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
                                 HorizontalAlignment="Left" Margin="0,8,0,0"
                                 Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
-                        <Button Content="✦ Phân tích AI" Command="{Binding TimelineViewModel.AnalyzeWithAICommand}"
-                                HorizontalAlignment="Left" Margin="0,6,0,0"
-                                Background="#7b1fa2" Foreground="White" Padding="12,8" MinHeight="32"
-                                ToolTip="Normalize script → tách đoạn + keywords → tìm 60 ảnh/đoạn → AI chọn ảnh tốt nhất"/>
+                        <WrapPanel Margin="0,6,0,0">
+                            <Button Content="📂 Tải file script" Command="{Binding TimelineViewModel.LoadScriptFileCommand}"
+                                    Background="#1565c0" Foreground="White" Padding="12,8" MinHeight="32"
+                                    ToolTip="Tải file .txt định dạng [start → end] text và tự động chạy phân tích AI"
+                                    Margin="0,0,6,0"/>
+                            <Button Content="✦ Phân tích AI" Command="{Binding TimelineViewModel.AnalyzeWithAICommand}"
+                                    Background="#7b1fa2" Foreground="White" Padding="12,8" MinHeight="32"
+                                    ToolTip="Normalize script → tách đoạn + keywords → tìm 60 ảnh/đoạn → AI chọn ảnh tốt nhất"/>
+                        </WrapPanel>
                         <CheckBox Content="Tự động xóa khoảng trống"
                                   IsChecked="{Binding TimelineViewModel.AutoCloseGaps}"
                                   Foreground="#b0bec5" FontSize="11" Margin="0,8,0,0"

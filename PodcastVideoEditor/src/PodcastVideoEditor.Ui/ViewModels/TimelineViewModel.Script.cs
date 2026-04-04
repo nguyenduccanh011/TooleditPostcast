@@ -118,6 +118,33 @@ namespace PodcastVideoEditor.Ui.ViewModels
             AnalyzeWithAICommand.NotifyCanExecuteChanged();
         }
 
+        // ── Load Script File ─────────────────────────────────────────────────
+
+        [RelayCommand]
+        private async Task LoadScriptFileAsync()
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Chọn file script",
+                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                CheckFileExists = true
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                ScriptPasteText = await System.IO.File.ReadAllTextAsync(dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                AIAnalysisStatus = $"Không thể đọc file: {ex.Message}";
+                return;
+            }
+
+            if (CanAnalyzeWithAI())
+                await AnalyzeWithAIAsync();
+        }
+
         // ── Analyze With AI ─────────────────────────────────────────────────
 
         [RelayCommand(CanExecute = nameof(CanAnalyzeWithAI))]
