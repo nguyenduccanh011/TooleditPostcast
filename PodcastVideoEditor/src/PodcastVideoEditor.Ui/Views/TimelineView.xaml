@@ -4,7 +4,7 @@
              xmlns:local="clr-namespace:PodcastVideoEditor.Ui.Views"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
-             Background="#1e1e1e"
+             Background="Transparent"
              Foreground="#e0e0e0"
              Focusable="True">
     <UserControl.InputBindings>
@@ -124,7 +124,7 @@
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: Ruler header with zoom slider -->
-                    <Border Grid.Row="0" Height="40" Background="#1a1a1a" BorderBrush="#37474f" BorderThickness="0,0,1,0">
+                    <Border Grid.Row="0" Height="40" Background="#252526" BorderBrush="#37474f" BorderThickness="0,0,1,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
@@ -261,7 +261,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Ruler -->
-                        <Border Grid.Row="0" Background="#1a1a1a" Height="40"
+                        <Border Grid.Row="0" Background="#252526" Height="40"
                                 MouseDown="RulerBorder_MouseDown"
                                 MouseMove="RulerBorder_MouseMove"
                                 MouseUp="RulerBorder_MouseUp"

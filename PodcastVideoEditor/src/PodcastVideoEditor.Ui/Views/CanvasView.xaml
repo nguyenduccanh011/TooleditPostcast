@@ -8,7 +8,7 @@
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              mc:Ignorable="d"
              d:DesignHeight="700" d:DesignWidth="900"
-             Background="#1e1e1e" Foreground="White"
+             Background="Transparent" Foreground="White"
              KeyDown="OnCanvasKeyDown"
              FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}">
 
@@ -567,12 +567,12 @@
         </Grid.RowDefinitions>
 
         <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
-        <Border Grid.Row="0" Background="#1e1e1e" BorderBrush="#404040" BorderThickness="1">
+        <Border Grid.Row="0" Background="#252526">
             <Grid>
                 <!-- Viewbox for preview -->
                 <Viewbox Stretch="Uniform" StretchDirection="Both">
                     <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
-                        <Border Background="#2d2d2d" />
+                        <Border Background="#1e1e1e" />
 
                         <TextBlock Text="No active visual segment"
                                    Foreground="#cccccc"
@@ -649,7 +649,7 @@
         </Border>
 
         <!-- Status Bar: Playback controls + Time display + Status message + Ratio selector -->
-        <Border Grid.Row="1" Background="#2d2d2d" BorderBrush="#404040" BorderThickness="1,0,0,0" Padding="8,0" Height="40">
+        <Border Grid.Row="1" Background="#252526" Padding="8,0" Height="40">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

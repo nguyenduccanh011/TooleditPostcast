@@ -4,6 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
         xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
+        xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
         Title="Podcast Video Editor" Height="820" MinHeight="680" Width="1100"
         Icon="Assets/PodcastVideoEditor.ico"
         WindowStartupLocation="CenterScreen"
@@ -34,7 +35,7 @@
         </Grid.RowDefinitions>
 
         <!-- ═══════════ Custom Title Bar ═══════════ -->
-        <Grid Grid.Row="0" Background="#252526">
+        <Grid Grid.Row="0" Background="#1e1e1e">
             <Grid.Resources>
                 <!-- Title bar tab button (RadioButton styled as flat tab) -->
                 <Style x:Key="TitleBarTab" TargetType="RadioButton">
@@ -284,10 +285,13 @@
                     Column GridSplitters: VerticalAlignment=Stretch + HorizontalAlignment=Center
                     No custom template – lets WPF hit-test the full area reliably.
                 -->
-                <Grid>
+                <Grid Background="#1e1e1e" Margin="4,4,4,4">
+                    <Grid.Resources>
+                        <conv:RoundedClipConverter x:Key="RoundedClipConverter"/>
+                    </Grid.Resources>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="3*" MinHeight="200"/>
-                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="4"/>
                         <RowDefinition Height="2*" MinHeight="160"/>
                     </Grid.RowDefinitions>
 
@@ -295,48 +299,72 @@
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"  MinWidth="180"/>
-                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="4"/>
                             <ColumnDefinition Width="2*" MinWidth="280"/>
-                            <ColumnDefinition Width="6"/>
+                            <ColumnDefinition Width="4"/>
                             <ColumnDefinition Width="*"  MinWidth="200"/>
                         </Grid.ColumnDefinitions>
 
                         <!-- Col 0: Elements / Media -->
-                        <Border Grid.Column="0" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1" Padding="8">
+                        <Border Grid.Column="0" Background="#252526" CornerRadius="6">
+                            <Border.Clip>
+                                <MultiBinding Converter="{StaticResource RoundedClipConverter}">
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                                </MultiBinding>
+                            </Border.Clip>
                             <views:ElementsMediaPanelView DataContext="{Binding}" />
                         </Border>
 
                         <!-- Vertical splitter between Elements and Canvas -->
                         <GridSplitter Grid.Column="1"
-                                      VerticalAlignment="Stretch" HorizontalAlignment="Center"
-                                      Width="6" Background="#3E3E42" Cursor="SizeWE"
+                                      VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                                      Width="4" Background="Transparent" Cursor="SizeWE"
                                       ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
 
                         <!-- Col 2: Preview / Canvas -->
-                        <Border Grid.Column="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1">
+                        <Border Grid.Column="2" Background="#252526" CornerRadius="6" Padding="0,4,0,0">
+                            <Border.Clip>
+                                <MultiBinding Converter="{StaticResource RoundedClipConverter}">
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                                </MultiBinding>
+                            </Border.Clip>
                             <views:CanvasView DataContext="{Binding CanvasViewModel}" />
                         </Border>
 
                         <!-- Vertical splitter between Canvas and Properties -->
                         <GridSplitter Grid.Column="3"
-                                      VerticalAlignment="Stretch" HorizontalAlignment="Center"
-                                      Width="6" Background="#3E3E42" Cursor="SizeWE"
+                                      VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                                      Width="4" Background="Transparent" Cursor="SizeWE"
                                       ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
 
                         <!-- Col 4: Properties -->
-                        <Border Grid.Column="4" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0,0,0,1">
+                        <Border Grid.Column="4" Background="#252526" CornerRadius="6">
+                            <Border.Clip>
+                                <MultiBinding Converter="{StaticResource RoundedClipConverter}">
+                                    <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                                </MultiBinding>
+                            </Border.Clip>
                             <views:UnifiedPropertiesPanel DataContext="{Binding}" />
                         </Border>
                     </Grid>
 
                     <!-- Horizontal splitter: Top panels ↕ Timeline -->
                     <GridSplitter Grid.Row="1"
-                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                                  Height="8" Background="#3E3E42" Cursor="SizeNS"
+                                  HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                  Height="4" Background="Transparent" Cursor="SizeNS"
                                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"/>
 
                     <!-- ═══════════ Row 2 : Timeline ═══════════ -->
-                    <Border Grid.Row="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="0" Padding="10,4">
+                    <Border Grid.Row="2" Background="#252526" CornerRadius="6">
+                        <Border.Clip>
+                            <MultiBinding Converter="{StaticResource RoundedClipConverter}">
+                                <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
+                                <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
+                            </MultiBinding>
+                        </Border.Clip>
                         <views:TimelineView DataContext="{Binding TimelineViewModel}" />
                     </Border>
                 </Grid>

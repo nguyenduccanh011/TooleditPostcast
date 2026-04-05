@@ -5,7 +5,7 @@
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
-             Background="#1e1e1e"
+             Background="Transparent"
              Foreground="#e0e0e0"
              MinWidth="220">
 
