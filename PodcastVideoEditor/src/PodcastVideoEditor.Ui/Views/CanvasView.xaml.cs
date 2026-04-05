@@ -4,7 +4,9 @@ using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -1050,6 +1052,17 @@ namespace PodcastVideoEditor.Ui.Views
                 }
             }
 
+            if (e.Data.GetDataPresent("PVE_GlobalAsset"))
+            {
+                var globalAsset = e.Data.GetData("PVE_GlobalAsset") as GlobalAsset;
+                if (globalAsset != null && File.Exists(globalAsset.FilePath))
+                {
+                    e.Effects = DragDropEffects.Copy;
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             e.Effects = DragDropEffects.None;
             e.Handled = true;
         }
@@ -1068,8 +1081,59 @@ namespace PodcastVideoEditor.Ui.Views
                     _viewModel.AddOverlayFromAssetDrop(asset, dropPoint.X, dropPoint.Y);
                 }
             }
+            else if (e.Data.GetDataPresent("PVE_GlobalAsset"))
+            {
+                var globalAsset = e.Data.GetData("PVE_GlobalAsset") as GlobalAsset;
+                if (globalAsset != null)
+                {
+                    var dropPoint = e.GetPosition(_mainCanvas);
+                    _ = HandleGlobalAssetOverlayDropAsync(globalAsset, dropPoint.X, dropPoint.Y);
+                }
+            }
 
             e.Handled = true;
+        }
+
+        private async Task HandleGlobalAssetOverlayDropAsync(GlobalAsset globalAsset, double canvasX, double canvasY)
+        {
+            if (_viewModel == null) return;
+
+            if (!File.Exists(globalAsset.FilePath))
+            {
+                Serilog.Log.Warning("Global asset file not found: {Path}", globalAsset.FilePath);
+                return;
+            }
+
+            try
+            {
+                var mainVm = Window.GetWindow(this)?.DataContext as MainViewModel;
+                var projectVm = mainVm?.ProjectViewModel;
+                if (projectVm?.CurrentProject == null) return;
+
+                // Reuse existing project asset if already imported, otherwise import it
+                var existing = projectVm.CurrentProject.Assets
+                    .FirstOrDefault(a => a.GlobalAssetId == globalAsset.Id);
+
+                Asset projectAsset;
+                if (existing != null)
+                {
+                    projectAsset = existing;
+                }
+                else
+                {
+                    var imported = await projectVm.AddAssetToCurrentProjectAsync(globalAsset.FilePath, "Image");
+                    if (imported == null) return;
+                    imported.GlobalAssetId = globalAsset.Id;
+                    await projectVm.SaveProjectAsync();
+                    projectAsset = imported;
+                }
+
+                Dispatcher.Invoke(() => _viewModel.AddOverlayFromAssetDrop(projectAsset, canvasX, canvasY));
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Failed to add global asset overlay from canvas drop");
+            }
         }
     }
 }
