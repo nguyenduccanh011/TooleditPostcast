@@ -109,6 +109,8 @@ public static class ElementMapper
     {
         var dict = new Dictionary<string, object>();
         dict["Name"] = canvas.Name ?? string.Empty;
+        dict["FlipH"] = canvas.FlipH;
+        dict["FlipV"] = canvas.FlipV;
 
         switch (canvas)
         {
@@ -116,8 +118,6 @@ public static class ElementMapper
                 dict["ImagePath"] = l.ImagePath;
                 dict["Opacity"] = l.Opacity;
                 dict["ScaleMode"] = l.ScaleMode.ToString();
-                dict["FlipH"] = l.FlipH;
-                dict["FlipV"] = l.FlipV;
                 break;
             case VisualizerElement v:
                 dict["ColorPalette"] = v.ColorPalette.ToString();
@@ -138,8 +138,6 @@ public static class ElementMapper
                 dict["AnimationSpeed"] = v.AnimationSpeed;
                 if (!string.IsNullOrEmpty(v.PrimaryColorHex)) dict["PrimaryColorHex"] = v.PrimaryColorHex;
                 if (!string.IsNullOrEmpty(v.CustomGradientColors)) dict["CustomGradientColors"] = v.CustomGradientColors;
-                dict["FlipH"] = v.FlipH;
-                dict["FlipV"] = v.FlipV;
                 dict["BarGradientDarkness"] = v.BarGradientDarkness;
                 dict["BarGradientEnabled"] = v.BarGradientEnabled;
                 if (!string.IsNullOrEmpty(v.BarGradientBaseColorHex)) dict["BarGradientBaseColorHex"] = v.BarGradientBaseColorHex;
@@ -148,8 +146,6 @@ public static class ElementMapper
                 dict["FilePath"] = i.FilePath;
                 dict["Opacity"] = i.Opacity;
                 dict["ScaleMode"] = i.ScaleMode.ToString();
-                dict["FlipH"] = i.FlipH;
-                dict["FlipV"] = i.FlipV;
                 break;
             case TextOverlayElement to:
                 dict["Content"] = to.Content;
@@ -176,8 +172,6 @@ public static class ElementMapper
                 dict["BackgroundOpacity"] = to.BackgroundOpacity;
                 dict["BackgroundPadding"] = to.BackgroundPadding;
                 dict["SizingMode"] = to.SizingMode.ToString();
-                dict["FlipH"] = to.FlipH;
-                dict["FlipV"] = to.FlipV;
                 dict["BackgroundCornerRadius"] = to.BackgroundCornerRadius;
                 break;
         }
@@ -205,6 +199,8 @@ public static class ElementMapper
 
         if (dict.TryGetValue("Name", out var nameEl))
             canvas.Name = nameEl.GetString() ?? canvas.Type.ToString();
+        if (dict.TryGetValue("FlipH", out var fh)) canvas.FlipH = fh.GetBoolean();
+        if (dict.TryGetValue("FlipV", out var fv)) canvas.FlipV = fv.GetBoolean();
 
         switch (canvas)
         {
@@ -213,8 +209,6 @@ public static class ElementMapper
                 if (dict.TryGetValue("Opacity", out var lo)) l.Opacity = lo.GetDouble();
                 if (dict.TryGetValue("ScaleMode", out var lsm))
                     l.ScaleMode = Enum.TryParse<ScaleMode>(lsm.GetString(), out var lsmVal) ? lsmVal : ScaleMode.Fit;
-                if (dict.TryGetValue("FlipH", out var lfh)) l.FlipH = lfh.GetBoolean();
-                if (dict.TryGetValue("FlipV", out var lfv)) l.FlipV = lfv.GetBoolean();
                 break;
             case VisualizerElement v:
                 if (dict.TryGetValue("ColorPalette", out var cp))
@@ -238,8 +232,6 @@ public static class ElementMapper
                 if (dict.TryGetValue("AnimationSpeed", out var anim)) v.AnimationSpeed = (float)anim.GetDouble();
                 if (dict.TryGetValue("PrimaryColorHex", out var pch)) v.PrimaryColorHex = pch.GetString() ?? "#00FF00";
                 if (dict.TryGetValue("CustomGradientColors", out var cgc)) v.CustomGradientColors = cgc.GetString() ?? "";
-                if (dict.TryGetValue("FlipH", out var vfh)) v.FlipH = vfh.GetBoolean();
-                if (dict.TryGetValue("FlipV", out var vfv)) v.FlipV = vfv.GetBoolean();
                 if (dict.TryGetValue("BarGradientDarkness", out var bgd)) v.BarGradientDarkness = (float)bgd.GetDouble();
                 if (dict.TryGetValue("BarGradientEnabled", out var bge)) v.BarGradientEnabled = bge.GetBoolean();
                 if (dict.TryGetValue("BarGradientBaseColorHex", out var bgbc)) v.BarGradientBaseColorHex = bgbc.GetString();
@@ -249,8 +241,6 @@ public static class ElementMapper
                 if (dict.TryGetValue("Opacity", out var io)) i.Opacity = io.GetDouble();
                 if (dict.TryGetValue("ScaleMode", out var ism))
                     i.ScaleMode = Enum.TryParse<ScaleMode>(ism.GetString(), out var ismVal) ? ismVal : ScaleMode.Fill;
-                if (dict.TryGetValue("FlipH", out var ifh)) i.FlipH = ifh.GetBoolean();
-                if (dict.TryGetValue("FlipV", out var ifv)) i.FlipV = ifv.GetBoolean();
                 break;
             case TextOverlayElement to:
                 // Support loading legacy TitleElement (has "Text" key) and TextElement (has "Content" key)
@@ -283,8 +273,6 @@ public static class ElementMapper
                 if (dict.TryGetValue("BackgroundCornerRadius", out var tbcr)) to.BackgroundCornerRadius = tbcr.GetDouble();
                 if (dict.TryGetValue("SizingMode", out var tsm))
                     to.SizingMode = Enum.TryParse<TextSizingMode>(tsm.GetString(), out var tsmVal) ? tsmVal : TextSizingMode.AutoHeight;
-                if (dict.TryGetValue("FlipH", out var tfh)) to.FlipH = tfh.GetBoolean();
-                if (dict.TryGetValue("FlipV", out var tfv)) to.FlipV = tfv.GetBoolean();
                 break;
         }
     }

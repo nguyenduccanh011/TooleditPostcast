@@ -4,7 +4,7 @@ using Xunit;
 
 namespace PodcastVideoEditor.Core.Tests;
 
-public class ElementMapperVisualizerPersistenceTests
+public class ElementMapperPersistenceTests
 {
     [Fact]
     public void VisualizerElement_RoundTrip_PreservesAllTemplateRelevantProperties()
