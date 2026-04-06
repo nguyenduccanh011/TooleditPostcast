@@ -335,8 +335,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (CurrentProject == null)
                 throw new InvalidOperationException("No project loaded");
 
-            // Find the text track (first track with TrackType = "text")
-            var textTrack = CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == "text");
+            // Find preferred script text track first, then fall back to first text track.
+            var textTrack = CurrentProject.Tracks?
+                .FirstOrDefault(t => string.Equals(t.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
+                ?? CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == "text");
             if (textTrack == null)
                 throw new InvalidOperationException("No text track found in project");
 

@@ -2,6 +2,7 @@ using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Ui.ViewModels;
 using Serilog;
 using System.ComponentModel;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -20,6 +21,7 @@ public partial class TrackEditorPanel : UserControl
     private bool _suppressRadioChecked;
     private bool _suppressMotionChanged;
     private bool _suppressOverlayChanged;
+    private bool _suppressTrackPolicyChanged;
 
     public TrackEditorPanel()
     {
@@ -83,6 +85,7 @@ public partial class TrackEditorPanel : UserControl
         // Populate fields
         TrackNameText.Text = string.IsNullOrWhiteSpace(track.Name) ? "(no name)" : track.Name;
         TrackTypeText.Text = track.TrackType;
+        SyncTrackPolicyControls(track);
 
         // Show image layout section only for visual tracks
         bool isVisual = string.Equals(track.TrackType, "visual", StringComparison.OrdinalIgnoreCase);
@@ -107,12 +110,87 @@ public partial class TrackEditorPanel : UserControl
         if (sender is not Track track) return;
         if (e.PropertyName == nameof(Track.IsLocked) || e.PropertyName == nameof(Track.IsVisible))
             UpdateLockVisibilityButtons(track);
+        if (e.PropertyName == nameof(Track.TrackRole) || e.PropertyName == nameof(Track.SpanMode))
+            SyncTrackPolicyControls(track);
         if (e.PropertyName == nameof(Track.ImageLayoutPreset))
             SyncRadioButtons(track.ImageLayoutPreset);
         if (e.PropertyName == nameof(Track.AutoMotionEnabled) || e.PropertyName == nameof(Track.MotionIntensity))
             SyncAutoMotionControls(track);
         if (e.PropertyName == nameof(Track.OverlayColorHex) || e.PropertyName == nameof(Track.OverlayOpacity))
             SyncOverlayControls(track);
+    }
+
+    private void SyncTrackPolicyControls(Track track)
+    {
+        _suppressTrackPolicyChanged = true;
+        SelectComboByTag(TrackRoleCombo, NormalizeTrackRole(track.TrackRole));
+        SelectComboByTag(TrackSpanCombo, NormalizeSpanMode(track.SpanMode));
+        TrackPolicyHintText.Text = BuildPolicyHint(track);
+        _suppressTrackPolicyChanged = false;
+    }
+
+    private static void SelectComboByTag(ComboBox combo, string tag)
+    {
+        foreach (var item in combo.Items.OfType<ComboBoxItem>())
+        {
+            if (string.Equals(item.Tag as string, tag, StringComparison.OrdinalIgnoreCase))
+            {
+                combo.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private static string NormalizeTrackRole(string? role)
+        => string.IsNullOrWhiteSpace(role) ? TrackRoles.Unspecified : role.Trim().ToLowerInvariant();
+
+    private static string NormalizeSpanMode(string? span)
+        => string.IsNullOrWhiteSpace(span) ? TrackSpanModes.SegmentBound : span.Trim().ToLowerInvariant();
+
+    private static string BuildPolicyHint(Track track)
+    {
+        var roleText = NormalizeTrackRole(track.TrackRole) switch
+        {
+            TrackRoles.BrandOverlay => "Brand overlay: logo/icon cố định.",
+            TrackRoles.TitleOverlay => "Title overlay: title xuyên suốt hoặc theo mẫu.",
+            TrackRoles.ScriptText => "Script text: nội dung lấy từ script mới.",
+            TrackRoles.AiContent => "AI content: track nhận segment ảnh do AI sinh.",
+            TrackRoles.Visualizer => "Visualizer: lớp hiệu ứng phổ âm thanh.",
+            TrackRoles.BackgroundContent => "Background content: nền dài hoặc intro/outro.",
+            _ => "Vai trò chưa chỉ định: hệ thống sẽ fallback theo heuristic."
+        };
+
+        var spanText = NormalizeSpanMode(track.SpanMode) switch
+        {
+            TrackSpanModes.ProjectDuration => "Span: tự kéo dài đến cuối project.",
+            TrackSpanModes.TemplateDuration => "Span: giữ đúng thời lượng theo template.",
+            TrackSpanModes.Manual => "Span: manual, không auto-extend.",
+            _ => "Span: theo từng segment (nội dung động)."
+        };
+
+        return $"{roleText} {spanText}";
+    }
+
+    private void TrackRoleCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressTrackPolicyChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+        if (TrackRoleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not string role) return;
+
+        _viewModel.SelectedTrack.TrackRole = NormalizeTrackRole(role);
+        TrackPolicyHintText.Text = BuildPolicyHint(_viewModel.SelectedTrack);
+        _viewModel.RequestProjectSave();
+    }
+
+    private void TrackSpanCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressTrackPolicyChanged) return;
+        if (_viewModel?.SelectedTrack == null) return;
+        if (TrackSpanCombo.SelectedItem is not ComboBoxItem item || item.Tag is not string span) return;
+
+        _viewModel.SelectedTrack.SpanMode = NormalizeSpanMode(span);
+        TrackPolicyHintText.Text = BuildPolicyHint(_viewModel.SelectedTrack);
+        _viewModel.RequestProjectSave();
     }
 
     private void SyncRadioButtons(string preset)

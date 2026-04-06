@@ -59,6 +59,20 @@ public partial class Track : ObservableObject
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
+    /// Semantic role used for template mapping and automation.
+    /// See <see cref="TrackRoles"/> constants for supported values.
+    /// </summary>
+    [ObservableProperty]
+    private string trackRole = TrackRoles.Unspecified;
+
+    /// <summary>
+    /// Duration policy for this track.
+    /// See <see cref="TrackSpanModes"/> constants for supported values.
+    /// </summary>
+    [ObservableProperty]
+    private string spanMode = TrackSpanModes.SegmentBound;
+
+    /// <summary>
     /// Indicates if this track is locked for editing.
     /// When locked, segments in this track cannot be dragged, resized, or modified through UI.
     /// </summary>
@@ -158,6 +172,8 @@ public partial class Track : ObservableObject
         ProjectId          = ProjectId,
         Name               = Name,
         TrackType          = TrackType,
+        TrackRole          = TrackRole,
+        SpanMode           = SpanMode,
         Order              = Order,
         IsVisible          = IsVisible,
         IsLocked           = IsLocked,

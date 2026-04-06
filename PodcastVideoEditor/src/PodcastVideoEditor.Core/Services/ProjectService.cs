@@ -142,6 +142,8 @@ namespace PodcastVideoEditor.Core.Services
                         ProjectId = project.Id, 
                         Order = 0, 
                         TrackType = TrackTypes.Text, 
+                        TrackRole = TrackRoles.ScriptText,
+                        SpanMode = TrackSpanModes.SegmentBound,
                         Name = "Text 1", 
                         IsLocked = false, 
                         IsVisible = true 
@@ -151,6 +153,8 @@ namespace PodcastVideoEditor.Core.Services
                         ProjectId = project.Id, 
                         Order = 1, 
                         TrackType = TrackTypes.Visual, 
+                        TrackRole = TrackRoles.AiContent,
+                        SpanMode = TrackSpanModes.SegmentBound,
                         Name = "Visual 1", 
                         IsLocked = false, 
                         IsVisible = true 
@@ -233,6 +237,8 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = tracked.Id,
                                 Order = 0,
                                 TrackType = TrackTypes.Text,
+                                TrackRole = TrackRoles.ScriptText,
+                                SpanMode = TrackSpanModes.SegmentBound,
                                 Name = "Text 1",
                                 IsLocked = false,
                                 IsVisible = true,
@@ -242,6 +248,8 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = tracked.Id,
                                 Order = 1,
                                 TrackType = TrackTypes.Visual,
+                                TrackRole = TrackRoles.AiContent,
+                                SpanMode = TrackSpanModes.SegmentBound,
                                 Name = "Visual 1",
                                 IsLocked = false,
                                 IsVisible = true,
@@ -260,6 +268,8 @@ namespace PodcastVideoEditor.Core.Services
                                 TrackType = string.IsNullOrWhiteSpace(trackSnapshot.TrackType)
                                     ? TrackTypes.Visual
                                     : trackSnapshot.TrackType,
+                                TrackRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType, trackSnapshot.Name),
+                                SpanMode = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackType, trackSnapshot.Name),
                                 Name = string.IsNullOrWhiteSpace(trackSnapshot.Name)
                                     ? "Track"
                                     : trackSnapshot.Name,
@@ -390,6 +400,8 @@ namespace PodcastVideoEditor.Core.Services
                         ProjectId = project.Id,
                         Order = maxOrder + 1,
                         TrackType = TrackTypes.Audio,
+                        TrackRole = TrackRoles.Unspecified,
+                        SpanMode = TrackSpanModes.SegmentBound,
                         Name = "Audio 1",
                         IsLocked = false,
                         IsVisible = true,
@@ -509,6 +521,8 @@ namespace PodcastVideoEditor.Core.Services
             public string? Id { get; set; }
             public int Order { get; set; }
             public string? TrackType { get; set; }
+            public string? TrackRole { get; set; }
+            public string? SpanMode { get; set; }
             public string? Name { get; set; }
             public bool IsLocked { get; set; }
             public bool IsVisible { get; set; } = true;
@@ -642,6 +656,8 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = trackedProject.Id,
                                 Order = maxOrder + 1,
                                 TrackType = TrackTypes.Audio,
+                                TrackRole = TrackRoles.Unspecified,
+                                SpanMode = TrackSpanModes.SegmentBound,
                                 Name = "Audio 1",
                                 IsLocked = false,
                                 IsVisible = true,
@@ -710,6 +726,8 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = trackedProject.Id,
                                 Order = maxOrder + 1,
                                 TrackType = TrackTypes.Audio,
+                                TrackRole = TrackRoles.Unspecified,
+                                SpanMode = TrackSpanModes.SegmentBound,
                                 Name = "BGM",
                                 IsLocked = false,
                                 IsVisible = true
@@ -1005,7 +1023,7 @@ namespace PodcastVideoEditor.Core.Services
                 int changed = 0;
                 foreach (var track in project.Tracks)
                 {
-                    if (!IsDynamicOverlayTrack(track))
+                    if (!ShouldAutoStretchToProjectDuration(track))
                         continue;
 
                     var seg = track.Segments!.Single();
@@ -1059,6 +1077,72 @@ namespace PodcastVideoEditor.Core.Services
                 || name.Contains("overlay", StringComparison.OrdinalIgnoreCase)
                 || name.Contains("watermark", StringComparison.OrdinalIgnoreCase)
                 || name.Contains("brand", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ShouldAutoStretchToProjectDuration(Track track)
+        {
+            // New policy path: explicit span mode from track metadata.
+            if (string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            // Legacy compatibility path.
+            return IsDynamicOverlayTrack(track);
+        }
+
+        private static string NormalizeTrackRole(string? role, string? trackType, string? name)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                var normalizedType = trackType?.Trim().ToLowerInvariant() ?? string.Empty;
+                var normalizedName = name?.Trim() ?? string.Empty;
+
+                if (normalizedType == TrackTypes.Text)
+                    return TrackRoles.ScriptText;
+
+                if (normalizedType == TrackTypes.Visual)
+                {
+                    if (normalizedName.Contains("logo", StringComparison.OrdinalIgnoreCase)
+                        || normalizedName.Contains("icon", StringComparison.OrdinalIgnoreCase)
+                        || normalizedName.Contains("watermark", StringComparison.OrdinalIgnoreCase)
+                        || normalizedName.Contains("brand", StringComparison.OrdinalIgnoreCase))
+                        return TrackRoles.BrandOverlay;
+
+                    if (normalizedName.Contains("visualizer", StringComparison.OrdinalIgnoreCase)
+                        || normalizedName.Contains("spectrum", StringComparison.OrdinalIgnoreCase))
+                        return TrackRoles.Visualizer;
+
+                    return TrackRoles.AiContent;
+                }
+
+                return TrackRoles.Unspecified;
+            }
+
+            return role.Trim().ToLowerInvariant();
+        }
+
+        private static string NormalizeSpanMode(string? spanMode, string? trackType, string? name)
+        {
+            if (string.IsNullOrWhiteSpace(spanMode))
+            {
+                var inferredRole = NormalizeTrackRole(null, trackType, name);
+                return inferredRole switch
+                {
+                    TrackRoles.BrandOverlay => TrackSpanModes.ProjectDuration,
+                    TrackRoles.TitleOverlay => TrackSpanModes.ProjectDuration,
+                    TrackRoles.Visualizer => TrackSpanModes.ProjectDuration,
+                    _ => TrackSpanModes.SegmentBound,
+                };
+            }
+
+            var value = spanMode.Trim().ToLowerInvariant();
+            return value switch
+            {
+                TrackSpanModes.ProjectDuration => TrackSpanModes.ProjectDuration,
+                TrackSpanModes.TemplateDuration => TrackSpanModes.TemplateDuration,
+                TrackSpanModes.SegmentBound => TrackSpanModes.SegmentBound,
+                TrackSpanModes.Manual => TrackSpanModes.Manual,
+                _ => TrackSpanModes.SegmentBound,
+            };
         }
 
         /// <summary>

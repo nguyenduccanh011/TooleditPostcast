@@ -32,8 +32,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                // Find text track (first track with TrackType = "text")
-                var textTrack = _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
+                // Find preferred script text track first, then fall back to first text track.
+                var textTrack = _projectViewModel.CurrentProject.Tracks?
+                    .FirstOrDefault(t => string.Equals(t.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
+                    ?? _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
                 if (textTrack == null)
                 {
                     StatusMessage = "No text track found in project";
@@ -172,7 +174,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
             });
 
             // Capture existing text-track segment IDs before replacing (for ScriptApplied event)
-            var textTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
+            var textTrack = project.Tracks?
+                .FirstOrDefault(t => string.Equals(t.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
+                ?? project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
             var oldSegmentIds = textTrack?.Segments
                 .Select(s => s.Id)
                 .ToHashSet() ?? new HashSet<string>();
@@ -244,6 +248,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 .OrderBy(t => t.Order)
                 .ToList();
 
+            // Explicit role wins.
+            var roleBased = visualTracks.FirstOrDefault(t =>
+                string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase)
+                && !t.IsLocked);
+            if (roleBased != null)
+                return roleBased.Id;
+
             // Prefer a normal visual content track (not locked, not logo/icon overlay track).
             var preferred = visualTracks.FirstOrDefault(t => !t.IsLocked && !IsDynamicOverlayVisualTrack(t));
             if (preferred != null)
@@ -260,6 +271,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ProjectId = project.Id,
                 Order = (project.Tracks ?? []).Any() ? project.Tracks!.Max(t => t.Order) + 1 : 0,
                 TrackType = TrackTypes.Visual,
+                TrackRole = TrackRoles.AiContent,
+                SpanMode = TrackSpanModes.SegmentBound,
                 Name = "Visual AI",
                 IsVisible = true,
                 IsLocked = false,
@@ -277,6 +290,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             if (!string.Equals(track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
                 return false;
+
+            // Explicit metadata path.
+            if (string.Equals(track.TrackRole, TrackRoles.BrandOverlay, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(track.TrackRole, TrackRoles.TitleOverlay, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(track.TrackRole, TrackRoles.Visualizer, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                return true;
 
             var segs = (track.Segments ?? []).Where(s => s.EndTime > s.StartTime).ToList();
             if (segs.Count != 1)

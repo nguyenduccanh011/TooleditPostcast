@@ -37,6 +37,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ProjectId = _projectViewModel.CurrentProject.Id,
                 Order = maxOrder,
                 TrackType = trackType,
+                TrackRole = trackType switch
+                {
+                    TrackTypes.Text => TrackRoles.ScriptText,
+                    TrackTypes.Visual => TrackRoles.AiContent,
+                    _ => TrackRoles.Unspecified,
+                },
+                SpanMode = TrackSpanModes.SegmentBound,
                 Name = name ?? $"{typeName} {Tracks.Count(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase)) + 1}",
                 IsVisible = true,
                 IsLocked = false,
@@ -81,6 +88,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ProjectId = _projectViewModel.CurrentProject.Id,
                 Order = orderIndex,
                 TrackType = trackType,
+                TrackRole = trackType switch
+                {
+                    TrackTypes.Text => TrackRoles.ScriptText,
+                    TrackTypes.Visual => TrackRoles.AiContent,
+                    _ => TrackRoles.Unspecified,
+                },
+                SpanMode = TrackSpanModes.SegmentBound,
                 Name = name ?? $"{typeName} {Tracks.Count(t => string.Equals(t.TrackType, trackType, StringComparison.OrdinalIgnoreCase)) + 1}",
                 IsVisible = true,
                 IsLocked = false,

@@ -631,6 +631,8 @@ public partial class MainWindow : Window
                 Id = t.Id,
                 Order = t.Order,
                 TrackType = t.TrackType,
+                TrackRole = t.TrackRole,
+                SpanMode = t.SpanMode,
                 Name = t.Name,
                 IsLocked = t.IsLocked,
                 IsVisible = t.IsVisible,
@@ -704,6 +706,8 @@ public partial class MainWindow : Window
         public string? Id { get; set; }
         public int Order { get; set; }
         public string? TrackType { get; set; }
+        public string? TrackRole { get; set; }
+        public string? SpanMode { get; set; }
         public string? Name { get; set; }
         public bool IsLocked { get; set; }
         public bool IsVisible { get; set; } = true;

@@ -48,6 +48,42 @@
                            FontFamily="Courier New"
                            Margin="0,0,0,15"/>
 
+                <TextBlock Text="Vai trò track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <ComboBox x:Name="TrackRoleCombo"
+                          Background="#2a2a2a" Foreground="#e0e0e0"
+                          BorderBrush="#546e7a" BorderThickness="1"
+                          Padding="8,5" Margin="0,0,0,8"
+                          SelectionChanged="TrackRoleCombo_SelectionChanged">
+                    <ComboBoxItem Content="Không chỉ định" Tag="unspecified" IsSelected="True"/>
+                    <ComboBoxItem Content="Brand Overlay (logo/icon)" Tag="brand_overlay"/>
+                    <ComboBoxItem Content="Title Overlay" Tag="title_overlay"/>
+                    <ComboBoxItem Content="Script Text" Tag="script_text"/>
+                    <ComboBoxItem Content="AI Content" Tag="ai_content"/>
+                    <ComboBoxItem Content="Visualizer" Tag="visualizer"/>
+                    <ComboBoxItem Content="Background Content" Tag="background_content"/>
+                </ComboBox>
+
+                <TextBlock Text="Chế độ thời lượng (Span):" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <ComboBox x:Name="TrackSpanCombo"
+                          Background="#2a2a2a" Foreground="#e0e0e0"
+                          BorderBrush="#546e7a" BorderThickness="1"
+                          Padding="8,5" Margin="0,0,0,8"
+                          SelectionChanged="TrackSpanCombo_SelectionChanged">
+                    <ComboBoxItem Content="Segment Bound" Tag="segment_bound" IsSelected="True"/>
+                    <ComboBoxItem Content="Project Duration (tự kéo dài)" Tag="project_duration"/>
+                    <ComboBoxItem Content="Template Duration (giữ như mẫu)" Tag="template_duration"/>
+                    <ComboBoxItem Content="Manual" Tag="manual"/>
+                </ComboBox>
+
+                <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                    <TextBlock x:Name="TrackPolicyHintText"
+                               Text="Role quyết định track dùng để làm gì. Span quyết định track có tự kéo dài theo project hay giữ nguyên thời lượng mẫu."
+                               Foreground="#7a8a96"
+                               FontStyle="Italic"
+                               TextWrapping="Wrap"
+                               FontSize="11"/>
+                </Border>
+
                 <!-- Separator — only show image layout for visual tracks -->
                 <StackPanel x:Name="ImageLayoutSection" Visibility="Collapsed">
                     <Separator Background="#37474f" Margin="0,0,0,12"/>
