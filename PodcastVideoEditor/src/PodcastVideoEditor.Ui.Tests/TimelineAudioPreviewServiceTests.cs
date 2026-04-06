@@ -74,6 +74,68 @@ public sealed class TimelineAudioPreviewServiceTests
         Assert.True(call.forceResync);
     }
 
+    [Fact]
+    public void SyncPreviewAudio_DoesNotSkipSegment_WhenPrimaryAudioIsNotLoadedInTransport()
+    {
+        var audio = new FakeAudioTimelinePreviewService
+        {
+            CurrentAudioPathValue = null
+        };
+
+        var activeSegment = new Segment
+        {
+            Id = "active",
+            StartTime = 0,
+            EndTime = 30,
+            BackgroundAssetId = "asset-1",
+            Kind = SegmentKinds.Audio,
+            TrackId = "audio-track"
+        };
+
+        var project = CreateProjectWithAssets(("asset-1", "c:\\media\\podcast.m4a"));
+        project.AudioPath = "c:\\media\\podcast.m4a";
+
+        var preview = CreatePreviewService(
+            audio,
+            _ => [(new Track { Id = "audio-track", TrackType = TrackTypes.Audio, IsVisible = true }, activeSegment)],
+            [],
+            project);
+
+        preview.SyncPreviewAudio(12);
+
+        Assert.Single(audio.PlaySegmentCalls);
+    }
+
+    [Fact]
+    public void SyncPreviewAudio_SkipsSegment_WhenSamePrimaryAudioIsLoadedInTransport()
+    {
+        var audio = new FakeAudioTimelinePreviewService
+        {
+            CurrentAudioPathValue = "c:\\media\\podcast.m4a"
+        };
+
+        var activeSegment = new Segment
+        {
+            Id = "active",
+            StartTime = 0,
+            EndTime = 30,
+            BackgroundAssetId = "asset-1",
+            Kind = SegmentKinds.Audio,
+            TrackId = "audio-track"
+        };
+
+        var project = CreateProjectWithAssets(("asset-1", "c:\\media\\podcast.m4a"));
+        var preview = CreatePreviewService(
+            audio,
+            _ => [(new Track { Id = "audio-track", TrackType = TrackTypes.Audio, IsVisible = true }, activeSegment)],
+            [],
+            project);
+
+        preview.SyncPreviewAudio(12);
+
+        Assert.Empty(audio.PlaySegmentCalls);
+    }
+
     private static TimelineAudioPreviewService CreatePreviewService(
         FakeAudioTimelinePreviewService audio,
         Func<double, List<(Track track, Segment segment)>> getActiveSegments,
@@ -127,8 +189,9 @@ public sealed class TimelineAudioPreviewServiceTests
         public int StopSegmentAudioCallCount { get; private set; }
         public List<(string segmentId, string audioFilePath)> PreloadCalls { get; } = new();
         public List<(string segmentId, string audioFilePath, double segmentStartTime, double playheadPosition, float volume, double sourceStartOffset, bool forceResync)> PlaySegmentCalls { get; } = new();
+        public string? CurrentAudioPathValue { get; set; }
 
-        public string? CurrentAudioPath => null;
+        public string? CurrentAudioPath => CurrentAudioPathValue;
         public string? CurrentSegmentId => CurrentSegmentIdValue;
         public PlaybackState PlaybackState => PlaybackState.Stopped;
         public bool IsPlaying => false;

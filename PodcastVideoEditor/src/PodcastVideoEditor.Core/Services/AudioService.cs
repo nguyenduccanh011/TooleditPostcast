@@ -99,6 +99,7 @@ namespace PodcastVideoEditor.Core.Services
         // Key = (playbackPath, fileSize, lastWriteUtcTicks), Value = total float sample count.
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<(string, long, long), long>
             _sampleCountCache = new();
+        private static readonly object _segmentDecodeLock = new();
 
         public event EventHandler<PlaybackStoppedEventArgs>? PlaybackStopped;
         public event EventHandler<EventArgs>? PlaybackStarted;
@@ -260,6 +261,35 @@ namespace PodcastVideoEditor.Core.Services
             _decodedAudioPath = cachePath;
             _isDecodedCache = true;
             Log.Information("Decoded WAV cache created in {Ms} ms: {Path}", sw.ElapsedMilliseconds, cachePath);
+            return cachePath;
+        }
+
+        /// <summary>
+        /// Resolve a playback path for segment readers.
+        /// For M4A/AAC inputs, decode to a stable WAV cache so per-segment seeking is sample-accurate.
+        /// This is independent from primary-audio state and safe for concurrent segment playback.
+        /// </summary>
+        private static string GetSegmentPlaybackPath(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            if (ext != ".m4a" && ext != ".aac")
+                return filePath;
+
+            string cachePath = GetDecodedCachePath(filePath);
+            var sourceInfo = new FileInfo(filePath);
+
+            lock (_segmentDecodeLock)
+            {
+                var cacheInfo = new FileInfo(cachePath);
+                if (cacheInfo.Exists && cacheInfo.Length > 0 && cacheInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
+                    return cachePath;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(cachePath) ?? Path.GetTempPath());
+                using var reader = new AudioFileReader(filePath);
+                WaveFileWriter.CreateWaveFile(cachePath, reader);
+            }
+
+            Log.Debug("Segment playback uses decoded WAV cache: {Path}", cachePath);
             return cachePath;
         }
 
@@ -798,7 +828,8 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
-                _preloadedReader = new AudioFileReader(audioFilePath);
+                string playbackPath = GetSegmentPlaybackPath(audioFilePath);
+                _preloadedReader = new AudioFileReader(playbackPath);
                 _preloadedSegmentId = segmentId;
                 _preloadedAudioPath = audioFilePath;
                 Log.Debug("Segment audio preloaded: {SegmentId}", segmentId);
@@ -865,7 +896,8 @@ namespace PodcastVideoEditor.Core.Services
                 else
                 {
                     DisposePreloadedSegment();
-                    newReader = new AudioFileReader(audioFilePath);
+                    string playbackPath = GetSegmentPlaybackPath(audioFilePath);
+                    newReader = new AudioFileReader(playbackPath);
                 }
 
                 newReader.Volume = Math.Clamp(volume, 0f, 1f);

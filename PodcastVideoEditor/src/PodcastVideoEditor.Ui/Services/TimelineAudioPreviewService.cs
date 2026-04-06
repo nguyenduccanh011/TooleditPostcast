@@ -43,7 +43,7 @@ internal sealed class TimelineAudioPreviewService
 
             // Collect ALL active audio segments across every audio track
             var audioSegments = new List<(Segment segment, string filePath)>();
-            var primaryAudioPath = _getCurrentProject()?.AudioPath;
+            var loadedPrimaryAudioPath = _audioService.CurrentAudioPath;
             foreach (var (track, segment) in activeSegments)
             {
                 if (!string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
@@ -61,8 +61,11 @@ internal sealed class TimelineAudioPreviewService
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(primaryAudioPath)
-                    && string.Equals(Path.GetFullPath(asset.FilePath), Path.GetFullPath(primaryAudioPath), StringComparison.OrdinalIgnoreCase))
+                // Avoid double-play only when the exact same primary file is currently loaded
+                // into the audio transport. In timeline-first mode CurrentAudioPath is null,
+                // so timeline audio segments must still be mixed and played.
+                if (!string.IsNullOrWhiteSpace(loadedPrimaryAudioPath)
+                    && string.Equals(Path.GetFullPath(asset.FilePath), Path.GetFullPath(loadedPrimaryAudioPath), StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }

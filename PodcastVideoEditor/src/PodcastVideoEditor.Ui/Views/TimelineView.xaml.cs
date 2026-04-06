@@ -754,6 +754,16 @@ namespace PodcastVideoEditor.Ui.Views
                     // Normal single click: clear multi-selection and select only this segment
                     _viewModel?.ClearMultiSelection();
                     _viewModel?.SelectSegment(segment);
+
+                    // Click-on-segment should also move playhead to the exact clicked time.
+                    // Without this, playback may resume from stale/segment boundary positions.
+                    if (_viewModel != null)
+                    {
+                        var localX = e.GetPosition(grid).X;
+                        var clickedTime = segment.StartTime + _viewModel.PixelsToTime(Math.Max(0, localX));
+                        clickedTime = Math.Clamp(clickedTime, segment.StartTime, segment.EndTime);
+                        _viewModel.SeekTo(clickedTime);
+                    }
                 }
                 e.Handled = true;
             }

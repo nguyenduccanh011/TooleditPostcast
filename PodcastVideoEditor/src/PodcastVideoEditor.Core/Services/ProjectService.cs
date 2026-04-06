@@ -261,13 +261,15 @@ namespace PodcastVideoEditor.Core.Services
                         tracked.Tracks = new List<Track>();
                         foreach (var trackSnapshot in snapshot.Tracks.OrderBy(t => t.Order))
                         {
+                            var trackType = string.IsNullOrWhiteSpace(trackSnapshot.TrackType)
+                                ? TrackTypes.Visual
+                                : trackSnapshot.TrackType;
+
                             var track = new Track
                             {
                                 ProjectId = tracked.Id,
                                 Order = trackSnapshot.Order,
-                                TrackType = string.IsNullOrWhiteSpace(trackSnapshot.TrackType)
-                                    ? TrackTypes.Visual
-                                    : trackSnapshot.TrackType,
+                                TrackType = trackType,
                                 TrackRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType, trackSnapshot.Name),
                                 SpanMode = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackType, trackSnapshot.Name),
                                 Name = string.IsNullOrWhiteSpace(trackSnapshot.Name)
@@ -290,6 +292,14 @@ namespace PodcastVideoEditor.Core.Services
                             track.Segments = new List<Segment>();
                             foreach (var segmentSnapshot in (trackSnapshot.Segments ?? []).OrderBy(s => s.Order))
                             {
+                                // Template snapshots may contain audio blocks without a valid asset binding.
+                                // Those segments are not playable in timeline preview and should not be materialized.
+                                if (string.Equals(trackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
+                                    && string.IsNullOrWhiteSpace(segmentSnapshot.BackgroundAssetId))
+                                {
+                                    continue;
+                                }
+
                                 var segment = new Segment
                                 {
                                     ProjectId = tracked.Id,
