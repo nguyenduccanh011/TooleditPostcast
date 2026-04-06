@@ -9,6 +9,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace PodcastVideoEditor.Core.Services;
 
@@ -196,7 +197,7 @@ public static class FFmpegCommandComposer
     public static (string args, RenderConfig normalizedConfig) Build(RenderConfig config)
     {
         var normalized = NormalizeRenderConfig(config);
-        var args = BuildFFmpegCommand(normalized);
+        var args = BuildFFmpegCommand(StageRenderInputsIfNeeded(normalized));
         return (args, normalized);
     }
 
@@ -290,6 +291,8 @@ public static class FFmpegCommandComposer
             .OrderBy(s => s.StartTime)
             .ToList();
 
+        var useEmbeddedSources = ShouldUseEmbeddedTimelineSources(visualSegments, audioSegments);
+
         if (visualSegments.Count == 0 && textSegments.Count == 0 && audioSegments.Count == 0)
             return BuildLegacySingleImageCommand(config, crf);
 
@@ -316,49 +319,104 @@ public static class FFmpegCommandComposer
         var canvasDuration = (int)Math.Ceiling(maxEndTime) + 1;
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
-        // ── Inputs 1..N : visual sources
+        // ── Inputs 1..N : visual sources (deduplicated by source path)
         // -thread_queue_size 512: prevents buffer underrun when many inputs compete
         // for decode bandwidth. Default (8) is too small for 10+ concurrent inputs.
         var cudaZeroCopy = useCudaOverlay && gpuBackend == GpuFilterBackend.Cuda;
 
-        foreach (var seg in visualSegments)
+        var visualSourceRefByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var visualUniqueInputs = new List<(string SourcePath, bool IsVideo, string SourceRef)>();
+        var visualSegmentSourceRefs = new string[visualSegments.Count];
+        for (int i = 0; i < visualSegments.Count; i++)
         {
-            if (seg.IsVideo)
+            var seg = visualSegments[i];
+            var key = BuildMediaInputKey(seg.SourcePath, seg.IsVideo);
+            if (!visualSourceRefByKey.TryGetValue(key, out var sourceRef))
             {
-                if (cudaZeroCopy)
+                sourceRef = useEmbeddedSources
+                    ? $"vsrc{visualUniqueInputs.Count}"
+                    : $"{visualUniqueInputs.Count + 1}:v"; // input 0 is canvas
+                visualSourceRefByKey[key] = sourceRef;
+                visualUniqueInputs.Add((seg.SourcePath, seg.IsVideo, sourceRef));
+            }
+
+            visualSegmentSourceRefs[i] = sourceRef;
+        }
+
+        if (!useEmbeddedSources)
+        {
+            foreach (var input in visualUniqueInputs)
+            {
+                if (input.IsVideo)
                 {
-                    // CUDA zero-copy: decode on GPU, keep frames in VRAM.
-                    args.Append($"-thread_queue_size 512 -hwaccel cuda -hwaccel_output_format cuda -i \"{seg.SourcePath}\" ");
+                    if (cudaZeroCopy)
+                    {
+                        // CUDA zero-copy: decode on GPU, keep frames in VRAM.
+                        args.Append($"-thread_queue_size 512 -hwaccel cuda -hwaccel_output_format cuda -i \"{input.SourcePath}\" ");
+                    }
+                    else
+                    {
+                        // -hwaccel auto: FFmpeg tries d3d11va → dxva2 → software.
+                        // Safer than hard-coding d3d11va — graceful fallback for
+                        // unsupported codecs (VP9/AV1 on older GPUs) or Windows 7.
+                        args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{input.SourcePath}\" ");
+                    }
                 }
                 else
                 {
-                    // -hwaccel auto: FFmpeg tries d3d11va → dxva2 → software.
-                    // Safer than hard-coding d3d11va — graceful fallback for
-                    // unsupported codecs (VP9/AV1 on older GPUs) or Windows 7.
-                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
+                    // Infinite loop image input can be reused for many timeline segments of the same source.
+                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{input.SourcePath}\" ");
                 }
-            }
-            else
-            {
-                // Image input: use -loop 1 -t to create a finite looped stream.
-                // Duration is segment length + 0.5s safety margin.
-                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
-                args.Append($"-thread_queue_size 512 -loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
             }
         }
 
+        Log.Information("Timeline command input dedup: visual segments={SegmentCount}, unique visual sources={UniqueCount}",
+            visualSegments.Count, visualUniqueInputs.Count);
+
         // ── Primary audio or silent placeholder
         var hasPrimaryAudio = !string.IsNullOrWhiteSpace(config.AudioPath) && File.Exists(config.AudioPath);
-        var primaryAudioIndex = visualSegments.Count + 1;
+        var primaryAudioIndex = useEmbeddedSources ? 1 : visualUniqueInputs.Count + 1;
         if (hasPrimaryAudio)
             args.Append($"-i \"{config.AudioPath}\" ");
         else
             args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
 
-        // ── Extra audio clip inputs
-        var extraAudioStartIndex = primaryAudioIndex + 1;
-        foreach (var aseg in audioSegments)
-            args.Append($"-i \"{aseg.SourcePath}\" ");
+        // ── Extra audio clip inputs (deduplicated by source path)
+        var audioSourceRefByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var audioUniqueInputs = new List<(string SourcePath, string SourceRef)>();
+        var audioSegmentSourceRefs = new string[audioSegments.Count];
+        for (int i = 0; i < audioSegments.Count; i++)
+        {
+            var aseg = audioSegments[i];
+            var key = NormalizePathForKey(aseg.SourcePath);
+            if (!audioSourceRefByKey.TryGetValue(key, out var sourceRef))
+            {
+                sourceRef = useEmbeddedSources
+                    ? $"asrc{audioUniqueInputs.Count}"
+                    : $"{primaryAudioIndex + 1 + audioUniqueInputs.Count}:a";
+                audioSourceRefByKey[key] = sourceRef;
+                audioUniqueInputs.Add((aseg.SourcePath, sourceRef));
+            }
+
+            audioSegmentSourceRefs[i] = sourceRef;
+        }
+
+        if (!useEmbeddedSources)
+        {
+            foreach (var audioInput in audioUniqueInputs)
+                args.Append($"-i \"{audioInput.SourcePath}\" ");
+        }
+
+        if (audioSegments.Count > 0)
+        {
+            Log.Information("Timeline command input dedup: audio segments={SegmentCount}, unique audio sources={UniqueCount}",
+                audioSegments.Count, audioUniqueInputs.Count);
+        }
+
+        if (useEmbeddedSources)
+        {
+            Log.Information("Timeline command using embedded movie/amovie sources for large timeline fallback");
+        }
 
         // ── filter_complex
         var filter = new StringBuilder();
@@ -386,13 +444,31 @@ public static class FFmpegCommandComposer
         else
             filter.Append($"[0:v]format=yuv420p,setsar=1[base];");
 
+        if (useEmbeddedSources)
+        {
+            foreach (var input in visualUniqueInputs)
+            {
+                var escapedPath = EscapeFilterPath(input.SourcePath);
+                if (input.IsVideo)
+                    filter.Append($"movie=filename='{escapedPath}'[{input.SourceRef}];");
+                else
+                    filter.Append($"movie=filename='{escapedPath}',loop=loop=-1:size=1:start=0,fps={config.FrameRate}[{input.SourceRef}];");
+            }
+
+            foreach (var audioInput in audioUniqueInputs)
+            {
+                var escapedPath = EscapeFilterPath(audioInput.SourcePath);
+                filter.Append($"amovie=filename='{escapedPath}'[{audioInput.SourceRef}];");
+            }
+        }
+
         // Track whether each scaled segment is a CUDA surface (true) or CPU frame (false).
         var segOnGpu = new bool[visualSegments.Count];
 
         // Step 2: Scale + position each visual segment
         for (int i = 0; i < visualSegments.Count; i++)
         {
-            var inputIdx = i + 1;
+            var sourceRef = visualSegmentSourceRefs[i];
             var seg = visualSegments[i];
             var start    = seg.StartTime.ToString("F3", invariant);
             var end      = seg.EndTime.ToString("F3", invariant);
@@ -420,7 +496,7 @@ public static class FFmpegCommandComposer
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
 
-                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     if (cudaZeroCopy)
                     {
                         // Frames are already CUDA surfaces from -hwaccel_output_format cuda.
@@ -440,7 +516,7 @@ public static class FFmpegCommandComposer
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
 
-                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     if (cudaZeroCopy)
                         filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                     else
@@ -453,7 +529,7 @@ public static class FFmpegCommandComposer
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                         ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                         : BuildScalingFilter(config);
-                    filter.Append($"[{inputIdx}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
             }
@@ -471,7 +547,7 @@ public static class FFmpegCommandComposer
 
                 if (zoompanFilter != null)
                 {
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else if (useCudaOverlay && !forceCpu)
                 {
@@ -480,7 +556,7 @@ public static class FFmpegCommandComposer
                         ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
                     filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
                     segOnGpu[i] = true;
                 }
@@ -491,12 +567,12 @@ public static class FFmpegCommandComposer
                         ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
                     filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
             }
         }
@@ -634,7 +710,7 @@ public static class FFmpegCommandComposer
             for (int i = 0; i < audioSegments.Count; i++)
             {
                 var aseg        = audioSegments[i];
-                var inputIdx    = extraAudioStartIndex + i;
+                var audioSourceRef = audioSegmentSourceRefs[i];
                 var delayMs     = (long)Math.Round(aseg.StartTime * 1000);
                 var duration    = aseg.EndTime - aseg.StartTime;
                 var srcOffset   = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
@@ -642,12 +718,12 @@ public static class FFmpegCommandComposer
 
                 if (aseg.IsLooping)
                 {
-                    filter.Append($"[{inputIdx}:a]aloop=loop=-1:size=2147483647,");
+                    filter.Append($"[{audioSourceRef}]aloop=loop=-1:size=2147483647,");
                     filter.Append($"atrim=start=0:duration={duration.ToString("F3", invariant)},");
                 }
                 else
                 {
-                    filter.Append($"[{inputIdx}:a]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                    filter.Append($"[{audioSourceRef}]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
                 }
                 filter.Append($"asetpts=PTS-STARTPTS,");
                 filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
@@ -835,35 +911,46 @@ public static class FFmpegCommandComposer
         var canvasDuration = (int)Math.Ceiling(maxEndTime) + 1;
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
-        // Visual inputs (1..N)
+        // Visual inputs (1..N), deduplicated by source path
         int inputIndex = 1;
-        var visualInputMap = new int[visualTier.Count]; // maps visual index → FFmpeg input index
-        foreach (var seg in visualTier)
-        {
-            if (seg.IsVideo)
-            {
-                args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
-            }
-            else
-            {
-                var loopDur = (seg.EndTime - seg.StartTime + 0.5).ToString("F3", invariant);
-                args.Append($"-thread_queue_size 512 -loop 1 -t {loopDur} -i \"{seg.SourcePath}\" ");
-            }
-            visualInputMap[inputIndex - 1 < visualTier.Count ? inputIndex - 1 : 0] = inputIndex;
-            inputIndex++;
-        }
-        // Fix input mapping
+        var visualInputMap = new int[visualTier.Count]; // maps visual index -> FFmpeg input index
+        var concatVisualInputByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < visualTier.Count; i++)
-            visualInputMap[i] = i + 1;
+        {
+            var seg = visualTier[i];
+            var key = BuildMediaInputKey(seg.SourcePath, seg.IsVideo);
+            if (!concatVisualInputByKey.TryGetValue(key, out var mappedIndex))
+            {
+                mappedIndex = inputIndex;
+                concatVisualInputByKey[key] = mappedIndex;
+                if (seg.IsVideo)
+                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
+                else
+                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{seg.SourcePath}\" ");
+                inputIndex++;
+            }
 
-        // Text PNG inputs
+            visualInputMap[i] = mappedIndex;
+        }
+
+        Log.Information("Concat command input dedup: visual segments={SegmentCount}, unique visual sources={UniqueCount}",
+            visualTier.Count, concatVisualInputByKey.Count);
+
+        // Text PNG inputs (deduplicated by source path)
         var textInputMap = new Dictionary<RenderVisualSegment, int>();
+        var textInputByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var textSeg in textTier)
         {
-            var loopDur = (textSeg.EndTime - textSeg.StartTime + 0.5).ToString("F3", invariant);
-            args.Append($"-thread_queue_size 512 -loop 1 -t {loopDur} -i \"{textSeg.SourcePath}\" ");
-            textInputMap[textSeg] = inputIndex;
-            inputIndex++;
+            var key = NormalizePathForKey(textSeg.SourcePath);
+            if (!textInputByKey.TryGetValue(key, out var mappedIndex))
+            {
+                mappedIndex = inputIndex;
+                textInputByKey[key] = mappedIndex;
+                args.Append($"-thread_queue_size 512 -loop 1 -i \"{textSeg.SourcePath}\" ");
+                inputIndex++;
+            }
+
+            textInputMap[textSeg] = mappedIndex;
         }
 
         // Primary audio input
@@ -875,12 +962,22 @@ public static class FFmpegCommandComposer
             args.Append($"-f lavfi -i \"anullsrc=r=44100:cl=stereo\" ");
         inputIndex++;
 
-        // Extra audio clip inputs
-        var extraAudioStartIndex = inputIndex;
-        foreach (var aseg in audioSegments)
+        // Extra audio clip inputs (deduplicated by source path)
+        var concatAudioInputMap = new int[audioSegments.Count];
+        var concatAudioInputByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int ai = 0; ai < audioSegments.Count; ai++)
         {
-            args.Append($"-i \"{aseg.SourcePath}\" ");
-            inputIndex++;
+            var aseg = audioSegments[ai];
+            var key = NormalizePathForKey(aseg.SourcePath);
+            if (!concatAudioInputByKey.TryGetValue(key, out var mappedIndex))
+            {
+                mappedIndex = inputIndex;
+                concatAudioInputByKey[key] = mappedIndex;
+                args.Append($"-i \"{aseg.SourcePath}\" ");
+                inputIndex++;
+            }
+
+            concatAudioInputMap[ai] = mappedIndex;
         }
 
         // ── Filter graph: per-clip chains + concat ──
@@ -1016,7 +1113,7 @@ public static class FFmpegCommandComposer
             for (int ai = 0; ai < audioSegments.Count; ai++)
             {
                 var aseg = audioSegments[ai];
-                var aInputIdx = extraAudioStartIndex + ai;
+                var aInputIdx = concatAudioInputMap[ai];
                 var delayMs = (long)Math.Round(aseg.StartTime * 1000);
                 var aduration = aseg.EndTime - aseg.StartTime;
                 var aSrcOffset = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
@@ -1169,6 +1266,196 @@ public static class FFmpegCommandComposer
         "Stretch" => "Stretch",
         _ => "Fill"
     };
+
+    private static RenderConfig StageRenderInputsIfNeeded(RenderConfig config)
+    {
+        if (!ShouldStageRenderInputs(config))
+            return config;
+
+        try
+        {
+            return StageRenderInputs(config);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Render input staging failed; continuing with original paths");
+            return config;
+        }
+    }
+
+    private static bool ShouldStageRenderInputs(RenderConfig config)
+    {
+        var totalCount = (config.VisualSegments?.Count ?? 0)
+            + (config.TextSegments?.Count ?? 0)
+            + (config.AudioSegments?.Count ?? 0);
+
+        if (totalCount >= 16)
+            return true;
+
+        long pathChars = 0;
+        pathChars += config.AudioPath?.Length ?? 0;
+        pathChars += config.ImagePath?.Length ?? 0;
+        pathChars += config.VisualSegments?.Sum(s => s.SourcePath?.Length ?? 0) ?? 0;
+        pathChars += config.AudioSegments?.Sum(s => s.SourcePath?.Length ?? 0) ?? 0;
+
+        return pathChars >= 12_000;
+    }
+
+    private static bool ShouldUseEmbeddedTimelineSources(
+        IReadOnlyCollection<RenderVisualSegment> visualSegments,
+        IReadOnlyCollection<RenderAudioSegment> audioSegments)
+    {
+        var visualUniqueCount = visualSegments
+            .Select(s => BuildMediaInputKey(s.SourcePath, s.IsVideo))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        var audioUniqueCount = audioSegments
+            .Select(s => NormalizePathForKey(s.SourcePath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        // Large timelines with many unique sources can still hit argument-size
+        // limits even with staged short paths. Embed those sources via movie/amovie.
+        if (visualUniqueCount + audioUniqueCount >= 24)
+            return true;
+
+        long totalSourcePathChars = visualSegments.Sum(s => s.SourcePath?.Length ?? 0)
+            + audioSegments.Sum(s => s.SourcePath?.Length ?? 0);
+
+        return totalSourcePathChars >= 8_000;
+    }
+
+    private static RenderConfig StageRenderInputs(RenderConfig config)
+    {
+        var stagingRoot = Path.Combine(Path.GetTempPath(), "pve", $"rs-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(stagingRoot);
+
+        var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        string StagePath(string sourcePath, string prefix)
+        {
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+                return sourcePath;
+
+            var key = NormalizePathForKey(sourcePath);
+            if (cache.TryGetValue(key, out var existing))
+                return existing;
+
+            var extension = Path.GetExtension(sourcePath);
+            var stagedPath = Path.Combine(stagingRoot, $"{prefix}{cache.Count + 1:0000}{extension}");
+
+            if (!TryCreateHardLink(stagedPath, sourcePath))
+                File.Copy(sourcePath, stagedPath, overwrite: true);
+
+            cache[key] = stagedPath;
+            return stagedPath;
+        }
+
+        return new RenderConfig
+        {
+            AudioPath = StagePath(config.AudioPath, "a"),
+            ImagePath = StagePath(config.ImagePath, "img"),
+            OutputPath = config.OutputPath,
+            ResolutionWidth = config.ResolutionWidth,
+            ResolutionHeight = config.ResolutionHeight,
+            AspectRatio = config.AspectRatio,
+            Quality = config.Quality,
+            FrameRate = config.FrameRate,
+            VideoCodec = config.VideoCodec,
+            AudioCodec = config.AudioCodec,
+            ScaleMode = config.ScaleMode,
+            PrimaryAudioVolume = config.PrimaryAudioVolume,
+            VisualSegments = config.VisualSegments?.Select(seg => new RenderVisualSegment
+            {
+                SourcePath = StagePath(seg.SourcePath, seg.IsVideo ? "v" : "i"),
+                StartTime = seg.StartTime,
+                EndTime = seg.EndTime,
+                IsVideo = seg.IsVideo,
+                SourceOffsetSeconds = seg.SourceOffsetSeconds,
+                OverlayX = seg.OverlayX,
+                OverlayY = seg.OverlayY,
+                ScaleWidth = seg.ScaleWidth,
+                ScaleHeight = seg.ScaleHeight,
+                ScaleMode = seg.ScaleMode,
+                HasAlpha = seg.HasAlpha,
+                ZOrder = seg.ZOrder,
+                MotionPreset = seg.MotionPreset,
+                MotionIntensity = seg.MotionIntensity,
+                OverlayColorHex = seg.OverlayColorHex,
+                OverlayOpacity = seg.OverlayOpacity,
+                TransitionType = seg.TransitionType,
+                TransitionDuration = seg.TransitionDuration
+            }).ToList() ?? [],
+            TextSegments = config.TextSegments?.Select(seg => new RenderTextSegment
+            {
+                Text = seg.Text,
+                StartTime = seg.StartTime,
+                EndTime = seg.EndTime,
+                FontSize = seg.FontSize,
+                FontColor = seg.FontColor,
+                FontFilePath = string.IsNullOrWhiteSpace(seg.FontFilePath) ? null : StagePath(seg.FontFilePath, "font"),
+                FontFamily = seg.FontFamily,
+                IsBold = seg.IsBold,
+                IsItalic = seg.IsItalic,
+                XExpr = seg.XExpr,
+                YExpr = seg.YExpr,
+                DrawBox = seg.DrawBox,
+                BoxColor = seg.BoxColor,
+            }).ToList() ?? [],
+            AudioSegments = config.AudioSegments?.Select(seg => new RenderAudioSegment
+            {
+                SourcePath = StagePath(seg.SourcePath, "bgm"),
+                StartTime = seg.StartTime,
+                EndTime = seg.EndTime,
+                Volume = seg.Volume,
+                FadeInDuration = seg.FadeInDuration,
+                FadeOutDuration = seg.FadeOutDuration,
+                SourceOffsetSeconds = seg.SourceOffsetSeconds,
+                IsLooping = seg.IsLooping
+            }).ToList() ?? []
+        };
+    }
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
+    private static bool TryCreateHardLink(string stagedPath, string sourcePath)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(stagedPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            return CreateHardLink(stagedPath, sourcePath, IntPtr.Zero);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string BuildMediaInputKey(string path, bool isVideo)
+    {
+        var normalized = NormalizePathForKey(path);
+        return (isVideo ? "v|" : "i|") + normalized;
+    }
+
+    private static string NormalizePathForKey(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return string.Empty;
+
+        try
+        {
+            return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path.Trim();
+        }
+    }
 
     // ── Codec mapping ───────────────────────────────────────────────────
 

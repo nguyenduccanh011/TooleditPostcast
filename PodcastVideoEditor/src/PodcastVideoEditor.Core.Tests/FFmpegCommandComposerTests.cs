@@ -273,6 +273,54 @@ public class FFmpegCommandComposerTests
     }
 
     [Fact]
+    public void Build_RepeatedVisualSource_UsesSingleInputReference()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            // Overlap segments to force overlay pipeline (not concat) and verify input dedup there.
+            var seg1 = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 8,
+                ZOrder = 0
+            };
+
+            var seg2 = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 2,
+                EndTime = 10,
+                ZOrder = 1
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg1, seg2],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+            var quotedInput = $"-i \"{tempPng}\"";
+            Assert.Equal(1, CountOccurrences(args, quotedInput));
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
     public void Build_ImageOnlySegment_DoesNotContainHwaccel()
     {
         var tempPng = CreateTempPng();
@@ -308,6 +356,140 @@ public class FFmpegCommandComposerTests
         }
     }
 
+    [Fact]
+    public void Build_LargeTimeline_EmbedsVisualSourcesWithMovieFilter()
+    {
+        var tempImages = new List<string>();
+        try
+        {
+            var visuals = new List<RenderVisualSegment>();
+            for (int i = 0; i < 25; i++)
+            {
+                var img = CreateTempPng();
+                tempImages.Add(img);
+                visuals.Add(new RenderVisualSegment
+                {
+                    SourcePath = img,
+                    StartTime = 0,
+                    EndTime = 10,
+                    IsVideo = false,
+                    ZOrder = i
+                });
+            }
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = visuals,
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.DoesNotContain("-thread_queue_size 512 -loop 1 -i", args);
+            Assert.Contains("-/filter_complex", args);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("movie=filename='", script);
+        }
+        finally
+        {
+            foreach (var img in tempImages)
+            {
+                if (System.IO.File.Exists(img))
+                    System.IO.File.Delete(img);
+            }
+        }
+    }
+
+    [Fact]
+    public void Build_LargeTimeline_EmbedsAudioSourcesWithAmovieFilter()
+    {
+        var tempPng = CreateTempPng();
+        var tempAudio = new List<string>();
+        try
+        {
+            var audioSegments = new List<RenderAudioSegment>();
+            for (int i = 0; i < 24; i++)
+            {
+                var audioPath = System.IO.Path.Combine(
+                    System.IO.Path.GetTempPath(), $"test_audio_{System.Guid.NewGuid():N}.wav");
+                System.IO.File.WriteAllBytes(audioPath, []);
+                tempAudio.Add(audioPath);
+
+                audioSegments.Add(new RenderAudioSegment
+                {
+                    SourcePath = audioPath,
+                    StartTime = i,
+                    EndTime = i + 2,
+                    Volume = 1.0
+                });
+            }
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments =
+                [
+                    new RenderVisualSegment
+                    {
+                        SourcePath = tempPng,
+                        StartTime = 0,
+                        EndTime = 30,
+                        IsVideo = false
+                    }
+                ],
+                TextSegments = [],
+                AudioSegments = audioSegments
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.DoesNotContain("-thread_queue_size 512 -i", args);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("amovie=filename='", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+
+            foreach (var audio in tempAudio)
+            {
+                if (System.IO.File.Exists(audio))
+                    System.IO.File.Delete(audio);
+            }
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════
@@ -318,6 +500,22 @@ public class FFmpegCommandComposerTests
             System.IO.Path.GetTempPath(), $"test_{System.Guid.NewGuid():N}.png");
         System.IO.File.WriteAllBytes(path, []); // empty file, just needs to exist for File.Exists
         return path;
+    }
+
+    private static int CountOccurrences(string text, string value)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(value))
+            return 0;
+
+        int count = 0;
+        int index = 0;
+        while ((index = text.IndexOf(value, index, System.StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += value.Length;
+        }
+
+        return count;
     }
 
     private static RenderConfig BuildMinimalConfig(RenderVisualSegment seg, string _transitionHint)
