@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Win32;
 using PodcastVideoEditor.Core.Database;
+using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
 using PodcastVideoEditor.Ui.Services;
@@ -479,6 +480,69 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void SaveCurrentAsTemplateMenu_Click(object sender, RoutedEventArgs e)
+    {
+        var current = _projectViewModel.CurrentProject;
+        if (current == null)
+        {
+            MessageBox.Show("Please open or select a project first.", "Save Template", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SaveTemplateDialog(current.Name)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var sourceProject = await context.Projects
+                .AsNoTracking()
+                .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
+                .Include(p => p.Elements)
+                .FirstOrDefaultAsync(p => p.Id == current.Id);
+
+            if (sourceProject == null)
+            {
+                MessageBox.Show("Project not found in database.", "Save Template", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var snapshot = BuildTemplateSnapshot(sourceProject);
+            var layoutJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            });
+
+            var template = new Template
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = dialog.TemplateName,
+                Description = dialog.TemplateDescription,
+                LayoutJson = layoutJson,
+                CreatedAt = DateTime.UtcNow,
+                LastUsedAt = null,
+                IsSystem = false
+            };
+
+            context.Templates.Add(template);
+            await context.SaveChangesAsync();
+
+            MessageBox.Show("Template saved successfully.", "Save Template", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to save template from project {ProjectId}", current.Id);
+            MessageBox.Show($"Could not save template: {ex.Message}", "Save Template", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async Task ApplyWizardScriptAsync(string scriptText, bool useAiAnalyze)
     {
         if (string.IsNullOrWhiteSpace(scriptText))
@@ -556,6 +620,137 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private static TemplateProjectSnapshot BuildTemplateSnapshot(Project project)
+    {
+        var tracks = project.Tracks?
+            .OrderBy(t => t.Order)
+            .Select(t => new TemplateTrackSnapshot
+            {
+                Id = t.Id,
+                Order = t.Order,
+                TrackType = t.TrackType,
+                Name = t.Name,
+                IsLocked = t.IsLocked,
+                IsVisible = t.IsVisible,
+                ImageLayoutPreset = t.ImageLayoutPreset,
+                AutoMotionEnabled = t.AutoMotionEnabled,
+                MotionIntensity = t.MotionIntensity,
+                OverlayColorHex = t.OverlayColorHex,
+                OverlayOpacity = t.OverlayOpacity,
+                TextStyleJson = t.TextStyleJson,
+                Segments = t.Segments?
+                    .OrderBy(s => s.Order)
+                    .Select(s => new TemplateSegmentSnapshot
+                    {
+                        Id = s.Id,
+                        StartTime = s.StartTime,
+                        EndTime = s.EndTime,
+                        Text = s.Text,
+                        BackgroundAssetId = null,
+                        TransitionType = s.TransitionType,
+                        TransitionDuration = s.TransitionDuration,
+                        Order = s.Order,
+                        Kind = s.Kind,
+                        Keywords = s.Keywords,
+                        Volume = s.Volume,
+                        FadeInDuration = s.FadeInDuration,
+                        FadeOutDuration = s.FadeOutDuration,
+                        SourceStartOffset = s.SourceStartOffset,
+                        MotionPreset = s.MotionPreset,
+                        MotionIntensity = s.MotionIntensity,
+                        OverlayColorHex = s.OverlayColorHex,
+                        OverlayOpacity = s.OverlayOpacity
+                    })
+                    .ToList() ?? []
+            })
+            .ToList() ?? [];
+
+        var elements = project.Elements?
+            .Select(e => new TemplateElementSnapshot
+            {
+                Type = e.Type,
+                X = e.X,
+                Y = e.Y,
+                Width = e.Width,
+                Height = e.Height,
+                Rotation = e.Rotation,
+                ZIndex = e.ZIndex,
+                Opacity = e.Opacity,
+                PropertiesJson = e.PropertiesJson,
+                IsVisible = e.IsVisible,
+                SegmentId = e.SegmentId
+            })
+            .ToList() ?? [];
+
+        return new TemplateProjectSnapshot
+        {
+            RenderSettings = project.RenderSettings ?? new RenderSettings(),
+            Tracks = tracks,
+            Elements = elements
+        };
+    }
+
+    private sealed class TemplateProjectSnapshot
+    {
+        public RenderSettings? RenderSettings { get; set; }
+        public List<TemplateTrackSnapshot> Tracks { get; set; } = [];
+        public List<TemplateElementSnapshot> Elements { get; set; } = [];
+    }
+
+    private sealed class TemplateTrackSnapshot
+    {
+        public string? Id { get; set; }
+        public int Order { get; set; }
+        public string? TrackType { get; set; }
+        public string? Name { get; set; }
+        public bool IsLocked { get; set; }
+        public bool IsVisible { get; set; } = true;
+        public string? ImageLayoutPreset { get; set; }
+        public bool AutoMotionEnabled { get; set; }
+        public double MotionIntensity { get; set; } = 0.3;
+        public string? OverlayColorHex { get; set; }
+        public double OverlayOpacity { get; set; }
+        public string? TextStyleJson { get; set; }
+        public List<TemplateSegmentSnapshot> Segments { get; set; } = [];
+    }
+
+    private sealed class TemplateSegmentSnapshot
+    {
+        public string? Id { get; set; }
+        public double StartTime { get; set; }
+        public double EndTime { get; set; }
+        public string? Text { get; set; }
+        public string? BackgroundAssetId { get; set; }
+        public string? TransitionType { get; set; }
+        public double TransitionDuration { get; set; } = 0.5;
+        public int Order { get; set; }
+        public string? Kind { get; set; }
+        public string? Keywords { get; set; }
+        public double Volume { get; set; } = 1.0;
+        public double FadeInDuration { get; set; }
+        public double FadeOutDuration { get; set; }
+        public double SourceStartOffset { get; set; }
+        public string? MotionPreset { get; set; }
+        public double? MotionIntensity { get; set; }
+        public string? OverlayColorHex { get; set; }
+        public double? OverlayOpacity { get; set; }
+    }
+
+    private sealed class TemplateElementSnapshot
+    {
+        public string? Type { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Width { get; set; } = 100;
+        public double Height { get; set; } = 50;
+        public double Rotation { get; set; }
+        public int ZIndex { get; set; }
+        public double Opacity { get; set; } = 1.0;
+        public string? PropertiesJson { get; set; }
+        public bool IsVisible { get; set; } = true;
+        public string? SegmentId { get; set; }
     }
 
     private async void OpenSelectedMenu_Click(object sender, RoutedEventArgs e)

@@ -146,6 +146,7 @@
                 <MenuItem Header="File">
                     <MenuItem Header="New Project" Click="NewProjectButton_Click"/>
                                         <MenuItem Header="New Project From Template" Click="NewProjectFromTemplateButton_Click"/>
+                    <MenuItem Header="Save Current As Template" Click="SaveCurrentAsTemplateMenu_Click"/>
                     <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click"/>
                     <Separator/>
                     <MenuItem Header="Exit" Click="ExitMenu_Click"/>
