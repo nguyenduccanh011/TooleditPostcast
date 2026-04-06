@@ -16,6 +16,8 @@ internal sealed class TimelineAudioPreviewService
     private readonly Func<IEnumerable<Track>> _getTracks;
     private readonly Func<Project?> _getCurrentProject;
     private readonly Func<double> _getTotalDuration;
+    private string? _assetCacheProjectId;
+    private Dictionary<string, Asset> _assetById = new(StringComparer.Ordinal);
 
     // Tracks which segment IDs were active on the previous sync call so we can
     // stop individual segments as soon as they leave the playhead window.
@@ -39,6 +41,9 @@ internal sealed class TimelineAudioPreviewService
     {
         try
         {
+            var currentProject = _getCurrentProject();
+            RefreshAssetCache(currentProject);
+
             var activeSegments = _getActiveSegmentsAtTime(playheadSeconds);
 
             // Collect ALL active audio segments across every audio track
@@ -50,8 +55,7 @@ internal sealed class TimelineAudioPreviewService
                     || string.IsNullOrEmpty(segment.BackgroundAssetId))
                     continue;
 
-                var asset = _getCurrentProject()?.Assets?
-                    .FirstOrDefault(candidate => candidate.Id == segment.BackgroundAssetId);
+                var asset = TryGetAsset(segment.BackgroundAssetId);
 
                 if (asset == null || string.IsNullOrEmpty(asset.FilePath))
                 {
@@ -119,6 +123,45 @@ internal sealed class TimelineAudioPreviewService
         {
             Log.Warning(ex, "Error in segment audio playback update");
         }
+    }
+
+    private void RefreshAssetCache(Project? project)
+    {
+        if (project == null)
+        {
+            _assetCacheProjectId = null;
+            _assetById = new Dictionary<string, Asset>(StringComparer.Ordinal);
+            return;
+        }
+
+        // Rebuild when project changes or cache count is stale.
+        int currentAssetCount = project.Assets?.Count ?? 0;
+        if (string.Equals(_assetCacheProjectId, project.Id, StringComparison.Ordinal)
+            && _assetById.Count == currentAssetCount)
+        {
+            return;
+        }
+
+        var rebuilt = new Dictionary<string, Asset>(currentAssetCount, StringComparer.Ordinal);
+        if (project.Assets != null)
+        {
+            foreach (var asset in project.Assets)
+            {
+                if (!string.IsNullOrWhiteSpace(asset.Id))
+                    rebuilt[asset.Id] = asset;
+            }
+        }
+
+        _assetById = rebuilt;
+        _assetCacheProjectId = project.Id;
+    }
+
+    private Asset? TryGetAsset(string? assetId)
+    {
+        if (string.IsNullOrWhiteSpace(assetId))
+            return null;
+
+        return _assetById.TryGetValue(assetId, out var asset) ? asset : null;
     }
 
     private void PreloadNextAudioSegment(double playheadSeconds)

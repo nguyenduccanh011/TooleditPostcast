@@ -642,30 +642,35 @@ public partial class MainWindow : Window
                 OverlayColorHex = t.OverlayColorHex,
                 OverlayOpacity = t.OverlayOpacity,
                 TextStyleJson = t.TextStyleJson,
-                Segments = t.Segments?
-                    .OrderBy(s => s.Order)
-                    .Select(s => new TemplateSegmentSnapshot
-                    {
-                        Id = s.Id,
-                        StartTime = s.StartTime,
-                        EndTime = s.EndTime,
-                        Text = s.Text,
-                        BackgroundAssetId = null,
-                        TransitionType = s.TransitionType,
-                        TransitionDuration = s.TransitionDuration,
-                        Order = s.Order,
-                        Kind = s.Kind,
-                        Keywords = s.Keywords,
-                        Volume = s.Volume,
-                        FadeInDuration = s.FadeInDuration,
-                        FadeOutDuration = s.FadeOutDuration,
-                        SourceStartOffset = s.SourceStartOffset,
-                        MotionPreset = s.MotionPreset,
-                        MotionIntensity = s.MotionIntensity,
-                        OverlayColorHex = s.OverlayColorHex,
-                        OverlayOpacity = s.OverlayOpacity
-                    })
-                    .ToList() ?? []
+                // Templates capture reusable layout/style and text timing only.
+                // Audio segments are intentionally excluded because their media bindings
+                // are project-specific and should come from the wizard-selected audio import.
+                Segments = string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
+                    ? []
+                    : t.Segments?
+                        .OrderBy(s => s.Order)
+                        .Select(s => new TemplateSegmentSnapshot
+                        {
+                            Id = s.Id,
+                            StartTime = s.StartTime,
+                            EndTime = s.EndTime,
+                            Text = s.Text,
+                            BackgroundAssetId = null,
+                            TransitionType = s.TransitionType,
+                            TransitionDuration = s.TransitionDuration,
+                            Order = s.Order,
+                            Kind = s.Kind,
+                            Keywords = s.Keywords,
+                            Volume = s.Volume,
+                            FadeInDuration = s.FadeInDuration,
+                            FadeOutDuration = s.FadeOutDuration,
+                            SourceStartOffset = s.SourceStartOffset,
+                            MotionPreset = s.MotionPreset,
+                            MotionIntensity = s.MotionIntensity,
+                            OverlayColorHex = s.OverlayColorHex,
+                            OverlayOpacity = s.OverlayOpacity
+                        })
+                        .ToList() ?? []
             })
             .ToList() ?? [];
 
