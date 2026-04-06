@@ -347,26 +347,50 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <TextBlock Text="{Binding Content}"
-                               Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
-                               FontFamily="{Binding FontFamily}"
-                               FontSize="{Binding FontSize}"
-                               FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
-                               FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
-                               TextDecorations="{Binding IsUnderline, Converter={StaticResource BoolToUnderlineConverter}}"
-                               TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
-                               VerticalAlignment="Top"
-                               HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
-                               TextWrapping="Wrap"
-                               Padding="8,4"
-                               SizeChanged="OnTextBlockSizeChanged">
-                        <TextBlock.LineHeight>
-                            <MultiBinding Converter="{StaticResource FontLineHeightConverter}">
-                                <Binding Path="FontSize"/>
-                                <Binding Path="LineHeight"/>
-                            </MultiBinding>
-                        </TextBlock.LineHeight>
-                    </TextBlock>
+                    <Grid>
+                        <TextBlock Text="{Binding Content}"
+                                   Tag="InlineDisplay"
+                                   Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
+                                   FontFamily="{Binding FontFamily}"
+                                   FontSize="{Binding FontSize}"
+                                   FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
+                                   FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
+                                   TextDecorations="{Binding IsUnderline, Converter={StaticResource BoolToUnderlineConverter}}"
+                                   TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
+                                   VerticalAlignment="Top"
+                                   HorizontalAlignment="{Binding Alignment, Converter={StaticResource TextAlignmentConverter}}"
+                                   TextWrapping="Wrap"
+                                   Padding="8,4"
+                                   MouseDown="OnInlineTextDisplayMouseDown"
+                                   SizeChanged="OnTextBlockSizeChanged">
+                            <TextBlock.LineHeight>
+                                <MultiBinding Converter="{StaticResource FontLineHeightConverter}">
+                                    <Binding Path="FontSize"/>
+                                    <Binding Path="LineHeight"/>
+                                </MultiBinding>
+                            </TextBlock.LineHeight>
+                        </TextBlock>
+
+                        <TextBox Tag="InlineEditor"
+                                 Visibility="Collapsed"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Hidden"
+                                 HorizontalScrollBarVisibility="Disabled"
+                                 BorderThickness="0"
+                                 Background="#CC151515"
+                                 Foreground="{Binding ColorHex, Converter={StaticResource HexToBrushConverter}}"
+                                 FontFamily="{Binding FontFamily}"
+                                 FontSize="{Binding FontSize}"
+                                 FontWeight="{Binding IsBold, Converter={StaticResource BoolToFontWeightConverter}}"
+                                 FontStyle="{Binding IsItalic, Converter={StaticResource BoolToFontStyleConverter}}"
+                                 TextAlignment="{Binding Alignment, Converter={StaticResource AlignmentToTextAlignmentConverter}}"
+                                 VerticalContentAlignment="Top"
+                                 Padding="8,4"
+                                 PreviewMouseDown="OnInlineTextEditorPreviewMouseDown"
+                                 KeyDown="OnInlineTextEditorKeyDown"
+                                 LostKeyboardFocus="OnInlineTextEditorLostKeyboardFocus"/>
+                    </Grid>
                 </Border>
                 <!-- Overflow indicator: visible in Fixed mode when content is taller than the box -->
                 <Border Background="#CC550000" CornerRadius="3" Padding="3,1"

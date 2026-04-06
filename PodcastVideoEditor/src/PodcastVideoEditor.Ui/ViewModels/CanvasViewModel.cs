@@ -1371,6 +1371,72 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Apply text content edit performed directly on preview canvas.
+        /// Keeps TextOverlayElement and linked Segment.Text synchronized,
+        /// records undo, and schedules debounced project save.
+        /// </summary>
+        public void ApplyInlineTextContentEdit(TextOverlayElement element, string oldText, string newText)
+        {
+            if (_disposed)
+                return;
+
+            var before = oldText ?? string.Empty;
+            var after = newText ?? string.Empty;
+            if (string.Equals(before, after, StringComparison.Ordinal))
+                return;
+
+            var linkedSegment = FindSegmentById(element.SegmentId);
+
+            element.Content = after;
+            if (linkedSegment != null && !string.Equals(linkedSegment.Text, after, StringComparison.Ordinal))
+                linkedSegment.Text = after;
+
+            _undoRedo?.Record(new InlineTextContentChangedAction(element, linkedSegment, before, after));
+
+            if (_projectViewModel?.CurrentProject != null)
+            {
+                _elementSaveDebounceTimer.Stop();
+                _elementSaveDebounceTimer.Start();
+            }
+        }
+
+        /// <summary>
+        /// Undo/redo action for direct inline text edits on preview.
+        /// Updates both canvas element content and linked timeline segment text.
+        /// </summary>
+        private sealed class InlineTextContentChangedAction : IUndoableAction
+        {
+            private readonly TextOverlayElement _element;
+            private readonly Segment? _segment;
+            private readonly string _oldText;
+            private readonly string _newText;
+
+            public InlineTextContentChangedAction(TextOverlayElement element, Segment? segment, string oldText, string newText)
+            {
+                _element = element;
+                _segment = segment;
+                _oldText = oldText;
+                _newText = newText;
+            }
+
+            public string Description => $"Edit text '{_element.Name}'";
+
+            public void Undo()
+            {
+                _element.Content = _oldText;
+                if (_segment != null)
+                    _segment.Text = _oldText;
+            }
+
+            public void Redo()
+            {
+                _element.Content = _newText;
+                if (_segment != null)
+                    _segment.Text = _newText;
+            }
+        }
+
+        /// <summary>
         /// Get element by ID.
         /// </summary>
         public CanvasElement? GetElementById(string id) =>

@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Shapes;
 
 namespace PodcastVideoEditor.Ui.Views
@@ -46,6 +47,13 @@ namespace PodcastVideoEditor.Ui.Views
         // Throttle video position sync to ~30fps to avoid excessive frame decoding
         private DateTime _lastVideoSyncTime = DateTime.MinValue;
         private const int VideoSyncThrottleMs = 33; // ~30fps
+
+        // Inline text editing state (commercial-style direct edit on preview)
+        private TextOverlayElement? _inlineEditingElement;
+        private TextBox? _inlineEditingTextBox;
+        private TextBlock? _inlineDisplayTextBlock;
+        private string _inlineOriginalText = string.Empty;
+        private bool _isCancellingInlineEdit;
 
         public CanvasView()
         {
@@ -208,6 +216,8 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
         {
+            CommitInlineTextEdit();
+
             // Click on empty canvas = deselect
             if (_viewModel != null && e.Source == sender)
             {
@@ -226,6 +236,18 @@ namespace PodcastVideoEditor.Ui.Views
             // The sender is now the Grid wrapper; get the CanvasElement from DataContext
             FrameworkElement? fe = sender as FrameworkElement;
             if (fe?.DataContext is not CanvasElement element) return;
+
+            // Don't start drag while an inline editor is active on this same element.
+            if (_inlineEditingElement != null)
+            {
+                if (element is TextOverlayElement currentEdit && ReferenceEquals(currentEdit, _inlineEditingElement))
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                CommitInlineTextEdit();
+            }
 
             _viewModel?.SelectElement(element);
 
@@ -958,6 +980,16 @@ namespace PodcastVideoEditor.Ui.Views
         private void OnCanvasKeyDown(object sender, KeyEventArgs e)
         {
             // ✅ Space bar for playback toggle (Play/Pause)
+            if (_inlineEditingElement != null)
+            {
+                if (e.Key == Key.Escape)
+                {
+                    CancelInlineTextEdit();
+                    e.Handled = true;
+                }
+                return;
+            }
+
             if (e.Key == Key.Space)
             {
                 if (_viewModel != null)
@@ -1134,6 +1166,163 @@ namespace PodcastVideoEditor.Ui.Views
             {
                 Serilog.Log.Error(ex, "Failed to add global asset overlay from canvas drop");
             }
+        }
+
+        private void OnInlineTextDisplayMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount < 2)
+                return;
+
+            if (sender is not TextBlock display || display.DataContext is not TextOverlayElement element)
+                return;
+
+            if (_viewModel == null)
+                return;
+
+            var container = FindVisualParent<Grid>(display);
+            var editor = container != null
+                ? FindVisualChild<TextBox>(container, tb => string.Equals(tb.Tag as string, "InlineEditor", StringComparison.Ordinal))
+                : null;
+            if (editor == null)
+                return;
+
+            BeginInlineTextEdit(element, display, editor);
+            e.Handled = true;
+        }
+
+        private void BeginInlineTextEdit(TextOverlayElement element, TextBlock display, TextBox editor)
+        {
+            if (_inlineEditingElement != null)
+            {
+                if (ReferenceEquals(_inlineEditingElement, element))
+                    return;
+
+                CommitInlineTextEdit();
+            }
+
+            _viewModel?.SelectElement(element);
+
+            _inlineEditingElement = element;
+            _inlineDisplayTextBlock = display;
+            _inlineEditingTextBox = editor;
+            _inlineOriginalText = element.Content ?? string.Empty;
+            _isCancellingInlineEdit = false;
+
+            display.Visibility = Visibility.Collapsed;
+            editor.Visibility = Visibility.Visible;
+            editor.Text = _inlineOriginalText;
+            editor.SelectAll();
+            editor.Focus();
+            Keyboard.Focus(editor);
+        }
+
+        private void CommitInlineTextEdit()
+        {
+            if (_inlineEditingElement == null || _inlineEditingTextBox == null || _inlineDisplayTextBlock == null)
+                return;
+
+            var element = _inlineEditingElement;
+            var newText = _inlineEditingTextBox.Text ?? string.Empty;
+            var oldText = _inlineOriginalText;
+            var wasCancelling = _isCancellingInlineEdit;
+
+            EndInlineEditVisualState();
+
+            if (wasCancelling || string.Equals(oldText, newText, StringComparison.Ordinal))
+                return;
+
+            _viewModel?.ApplyInlineTextContentEdit(element, oldText, newText);
+        }
+
+        private void CancelInlineTextEdit()
+        {
+            if (_inlineEditingElement == null)
+                return;
+
+            _isCancellingInlineEdit = true;
+
+            if (_inlineEditingTextBox != null)
+                _inlineEditingTextBox.Text = _inlineOriginalText;
+
+            EndInlineEditVisualState();
+        }
+
+        private void EndInlineEditVisualState()
+        {
+            if (_inlineDisplayTextBlock != null)
+                _inlineDisplayTextBlock.Visibility = Visibility.Visible;
+            if (_inlineEditingTextBox != null)
+                _inlineEditingTextBox.Visibility = Visibility.Collapsed;
+
+            _inlineEditingElement = null;
+            _inlineEditingTextBox = null;
+            _inlineDisplayTextBlock = null;
+            _inlineOriginalText = string.Empty;
+            _isCancellingInlineEdit = false;
+        }
+
+        private void OnInlineTextEditorPreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // Prevent bubbling to Grid.MouseDown which starts drag operation.
+            e.Handled = true;
+        }
+
+        private void OnInlineTextEditorKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                CommitInlineTextEdit();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Escape)
+            {
+                CancelInlineTextEdit();
+                e.Handled = true;
+            }
+        }
+
+        private void OnInlineTextEditorLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            if (_inlineEditingElement == null)
+                return;
+
+            if (_isCancellingInlineEdit)
+            {
+                EndInlineEditVisualState();
+                return;
+            }
+
+            CommitInlineTextEdit();
+        }
+
+        private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var current = VisualTreeHelper.GetParent(child);
+            while (current != null)
+            {
+                if (current is T match)
+                    return match;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject root, Func<T, bool>? predicate = null) where T : DependencyObject
+        {
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed && (predicate == null || predicate(typed)))
+                    return typed;
+
+                var recursive = FindVisualChild<T>(child, predicate);
+                if (recursive != null)
+                    return recursive;
+            }
+            return null;
         }
     }
 }
