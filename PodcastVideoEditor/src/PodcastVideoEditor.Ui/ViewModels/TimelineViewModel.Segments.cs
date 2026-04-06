@@ -1,5 +1,6 @@
 #nullable enable
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
@@ -1170,6 +1171,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
             !string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId);
 
         /// <summary>
+        /// Computed property: true if selected segment is visual and can accept a replacement image.
+        /// Unlike <see cref="SelectedSegmentHasBackground"/>, this is true even when no image is assigned yet.
+        /// </summary>
+        public bool SelectedSegmentCanReplaceImage =>
+            SelectedSegment != null &&
+            string.Equals(SelectedSegment.Kind, SegmentKinds.Visual, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Replace the background image of the selected segment.
         /// Opens file picker to select new image.
         /// </summary>
@@ -1184,22 +1193,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                if (!string.Equals(SelectedSegment.Kind, SegmentKinds.Visual, StringComparison.OrdinalIgnoreCase)
-                    || string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId))
+                if (!string.Equals(SelectedSegment.Kind, SegmentKinds.Visual, StringComparison.OrdinalIgnoreCase))
                 {
-                    StatusMessage = "Selected segment is not an image";
+                    StatusMessage = "Selected segment is not visual";
                     return;
                 }
 
-                // Phase 2: Show file picker dialog
-                var dialog = new PodcastVideoEditor.Ui.Dialogs.SelectImageDialog
+                // Open Windows file picker directly for faster UX (no intermediate app dialog).
+                var dialog = new OpenFileDialog
                 {
-                    Owner = System.Windows.Application.Current?.MainWindow
+                    Title = "Select replacement image",
+                    Filter = "Image files (*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.svg)|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif;*.svg|All files (*.*)|*.*",
+                    CheckFileExists = true,
+                    Multiselect = false,
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)
                 };
 
-                if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.SelectedFilePath))
+                if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FileName))
                 {
-                    await ApplyNewBackgroundImageAsync(dialog.SelectedFilePath);
+                    await ApplyNewBackgroundImageAsync(dialog.FileName);
                 }
                 else
                 {

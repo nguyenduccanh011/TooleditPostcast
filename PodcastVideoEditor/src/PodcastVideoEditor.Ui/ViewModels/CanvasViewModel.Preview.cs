@@ -685,27 +685,32 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 if (existing is not ImageElement existingImg)
                     return;
 
-                // ImageElement exists — verify it still has a valid FilePath.
-                // DB-loaded elements may carry a stale path (file moved/deleted) or an
-                // empty path if the element was saved before the asset was fully resolved.
-                if (!string.IsNullOrWhiteSpace(existingImg.FilePath))
-                    return; // valid — nothing to do
-
-                // Stale/empty FilePath — try to refresh from the current asset
+                // ImageElement exists — keep it synchronized with segment.BackgroundAssetId.
+                // If Replace Image changed asset/path, update immediately so preview does not
+                // keep showing the old bitmap.
                 var refreshAsset = FindAssetById(segment.BackgroundAssetId);
                 if (refreshAsset != null && !string.IsNullOrWhiteSpace(refreshAsset.FilePath))
                 {
-                    existingImg.FilePath = refreshAsset.FilePath;
-                    existingImg.Name = refreshAsset.Name
-                        ?? Path.GetFileNameWithoutExtension(refreshAsset.FilePath) ?? "Image";
-                    Serilog.Log.Information(
-                        "Refreshed stale ImageElement FilePath for segment {SegId} from asset {AssetId}",
-                        segment.Id, refreshAsset.Id);
+                    var desiredPath = refreshAsset.FilePath;
+                    var needsPathRefresh = !string.Equals(existingImg.FilePath, desiredPath, StringComparison.OrdinalIgnoreCase)
+                        || string.IsNullOrWhiteSpace(existingImg.FilePath);
+
+                    if (needsPathRefresh)
+                    {
+                        existingImg.FilePath = desiredPath;
+                        existingImg.Name = refreshAsset.Name
+                            ?? Path.GetFileNameWithoutExtension(desiredPath) ?? "Image";
+                        Serilog.Log.Information(
+                            "Synchronized ImageElement FilePath for segment {SegId}: asset {AssetId}",
+                            segment.Id, refreshAsset.Id);
+                    }
                 }
                 else
                 {
-                    Serilog.Log.Warning(
-                        "ImageElement for segment {SegId} has empty FilePath and asset cannot be resolved",
+                    // If segment no longer points to a valid image asset, keep existing element as-is.
+                    // This avoids dropping visuals unexpectedly when template assets are temporarily unresolved.
+                    Serilog.Log.Debug(
+                        "ImageElement sync skipped for segment {SegId}: asset not resolved",
                         segment.Id);
                 }
                 return;

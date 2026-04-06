@@ -1088,13 +1088,14 @@ namespace PodcastVideoEditor.Ui.Views
                 menu.Items.Add(new Separator());
 
                 // Image replacement menu items (only for visual segments with background)
+                var canReplaceImage = vm.SelectedSegmentCanReplaceImage;
                 var hasBackground = vm.SelectedSegmentHasBackground;
                 var hasBackgroundAssetId = !string.IsNullOrEmpty(segment.BackgroundAssetId);
 
                 var replaceImageItem = new MenuItem
                 {
                     Header = "Replace Image",
-                    IsEnabled = hasBackground
+                    IsEnabled = canReplaceImage
                 };
                 replaceImageItem.Click += (_, _) => vm.ReplaceSegmentImageCommand.Execute(null);
                 menu.Items.Add(replaceImageItem);
