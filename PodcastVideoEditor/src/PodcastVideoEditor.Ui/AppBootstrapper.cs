@@ -68,6 +68,12 @@ public static class AppBootstrapper
     {
         services.AddSingleton<ProjectService>();
         services.AddSingleton<IProjectService>(sp => sp.GetRequiredService<ProjectService>());
+        services.AddSingleton<TemplatePackageService>(sp =>
+            new TemplatePackageService(
+                sp.GetRequiredService<IDbContextFactory<AppDbContext>>(),
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "PodcastVideoEditor")));
         services.AddSingleton<ImageAssetIngestService>();
         services.AddSingleton<GlobalAssetService>(sp =>
         {

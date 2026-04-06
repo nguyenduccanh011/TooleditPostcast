@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     private readonly MainViewModel _mainViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
+    private readonly TemplatePackageService _templatePackageService;
     private readonly AutosaveService _autosaveService;
     private readonly IUpdateService _updateService;
     private readonly IAppInfoService _appInfoService;
@@ -55,6 +56,7 @@ public partial class MainWindow : Window
         TimelineViewModel timelineViewModel,
         SettingsViewModel settingsViewModel,
         IDbContextFactory<AppDbContext> contextFactory,
+        TemplatePackageService templatePackageService,
         AutosaveService autosaveService,
         IAIAnalysisOrchestrator aiOrchestrator,
         IUpdateService updateService,
@@ -75,6 +77,7 @@ public partial class MainWindow : Window
             _timelineViewModel = timelineViewModel;
             _settingsViewModel = settingsViewModel;
             _contextFactory = contextFactory;
+            _templatePackageService = templatePackageService;
             _autosaveService = autosaveService;
             _updateService = updateService;
             _appInfoService = appInfoService;
@@ -471,6 +474,20 @@ public partial class MainWindow : Window
         await LaunchTemplateWizardAsync(template.Id);
     }
 
+    private async void HomeTemplateExportButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not EpisodeWizardDialog.TemplateOption template)
+            return;
+
+        if (string.Equals(template.Id, "blank", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show("Blank template cannot be exported.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        await ExportTemplatePackageAsync(template.Id);
+    }
+
     private async Task LaunchTemplateWizardAsync(string? preselectedTemplateId = null)
     {
         var templateOptions = await LoadWizardTemplatesAsync();
@@ -586,6 +603,149 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void ExportCurrentAsTemplatePackageMenu_Click(object sender, RoutedEventArgs e)
+    {
+        var current = _projectViewModel.CurrentProject;
+        if (current == null)
+        {
+            MessageBox.Show("Please open or select a project first.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new SaveTemplateDialog(current.Name)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var saveFileDialog = new SaveFileDialog
+        {
+            Title = "Export Template Package",
+            Filter = "Podcast Video Template Package (*.pvtemplate)|*.pvtemplate|Zip Archive (*.zip)|*.zip|All files (*.*)|*.*",
+            DefaultExt = ".pvtemplate",
+            FileName = $"{SanitizeFileName(dialog.TemplateName)}.pvtemplate",
+            OverwritePrompt = true
+        };
+
+        if (saveFileDialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var sourceProject = await context.Projects
+                .AsNoTracking()
+                .Include(p => p.Tracks)
+                    .ThenInclude(t => t.Segments)
+                .Include(p => p.Elements)
+                .FirstOrDefaultAsync(p => p.Id == current.Id);
+
+            if (sourceProject == null)
+            {
+                MessageBox.Show("Project not found in database.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var snapshot = BuildTemplateSnapshot(sourceProject);
+            var layoutJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            });
+
+            await _templatePackageService.ExportTemplatePackageAsync(
+                dialog.TemplateName,
+                dialog.TemplateDescription,
+                layoutJson,
+                null,
+                saveFileDialog.FileName);
+
+            MessageBox.Show("Template package exported successfully.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to export template package from project {ProjectId}", current.Id);
+            MessageBox.Show($"Could not export template package: {ex.Message}", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void ImportTemplatePackageMenu_Click(object sender, RoutedEventArgs e)
+        => await ImportTemplatePackageAsync();
+
+    private async Task ExportTemplatePackageAsync(string templateId)
+    {
+        try
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var template = await context.Templates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == templateId);
+
+            if (template == null)
+            {
+                MessageBox.Show("Template not found.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var saveFileDialog = new SaveFileDialog
+            {
+                Title = "Export Template Package",
+                Filter = "Podcast Video Template Package (*.pvtemplate)|*.pvtemplate|Zip Archive (*.zip)|*.zip|All files (*.*)|*.*",
+                DefaultExt = ".pvtemplate",
+                FileName = $"{SanitizeFileName(template.Name)}.pvtemplate",
+                OverwritePrompt = true
+            };
+
+            if (saveFileDialog.ShowDialog() != true)
+                return;
+
+            await _templatePackageService.ExportTemplatePackageAsync(
+                template.Name,
+                template.Description,
+                template.LayoutJson,
+                template.ThumbnailBase64,
+                saveFileDialog.FileName);
+
+            MessageBox.Show("Template package exported successfully.", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to export template package {TemplateId}", templateId);
+            MessageBox.Show($"Could not export template package: {ex.Message}", "Export Template Package", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task ImportTemplatePackageAsync()
+    {
+        var openFileDialog = new OpenFileDialog
+        {
+            Title = "Import Template Package",
+            Filter = "Podcast Video Template Package (*.pvtemplate)|*.pvtemplate|Zip Archive (*.zip)|*.zip|All files (*.*)|*.*"
+        };
+
+        if (openFileDialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            var importedTemplate = await _templatePackageService.ImportTemplatePackageAsync(openFileDialog.FileName);
+            await RefreshHomeTemplateOptionsAsync();
+
+            MessageBox.Show(
+                $"Imported template '{importedTemplate.Name}'.",
+                "Import Template Package",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to import template package {PackagePath}", openFileDialog.FileName);
+            MessageBox.Show($"Could not import template package: {ex.Message}", "Import Template Package", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async Task ApplyWizardScriptAsync(string scriptText, bool useAiAnalyze)
     {
         if (string.IsNullOrWhiteSpace(scriptText))
@@ -663,6 +823,16 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return "template-package";
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(fileName.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(cleaned) ? "template-package" : cleaned;
     }
 
     private static TemplateProjectSnapshot BuildTemplateSnapshot(Project project)

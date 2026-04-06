@@ -147,6 +147,8 @@
                     <MenuItem Header="New Project" Click="NewProjectButton_Click"/>
                                         <MenuItem Header="New Project From Template" Click="NewProjectFromTemplateButton_Click"/>
                     <MenuItem Header="Save Current As Template" Click="SaveCurrentAsTemplateMenu_Click"/>
+                    <MenuItem Header="Export Current As Template Package" Click="ExportCurrentAsTemplatePackageMenu_Click"/>
+                    <MenuItem Header="Import Template Package" Click="ImportTemplatePackageMenu_Click"/>
                     <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click"/>
                     <Separator/>
                     <MenuItem Header="Exit" Click="ExitMenu_Click"/>
@@ -259,7 +261,17 @@
                         </Border>
 
                         <StackPanel Margin="0,15,0,0">
-                            <TextBlock Text="Template Quick Start" FontWeight="Bold" Margin="0,0,0,6" />
+                            <DockPanel Margin="0,0,0,6">
+                                <TextBlock Text="Template Quick Start" FontWeight="Bold" VerticalAlignment="Center" />
+                                <Button DockPanel.Dock="Right"
+                                        Content="Import Template"
+                                        Height="28"
+                                        Padding="12,0"
+                                        Background="#3E3E42"
+                                        Foreground="#FFFFFF"
+                                        BorderThickness="0"
+                                        Click="ImportTemplatePackageMenu_Click" />
+                            </DockPanel>
                             <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
                                 <ItemsControl ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=HomeTemplateOptions}">
                                     <ItemsControl.ItemsPanel>
@@ -274,9 +286,25 @@
                                                     <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#FFFFFF" />
                                                     <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="#AAAAAA" FontSize="11" />
                                                     <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
-                                                    <Button Content="Use Template" Height="28" HorizontalAlignment="Left"
-                                                            Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
-                                                            Click="HomeTemplateQuickCreateButton_Click" />
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="Use Template" Height="28" Margin="0,0,8,0" Padding="12,0"
+                                                                Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                                Click="HomeTemplateQuickCreateButton_Click" />
+                                                        <Button Content="Export" Height="28" Padding="12,0"
+                                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                                Click="HomeTemplateExportButton_Click">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Id}" Value="blank">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
