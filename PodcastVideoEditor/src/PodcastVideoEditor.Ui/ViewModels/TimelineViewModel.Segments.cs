@@ -1171,7 +1171,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>
         /// Replace the background image of the selected segment.
-        /// Placeholder for Phase 2-3 implementation.
+        /// Opens file picker to select new image.
         /// </summary>
         [RelayCommand]
         public async Task ReplaceSegmentImage()
@@ -1190,16 +1190,30 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                // Phase 2-3: Open file picker dialog and replace image
-                StatusMessage = "Replace image dialog (Phase 2 - pending implementation)";
-                Log.Information("Replace image command triggered for segment {SegmentId}", SelectedSegment.Id);
-                
-                // TODO: Implement in Phase 2
-                // - Show file picker dialog
-                // - Validate image file
-                // - Process image (resize, compress)
-                // - Update segment.BackgroundAssetId
-                // - Save project
+                // Phase 2: Show file picker dialog
+                var dialog = new PodcastVideoEditor.Ui.Dialogs.SelectImageDialog
+                {
+                    Owner = System.Windows.Application.Current?.MainWindow
+                };
+
+                if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.SelectedFilePath))
+                {
+                    // Phase 3: Process and replace image
+                    StatusMessage = $"Selected: {System.IO.Path.GetFileName(dialog.SelectedFilePath)} (Phase 3 - processing pending)";
+                    Log.Information("Image file selected for replacement: {FilePath}", dialog.SelectedFilePath);
+                    
+                    // TODO: Implement in Phase 3
+                    // - Validate image file
+                    // - Process image (resize, compress via ImageAssetIngestService)
+                    // - Create Asset object
+                    // - Update segment.BackgroundAssetId
+                    // - Save project
+                    // - Show success toast
+                }
+                else
+                {
+                    StatusMessage = "Image selection canceled";
+                }
             }
             catch (Exception ex)
             {
