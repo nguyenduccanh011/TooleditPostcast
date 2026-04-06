@@ -31,6 +31,7 @@ namespace PodcastVideoEditor.Core.Services
         Task<Track> UpdateTrackAsync(Track track);
         Task DeleteTrackAsync(string trackId);
         Task ReplaceSegmentsOfTrackAsync(Project project, string trackId, IEnumerable<Segment> newSegments);
+        Task<int> StretchDynamicVisualOverlaysAsync(string projectId);
 
         // ── Element ──────────────────────────────────────────────────────────────────
         Task<Element> AddElementAsync(string projectId, Element element);

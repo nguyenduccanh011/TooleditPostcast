@@ -365,6 +365,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 CurrentProject = refreshed;
         }
 
+        public async Task<int> StretchDynamicVisualOverlaysAsync()
+        {
+            if (CurrentProject == null)
+                return 0;
+
+            var changed = await _projectService.StretchDynamicVisualOverlaysAsync(CurrentProject.Id);
+            if (changed > 0)
+            {
+                var refreshed = await _projectService.GetProjectAsync(CurrentProject.Id);
+                if (refreshed != null)
+                    CurrentProject = refreshed;
+            }
+
+            return changed;
+        }
+
         /// <summary>
         /// Download an image from <paramref name="url"/>, register it as an asset,
         /// and return its asset ID. Returns null on failure.

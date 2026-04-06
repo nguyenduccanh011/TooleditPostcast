@@ -163,6 +163,8 @@ namespace PodcastVideoEditor.Core.Services
                 if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
                     await AttachPrimaryAudioAsync(project.Id, audioPath);
 
+                await StretchDynamicVisualOverlaysAsync(project.Id);
+
                 return await GetProjectAsync(project.Id) ?? project;
             }
             catch (Exception ex)
@@ -963,6 +965,100 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Error(ex, "Error deleting track {TrackId}", trackId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Extend dynamic visual overlay tracks (logo/icon/watermark-like) so their single segment
+        /// always spans the current project duration.
+        /// A dynamic overlay track is identified heuristically as:
+        /// - visual track
+        /// - exactly one segment starting near 0
+        /// - and track is locked OR its name contains branding keywords (logo/icon/overlay/watermark/brand)
+        /// </summary>
+        public async Task<int> StretchDynamicVisualOverlaysAsync(string projectId)
+        {
+            if (string.IsNullOrWhiteSpace(projectId))
+                return 0;
+
+            try
+            {
+                using var context = _contextFactory.CreateDbContext();
+                var project = await context.Projects
+                    .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                    .FirstOrDefaultAsync(p => p.Id == projectId);
+
+                if (project == null || project.Tracks == null || project.Tracks.Count == 0)
+                    return 0;
+
+                var allSegments = project.Tracks
+                    .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                    .Where(s => s.EndTime > 0)
+                    .ToList();
+
+                if (allSegments.Count == 0)
+                    return 0;
+
+                var targetEnd = allSegments.Max(s => s.EndTime);
+                if (targetEnd <= 0)
+                    return 0;
+
+                int changed = 0;
+                foreach (var track in project.Tracks)
+                {
+                    if (!IsDynamicOverlayTrack(track))
+                        continue;
+
+                    var seg = track.Segments!.Single();
+                    if (Math.Abs(seg.EndTime - targetEnd) <= 0.01)
+                        continue;
+
+                    seg.StartTime = 0;
+                    seg.EndTime = targetEnd;
+                    changed++;
+                }
+
+                if (changed > 0)
+                {
+                    project.UpdatedAt = DateTime.UtcNow;
+                    await context.SaveChangesAsync();
+                    Log.Information("Stretched {Count} dynamic overlay track(s) to {Duration:F3}s for project {ProjectId}",
+                        changed, targetEnd, projectId);
+                }
+
+                return changed;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error stretching dynamic overlays for project {ProjectId}", projectId);
+                throw;
+            }
+        }
+
+        private static bool IsDynamicOverlayTrack(Track track)
+        {
+            if (!string.Equals(track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var segs = (track.Segments ?? []).Where(s => s.EndTime > s.StartTime).ToList();
+            if (segs.Count != 1)
+                return false;
+
+            var seg = segs[0];
+            if (seg.StartTime > 0.05)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(seg.BackgroundAssetId))
+                return false;
+
+            if (track.IsLocked)
+                return true;
+
+            var name = track.Name ?? string.Empty;
+            return name.Contains("logo", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("icon", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("overlay", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("watermark", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("brand", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>

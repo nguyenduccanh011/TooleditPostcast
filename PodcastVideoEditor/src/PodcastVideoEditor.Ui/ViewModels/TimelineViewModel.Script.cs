@@ -78,6 +78,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     CloseGapsService.CloseGaps(newSegments);
 
                 await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
+                await _projectViewModel.StretchDynamicVisualOverlaysAsync();
 
                 // Reload tracks from project
                 LoadTracksFromProject();
@@ -192,9 +193,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     await _projectViewModel.ReplaceSegmentsForTrackAsync(textTrack.Id, result.TextSegments);
 
                 // Persist visual track
-                var visualTrack = project.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Visual);
-                if (visualTrack != null)
-                    await _projectViewModel.ReplaceSegmentsForTrackAsync(visualTrack.Id, result.VisualSegments);
+                var visualTrackId = await EnsureAiVisualTargetTrackIdAsync(project);
+                if (!string.IsNullOrWhiteSpace(visualTrackId))
+                    await _projectViewModel.ReplaceSegmentsForTrackAsync(visualTrackId, result.VisualSegments);
+
+                await _projectViewModel.StretchDynamicVisualOverlaysAsync();
 
                 // Purge asset files that are no longer referenced by any segment
                 // (handles re-analysis scenario where old images become orphaned)
@@ -233,6 +236,69 @@ namespace PodcastVideoEditor.Ui.ViewModels
             && _projectViewModel.CurrentProject != null
             && !string.IsNullOrWhiteSpace(ScriptPasteText)
             && _aiOrchestrator != null;
+
+        private async Task<string?> EnsureAiVisualTargetTrackIdAsync(Project project)
+        {
+            var visualTracks = (project.Tracks ?? [])
+                .Where(t => string.Equals(t.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(t => t.Order)
+                .ToList();
+
+            // Prefer a normal visual content track (not locked, not logo/icon overlay track).
+            var preferred = visualTracks.FirstOrDefault(t => !t.IsLocked && !IsDynamicOverlayVisualTrack(t));
+            if (preferred != null)
+                return preferred.Id;
+
+            // If only one editable visual track exists, keep backward-compatible behavior.
+            var editable = visualTracks.Where(t => !t.IsLocked).ToList();
+            if (editable.Count == 1)
+                return editable[0].Id;
+
+            // Otherwise create a dedicated AI visual track to avoid replacing template overlays.
+            var aiTrack = new Track
+            {
+                ProjectId = project.Id,
+                Order = (project.Tracks ?? []).Any() ? project.Tracks!.Max(t => t.Order) + 1 : 0,
+                TrackType = TrackTypes.Visual,
+                Name = "Visual AI",
+                IsVisible = true,
+                IsLocked = false,
+                Segments = []
+            };
+
+            project.Tracks ??= [];
+            project.Tracks.Add(aiTrack);
+            await _projectViewModel.SaveProjectAsync();
+            Log.Information("Created dedicated AI visual track {TrackId} for project {ProjectId}", aiTrack.Id, project.Id);
+            return aiTrack.Id;
+        }
+
+        private static bool IsDynamicOverlayVisualTrack(Track track)
+        {
+            if (!string.Equals(track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var segs = (track.Segments ?? []).Where(s => s.EndTime > s.StartTime).ToList();
+            if (segs.Count != 1)
+                return false;
+
+            var seg = segs[0];
+            if (seg.StartTime > 0.05)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(seg.BackgroundAssetId))
+                return false;
+
+            if (track.IsLocked)
+                return true;
+
+            var name = track.Name ?? string.Empty;
+            return name.Contains("logo", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("icon", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("overlay", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("watermark", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("brand", StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     /// <summary>
