@@ -1086,6 +1086,31 @@ namespace PodcastVideoEditor.Ui.Views
 
                 menu.Items.Add(new Separator());
 
+                // 🖼️ Image replacement menu items (only for visual segments with background)
+                if (_viewModel != null)
+                {
+                    var hasBackground = _viewModel.SelectedSegmentHasBackground;
+                    var hasBackgroundAssetId = !string.IsNullOrEmpty(segment.BackgroundAssetId);
+
+                    var replaceImageItem = new MenuItem
+                    {
+                        Header = "🖼️ Replace Image",
+                        IsEnabled = hasBackground
+                    };
+                    replaceImageItem.Click += (_, _) => _viewModel.ReplaceSegmentImageCommand.Execute(null);
+                    menu.Items.Add(replaceImageItem);
+
+                    var clearImageItem = new MenuItem
+                    {
+                        Header = "❌ Clear Image",
+                        IsEnabled = hasBackground && hasBackgroundAssetId
+                    };
+                    clearImageItem.Click += (_, _) => _viewModel.ClearSegmentBackgroundCommand.Execute(null);
+                    menu.Items.Add(clearImageItem);
+                }
+
+                menu.Items.Add(new Separator());
+
                 var deleteItem = new MenuItem { Header = "Delete", InputGestureText = "Del" };
                 deleteItem.Click += (_, _) => _viewModel.DeleteSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(deleteItem);

@@ -1157,5 +1157,86 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             return Tracks.FirstOrDefault(t => t.TrackType == pairedType);
         }
+
+        // ── Segment image replacement ──────────────────────────────────────────
+
+        /// <summary>
+        /// Computed property: true if the selected segment is a visual segment with a background image.
+        /// Used by UI to enable/disable "Replace Image" menu items.
+        /// </summary>
+        public bool SelectedSegmentHasBackground =>
+            SelectedSegment != null &&
+            SelectedSegment.Kind == "visual" &&
+            !string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId);
+
+        /// <summary>
+        /// Replace the background image of the selected segment.
+        /// Placeholder for Phase 2-3 implementation.
+        /// </summary>
+        [RelayCommand]
+        public async Task ReplaceSegmentImage()
+        {
+            try
+            {
+                if (SelectedSegment == null)
+                {
+                    StatusMessage = "No segment selected";
+                    return;
+                }
+
+                if (SelectedSegment.Kind != "visual" || string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId))
+                {
+                    StatusMessage = "Selected segment is not an image";
+                    return;
+                }
+
+                // Phase 2-3: Open file picker dialog and replace image
+                StatusMessage = "Replace image dialog (Phase 2 - pending implementation)";
+                Log.Information("Replace image command triggered for segment {SegmentId}", SelectedSegment.Id);
+                
+                // TODO: Implement in Phase 2
+                // - Show file picker dialog
+                // - Validate image file
+                // - Process image (resize, compress)
+                // - Update segment.BackgroundAssetId
+                // - Save project
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error replacing image: {ex.Message}";
+                Log.Error(ex, "Error replacing segment image");
+            }
+        }
+
+        /// <summary>
+        /// Clear the background image from the selected segment.
+        /// </summary>
+        [RelayCommand]
+        public void ClearSegmentBackground()
+        {
+            try
+            {
+                if (SelectedSegment == null)
+                {
+                    StatusMessage = "No segment selected";
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId))
+                {
+                    StatusMessage = "Segment has no background image";
+                    return;
+                }
+
+                SelectedSegment.BackgroundAssetId = null;
+                StatusMessage = "Segment background cleared";
+                Log.Information("Segment background cleared for segment {SegmentId}", SelectedSegment.Id);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error clearing background: {ex.Message}";
+                Log.Error(ex, "Error clearing segment background");
+            }
+        }
     }
 }
