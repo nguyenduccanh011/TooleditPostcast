@@ -208,6 +208,7 @@ namespace PodcastVideoEditor.Core.Services
 
                 var project = await CreateProjectAsync(name, null);
                 var snapshot = DeserializeTemplateSnapshot(template.LayoutJson);
+                var importedTemplateMedia = new Dictionary<string, Asset>(StringComparer.OrdinalIgnoreCase);
 
                 using (var context = _contextFactory.CreateDbContext())
                 {
@@ -345,6 +346,12 @@ namespace PodcastVideoEditor.Core.Services
                         if (!string.IsNullOrWhiteSpace(elementSnapshot.SegmentId))
                             segmentIdMap.TryGetValue(elementSnapshot.SegmentId, out mappedSegmentId);
 
+                        var materializedPropertiesJson = await MaterializeTemplateElementPropertiesAsync(
+                            tracked.Id,
+                            elementSnapshot.Type,
+                            elementSnapshot.PropertiesJson,
+                            importedTemplateMedia);
+
                         tracked.Elements.Add(new Element
                         {
                             ProjectId = tracked.Id,
@@ -358,9 +365,7 @@ namespace PodcastVideoEditor.Core.Services
                             Rotation = elementSnapshot.Rotation,
                             ZIndex = elementSnapshot.ZIndex,
                             Opacity = elementSnapshot.Opacity,
-                            PropertiesJson = string.IsNullOrWhiteSpace(elementSnapshot.PropertiesJson)
-                                ? "{}"
-                                : elementSnapshot.PropertiesJson,
+                            PropertiesJson = materializedPropertiesJson,
                             IsVisible = elementSnapshot.IsVisible,
                             SegmentId = mappedSegmentId,
                         });
@@ -382,6 +387,94 @@ namespace PodcastVideoEditor.Core.Services
             {
                 Log.Error(ex, "Error creating project from template {TemplateId}", templateId);
                 throw;
+            }
+        }
+
+        private async Task<string> MaterializeTemplateElementPropertiesAsync(
+            string projectId,
+            string? elementType,
+            string? propertiesJson,
+            IDictionary<string, Asset> importedMediaCache)
+        {
+            if (string.IsNullOrWhiteSpace(propertiesJson))
+                return "{}";
+
+            var mediaPathKey = ResolveMediaPathPropertyKey(elementType);
+            if (mediaPathKey == null)
+                return propertiesJson;
+
+            Dictionary<string, object?>? properties;
+            try
+            {
+                properties = JsonSerializer.Deserialize<Dictionary<string, object?>>(propertiesJson);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to parse template element properties for type {ElementType}", elementType);
+                return propertiesJson;
+            }
+
+            if (properties == null || !properties.TryGetValue(mediaPathKey, out var mediaPathRaw))
+                return propertiesJson;
+
+            if (!TryReadStringValue(mediaPathRaw, out var sourceMediaPath) || string.IsNullOrWhiteSpace(sourceMediaPath))
+                return propertiesJson;
+
+            if (!File.Exists(sourceMediaPath))
+            {
+                Log.Warning("Template media path not found during project creation: {MediaPath}", sourceMediaPath);
+                return propertiesJson;
+            }
+
+            var normalizedPath = NormalizeFilePath(sourceMediaPath);
+            if (!importedMediaCache.TryGetValue(normalizedPath, out var importedAsset))
+            {
+                var importedType = ResolveAssetTypeForElement(elementType);
+                importedAsset = await AddAssetAsync(projectId, sourceMediaPath, importedType);
+                importedMediaCache[normalizedPath] = importedAsset;
+            }
+
+            if (string.IsNullOrWhiteSpace(importedAsset.FilePath))
+                return propertiesJson;
+
+            properties[mediaPathKey] = importedAsset.FilePath;
+            return JsonSerializer.Serialize(properties);
+        }
+
+        private static string? ResolveMediaPathPropertyKey(string? elementType)
+        {
+            if (string.IsNullOrWhiteSpace(elementType))
+                return null;
+
+            return elementType.Trim().ToLowerInvariant() switch
+            {
+                "image" => "FilePath",
+                "video" => "FilePath",
+                "logo" => "ImagePath",
+                _ => null,
+            };
+        }
+
+        private static string ResolveAssetTypeForElement(string? elementType)
+        {
+            if (string.Equals(elementType, "Video", StringComparison.OrdinalIgnoreCase))
+                return "Video";
+            return "Image";
+        }
+
+        private static bool TryReadStringValue(object? rawValue, out string? value)
+        {
+            switch (rawValue)
+            {
+                case string s:
+                    value = s;
+                    return true;
+                case JsonElement el when el.ValueKind == JsonValueKind.String:
+                    value = el.GetString();
+                    return true;
+                default:
+                    value = null;
+                    return false;
             }
         }
 
