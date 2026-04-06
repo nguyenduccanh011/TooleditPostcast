@@ -145,6 +145,7 @@
                   WindowChrome.IsHitTestVisibleInChrome="True">
                 <MenuItem Header="File">
                     <MenuItem Header="New Project" Click="NewProjectButton_Click"/>
+                                        <MenuItem Header="New Project From Template" Click="NewProjectFromTemplateButton_Click"/>
                     <MenuItem Header="Open Selected" Click="OpenSelectedMenu_Click"/>
                     <Separator/>
                     <MenuItem Header="Exit" Click="ExitMenu_Click"/>
@@ -210,6 +211,9 @@
                             <Button Content="New Project" Width="130" Height="36" Margin="0,0,10,0"
                                     Background="#28A745" Foreground="#FFFFFF" BorderThickness="0"
                                     Click="NewProjectButton_Click" />
+                            <Button Content="From Template" Width="130" Height="36" Margin="0,0,10,0"
+                                Background="#6F42C1" Foreground="#FFFFFF" BorderThickness="0"
+                                Click="NewProjectFromTemplateButton_Click" />
                             <Button Content="Open Selected" Width="130" Height="36" Margin="0,0,10,0"
                                     Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
                                     Click="OpenSelectedMenu_Click" />

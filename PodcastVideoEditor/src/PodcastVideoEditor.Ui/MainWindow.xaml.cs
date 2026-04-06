@@ -10,9 +10,11 @@ using PodcastVideoEditor.Ui.ViewModels;
 using PodcastVideoEditor.Ui.Views;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -28,6 +30,7 @@ public partial class MainWindow : Window
     private readonly TimelineViewModel _timelineViewModel;
     private readonly MainViewModel _mainViewModel;
     private readonly SettingsViewModel _settingsViewModel;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly AutosaveService _autosaveService;
     private readonly IUpdateService _updateService;
     private readonly IAppInfoService _appInfoService;
@@ -46,6 +49,7 @@ public partial class MainWindow : Window
         AudioPlayerViewModel audioPlayerViewModel,
         TimelineViewModel timelineViewModel,
         SettingsViewModel settingsViewModel,
+        IDbContextFactory<AppDbContext> contextFactory,
         AutosaveService autosaveService,
         IAIAnalysisOrchestrator aiOrchestrator,
         IUpdateService updateService,
@@ -65,6 +69,7 @@ public partial class MainWindow : Window
             _audioPlayerViewModel = audioPlayerViewModel;
             _timelineViewModel = timelineViewModel;
             _settingsViewModel = settingsViewModel;
+            _contextFactory = contextFactory;
             _autosaveService = autosaveService;
             _updateService = updateService;
             _appInfoService = appInfoService;
@@ -427,13 +432,130 @@ public partial class MainWindow : Window
             Owner = this
         };
 
+        if (dialog.ShowDialog() != true)
+            return;
+
+        _projectViewModel.NewProjectName = dialog.ProjectName;
+        _projectViewModel.SelectedAudioPath = string.Empty;
+        await _projectViewModel.CreateProjectAsync();
+
+        await LoadProjectAudioAsync();
+        MainTabControl.SelectedIndex = 1;
+    }
+
+    private async void NewProjectFromTemplateButton_Click(object sender, RoutedEventArgs e)
+    {
+        var templateOptions = await LoadWizardTemplatesAsync();
+        var dialog = new EpisodeWizardDialog(templateOptions)
+        {
+            Owner = this
+        };
+
         if (dialog.ShowDialog() == true)
         {
-            _projectViewModel.NewProjectName = dialog.ProjectName;
-            await _projectViewModel.CreateProjectAsync();
+            var createdProject = await _projectViewModel.CreateProjectFromTemplateAsync(
+                dialog.ProjectName,
+                dialog.SelectedTemplateId,
+                dialog.SelectedAudioPath);
+
+            if (createdProject == null)
+                return;
+
+            // Apply template-level aspect ratio immediately after project creation.
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedTemplateAspectRatio))
+            {
+                _mainViewModel.CanvasViewModel.SelectedAspectRatio = dialog.SelectedTemplateAspectRatio;
+                _mainViewModel.RenderViewModel.SelectedAspectRatio = dialog.SelectedTemplateAspectRatio;
+            }
+
+            await ApplyWizardScriptAsync(dialog.ScriptText, dialog.UseAiAnalyze);
+            await _projectViewModel.SaveProjectAsync();
+
             await LoadProjectAudioAsync();
             MainTabControl.SelectedIndex = 1;
+
+            if (dialog.OpenRenderDialogAfterSetup)
+                OpenRenderDialog_Click(this, new RoutedEventArgs());
         }
+    }
+
+    private async Task ApplyWizardScriptAsync(string scriptText, bool useAiAnalyze)
+    {
+        if (string.IsNullOrWhiteSpace(scriptText))
+            return;
+
+        _timelineViewModel.ScriptPasteText = scriptText;
+
+        if (useAiAnalyze)
+        {
+            if (_timelineViewModel.AnalyzeWithAICommand.CanExecute(null))
+                await _timelineViewModel.AnalyzeWithAICommand.ExecuteAsync(null);
+            return;
+        }
+
+        if (_timelineViewModel.ApplyScriptCommand.CanExecute(null))
+            await _timelineViewModel.ApplyScriptCommand.ExecuteAsync(null);
+    }
+
+    private async Task<List<EpisodeWizardDialog.TemplateOption>> LoadWizardTemplatesAsync()
+    {
+        var options = new List<EpisodeWizardDialog.TemplateOption>
+        {
+            new("blank", "Blank", "Start from an empty layout.", "9:16")
+        };
+
+        try
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var templates = await context.Templates
+                .AsNoTracking()
+                .OrderByDescending(t => t.LastUsedAt ?? t.CreatedAt)
+                .ToListAsync();
+
+            foreach (var t in templates)
+            {
+                options.Add(new EpisodeWizardDialog.TemplateOption(
+                    t.Id,
+                    string.IsNullOrWhiteSpace(t.Name) ? "Unnamed template" : t.Name,
+                    string.IsNullOrWhiteSpace(t.Description) ? "No description" : t.Description,
+                    TryExtractAspectRatio(t.LayoutJson) ?? "9:16"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not load template list for episode wizard");
+        }
+
+        return options;
+    }
+
+    private static string? TryExtractAspectRatio(string? layoutJson)
+    {
+        if (string.IsNullOrWhiteSpace(layoutJson))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(layoutJson);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("renderSettings", out var render)
+                && render.ValueKind == JsonValueKind.Object
+                && render.TryGetProperty("aspectRatio", out var ar)
+                && ar.ValueKind == JsonValueKind.String)
+            {
+                var value = ar.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+        }
+        catch
+        {
+            // Ignore invalid JSON and fallback to default aspect ratio.
+        }
+
+        return null;
     }
 
     private async void OpenSelectedMenu_Click(object sender, RoutedEventArgs e)
@@ -579,27 +701,25 @@ public partial class MainWindow : Window
         Close();
     }
 
-    private async Task LoadProjectAudioAsync()
+    private Task LoadProjectAudioAsync()
     {
         var project = _projectViewModel.CurrentProject;
         if (project == null)
         {
             _audioPlayerViewModel.StopCommand.Execute(null);
-            return;
+            return Task.CompletedTask;
         }
 
-        _audioPlayerViewModel.StopCommand.Execute(null);
+        // Timeline-first: do not load Project.AudioPath directly into transport.
+        // AudioPath is treated as an import shortcut that should already exist as segments.
+        _audioPlayerViewModel.ResetToTimelineFirstMode();
+        _timelineViewModel.RecalculateDurationAndZoomToFit();
 
-        if (!string.IsNullOrWhiteSpace(project.AudioPath) && System.IO.File.Exists(project.AudioPath))
-        {
-            await _audioPlayerViewModel.LoadAudioAsync(project.AudioPath);
-            // Timeline + waveform sync is done in OnAudioLoaded
-        }
-        else
-        {
-            // No main audio file — compute duration from segments on the timeline
-            _timelineViewModel.RecalculateDurationAndZoomToFit();
-        }
+        _mainViewModel.VisualizerViewModel.VisualizerWidth = 800;
+        _mainViewModel.VisualizerViewModel.VisualizerHeight = 300;
+        _mainViewModel.VisualizerViewModel.Initialize();
+
+        return Task.CompletedTask;
     }
 
     /// <summary>
