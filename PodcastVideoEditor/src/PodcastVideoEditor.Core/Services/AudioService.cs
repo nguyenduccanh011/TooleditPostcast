@@ -234,33 +234,22 @@ namespace PodcastVideoEditor.Core.Services
 
         private string GetPlaybackPath(string filePath)
         {
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            if (ext != ".m4a" && ext != ".aac")
+            if (!RequiresDecodedCache(filePath))
                 return filePath;
 
-            string cachePath = GetDecodedCachePath(filePath);
-            var sourceInfo = new FileInfo(filePath);
-            var cacheInfo = new FileInfo(cachePath);
-
-            if (cacheInfo.Exists && cacheInfo.Length > 0 && cacheInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
-            {
-                _decodedAudioPath = cachePath;
-                _isDecodedCache = true;
-                Log.Information("Using cached WAV for accurate seek: {Path}", cachePath);
-                return cachePath;
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(cachePath) ?? Path.GetTempPath());
             var sw = Stopwatch.StartNew();
-            using (var reader = new AudioFileReader(filePath))
-            {
-                WaveFileWriter.CreateWaveFile(cachePath, reader);
-            }
+            bool cacheHit;
+            string cachePath = EnsureDecodedWavCache(filePath, out cacheHit);
             sw.Stop();
 
             _decodedAudioPath = cachePath;
             _isDecodedCache = true;
-            Log.Information("Decoded WAV cache created in {Ms} ms: {Path}", sw.ElapsedMilliseconds, cachePath);
+
+            if (cacheHit)
+                Log.Information("Using cached WAV for accurate seek: {Path}", cachePath);
+            else
+                Log.Information("Decoded WAV cache created in {Ms} ms: {Path}", sw.ElapsedMilliseconds, cachePath);
+
             return cachePath;
         }
 
@@ -271,10 +260,25 @@ namespace PodcastVideoEditor.Core.Services
         /// </summary>
         private static string GetSegmentPlaybackPath(string filePath)
         {
-            string ext = Path.GetExtension(filePath).ToLowerInvariant();
-            if (ext != ".m4a" && ext != ".aac")
+            if (!RequiresDecodedCache(filePath))
                 return filePath;
 
+            bool cacheHit;
+            string cachePath = EnsureDecodedWavCache(filePath, out cacheHit);
+
+            if (!cacheHit)
+                Log.Debug("Segment playback decoded WAV cache: {Path}", cachePath);
+            return cachePath;
+        }
+
+        private static bool RequiresDecodedCache(string filePath)
+        {
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+            return ext is ".m4a" or ".aac";
+        }
+
+        private static string EnsureDecodedWavCache(string filePath, out bool cacheHit)
+        {
             string cachePath = GetDecodedCachePath(filePath);
             var sourceInfo = new FileInfo(filePath);
 
@@ -282,15 +286,17 @@ namespace PodcastVideoEditor.Core.Services
             {
                 var cacheInfo = new FileInfo(cachePath);
                 if (cacheInfo.Exists && cacheInfo.Length > 0 && cacheInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
+                {
+                    cacheHit = true;
                     return cachePath;
+                }
 
+                cacheHit = false;
                 Directory.CreateDirectory(Path.GetDirectoryName(cachePath) ?? Path.GetTempPath());
                 using var reader = new AudioFileReader(filePath);
                 WaveFileWriter.CreateWaveFile(cachePath, reader);
+                return cachePath;
             }
-
-            Log.Debug("Segment playback uses decoded WAV cache: {Path}", cachePath);
-            return cachePath;
         }
 
         private static string GetDecodedCachePath(string filePath)
