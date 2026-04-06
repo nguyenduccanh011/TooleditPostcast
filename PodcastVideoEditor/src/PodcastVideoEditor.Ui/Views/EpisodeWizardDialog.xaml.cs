@@ -26,7 +26,7 @@ public partial class EpisodeWizardDialog : Window
     public bool UseAiAnalyze { get; private set; }
     public bool OpenRenderDialogAfterSetup { get; private set; }
 
-    public EpisodeWizardDialog(IEnumerable<TemplateOption>? templateOptions = null)
+    public EpisodeWizardDialog(IEnumerable<TemplateOption>? templateOptions = null, string? preselectedTemplateId = null)
     {
         InitializeComponent();
 
@@ -41,7 +41,15 @@ public partial class EpisodeWizardDialog : Window
             ];
 
         TemplateComboBox.ItemsSource = _choices;
-        TemplateComboBox.SelectedIndex = 1;
+        var selected = !string.IsNullOrWhiteSpace(preselectedTemplateId)
+            ? _choices.FirstOrDefault(x => string.Equals(x.Id, preselectedTemplateId, StringComparison.OrdinalIgnoreCase))
+            : null;
+
+        if (selected != null)
+            TemplateComboBox.SelectedItem = selected;
+        else
+            TemplateComboBox.SelectedIndex = _choices.Count > 1 ? 1 : 0;
+
         ProjectNameTextBox.Text = $"Episode {DateTime.Now:yyyy-MM-dd}";
 
         UpdateUi();

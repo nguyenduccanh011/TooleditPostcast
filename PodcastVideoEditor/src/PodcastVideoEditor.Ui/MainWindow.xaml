@@ -258,6 +258,33 @@
                             </StackPanel>
                         </Border>
 
+                        <StackPanel Margin="0,15,0,0">
+                            <TextBlock Text="Template Quick Start" FontWeight="Bold" Margin="0,0,0,6" />
+                            <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                                <ItemsControl ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=HomeTemplateOptions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="300" Margin="0,0,12,12" Padding="10" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#FFFFFF" />
+                                                    <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="#AAAAAA" FontSize="11" />
+                                                    <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
+                                                    <Button Content="Use Template" Height="28" HorizontalAlignment="Left"
+                                                            Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                            Click="HomeTemplateQuickCreateButton_Click" />
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Debug Info Panel (uncomment when debugging selection issues)
                         <StackPanel Margin="0,15,0,0">
                             <TextBlock Text="Debug Info" FontWeight="Bold" Margin="0,0,0,6" />

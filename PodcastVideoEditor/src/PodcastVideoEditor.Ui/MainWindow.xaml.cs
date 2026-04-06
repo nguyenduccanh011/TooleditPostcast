@@ -11,6 +11,7 @@ using PodcastVideoEditor.Ui.ViewModels;
 using PodcastVideoEditor.Ui.Views;
 using Serilog;
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -40,6 +41,8 @@ public partial class MainWindow : Window
     private bool _isClosing;
     private bool _isTabSwitching;
     private int _lastMainTabIndex = 0;
+
+    public ObservableCollection<EpisodeWizardDialog.TemplateOption> HomeTemplateOptions { get; } = [];
 
     /// <summary>
     /// Constructor receives all dependencies from the DI container (composition root in App.xaml.cs).
@@ -129,6 +132,7 @@ public partial class MainWindow : Window
         LogPathText.Text = Path.Combine(_appDataPath, "Logs");
         PopulateBuildInfo();
         await LoadProjectsSafeAsync();
+        await RefreshHomeTemplateOptionsAsync();
         await InitializeFfmpegStatusAsync();
         await CheckForUpdatesOnStartupAsync();
         _initialLoadDone = true;
@@ -347,7 +351,10 @@ public partial class MainWindow : Window
                 await _autosaveService.FlushAsync(force: true);
 
             if (newIndex == 0)
+            {
                 await LoadProjectsSafeAsync();
+                await RefreshHomeTemplateOptionsAsync();
+            }
         }
         finally
         {
@@ -453,8 +460,21 @@ public partial class MainWindow : Window
 
     private async void NewProjectFromTemplateButton_Click(object sender, RoutedEventArgs e)
     {
+        await LaunchTemplateWizardAsync();
+    }
+
+    private async void HomeTemplateQuickCreateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not EpisodeWizardDialog.TemplateOption template)
+            return;
+
+        await LaunchTemplateWizardAsync(template.Id);
+    }
+
+    private async Task LaunchTemplateWizardAsync(string? preselectedTemplateId = null)
+    {
         var templateOptions = await LoadWizardTemplatesAsync();
-        var dialog = new EpisodeWizardDialog(templateOptions)
+        var dialog = new EpisodeWizardDialog(templateOptions, preselectedTemplateId)
         {
             Owner = this
         };
@@ -492,6 +512,15 @@ public partial class MainWindow : Window
             if (dialog.OpenRenderDialogAfterSetup)
                 OpenRenderDialog_Click(this, new RoutedEventArgs());
         }
+    }
+
+    private async Task RefreshHomeTemplateOptionsAsync()
+    {
+        var options = await LoadWizardTemplatesAsync();
+
+        HomeTemplateOptions.Clear();
+        foreach (var option in options)
+            HomeTemplateOptions.Add(option);
     }
 
     private async void SaveCurrentAsTemplateMenu_Click(object sender, RoutedEventArgs e)
