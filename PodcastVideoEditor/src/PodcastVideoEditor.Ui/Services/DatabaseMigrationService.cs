@@ -45,6 +45,8 @@ internal static class DatabaseMigrationService
         if (opened) conn.Open();
         try
         {
+            EnsureMigrationHistoryTable(conn);
+
             MarkMigrationIfColumnExists(conn,
                 migrationId: "20260210100000_AddSegmentKind",
                 checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Kind'",
@@ -64,11 +66,27 @@ internal static class DatabaseMigrationService
                 migrationId: "20260331100000_AddGlobalAssetId",
                 checkSql: "SELECT COUNT(*) FROM pragma_table_info('Assets') WHERE name='GlobalAssetId'",
                 productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260406040516_AddTrackRoleAndSpanMode",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Tracks') WHERE name='SpanMode'",
+                productVersion);
         }
         finally
         {
             if (opened) conn.Close();
         }
+    }
+
+    private static void EnsureMigrationHistoryTable(System.Data.Common.DbConnection conn)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            CREATE TABLE IF NOT EXISTS __EFMigrationsHistory (
+                MigrationId TEXT NOT NULL CONSTRAINT PK___EFMigrationsHistory PRIMARY KEY,
+                ProductVersion TEXT NOT NULL
+            );";
+        cmd.ExecuteNonQuery();
     }
 
     private static void MarkMigrationIfColumnExists(
@@ -107,6 +125,8 @@ internal static class DatabaseMigrationService
         {
             // Tracks table columns
             "ALTER TABLE Tracks ADD COLUMN TextStyleJson TEXT",
+            "ALTER TABLE Tracks ADD COLUMN TrackRole TEXT NOT NULL DEFAULT 'unspecified'",
+            "ALTER TABLE Tracks ADD COLUMN SpanMode TEXT NOT NULL DEFAULT 'segment_bound'",
             
             // Assets table columns
             "ALTER TABLE Assets ADD COLUMN GlobalAssetId TEXT",
