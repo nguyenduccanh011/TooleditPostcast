@@ -1,4 +1,5 @@
 #nullable enable
+#pragma warning disable CS0618 // RenderConfig.TextSegments is intentionally kept for legacy compatibility paths.
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Utilities;
 using Serilog;
@@ -2020,3 +2021,4 @@ public static class FFmpegCommandComposer
         return null;
     }
 }
+#pragma warning restore CS0618

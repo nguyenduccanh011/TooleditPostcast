@@ -1,4 +1,5 @@
 #nullable enable
+#pragma warning disable CS0618 // RenderConfig.TextSegments is intentionally kept for legacy compatibility paths.
 using Serilog;
 using PodcastVideoEditor.Core.Models;
 using System;
@@ -732,9 +733,17 @@ public static class FFmpegService
                     var coresToUse = logicalCores - 2;
                     nint affinityMask = ((nint)1 << coresToUse) - 1;  // e.g. 0x3FFF for 14 cores
                     affinityMask <<= 2;  // shift to skip cores 0-1
-                    _currentRenderProcess.ProcessorAffinity = affinityMask;
-                    Log.Information("FFmpeg process: BelowNormal priority, affinity={Affinity:X} ({Used}/{Total} cores, PID {Pid})",
-                        affinityMask, coresToUse, logicalCores, _currentRenderProcess.Id);
+                    if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+                    {
+                        _currentRenderProcess.ProcessorAffinity = affinityMask;
+                        Log.Information("FFmpeg process: BelowNormal priority, affinity={Affinity:X} ({Used}/{Total} cores, PID {Pid})",
+                            affinityMask, coresToUse, logicalCores, _currentRenderProcess.Id);
+                    }
+                    else
+                    {
+                        Log.Information("FFmpeg process: BelowNormal priority, affinity tuning skipped on this platform ({Platform}), PID {Pid}",
+                            Environment.OSVersion.Platform, _currentRenderProcess.Id);
+                    }
                 }
                 else
                 {
@@ -929,6 +938,7 @@ public static class FFmpegService
         return 0;
     }
 }
+#pragma warning restore CS0618
 
 /// <summary>
 /// FFmpeg validation result

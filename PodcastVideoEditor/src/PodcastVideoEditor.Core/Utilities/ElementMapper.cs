@@ -234,7 +234,7 @@ public static class ElementMapper
                 if (dict.TryGetValue("CustomGradientColors", out var cgc)) v.CustomGradientColors = cgc.GetString() ?? "";
                 if (dict.TryGetValue("BarGradientDarkness", out var bgd)) v.BarGradientDarkness = (float)bgd.GetDouble();
                 if (dict.TryGetValue("BarGradientEnabled", out var bge)) v.BarGradientEnabled = bge.GetBoolean();
-                if (dict.TryGetValue("BarGradientBaseColorHex", out var bgbc)) v.BarGradientBaseColorHex = bgbc.GetString();
+                if (dict.TryGetValue("BarGradientBaseColorHex", out var bgbc)) v.BarGradientBaseColorHex = bgbc.GetString() ?? "#000000";
                 break;
             case ImageElement i:
                 if (dict.TryGetValue("FilePath", out var fp)) i.FilePath = fp.GetString() ?? string.Empty;

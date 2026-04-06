@@ -1,4 +1,5 @@
 #nullable enable
+#pragma warning disable CS0618 // Tests still exercise legacy TextSegments compatibility paths.
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using Xunit;
@@ -536,3 +537,4 @@ public class FFmpegCommandComposerTests
         };
     }
 }
+#pragma warning restore CS0618

@@ -1,4 +1,5 @@
 #nullable enable
+#pragma warning disable CS0618 // RenderConfig.TextSegments is intentionally kept for legacy compatibility paths.
 using System;
 using System.Collections.Generic;
 
@@ -218,3 +219,4 @@ public class CompositionPlan
         return config;
     }
 }
+#pragma warning restore CS0618

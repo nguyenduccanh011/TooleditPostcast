@@ -304,7 +304,7 @@ public static class RenderSegmentBuilder
                 // Build rasterization options from element properties
                 var options = new TextRasterizeOptions
                 {
-                    Text = segment.Text,
+                    Text = segment.Text ?? string.Empty,
                     CanvasWidth = canvasWidth,
                     CanvasHeight = canvasHeight
                 };
