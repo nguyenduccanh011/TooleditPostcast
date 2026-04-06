@@ -243,6 +243,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Pre-decode audio file asynchronously (background).
+        /// For M4A/AAC files, converts to WAV cache without blocking.
+        /// MP3/WAV files: pre-caches sample count for faster load.
+        /// Call this during template creation for faster first playback.
+        /// </summary>
+        public async Task PreDecodeAudioAsync(string filePath)
+        {
+            try
+            {
+                await _audioService.PreDecodeAudioAsync(filePath);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to pre-decode audio {FilePath}", filePath);
+            }
+        }
+
+        /// <summary>
         /// Toggle between play and pause. If stopped, starts playback.
         /// Single command for modern UI pattern (like CapCut).
         /// </summary>

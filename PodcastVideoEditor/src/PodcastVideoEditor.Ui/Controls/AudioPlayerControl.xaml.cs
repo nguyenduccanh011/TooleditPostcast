@@ -68,7 +68,12 @@ namespace PodcastVideoEditor.Ui.Controls
                     File.Copy(filePath, cacheFilePath, overwrite: true);
                     
                     // Load audio
-                    EnsureViewModel().LoadAudioCommand.Execute(cacheFilePath);
+                    var viewModel = EnsureViewModel();
+                    viewModel.LoadAudioCommand.Execute(cacheFilePath);
+                    
+                    // Pre-decode in background for faster replay
+                    _ = viewModel.PreDecodeAudioAsync(cacheFilePath);
+                    
                     UpdateStatusText("Audio loaded successfully");
                     
                     Log.Information("Audio file selected and cached: {FileName}", Path.GetFileName(filePath));

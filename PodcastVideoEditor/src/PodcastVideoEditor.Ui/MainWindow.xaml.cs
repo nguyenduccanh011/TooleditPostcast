@@ -469,6 +469,13 @@ public partial class MainWindow : Window
                 _mainViewModel.RenderViewModel.SelectedAspectRatio = dialog.SelectedTemplateAspectRatio;
             }
 
+            // Pre-decode audio (M4A→WAV) in background for faster first playback.
+            // This happens without blocking the UI while the project is being set up.
+            if (!string.IsNullOrWhiteSpace(dialog.SelectedAudioPath) && System.IO.File.Exists(dialog.SelectedAudioPath))
+            {
+                _ = _audioPlayerViewModel.PreDecodeAudioAsync(dialog.SelectedAudioPath);
+            }
+
             await ApplyWizardScriptAsync(dialog.ScriptText, dialog.UseAiAnalyze);
             await _projectViewModel.SaveProjectAsync();
 

@@ -207,6 +207,7 @@ public sealed class TimelineAudioPreviewServiceTests
         public float[] GetFFTData(int fftSize = 1024) => [];
         public void SetVolume(float volume) { }
         public float GetVolume() => 1;
+        public Task PreDecodeAudioAsync(string filePath) => Task.CompletedTask;
 
         public void PreloadSegmentAudio(string segmentId, string audioFilePath)
         {

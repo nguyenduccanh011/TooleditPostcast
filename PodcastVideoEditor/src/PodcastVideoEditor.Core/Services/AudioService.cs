@@ -653,6 +653,99 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
+        /// Pre-decode audio file asynchronously (background task).
+        /// For M4A/AAC files, converts to WAV cache without blocking.
+        /// MP3/WAV files: pre-caches sample count for faster load.
+        /// Safe to call multiple times - uses cache if already decoded.
+        /// 
+        /// Call this during template creation/save to speed up first playback.
+        /// UI remains responsive; decode happens on background thread.
+        /// </summary>
+        public async Task PreDecodeAudioAsync(string filePath)
+        {
+            if (!File.Exists(filePath))
+            {
+                Log.Warning("Cannot pre-decode: file not found: {FilePath}", filePath);
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var sw = Stopwatch.StartNew();
+                    
+                    // Step 1: If M4A/AAC, decode to WAV cache (background)
+                    if (RequiresDecodedCache(filePath))
+                    {
+                        bool cacheHit;
+                        string cachePath = EnsureDecodedWavCache(filePath, out cacheHit);
+                        sw.Stop();
+                        
+                        if (cacheHit)
+                        {
+                            Log.Information("Pre-decode: M4A cache already exists: {Path}", cachePath);
+                        }
+                        else
+                        {
+                            Log.Information("Pre-decode: M4A converted to WAV in {Ms} ms: {Path}", sw.ElapsedMilliseconds, cachePath);
+                        }
+                        
+                        // Step 2: Pre-cache sample count from WAV
+                        PreCacheSampleCount(cachePath);
+                    }
+                    else
+                    {
+                        // Step 2: For MP3/WAV, just pre-cache sample count
+                        PreCacheSampleCount(filePath);
+                        sw.Stop();
+                        Log.Information("Pre-decode: sample count cached in {Ms} ms: {Path}", sw.ElapsedMilliseconds, filePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Pre-decode failed for {FilePath} - playback will be slower on first load", filePath);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Pre-cache sample count for a file (avoids full-file scan on first load).
+        /// </summary>
+        private static void PreCacheSampleCount(string filePath)
+        {
+            try
+            {
+                var fileInfo = new FileInfo(filePath);
+                var cacheKey = (filePath, fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+
+                // Skip if already cached
+                if (_sampleCountCache.ContainsKey(cacheKey))
+                {
+                    Log.Debug("Pre-decode: sample count already cached for {Path}", filePath);
+                    return;
+                }
+
+                // Count samples by reading file
+                long totalSamples = 0;
+                using var reader = new AudioFileReader(filePath);
+                var countBuffer = new float[8192];
+                int countRead;
+                while ((countRead = reader.Read(countBuffer, 0, countBuffer.Length)) > 0)
+                {
+                    totalSamples += countRead;
+                }
+
+                _sampleCountCache[cacheKey] = totalSamples;
+                Log.Debug("Pre-decode: cached {Samples} samples for {Path}", totalSamples, filePath);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to pre-cache sample count for {FilePath}", filePath);
+            }
+        }
+
+        /// <summary>
         /// Extract FFT data for visualizer (simple spectrum analysis).
         /// Returns normalized float array [0, 1] representing frequency magnitudes.
         /// </summary>

@@ -285,6 +285,8 @@ public sealed class TimelinePlaybackCoordinatorTests
         public void SetVolume(float volume) { }
         public float GetVolume() => 1.0f;
 
+        public Task PreDecodeAudioAsync(string filePath) => Task.CompletedTask;
+
         public void RaisePlaybackStopped() => PlaybackStopped?.Invoke(this, new PlaybackStoppedEventArgs());
 
         public void Dispose()

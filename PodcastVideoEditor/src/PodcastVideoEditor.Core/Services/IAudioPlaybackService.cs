@@ -27,5 +27,12 @@ namespace PodcastVideoEditor.Core.Services
 
         PlaybackState PlaybackState { get; }
         bool IsPlaying { get; }
+
+        /// <summary>
+        /// Pre-decode audio file asynchronously (background) for faster playback startup.
+        /// For M4A/AAC files, this converts to WAV cache without blocking playback.
+        /// Safe to call multiple times - uses cache if already decoded.
+        /// </summary>
+        Task PreDecodeAudioAsync(string filePath);
     }
 }
