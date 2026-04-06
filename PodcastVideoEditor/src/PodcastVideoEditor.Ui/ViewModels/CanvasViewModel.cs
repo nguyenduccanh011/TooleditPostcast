@@ -26,6 +26,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
     {
         private readonly VisualizerViewModel? _visualizerViewModel;
         private readonly DispatcherTimer? _visualizerTimer;
+        private readonly DispatcherTimer _elementSaveDebounceTimer;
         private ProjectViewModel? _projectViewModel;
         private TimelineViewModel? _timelineViewModel;
         private SelectionSyncService? _selectionSyncService;
@@ -515,10 +516,42 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Interval = TimeSpan.FromMilliseconds(33) // ~30fps
             };
             _visualizerTimer.Tick += OnVisualizerTimerTick;
+            _elementSaveDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(1200)
+            };
+            _elementSaveDebounceTimer.Tick += OnElementSaveDebounceTick;
             PropertyEditor = new PropertyEditorViewModel();
             PropertyEditor.OnVisualizerElementConfigChanged = SyncVisualizerFromElement;
             PropertyEditor.OnTextElementPropertyChanged = OnTextElementPropertyChanged;
+            PropertyEditor.OnElementPropertyEdited = OnElementPropertyEdited;
             ApplyAspectRatio(selectedAspectRatio);
+        }
+
+        private void OnElementPropertyEdited(CanvasElement element, string propertyName)
+        {
+            if (_disposed || _projectViewModel?.CurrentProject == null)
+                return;
+
+            _elementSaveDebounceTimer.Stop();
+            _elementSaveDebounceTimer.Start();
+        }
+
+        private async void OnElementSaveDebounceTick(object? sender, EventArgs e)
+        {
+            _elementSaveDebounceTimer.Stop();
+
+            if (_disposed || _projectViewModel?.CurrentProject == null)
+                return;
+
+            try
+            {
+                await _projectViewModel.SaveProjectAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to persist debounced element property changes");
+            }
         }
 
         private void SyncVisualizerFromElement(VisualizerElement element)
@@ -1408,6 +1441,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _visualizerViewModel?.StopRendering();
 
                 PropertyEditor?.Dispose();
+                _elementSaveDebounceTimer.Stop();
+                _elementSaveDebounceTimer.Tick -= OnElementSaveDebounceTick;
                 Elements.Clear();
 
                 Serilog.Log.Debug("CanvasViewModel disposed");

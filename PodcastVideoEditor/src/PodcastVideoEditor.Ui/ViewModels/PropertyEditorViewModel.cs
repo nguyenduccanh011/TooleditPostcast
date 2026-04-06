@@ -47,6 +47,12 @@ namespace PodcastVideoEditor.Ui.ViewModels
         public Action<VisualizerElement>? OnVisualizerElementConfigChanged { get; set; }
 
         /// <summary>
+        /// Called whenever a selected element property value is changed via the property editor.
+        /// Used by container view models to schedule persistence.
+        /// </summary>
+        public Action<CanvasElement, string>? OnElementPropertyEdited { get; set; }
+
+        /// <summary>
         /// Called when a TextOverlayElement property changes, to propagate to track siblings.
         /// Parameters: (TextOverlayElement source, string propertyName).
         /// Returns: list of (siblingElement, oldValue) pairs for undo support — null if no propagation.
@@ -222,6 +228,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     OnVisualizerElementConfigChanged?.Invoke(ve);
                 }
+
+                OnElementPropertyEdited?.Invoke(field.SourceElement, prop.Name);
             }
             catch (Exception ex)
             {

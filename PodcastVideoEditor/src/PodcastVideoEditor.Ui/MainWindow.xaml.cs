@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private bool _initialLoadDone;
     private bool _isClosing;
     private bool _isTabSwitching;
+    private int _lastMainTabIndex = 0;
 
     /// <summary>
     /// Constructor receives all dependencies from the DI container (composition root in App.xaml.cs).
@@ -315,8 +316,10 @@ public partial class MainWindow : Window
 
     private async void MainTabControl_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
     {
+        int newIndex = MainTabControl.SelectedIndex;
+
         // Sync title bar tab buttons with current tab
-        switch (MainTabControl.SelectedIndex)
+        switch (newIndex)
         {
             case 0: TabBtnHome.IsChecked = true; break;
             case 1: TabBtnEditor.IsChecked = true; break;
@@ -324,27 +327,31 @@ public partial class MainWindow : Window
         }
 
         // Show render button only on Editor tab
-        TitleBarRenderBtn.Visibility = MainTabControl.SelectedIndex == 1
+        TitleBarRenderBtn.Visibility = newIndex == 1
             ? System.Windows.Visibility.Visible
             : System.Windows.Visibility.Collapsed;
 
         if (!_initialLoadDone || _isTabSwitching)
+        {
+            _lastMainTabIndex = newIndex;
             return;
+        }
 
         _isTabSwitching = true;
         try
         {
-            // Flush pending autosave when leaving the Editor tab so changes
-            // (e.g. property edits) are persisted before navigating away.
-            // Only flushes when there's actually a pending debounced save.
-            if (MainTabControl.SelectedIndex != 1 && _autosaveService.HasPendingSave)
-                await _autosaveService.FlushAsync();
+            // Always force a save when leaving Editor to persist property-panel edits
+            // that may not have scheduled a debounced autosave request.
+            bool leavingEditor = _lastMainTabIndex == 1 && newIndex != 1;
+            if (leavingEditor && _projectViewModel.CurrentProject != null)
+                await _autosaveService.FlushAsync(force: true);
 
-            if (MainTabControl.SelectedIndex == 0)
+            if (newIndex == 0)
                 await LoadProjectsSafeAsync();
         }
         finally
         {
+            _lastMainTabIndex = newIndex;
             _isTabSwitching = false;
         }
     }
