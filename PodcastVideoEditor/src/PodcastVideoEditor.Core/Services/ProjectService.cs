@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Core.Services
@@ -159,60 +160,400 @@ namespace PodcastVideoEditor.Core.Services
                 context.Projects.Add(project);
                 await context.SaveChangesAsync();
 
-                // If an audio file was provided, create a dedicated Audio track,
-                // import it as an Asset and place a full-duration audio segment on it.
                 if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
-                {
-                    try
-                    {
-                        var audioTrack = new Track
-                        {
-                            ProjectId = project.Id,
-                            Order = 2,
-                            TrackType = TrackTypes.Audio,
-                            Name = "Audio 1",
-                            IsLocked = false,
-                            IsVisible = true
-                        };
-                        project.Tracks.Add(audioTrack);
-                        context.Tracks.Add(audioTrack);
-                        await context.SaveChangesAsync();
+                    await AttachPrimaryAudioAsync(project.Id, audioPath);
 
-                        var asset = await AddAssetAsync(project.Id, audioPath, "Audio");
-                        var duration = asset.Duration ?? 0;
-
-                        var segment = new Segment
-                        {
-                            ProjectId = project.Id,
-                            TrackId = audioTrack.Id,
-                            StartTime = 0,
-                            EndTime = duration > 0 ? duration : 600, // fallback 10 min
-                            Text = asset.Name ?? "Main Audio",
-                            BackgroundAssetId = asset.Id,
-                            Kind = SegmentKinds.Audio,
-                            Volume = 1.0,
-                            Order = 0
-                        };
-
-                        audioTrack.Segments.Add(segment);
-                        context.Segments.Add(segment);
-                        await context.SaveChangesAsync();
-
-                        Log.Information("Audio segment created from project audio: {AssetId}, duration {Duration}s", asset.Id, duration);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(ex, "Could not create audio segment from {AudioPath}", audioPath);
-                    }
-                }
-
-                return project;
+                return await GetProjectAsync(project.Id) ?? project;
             }
             catch (Exception ex)
             {
                 Log.Error(ex, "Error creating project");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Create a new project from a saved template layout (tracks/elements/render settings).
+        /// If template is missing or invalid, falls back to a blank project.
+        /// </summary>
+        public async Task<Project> CreateProjectFromTemplateAsync(string name, string templateId, string? audioPath = null)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Project name cannot be empty", nameof(name));
+
+            if (string.IsNullOrWhiteSpace(templateId) || string.Equals(templateId, "blank", StringComparison.OrdinalIgnoreCase))
+                return await CreateProjectAsync(name, audioPath);
+
+            try
+            {
+                Template? template;
+                using (var lookupContext = _contextFactory.CreateDbContext())
+                {
+                    template = await lookupContext.Templates
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(t => t.Id == templateId);
+                }
+
+                if (template == null)
+                {
+                    Log.Warning("Template {TemplateId} not found. Falling back to blank project", templateId);
+                    return await CreateProjectAsync(name, audioPath);
+                }
+
+                var project = await CreateProjectAsync(name, null);
+                var snapshot = DeserializeTemplateSnapshot(template.LayoutJson);
+
+                using (var context = _contextFactory.CreateDbContext())
+                {
+                    var tracked = await context.Projects
+                        .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                        .Include(p => p.Elements)
+                        .FirstOrDefaultAsync(p => p.Id == project.Id);
+
+                    if (tracked == null)
+                        return await GetProjectAsync(project.Id) ?? project;
+
+                    context.Elements.RemoveRange(tracked.Elements ?? []);
+                    context.Tracks.RemoveRange(tracked.Tracks ?? []);
+                    await context.SaveChangesAsync();
+
+                    tracked.RenderSettings = snapshot.RenderSettings ?? new RenderSettings();
+                    tracked.UpdatedAt = DateTime.UtcNow;
+
+                    var segmentIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+
+                    if (snapshot.Tracks == null || snapshot.Tracks.Count == 0)
+                    {
+                        tracked.Tracks = new List<Track>
+                        {
+                            new Track
+                            {
+                                ProjectId = tracked.Id,
+                                Order = 0,
+                                TrackType = TrackTypes.Text,
+                                Name = "Text 1",
+                                IsLocked = false,
+                                IsVisible = true,
+                            },
+                            new Track
+                            {
+                                ProjectId = tracked.Id,
+                                Order = 1,
+                                TrackType = TrackTypes.Visual,
+                                Name = "Visual 1",
+                                IsLocked = false,
+                                IsVisible = true,
+                            }
+                        };
+                    }
+                    else
+                    {
+                        tracked.Tracks = new List<Track>();
+                        foreach (var trackSnapshot in snapshot.Tracks.OrderBy(t => t.Order))
+                        {
+                            var track = new Track
+                            {
+                                ProjectId = tracked.Id,
+                                Order = trackSnapshot.Order,
+                                TrackType = string.IsNullOrWhiteSpace(trackSnapshot.TrackType)
+                                    ? TrackTypes.Visual
+                                    : trackSnapshot.TrackType,
+                                Name = string.IsNullOrWhiteSpace(trackSnapshot.Name)
+                                    ? "Track"
+                                    : trackSnapshot.Name,
+                                IsLocked = trackSnapshot.IsLocked,
+                                IsVisible = trackSnapshot.IsVisible,
+                                ImageLayoutPreset = string.IsNullOrWhiteSpace(trackSnapshot.ImageLayoutPreset)
+                                    ? ImageLayoutPresets.FullFrame
+                                    : trackSnapshot.ImageLayoutPreset,
+                                AutoMotionEnabled = trackSnapshot.AutoMotionEnabled,
+                                MotionIntensity = trackSnapshot.MotionIntensity,
+                                OverlayColorHex = string.IsNullOrWhiteSpace(trackSnapshot.OverlayColorHex)
+                                    ? "#000000"
+                                    : trackSnapshot.OverlayColorHex,
+                                OverlayOpacity = trackSnapshot.OverlayOpacity,
+                                TextStyleJson = trackSnapshot.TextStyleJson,
+                            };
+
+                            track.Segments = new List<Segment>();
+                            foreach (var segmentSnapshot in (trackSnapshot.Segments ?? []).OrderBy(s => s.Order))
+                            {
+                                var segment = new Segment
+                                {
+                                    ProjectId = tracked.Id,
+                                    TrackId = track.Id,
+                                    StartTime = segmentSnapshot.StartTime,
+                                    EndTime = segmentSnapshot.EndTime,
+                                    Text = segmentSnapshot.Text ?? string.Empty,
+                                    BackgroundAssetId = segmentSnapshot.BackgroundAssetId,
+                                    TransitionType = string.IsNullOrWhiteSpace(segmentSnapshot.TransitionType)
+                                        ? "fade"
+                                        : segmentSnapshot.TransitionType,
+                                    TransitionDuration = segmentSnapshot.TransitionDuration,
+                                    Order = segmentSnapshot.Order,
+                                    Kind = string.IsNullOrWhiteSpace(segmentSnapshot.Kind)
+                                        ? SegmentKinds.Visual
+                                        : segmentSnapshot.Kind,
+                                    Keywords = segmentSnapshot.Keywords,
+                                    Volume = segmentSnapshot.Volume,
+                                    FadeInDuration = segmentSnapshot.FadeInDuration,
+                                    FadeOutDuration = segmentSnapshot.FadeOutDuration,
+                                    SourceStartOffset = segmentSnapshot.SourceStartOffset,
+                                    MotionPreset = string.IsNullOrWhiteSpace(segmentSnapshot.MotionPreset)
+                                        ? MotionPresets.None
+                                        : segmentSnapshot.MotionPreset,
+                                    MotionIntensity = segmentSnapshot.MotionIntensity,
+                                    OverlayColorHex = segmentSnapshot.OverlayColorHex,
+                                    OverlayOpacity = segmentSnapshot.OverlayOpacity,
+                                };
+
+                                track.Segments.Add(segment);
+                                if (!string.IsNullOrWhiteSpace(segmentSnapshot.Id))
+                                    segmentIdMap[segmentSnapshot.Id] = segment.Id;
+                            }
+
+                            tracked.Tracks.Add(track);
+                        }
+                    }
+
+                    tracked.Elements = new List<Element>();
+                    foreach (var elementSnapshot in snapshot.Elements ?? [])
+                    {
+                        string? mappedSegmentId = null;
+                        if (!string.IsNullOrWhiteSpace(elementSnapshot.SegmentId))
+                            segmentIdMap.TryGetValue(elementSnapshot.SegmentId, out mappedSegmentId);
+
+                        tracked.Elements.Add(new Element
+                        {
+                            ProjectId = tracked.Id,
+                            Type = string.IsNullOrWhiteSpace(elementSnapshot.Type)
+                                ? "TextOverlay"
+                                : elementSnapshot.Type,
+                            X = elementSnapshot.X,
+                            Y = elementSnapshot.Y,
+                            Width = elementSnapshot.Width,
+                            Height = elementSnapshot.Height,
+                            Rotation = elementSnapshot.Rotation,
+                            ZIndex = elementSnapshot.ZIndex,
+                            Opacity = elementSnapshot.Opacity,
+                            PropertiesJson = string.IsNullOrWhiteSpace(elementSnapshot.PropertiesJson)
+                                ? "{}"
+                                : elementSnapshot.PropertiesJson,
+                            IsVisible = elementSnapshot.IsVisible,
+                            SegmentId = mappedSegmentId,
+                        });
+                    }
+
+                    var trackedTemplate = await context.Templates.FirstOrDefaultAsync(t => t.Id == template.Id);
+                    if (trackedTemplate != null)
+                        trackedTemplate.LastUsedAt = DateTime.UtcNow;
+
+                    await context.SaveChangesAsync();
+                }
+
+                if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
+                    await AttachPrimaryAudioAsync(project.Id, audioPath);
+
+                return await GetProjectAsync(project.Id) ?? project;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error creating project from template {TemplateId}", templateId);
+                throw;
+            }
+        }
+
+        private async Task AttachPrimaryAudioAsync(string projectId, string audioPath)
+        {
+            try
+            {
+                using var context = _contextFactory.CreateDbContext();
+                var project = await context.Projects
+                    .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                    .Include(p => p.Assets)
+                    .FirstOrDefaultAsync(p => p.Id == projectId);
+
+                if (project == null)
+                    return;
+
+                var audioTrack = project.Tracks
+                    .OrderBy(t => t.Order)
+                    .FirstOrDefault(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                if (audioTrack == null)
+                {
+                    var maxOrder = project.Tracks.Any() ? project.Tracks.Max(t => t.Order) : 1;
+                    audioTrack = new Track
+                    {
+                        ProjectId = project.Id,
+                        Order = maxOrder + 1,
+                        TrackType = TrackTypes.Audio,
+                        Name = "Audio 1",
+                        IsLocked = false,
+                        IsVisible = true,
+                    };
+                    project.Tracks.Add(audioTrack);
+                    context.Tracks.Add(audioTrack);
+                    await context.SaveChangesAsync();
+                }
+
+                var normalizedAudioPath = NormalizeFilePath(audioPath);
+                var sourceAudioFileName = Path.GetFileName(audioPath);
+                bool alreadyOnTimeline = project.Tracks
+                    .Where(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(t => t.Segments ?? [])
+                    .Any(s =>
+                    {
+                        if (string.IsNullOrWhiteSpace(s.BackgroundAssetId))
+                            return false;
+
+                        var segAsset = project.Assets?.FirstOrDefault(a => a.Id == s.BackgroundAssetId);
+                        if (segAsset == null || string.IsNullOrWhiteSpace(segAsset.FilePath))
+                            return false;
+
+                        return string.Equals(NormalizeFilePath(segAsset.FilePath), normalizedAudioPath, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(segAsset.Name, sourceAudioFileName, StringComparison.OrdinalIgnoreCase);
+                    });
+
+                if (!alreadyOnTimeline)
+                {
+                    var importedAsset = await AddAssetAsync(project.Id, audioPath, "Audio");
+                    var segmentDuration = importedAsset.Duration ?? 0;
+
+                    if (segmentDuration <= 0)
+                    {
+                        try
+                        {
+                            using var reader = new AudioFileReader(importedAsset.FilePath);
+                            segmentDuration = Math.Max(0, reader.TotalTime.TotalSeconds);
+                        }
+                        catch
+                        {
+                            segmentDuration = 600;
+                        }
+                    }
+
+                    audioTrack.Segments ??= [];
+                    var nextOrder = audioTrack.Segments.Any() ? audioTrack.Segments.Max(s => s.Order) + 1 : 0;
+                    var segment = new Segment
+                    {
+                        ProjectId = project.Id,
+                        TrackId = audioTrack.Id,
+                        StartTime = 0,
+                        EndTime = segmentDuration,
+                        Text = Path.GetFileNameWithoutExtension(audioPath),
+                        BackgroundAssetId = importedAsset.Id,
+                        Kind = SegmentKinds.Audio,
+                        Volume = 1.0,
+                        FadeInDuration = 0,
+                        FadeOutDuration = 0,
+                        Order = nextOrder,
+                    };
+
+                    audioTrack.Segments.Add(segment);
+                    context.Segments.Add(segment);
+                }
+
+                project.AudioPath = audioPath;
+                project.UpdatedAt = DateTime.UtcNow;
+                await context.SaveChangesAsync();
+
+                Log.Information("Primary audio attached to project {ProjectId}", projectId);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not attach primary audio for project {ProjectId}", projectId);
+            }
+        }
+
+        private static TemplateProjectSnapshot DeserializeTemplateSnapshot(string layoutJson)
+        {
+            if (string.IsNullOrWhiteSpace(layoutJson))
+                return new TemplateProjectSnapshot();
+
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                };
+
+                var snapshot = JsonSerializer.Deserialize<TemplateProjectSnapshot>(layoutJson, options);
+                if (snapshot != null)
+                {
+                    snapshot.Tracks ??= [];
+                    snapshot.Elements ??= [];
+                    foreach (var track in snapshot.Tracks)
+                        track.Segments ??= [];
+                }
+                return snapshot ?? new TemplateProjectSnapshot();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to deserialize template layout JSON. Falling back to default tracks");
+                return new TemplateProjectSnapshot();
+            }
+        }
+
+        private sealed class TemplateProjectSnapshot
+        {
+            public RenderSettings? RenderSettings { get; set; }
+            public List<TemplateTrackSnapshot> Tracks { get; set; } = [];
+            public List<TemplateElementSnapshot> Elements { get; set; } = [];
+        }
+
+        private sealed class TemplateTrackSnapshot
+        {
+            public string? Id { get; set; }
+            public int Order { get; set; }
+            public string? TrackType { get; set; }
+            public string? Name { get; set; }
+            public bool IsLocked { get; set; }
+            public bool IsVisible { get; set; } = true;
+            public string? ImageLayoutPreset { get; set; }
+            public bool AutoMotionEnabled { get; set; }
+            public double MotionIntensity { get; set; } = 0.3;
+            public string? OverlayColorHex { get; set; }
+            public double OverlayOpacity { get; set; }
+            public string? TextStyleJson { get; set; }
+            public List<TemplateSegmentSnapshot> Segments { get; set; } = [];
+        }
+
+        private sealed class TemplateSegmentSnapshot
+        {
+            public string? Id { get; set; }
+            public double StartTime { get; set; }
+            public double EndTime { get; set; }
+            public string? Text { get; set; }
+            public string? BackgroundAssetId { get; set; }
+            public string? TransitionType { get; set; }
+            public double TransitionDuration { get; set; } = 0.5;
+            public int Order { get; set; }
+            public string? Kind { get; set; }
+            public string? Keywords { get; set; }
+            public double Volume { get; set; } = 1.0;
+            public double FadeInDuration { get; set; }
+            public double FadeOutDuration { get; set; }
+            public double SourceStartOffset { get; set; }
+            public string? MotionPreset { get; set; }
+            public double? MotionIntensity { get; set; }
+            public string? OverlayColorHex { get; set; }
+            public double? OverlayOpacity { get; set; }
+        }
+
+        private sealed class TemplateElementSnapshot
+        {
+            public string? Type { get; set; }
+            public double X { get; set; }
+            public double Y { get; set; }
+            public double Width { get; set; } = 100;
+            public double Height { get; set; } = 50;
+            public double Rotation { get; set; }
+            public int ZIndex { get; set; }
+            public double Opacity { get; set; } = 1.0;
+            public string? PropertiesJson { get; set; }
+            public bool IsVisible { get; set; } = true;
+            public string? SegmentId { get; set; }
         }
 
         /// <summary>
@@ -256,101 +597,84 @@ namespace PodcastVideoEditor.Core.Services
 
             bool migrated = false;
 
-            // ── 1. Migrate Project.AudioPath → audio segment ────────────────
+            // ── 1. Migrate Project.AudioPath → audio segment (timeline-first) ─
             if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
             {
-                // Check if audio track already has segments (already migrated)
-                var audioTrack = project.Tracks?.FirstOrDefault(t =>
-                    string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+                using var primaryAudioContext = _contextFactory.CreateDbContext();
+                var trackedProject = await primaryAudioContext.Projects
+                    .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                    .Include(p => p.Assets)
+                    .FirstOrDefaultAsync(p => p.Id == project.Id);
 
-                bool hasAudioSegments = audioTrack?.Segments?.Any(s =>
-                    !string.IsNullOrWhiteSpace(s.BackgroundAssetId)) == true;
-
-                if (!hasAudioSegments)
+                if (trackedProject != null)
                 {
-                    // Use a scoped context for migration writes
-                    using var migContext = _contextFactory.CreateDbContext();
-                    var trackedProject = await migContext.Projects
-                        .Include(p => p.Tracks).ThenInclude(t => t.Segments)
-                        .Include(p => p.Assets)
-                        .FirstOrDefaultAsync(p => p.Id == project.Id);
-
-                    if (trackedProject != null)
-                    {
-                        var trackedAudioTrack = trackedProject.Tracks?.FirstOrDefault(t =>
-                            string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
-
-                        // Create audio track if the project doesn't have one (e.g. created after
-                        // the default empty audio track was removed, or track was manually deleted).
-                        if (trackedAudioTrack == null)
+                    var normalizedAudioPath = NormalizeFilePath(project.AudioPath);
+                    var sourceAudioFileName = Path.GetFileName(project.AudioPath);
+                    var hasMatchingAudioSegment = trackedProject.Tracks
+                        .Where(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase))
+                        .SelectMany(t => t.Segments ?? [])
+                        .Any(s =>
                         {
-                            var maxOrder = trackedProject.Tracks?.Max(t => t.Order) ?? 0;
-                            trackedAudioTrack = new Track
+                            if (string.IsNullOrWhiteSpace(s.BackgroundAssetId))
+                                return false;
+
+                            var segAsset = trackedProject.Assets?.FirstOrDefault(a => a.Id == s.BackgroundAssetId);
+                            if (segAsset == null || string.IsNullOrWhiteSpace(segAsset.FilePath))
+                                return false;
+
+                            return string.Equals(NormalizeFilePath(segAsset.FilePath), normalizedAudioPath, StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(segAsset.Name, sourceAudioFileName, StringComparison.OrdinalIgnoreCase);
+                        });
+
+                    if (!hasMatchingAudioSegment)
+                    {
+                        var audioTrack = trackedProject.Tracks
+                            .OrderBy(t => t.Order)
+                            .FirstOrDefault(t => string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+
+                        if (audioTrack == null)
+                        {
+                            var maxOrder = trackedProject.Tracks.Any() ? trackedProject.Tracks.Max(t => t.Order) : 1;
+                            audioTrack = new Track
                             {
                                 ProjectId = trackedProject.Id,
                                 Order = maxOrder + 1,
                                 TrackType = TrackTypes.Audio,
                                 Name = "Audio 1",
                                 IsLocked = false,
-                                IsVisible = true
+                                IsVisible = true,
                             };
-                            trackedProject.Tracks ??= new List<Track>();
-                            trackedProject.Tracks.Add(trackedAudioTrack);
-                            migContext.Tracks.Add(trackedAudioTrack);
-                            await migContext.SaveChangesAsync();
-                            Log.Information("Created missing audio track for migration in project {ProjectId}", trackedProject.Id);
+                            trackedProject.Tracks.Add(audioTrack);
+                            primaryAudioContext.Tracks.Add(audioTrack);
+                            await primaryAudioContext.SaveChangesAsync();
                         }
 
-                        if (trackedAudioTrack != null)
+                        var asset = await AddAssetAsync(trackedProject.Id, project.AudioPath, "Audio");
+                        var duration = asset.Duration ?? 600;
+                        audioTrack.Segments ??= [];
+                        var nextOrder = audioTrack.Segments.Any() ? audioTrack.Segments.Max(s => s.Order) + 1 : 0;
+                        var segment = new Segment
                         {
-                            try
-                            {
-                                // Check if this audio file is already an asset in the project
-                                var existingAsset = trackedProject.Assets?.FirstOrDefault(a =>
-                                    string.Equals(a.Type, "Audio", StringComparison.OrdinalIgnoreCase)
-                                    && !string.IsNullOrWhiteSpace(a.FilePath)
-                                    && File.Exists(a.FilePath));
+                            ProjectId = trackedProject.Id,
+                            TrackId = audioTrack.Id,
+                            StartTime = 0,
+                            EndTime = duration,
+                            Text = Path.GetFileNameWithoutExtension(project.AudioPath),
+                            BackgroundAssetId = asset.Id,
+                            Kind = SegmentKinds.Audio,
+                            Volume = 1.0,
+                            FadeInDuration = 0,
+                            FadeOutDuration = 0,
+                            Order = nextOrder,
+                        };
 
-                                Asset asset;
-                                if (existingAsset != null)
-                                {
-                                    asset = existingAsset;
-                                }
-                                else
-                                {
-                                    asset = await AddAssetAsync(trackedProject.Id, trackedProject.AudioPath, "Audio");
-                                }
-
-                                double duration = asset.Duration ?? 0;
-                                var segment = new Segment
-                                {
-                                    ProjectId = trackedProject.Id,
-                                    TrackId = trackedAudioTrack.Id,
-                                    StartTime = 0,
-                                    EndTime = duration > 0 ? duration : 600,
-                                    Text = asset.Name ?? "Main Audio",
-                                    BackgroundAssetId = asset.Id,
-                                    Kind = SegmentKinds.Audio,
-                                    Volume = 1.0,
-                                    Order = 0
-                                };
-
-                                trackedAudioTrack.Segments ??= new List<Segment>();
-                                trackedAudioTrack.Segments.Add(segment);
-                                migContext.Segments.Add(segment);
-
-                                migrated = true;
-                                Log.Information("Migrated AudioPath → audio segment for project {ProjectId}", project.Id);
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Warning(ex, "Failed to migrate AudioPath to segment for project {ProjectId}", project.Id);
-                            }
-                        }
+                        audioTrack.Segments.Add(segment);
+                        primaryAudioContext.Segments.Add(segment);
+                        trackedProject.UpdatedAt = DateTime.UtcNow;
+                        await primaryAudioContext.SaveChangesAsync();
+                        migrated = true;
+                        Log.Information("Migrated Project.AudioPath → audio segment for project {ProjectId}", trackedProject.Id);
                     }
-
-                    if (migrated)
-                        await migContext.SaveChangesAsync();
                 }
             }
 
@@ -451,6 +775,21 @@ namespace PodcastVideoEditor.Core.Services
             }
 
             return migrated;
+        }
+
+        private static string NormalizeFilePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return string.Empty;
+
+            try
+            {
+                return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                return path.Trim();
+            }
         }
 
         /// <summary>

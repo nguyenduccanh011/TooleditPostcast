@@ -43,6 +43,7 @@ internal sealed class TimelineAudioPreviewService
 
             // Collect ALL active audio segments across every audio track
             var audioSegments = new List<(Segment segment, string filePath)>();
+            var primaryAudioPath = _getCurrentProject()?.AudioPath;
             foreach (var (track, segment) in activeSegments)
             {
                 if (!string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
@@ -57,6 +58,12 @@ internal sealed class TimelineAudioPreviewService
                     Log.Debug(
                         "Audio segment {SegmentId} has no asset (AssetId={AssetId})",
                         segment.Id, segment.BackgroundAssetId);
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(primaryAudioPath)
+                    && string.Equals(Path.GetFullPath(asset.FilePath), Path.GetFullPath(primaryAudioPath), StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
                 }
 

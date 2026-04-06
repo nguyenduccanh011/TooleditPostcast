@@ -213,6 +213,36 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Switch transport into timeline-first mode by clearing any loaded main audio file.
+        /// Playback will then be driven by timeline audio segments only.
+        /// </summary>
+        public void ResetToTimelineFirstMode()
+        {
+            try
+            {
+                _positionUpdateTimer?.Stop();
+                _audioService.Stop();
+
+                if (_audioService is AudioService concreteAudioService)
+                    concreteAudioService.ClearLoadedAudio();
+
+                _currentAudioMetadata = null;
+                IsPlaying = false;
+                IsAudioLoaded = false;
+                AudioFileName = "Timeline audio";
+                CurrentPosition = 0;
+                TotalDuration = 0;
+                PositionDisplay = "00:00";
+                DurationDisplay = "00:00";
+                StatusMessage = "Timeline-first playback mode";
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Failed to reset audio player to timeline-first mode");
+            }
+        }
+
+        /// <summary>
         /// Toggle between play and pause. If stopped, starts playback.
         /// Single command for modern UI pattern (like CapCut).
         /// </summary>

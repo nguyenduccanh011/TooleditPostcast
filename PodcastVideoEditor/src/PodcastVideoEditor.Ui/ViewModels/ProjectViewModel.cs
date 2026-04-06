@@ -218,6 +218,51 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Create a new project from a template and keep UI state in sync.
+        /// </summary>
+        public async Task<Project?> CreateProjectFromTemplateAsync(string projectName, string templateId, string? audioPath)
+        {
+            if (string.IsNullOrWhiteSpace(projectName))
+            {
+                StatusMessage = "Project name is required";
+                return null;
+            }
+
+            IsLoading = true;
+            StatusMessage = "Creating project from template...";
+
+            try
+            {
+                var project = await _projectService.CreateProjectFromTemplateAsync(projectName, templateId, audioPath);
+                if (!Projects.Any(p => p.Id == project.Id))
+                    Projects.Add(project);
+
+                CurrentProject = project;
+
+                var aspect = project.RenderSettings.AspectRatio;
+                if (!string.IsNullOrWhiteSpace(aspect))
+                    _canvasViewModel.SelectedAspectRatio = aspect;
+
+                _renderViewModel.ApplyProjectRenderSettings(project.RenderSettings);
+                _canvasViewModel.LoadElementsFromProject();
+
+                StatusMessage = $"Project '{project.Name}' created successfully";
+                Log.Information("Project created from template: {ProjectName} ({TemplateId})", project.Name, templateId);
+                return project;
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error creating project from template: {ex.Message}";
+                Log.Error(ex, "Error creating project from template {TemplateId}", templateId);
+                return null;
+            }
+            finally
+            {
+                IsLoading = false;
+            }
+        }
+
+        /// <summary>
         /// Open/select a project.
         /// </summary>
         [RelayCommand]

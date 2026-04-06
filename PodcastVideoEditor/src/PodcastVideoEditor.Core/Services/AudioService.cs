@@ -393,6 +393,44 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
+        /// Clear the currently loaded primary audio file and reset transport state.
+        /// Timeline segment playback remains available via silent-mixer mode when Play() is called.
+        /// </summary>
+        public void ClearLoadedAudio()
+        {
+            try
+            {
+                Stop();
+            }
+            catch (Exception ex)
+            {
+                Log.Debug(ex, "ClearLoadedAudio: stop failed, continuing with reset");
+            }
+
+            _audioFileReader?.Dispose();
+            _audioFileReader = null;
+            _sampleAggregator = null;
+            _waveFormat = null;
+            _actualDurationSeconds = 0;
+            _totalSampleCount = 0;
+            _sourceAudioPath = null;
+            _playbackAudioPath = null;
+            _mixerTap = null;
+            lock (_mixerLock)
+            {
+                _mixer = null;
+            }
+
+            _isSilentMixerMode = false;
+            _silentModePosition = 0;
+            _virtualStopwatch.Reset();
+            _frozenPausePosition = -1;
+            CleanupDecodedCache();
+
+            Log.Information("AudioService: cleared loaded primary audio");
+        }
+
+        /// <summary>
         /// Seek to a specific position (in seconds).
         /// Note: For VBR MP3, seek position may have small inaccuracy due to NAudio byte-based seeking.
         /// </summary>

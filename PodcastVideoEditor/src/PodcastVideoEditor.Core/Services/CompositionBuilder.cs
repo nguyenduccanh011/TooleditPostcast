@@ -156,7 +156,7 @@ public class CompositionBuilder : ICompositionBuilder
             RenderWidth = ctx.RenderWidth,
             RenderHeight = ctx.RenderHeight,
             FrameRate = ctx.FrameRate,
-            PrimaryAudioPath = resolvedAudioPath,
+            PrimaryAudioPath = string.Empty,
             PrimaryAudioVolume = ctx.PrimaryAudioVolume,
             Layers = layers,
             AudioLayers = BuildAudioLayers(ctx.Project, assetMap),

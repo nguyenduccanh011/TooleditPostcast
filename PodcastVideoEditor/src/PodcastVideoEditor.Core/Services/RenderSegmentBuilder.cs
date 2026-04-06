@@ -38,8 +38,8 @@ public static class RenderSegmentBuilder
 
     /// <summary>
     /// Resolve the primary audio file path for the project.
-    /// First tries <see cref="Project.AudioPath"/> (legacy), then falls back to the
-    /// first audio segment asset on any visible audio track.
+    /// Timeline-first: first tries the first audio segment asset on any visible audio track,
+    /// then falls back to <see cref="Project.AudioPath"/> for legacy projects.
     /// Returns <c>null</c> when no audio file can be found.
     /// </summary>
     public static string? ResolveProjectAudioPath(Project project)
@@ -49,14 +49,7 @@ public static class RenderSegmentBuilder
             project.Tracks?.Count ?? -1,
             project.Assets?.Count ?? -1);
 
-        // Try legacy AudioPath first
-        if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
-        {
-            Log.Information("ResolveProjectAudioPath: using legacy AudioPath: {Path}", project.AudioPath);
-            return project.AudioPath;
-        }
-
-        // Fallback: resolve from the first audio segment with a valid asset file
+        // Timeline-first: resolve from the first audio segment with a valid asset file.
         var audioTracks = project.Tracks?
             .Where(t => string.Equals(t.TrackType, "audio", StringComparison.OrdinalIgnoreCase) && t.IsVisible)
             .ToList();
@@ -72,6 +65,13 @@ public static class RenderSegmentBuilder
         {
             Log.Information("ResolveProjectAudioPath: resolved from audio segment asset: {Path}", fallbackAsset.FilePath);
             return fallbackAsset.FilePath;
+        }
+
+        // Legacy fallback (old projects not migrated yet)
+        if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
+        {
+            Log.Information("ResolveProjectAudioPath: using legacy AudioPath fallback: {Path}", project.AudioPath);
+            return project.AudioPath;
         }
 
         Log.Warning("ResolveProjectAudioPath: no audio file found");

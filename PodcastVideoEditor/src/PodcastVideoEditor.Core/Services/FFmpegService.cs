@@ -628,6 +628,12 @@ public static class FFmpegService
                     try { Directory.Delete(dir, recursive: true); }
                     catch { /* still locked by FFmpeg — will be cleaned on next render */ }
                 }
+
+                foreach (var dir in Directory.EnumerateDirectories(pveDir, "rs-*"))
+                {
+                    try { Directory.Delete(dir, recursive: true); }
+                    catch { /* staging dir may still be locked or in use; retry on next cleanup */ }
+                }
             }
 
             // Legacy path cleanup (from older versions)

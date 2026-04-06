@@ -1,0 +1,277 @@
+<Window
+    x:Class="PodcastVideoEditor.Ui.Views.EpisodeWizardDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Create Podcast Episode"
+    Width="760"
+    Height="620"
+    MinWidth="720"
+    MinHeight="560"
+    WindowStartupLocation="CenterOwner"
+    Background="#1E1E1E"
+    Foreground="#FFFFFF"
+    ShowInTaskbar="False"
+    WindowStyle="SingleBorderWindow">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Episode Wizard"
+                   FontSize="20"
+                   FontWeight="Bold"
+                   Foreground="#2EA6FF"
+                   Margin="0,0,0,12"/>
+
+        <UniformGrid Grid.Row="1" Rows="1" Columns="4" Margin="0,0,0,12">
+            <Border x:Name="Step1Badge" Margin="0,0,8,0" Padding="8" Background="#2EA6FF" CornerRadius="4">
+                <TextBlock Text="1. Template" FontWeight="SemiBold"/>
+            </Border>
+            <Border x:Name="Step2Badge" Margin="0,0,8,0" Padding="8" Background="#2D2D30" CornerRadius="4">
+                <TextBlock Text="2. Audio" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            </Border>
+            <Border x:Name="Step3Badge" Margin="0,0,8,0" Padding="8" Background="#2D2D30" CornerRadius="4">
+                <TextBlock Text="3. Script" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            </Border>
+            <Border x:Name="Step4Badge" Padding="8" Background="#2D2D30" CornerRadius="4">
+                <TextBlock Text="4. Export" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6" Padding="14">
+            <Grid>
+                <Grid x:Name="Step1Panel">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Choose a template"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Margin="0,0,0,12"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Project name" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <TextBox x:Name="ProjectNameTextBox"
+                                 Width="420"
+                                 Height="34"
+                                 Padding="10,6"
+                                 Background="#1E1E1E"
+                                 BorderBrush="#3E3E42"
+                                 BorderThickness="1"
+                                 Foreground="#FFFFFF"
+                                 Text="Episode"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Template" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <ComboBox x:Name="TemplateComboBox"
+                                  Width="420"
+                                  Height="34"
+                                  Background="#1E1E1E"
+                                  BorderBrush="#3E3E42"
+                                  BorderThickness="1"
+                                  Foreground="#FFFFFF"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectionChanged="TemplateComboBox_SelectionChanged"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                        <StackPanel>
+                            <TextBlock x:Name="TemplateTitleText" FontSize="14" FontWeight="Bold" Foreground="#2EA6FF"/>
+                            <TextBlock x:Name="TemplateDescriptionText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#DDDDDD"/>
+                            <TextBlock x:Name="TemplateAspectText" Margin="0,8,0,0" Foreground="#AAAAAA"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Grid x:Name="Step2Panel" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Choose main audio"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Margin="0,0,0,12"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                        <TextBlock Text="Audio file" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <TextBox x:Name="AudioPathTextBox"
+                                 Width="420"
+                                 Height="34"
+                                 Padding="10,6"
+                                 Background="#1E1E1E"
+                                 BorderBrush="#3E3E42"
+                                 BorderThickness="1"
+                                 Foreground="#FFFFFF"
+                                 IsReadOnly="True"/>
+                        <Button x:Name="BrowseAudioButton"
+                                Width="110"
+                                Height="34"
+                                Margin="8,0,0,0"
+                                Content="Browse"
+                                Background="#3E3E42"
+                                BorderThickness="0"
+                                Click="BrowseAudioButton_Click"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2"
+                               Text="Supported formats: .mp3, .wav, .m4a, .aac, .flac, .ogg"
+                               Foreground="#AAAAAA"
+                               Margin="0,0,0,12"/>
+
+                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                        <TextBlock x:Name="AudioValidationText"
+                                   Text="No audio selected."
+                                   TextWrapping="Wrap"
+                                   Foreground="#E0C080"/>
+                    </Border>
+                </Grid>
+
+                <Grid x:Name="Step3Panel" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Choose script"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Margin="0,0,0,12"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                        <Button x:Name="LoadScriptButton"
+                                Width="130"
+                                Height="34"
+                                Margin="0,0,8,0"
+                                Content="Load .txt"
+                                Background="#3E3E42"
+                                BorderThickness="0"
+                                Click="LoadScriptButton_Click"/>
+                        <Button x:Name="ClearScriptButton"
+                                Width="120"
+                                Height="34"
+                                Margin="0,0,8,0"
+                                Content="Clear Script"
+                                Background="#3E3E42"
+                                BorderThickness="0"
+                                Click="ClearScriptButton_Click"/>
+                        <CheckBox x:Name="UseAiCheckBox"
+                                  VerticalAlignment="Center"
+                                  Content="Analyze with AI"
+                                  IsChecked="True"/>
+                    </StackPanel>
+
+                    <TextBox x:Name="ScriptTextBox"
+                             Grid.Row="2"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             TextWrapping="Wrap"
+                             Background="#1E1E1E"
+                             BorderBrush="#3E3E42"
+                             BorderThickness="1"
+                             Foreground="#FFFFFF"
+                             Padding="10"
+                             ToolTip="Paste script with format: [start → end] text"/>
+
+                    <TextBlock Grid.Row="3"
+                               Margin="0,10,0,0"
+                               Foreground="#AAAAAA"
+                               Text="Leave script empty if you want audio-only export."/>
+                </Grid>
+
+                <Grid x:Name="Step4Panel" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Export options"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Margin="0,0,0,12"/>
+
+                    <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock x:Name="SummaryProjectText" Foreground="#DDDDDD"/>
+                            <TextBlock x:Name="SummaryTemplateText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
+                            <TextBlock x:Name="SummaryAudioText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
+                            <TextBlock x:Name="SummaryScriptText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
+                            <TextBlock x:Name="SummaryAspectText" Margin="0,6,0,0" Foreground="#AAAAAA"/>
+                        </StackPanel>
+                    </Border>
+
+                    <CheckBox x:Name="OpenRenderDialogCheckBox"
+                              Grid.Row="2"
+                              Content="Open export dialog after setup"
+                              IsChecked="True"
+                              Margin="0,0,0,12"/>
+
+                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                        <TextBlock Text="Finish will create project, import audio, apply script (if provided), and optionally open render dialog."
+                                   Foreground="#AAAAAA"
+                                   TextWrapping="Wrap"/>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="3" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock x:Name="ValidationTextBlock"
+                       VerticalAlignment="Center"
+                       Foreground="#EAA67A"/>
+
+            <Button x:Name="BackButton"
+                    Grid.Column="1"
+                    Width="90"
+                    Height="34"
+                    Margin="0,0,8,0"
+                    Content="Back"
+                    Background="#3E3E42"
+                    BorderThickness="0"
+                    Click="BackButton_Click"/>
+
+            <Button x:Name="NextButton"
+                    Grid.Column="2"
+                    Width="90"
+                    Height="34"
+                    Margin="0,0,8,0"
+                    Content="Next"
+                    Background="#007ACC"
+                    BorderThickness="0"
+                    Click="NextButton_Click"/>
+
+            <Button x:Name="FinishButton"
+                    Grid.Column="3"
+                    Width="130"
+                    Height="34"
+                    Content="Create Project"
+                    Background="#28A745"
+                    BorderThickness="0"
+                    Click="FinishButton_Click"/>
+        </Grid>
+    </Grid>
+</Window>

@@ -13,6 +13,7 @@ namespace PodcastVideoEditor.Core.Services
     {
         // ── Project ──────────────────────────────────────────────────────────────────
         Task<Project> CreateProjectAsync(string name, string? audioPath = null);
+        Task<Project> CreateProjectFromTemplateAsync(string name, string templateId, string? audioPath = null);
         Task<Project?> GetProjectAsync(string projectId);
         Task<Project> UpdateProjectAsync(Project project);
         Task DeleteProjectAsync(string projectId);
