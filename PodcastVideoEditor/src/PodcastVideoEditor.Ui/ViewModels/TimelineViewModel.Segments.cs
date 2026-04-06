@@ -1166,7 +1166,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         /// </summary>
         public bool SelectedSegmentHasBackground =>
             SelectedSegment != null &&
-            SelectedSegment.Kind == "visual" &&
+            string.Equals(SelectedSegment.Kind, SegmentKinds.Visual, StringComparison.OrdinalIgnoreCase) &&
             !string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId);
 
         /// <summary>
@@ -1184,7 +1184,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                if (SelectedSegment.Kind != "visual" || string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId))
+                if (!string.Equals(SelectedSegment.Kind, SegmentKinds.Visual, StringComparison.OrdinalIgnoreCase)
+                    || string.IsNullOrEmpty(SelectedSegment.BackgroundAssetId))
                 {
                     StatusMessage = "Selected segment is not an image";
                     return;
@@ -1198,17 +1199,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 if (dialog.ShowDialog() == true && !string.IsNullOrEmpty(dialog.SelectedFilePath))
                 {
-                    // Phase 3: Process and replace image
-                    StatusMessage = $"Selected: {System.IO.Path.GetFileName(dialog.SelectedFilePath)} (Phase 3 - processing pending)";
-                    Log.Information("Image file selected for replacement: {FilePath}", dialog.SelectedFilePath);
-                    
-                    // TODO: Implement in Phase 3
-                    // - Validate image file
-                    // - Process image (resize, compress via ImageAssetIngestService)
-                    // - Create Asset object
-                    // - Update segment.BackgroundAssetId
-                    // - Save project
-                    // - Show success toast
+                    await ApplyNewBackgroundImageAsync(dialog.SelectedFilePath);
                 }
                 else
                 {
@@ -1222,6 +1213,71 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
+        /// <summary>
+        /// Internal method to process and apply a new background image to a segment.
+        /// Called by ReplaceSegmentImage after user selects a file.
+        /// </summary>
+        private async Task ApplyNewBackgroundImageAsync(string filePath)
+        {
+            if (SelectedSegment == null)
+            {
+                StatusMessage = "Segment was deselected";
+                return;
+            }
+
+            if (_projectViewModel.CurrentProject == null)
+            {
+                StatusMessage = "No project loaded";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                StatusMessage = "Selected image file is invalid";
+                return;
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            const long maxFileBytes = 50L * 1024L * 1024L;
+            if (fileInfo.Length > maxFileBytes)
+            {
+                StatusMessage = "Image is too large (max 50 MB)";
+                return;
+            }
+
+            var selectedSegment = SelectedSegment;
+            var oldAssetId = selectedSegment.BackgroundAssetId;
+
+            try
+            {
+                StatusMessage = "Processing image...";
+
+                // Add the selected image as a project asset (ProjectService handles ingest/copy).
+                var asset = await _projectViewModel.AddAssetToCurrentProjectAsync(filePath, "Image");
+                if (asset == null)
+                {
+                    StatusMessage = "Failed to process image";
+                    return;
+                }
+
+                // If selection changed while dialog was open, still apply to original selected segment.
+                selectedSegment.BackgroundAssetId = asset.Id;
+                InvalidateActiveSegmentsCache();
+                RequestProjectSave();
+
+                StatusMessage = $"Image replaced: {asset.FileName}";
+                Log.Information(
+                    "Segment background replaced for segment {SegmentId}: old asset={OldAssetId}, new asset={NewAssetId}",
+                    selectedSegment.Id,
+                    oldAssetId ?? "(none)",
+                    asset.Id);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Error replacing image: {ex.Message}";
+                Log.Error(ex, "Error applying new background image for segment {SegmentId}", selectedSegment.Id);
+            }
+        }
         /// <summary>
         /// Clear the background image from the selected segment.
         /// </summary>

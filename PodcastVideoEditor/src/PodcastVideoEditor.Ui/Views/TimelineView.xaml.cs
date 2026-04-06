@@ -1045,10 +1045,11 @@ namespace PodcastVideoEditor.Ui.Views
         private void MoveThumb_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (_viewModel == null) return;
+            var vm = _viewModel;
 
             if (sender is Thumb thumb && thumb.Parent is Grid grid && grid.DataContext is Segment segment)
             {
-                _viewModel.SelectSegment(segment);
+                vm.SelectSegment(segment);
 
                 var menu = new ContextMenu();
 
@@ -1056,13 +1057,13 @@ namespace PodcastVideoEditor.Ui.Views
                 {
                     Header = "Split at Playhead",
                     InputGestureText = "Ctrl+B",
-                    IsEnabled = _viewModel.SplitSelectedSegmentAtPlayheadCommand.CanExecute(null)
+                    IsEnabled = vm.SplitSelectedSegmentAtPlayheadCommand.CanExecute(null)
                 };
-                splitItem.Click += (_, _) => _viewModel.SplitSelectedSegmentAtPlayheadCommand.Execute(null);
+                splitItem.Click += (_, _) => vm.SplitSelectedSegmentAtPlayheadCommand.Execute(null);
                 menu.Items.Add(splitItem);
 
                 var dupItem = new MenuItem { Header = "Duplicate", InputGestureText = "Ctrl+D" };
-                dupItem.Click += (_, _) => _viewModel.DuplicateSelectedSegmentCommand.Execute(null);
+                dupItem.Click += (_, _) => vm.DuplicateSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(dupItem);
 
                 menu.Items.Add(new Separator());
@@ -1078,55 +1079,52 @@ namespace PodcastVideoEditor.Ui.Views
                     {
                         segment.TransitionType     = dlg.SelectedTransition;
                         segment.TransitionDuration = dlg.SelectedDuration;
-                        _viewModel.StatusMessage   = $"Transition set: {dlg.SelectedTransition} ({dlg.SelectedDuration:0.##}s)";
-                        _viewModel.RequestProjectSave();
+                        vm.StatusMessage   = $"Transition set: {dlg.SelectedTransition} ({dlg.SelectedDuration:0.##}s)";
+                        vm.RequestProjectSave();
                     }
                 };
                 menu.Items.Add(transitionItem);
 
                 menu.Items.Add(new Separator());
 
-                // 🖼️ Image replacement menu items (only for visual segments with background)
-                if (_viewModel != null)
+                // Image replacement menu items (only for visual segments with background)
+                var hasBackground = vm.SelectedSegmentHasBackground;
+                var hasBackgroundAssetId = !string.IsNullOrEmpty(segment.BackgroundAssetId);
+
+                var replaceImageItem = new MenuItem
                 {
-                    var hasBackground = _viewModel.SelectedSegmentHasBackground;
-                    var hasBackgroundAssetId = !string.IsNullOrEmpty(segment.BackgroundAssetId);
+                    Header = "Replace Image",
+                    IsEnabled = hasBackground
+                };
+                replaceImageItem.Click += (_, _) => vm.ReplaceSegmentImageCommand.Execute(null);
+                menu.Items.Add(replaceImageItem);
 
-                    var replaceImageItem = new MenuItem
-                    {
-                        Header = "🖼️ Replace Image",
-                        IsEnabled = hasBackground
-                    };
-                    replaceImageItem.Click += (_, _) => _viewModel.ReplaceSegmentImageCommand.Execute(null);
-                    menu.Items.Add(replaceImageItem);
-
-                    var clearImageItem = new MenuItem
-                    {
-                        Header = "❌ Clear Image",
-                        IsEnabled = hasBackground && hasBackgroundAssetId
-                    };
-                    clearImageItem.Click += (_, _) => _viewModel.ClearSegmentBackgroundCommand.Execute(null);
-                    menu.Items.Add(clearImageItem);
-                }
+                var clearImageItem = new MenuItem
+                {
+                    Header = "Clear Image",
+                    IsEnabled = hasBackground && hasBackgroundAssetId
+                };
+                clearImageItem.Click += (_, _) => vm.ClearSegmentBackgroundCommand.Execute(null);
+                menu.Items.Add(clearImageItem);
 
                 menu.Items.Add(new Separator());
 
                 var deleteItem = new MenuItem { Header = "Delete", InputGestureText = "Del" };
-                deleteItem.Click += (_, _) => _viewModel.DeleteSelectedSegmentCommand.Execute(null);
+                deleteItem.Click += (_, _) => vm.DeleteSelectedSegmentCommand.Execute(null);
                 menu.Items.Add(deleteItem);
 
                 menu.Items.Add(new Separator());
 
                 var selectAllItem = new MenuItem { Header = "Select All", InputGestureText = "Ctrl+A" };
-                selectAllItem.Click += (_, _) => _viewModel.SelectAllSegmentsCommand.Execute(null);
+                selectAllItem.Click += (_, _) => vm.SelectAllSegmentsCommand.Execute(null);
                 menu.Items.Add(selectAllItem);
 
                 var closeGapsItem = new MenuItem { Header = "Close Gaps", InputGestureText = "Ctrl+G" };
-                closeGapsItem.Click += (_, _) => _viewModel.CloseGapsOnTrackCommand.Execute(null);
+                closeGapsItem.Click += (_, _) => vm.CloseGapsOnTrackCommand.Execute(null);
                 menu.Items.Add(closeGapsItem);
 
                 var clearAllItem = new MenuItem { Header = "Clear All" };
-                clearAllItem.Click += (_, _) => _viewModel.ClearAllSegmentsCommand.Execute(null);
+                clearAllItem.Click += (_, _) => vm.ClearAllSegmentsCommand.Execute(null);
                 menu.Items.Add(clearAllItem);
 
                 menu.PlacementTarget = thumb;
