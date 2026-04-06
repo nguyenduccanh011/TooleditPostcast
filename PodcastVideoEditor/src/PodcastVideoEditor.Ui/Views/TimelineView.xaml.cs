@@ -774,14 +774,20 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeThumb_DragStarted(object sender, DragStartedEventArgs e)
         {
+            if (_viewModel == null)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (sender is Thumb thumb && 
                 thumb.Parent is Grid grid && 
                 grid.DataContext is Segment segment)
             {
-                var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                var track = _viewModel.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _dragHandler?.BeginResizeRight(segment, _viewModel!.PixelsPerSecond);
+                _dragHandler?.BeginResizeRight(segment, _viewModel.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
 
                 _autoScrollHelper ??= new DragAutoScrollHelper();
@@ -797,14 +803,20 @@ namespace PodcastVideoEditor.Ui.Views
         /// </summary>
         private void ResizeLeftThumb_DragStarted(object sender, DragStartedEventArgs e)
         {
+            if (_viewModel == null)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (sender is Thumb thumb &&
                 thumb.Parent is Grid grid &&
                 grid.DataContext is Segment segment)
             {
-                var track = _viewModel?.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
+                var track = _viewModel.Tracks.FirstOrDefault(t => t.Id == segment.TrackId);
                 if (track?.IsLocked == true) { e.Handled = true; return; }
 
-                _dragHandler?.BeginResizeLeft(segment, _viewModel!.PixelsPerSecond);
+                _dragHandler?.BeginResizeLeft(segment, _viewModel.PixelsPerSecond);
                 grid.Cursor = Cursors.SizeWE;
 
                 _autoScrollHelper ??= new DragAutoScrollHelper();

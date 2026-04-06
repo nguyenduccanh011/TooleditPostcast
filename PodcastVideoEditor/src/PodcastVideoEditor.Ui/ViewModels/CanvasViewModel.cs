@@ -149,17 +149,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private AudioPlayerViewModel? _audioPlayerViewModel;
 
-        /// <summary>
-        /// Set selection sync service for bidirectional canvas↔timeline selection.
-        /// </summary>
-        public void SetSelectionSyncService(SelectionSyncService selectionSyncService)
-        {
-            _selectionSyncService = selectionSyncService;
-
-            // When timeline segment is selected, highlight linked canvas elements
-            _selectionSyncService.TimelineSelectionChanged += OnTimelineSegmentSelected;
-        }
-
         /// <summary>Wire undo/redo. Called from MainViewModel after construction.</summary>
         public void SetUndoRedoService(UndoRedoService service)
         {
@@ -169,41 +158,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         /// <summary>Expose so CanvasView can record element-move actions.</summary>
         public UndoRedoService? UndoRedoService => _undoRedo;
-
-        private void OnTimelineSegmentSelected(string? segmentId, bool playheadInRange)
-        {
-            if (string.IsNullOrEmpty(segmentId))
-            {
-                SelectElement(null);
-                return;
-            }
-
-            // Skip auto-creation when an Add*Element method is already in progress.
-            // The calling method will add the element itself after segment creation.
-            if (_isCreatingElement)
-                return;
-
-            // Highlight linked canvas element regardless of playhead position.
-            var linked = Elements.FirstOrDefault(e => string.Equals(e.SegmentId, segmentId, StringComparison.Ordinal));
-
-            // If no linked element exists, auto-create one for image or text segments
-            bool wasCreated = false;
-            if (linked == null)
-            {
-                linked = (CanvasElement?)TryCreateImageElementForSegment(segmentId)
-                      ?? GetOrCreateTextElement(segmentId);
-                wasCreated = linked != null;
-            }
-
-            SelectElement(linked);
-
-            // When a new element was just created, run a full preview update so that
-            // UpdateElementVisibility sets the correct IsVisible based on playhead
-            // position (new elements default to IsVisible=true which is wrong when
-            // the playhead is outside the segment).
-            if (wasCreated)
-                UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
-        }
 
         /// <summary>
         /// When the user selects a visual-track image segment that has no linked CanvasElement,
@@ -585,6 +539,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _visualizerViewModel.BarGradientDarkness = element.BarGradientDarkness;
             _visualizerViewModel.BarGradientEnabled = element.BarGradientEnabled;
             _visualizerViewModel.BarGradientBaseColorHex = element.BarGradientBaseColorHex;
+        }
+
+        private void SyncVisualizerStateFromLoadedElements(IEnumerable<CanvasElement> loadedElements)
+        {
+            if (_visualizerViewModel == null)
+                return;
+
+            var visualizer = loadedElements.OfType<VisualizerElement>().FirstOrDefault();
+            if (visualizer != null)
+            {
+                SyncVisualizerFromElement(visualizer);
+                return;
+            }
+
+            // Reset shared visualizer config when the loaded project has no visualizer elements.
+            // Without this, a palette/style from the previous project can leak into the next one.
+            SyncVisualizerFromElement(new VisualizerElement());
         }
 
         /// <summary>
@@ -1413,6 +1384,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     _projectViewModel.PropertyChanged -= _projectPropertyChangedHandler;
                 DetachTrackSubscriptions();
 
+                if (_selectionSyncService != null)
+                    _selectionSyncService.TimelineSelectionChanged -= OnTimelineSegmentSelected;
+
                 // Stop debounce timer
                 _previewDebounceTimer?.Stop();
                 if (_previewDebounceTimer != null)
@@ -1499,6 +1473,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     Elements.Clear();
                     SelectedElement = null;
                     PropertyEditor.SetSelectedElement(null);
+                    SyncVisualizerStateFromLoadedElements(Array.Empty<CanvasElement>());
                     // Recreate auto-generated elements for active segments
                     UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
                     return;
@@ -1516,6 +1491,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Validate SegmentIds: nullify references to segments that no longer exist
                 ValidateElementSegmentIds();
+
+                SyncVisualizerStateFromLoadedElements(Elements);
 
                 SelectedElement = null;
                 PropertyEditor.SetSelectedElement(null);

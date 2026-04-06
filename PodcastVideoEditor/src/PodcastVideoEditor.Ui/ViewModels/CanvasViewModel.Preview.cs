@@ -445,6 +445,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             // GetActiveSegmentsAtTime already filters by Track.IsVisible and sorts by Track.Order (0=front)
             var visualPairs = new List<(Track track, Segment segment)>();
             var textPairs = new List<(Track track, Segment segment)>();
+            var effectPairs = new List<(Track track, Segment segment)>();
 
             foreach (var pair in active)
             {
@@ -452,6 +453,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     visualPairs.Add(pair);
                 else if (string.Equals(pair.track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase))
                     textPairs.Add(pair);
+                else if (string.Equals(pair.track.TrackType, TrackTypes.Effect, StringComparison.OrdinalIgnoreCase))
+                    effectPairs.Add(pair);
                 // Effect / Audio segments: not classified here, but their CanvasElements
                 // (VisualizerElement etc.) are managed via UpdateElementVisibility below.
             }
@@ -475,6 +478,13 @@ namespace PodcastVideoEditor.Ui.ViewModels
             foreach (var vp in visualPairs)
             {
                 EnsureImageElementForVisualSegment(vp.track, vp.segment);
+            }
+
+            // Effect tracks host visualizer segments. Recreate missing canvas elements so
+            // opening older projects still shows visualizers when element rows are absent.
+            foreach (var ep in effectPairs)
+            {
+                EnsureVisualizerElementForEffectSegment(ep.track, ep.segment);
             }
 
             var primaryVisualPair = visualPairs.Count > 0 ? visualPairs[0] : default;
@@ -740,6 +750,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             Elements.Add(element);
             Serilog.Log.Debug("Auto-created ImageElement for segment {SegId}, asset {AssetId}", segment.Id, asset.Id);
+        }
+
+        private void EnsureVisualizerElementForEffectSegment(Track track, Segment segment)
+        {
+            var existing = Elements.FirstOrDefault(e =>
+                string.Equals(e.SegmentId, segment.Id, StringComparison.Ordinal));
+            if (existing != null)
+            {
+                if (existing is VisualizerElement ve)
+                    ve.ZIndex = ComputeZIndexForTrack(track);
+                return;
+            }
+
+            // Effect tracks are reserved for visualizer overlays in current UX.
+            var element = new VisualizerElement
+            {
+                Name = string.IsNullOrWhiteSpace(segment.Text) ? "Visualizer" : segment.Text,
+                X = Math.Max(0, (CanvasWidth - 600) / 2),
+                Y = Math.Max(0, (CanvasHeight - 400) / 2),
+                Width = 600,
+                Height = 400,
+                ZIndex = ComputeZIndexForTrack(track),
+                SegmentId = segment.Id
+            };
+
+            Elements.Add(element);
+            SyncVisualizerFromElement(element);
+            EnsureVisualizerTimer();
+            Serilog.Log.Debug("Auto-created VisualizerElement for effect segment {SegId}", segment.Id);
         }
 
         private void SetActiveVisualLayout(string? preset)
