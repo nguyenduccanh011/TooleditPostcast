@@ -228,6 +228,21 @@ public sealed class AIImageSelectionService : IAIImageSelectionService
             Log.Warning("[AI-IMG] {Count} segments have NO image after all retries: [{Indices}]",
                 finalUnselected.Length, string.Join(",", finalUnselected));
 
+        // Retry batches can return multiple entries for the same segment index.
+        // Keep only the latest result per segment to avoid downstream key collisions.
+        var duplicateSegmentCount = allResults
+            .GroupBy(r => r.SegmentIndex)
+            .Count(g => g.Count() > 1);
+        if (duplicateSegmentCount > 0)
+        {
+            Log.Warning("[AI-IMG] {Count} duplicate segment selection(s) detected; keeping latest result per segment", duplicateSegmentCount);
+            allResults = allResults
+                .GroupBy(r => r.SegmentIndex)
+                .Select(g => g.Last())
+                .OrderBy(r => r.SegmentIndex)
+                .ToList();
+        }
+
         // ── Dedup pass: prevent the same image being used for multiple segments ─
         // The AI sees each batch in isolation and often picks the same "best" image
         // for segments with similar topics/keywords. Process in segment order:
