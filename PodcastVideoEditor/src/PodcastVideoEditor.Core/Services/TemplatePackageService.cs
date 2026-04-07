@@ -282,13 +282,16 @@ public class TemplatePackageService
                 if (PathPropertyKeys.Contains(property.Key) && TryGetString(property.Value, out var pathValue) && !string.IsNullOrWhiteSpace(pathValue))
                 {
                     if (packagePathMap.TryGetValue(pathValue!, out var localPath))
-                        {
-                            obj[property.Key] = localPath;
-                        }
-                        else
-                        {
-                            Log.Warning("Template import: Asset path not resolved: {PackagePath}. This path may fail during project creation.", pathValue);
-                        }
+                    {
+                        obj[property.Key] = localPath;
+                    }
+                    else
+                    {
+                        Log.Warning("Template import: Asset path not resolved: {PackagePath}. This path may fail during project creation.", pathValue);
+                    }
+
+                    continue;
+                }
 
                 RewriteIncomingPaths(property.Value, packagePathMap);
             }
