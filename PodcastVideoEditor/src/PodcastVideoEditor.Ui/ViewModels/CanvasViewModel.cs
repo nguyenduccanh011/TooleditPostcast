@@ -278,6 +278,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             foreach (var element in Elements)
             {
+                // Keep explicit/global overlays untouched. Only normalize elements
+                // that are linked to timeline segments so preview matches track order.
+                if (string.IsNullOrWhiteSpace(element.SegmentId))
+                    continue;
+
                 var track = FindTrackForSegment(element.SegmentId);
                 element.ZIndex = ComputeZIndexForTrack(track);
             }
@@ -1592,6 +1597,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Validate SegmentIds: nullify references to segments that no longer exist
                 ValidateElementSegmentIds();
+
+                // Normalize segment-linked element z-order to current track order.
+                // Persisted ZIndex from older projects/templates can otherwise make a
+                // top-track segment appear below another track in preview.
+                RefreshElementZIndices();
 
                 SyncVisualizerStateFromLoadedElements(Elements);
 
