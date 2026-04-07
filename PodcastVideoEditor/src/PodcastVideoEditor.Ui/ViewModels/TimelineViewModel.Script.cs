@@ -253,7 +253,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase)
                 && !t.IsLocked);
             if (roleBased != null)
+            {
+                Log.Information("Found existing AI content track {TrackId} for project {ProjectId}", roleBased.Id, project.Id);
                 return roleBased.Id;
+            }
 
             // If no explicit AI track exists, create a dedicated one instead of reusing existing visual tracks.
             var aiTrack = new Track
@@ -269,11 +272,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Segments = []
             };
 
+            var trackId = aiTrack.Id;
             project.Tracks ??= [];
             project.Tracks.Add(aiTrack);
+
+            // Save the new track to database and wait for completion
+            // (cannot use fire-and-forget since we need to verify track is persisted before using it)
             await _projectViewModel.SaveProjectAsync();
-            Log.Information("Created dedicated AI visual track {TrackId} for project {ProjectId}", aiTrack.Id, project.Id);
-            return aiTrack.Id;
+
+            // Verify the track was actually saved to the database
+            var savedTrack = _projectViewModel.CurrentProject?.Tracks
+                ?.FirstOrDefault(t => string.Equals(t.Id, trackId, StringComparison.Ordinal));
+            if (savedTrack == null)
+            {
+                Log.Error("Failed to persist AI visual track {TrackId} for project {ProjectId}", trackId, project.Id);
+                throw new InvalidOperationException(
+                    $"Failed to create AI visual track. Track was not persisted to database.");
+            }
+
+            Log.Information("Created and persisted AI visual track {TrackId} for project {ProjectId}", trackId, project.Id);
+            return trackId;
         }
     }
 
