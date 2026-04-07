@@ -295,7 +295,8 @@ public static class FFmpegCommandComposer
             .OrderBy(s => s.StartTime)
             .ToList();
 
-        var useEmbeddedSources = ShouldUseEmbeddedTimelineSources(visualSegments, audioSegments);
+        var useEmbeddedSources = !config.DisableEmbeddedTimelineSources &&
+                     ShouldUseEmbeddedTimelineSources(visualSegments, audioSegments);
         var preferFastCpuScale = visualSegments.Count >= 120;
         if (preferFastCpuScale)
         {

@@ -93,6 +93,12 @@ public class RenderConfig
     /// </summary>
     public bool UseGpuOverlay { get; set; } = false;
 
+    /// <summary>
+    /// Forces the renderer to use external inputs instead of embedded movie/amovie filter sources.
+    /// Useful for chunked renders where simpler command lines are more reliable.
+    /// </summary>
+    public bool DisableEmbeddedTimelineSources { get; set; } = false;
+
 
     /// <summary>
     /// Get CRF value based on quality setting.

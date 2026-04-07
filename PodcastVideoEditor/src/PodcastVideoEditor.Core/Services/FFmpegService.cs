@@ -649,10 +649,21 @@ public static class FFmpegService
         }
 
         var visualSegs = config.VisualSegments;
-        var chunkCount = (int)Math.Ceiling((double)visualSegs.Count / chunkSize);
+        var visualsByTime = visualSegs
+            .Where(v => v.EndTime > v.StartTime)
+            .OrderBy(v => v.StartTime)
+            .ThenBy(v => v.ZOrder)
+            .ToList();
+
+        var allEndTimes = visualsByTime.Select(v => v.EndTime)
+            .Concat((config.AudioSegments ?? []).Select(a => a.EndTime));
+        var timelineEndTime = allEndTimes.Any() ? allEndTimes.Max() : 0;
+
+        var chunkWindows = BuildChunkWindows(timelineEndTime, maxChunkDurationSeconds: 60);
+        var chunkCount = chunkWindows.Count;
 
         Log.Information("Chunked render: splitting {TotalSegments} visual segments into {ChunkCount} chunks " +
-                        "of ~{ChunkSize} segments each", visualSegs.Count,  chunkCount, chunkSize);
+                "(fixed 60s windows)", visualSegs.Count, chunkCount);
 
         var intermediateChunks = new List<string>();
         var chunkTempDir = Path.Combine(Path.GetTempPath(), "pve", $"chunks-{Guid.NewGuid():N}");
@@ -666,33 +677,19 @@ public static class FFmpegService
                 if (cancellationToken.IsCancellationRequested)
                     throw new OperationCanceledException("Render canceled");
 
-                var chunkStartIdx = i * chunkSize;
-                var chunkEndIdx = Math.Min(chunkStartIdx + chunkSize, visualSegs.Count);
-                var chunkVisuals = visualSegs.GetRange(chunkStartIdx, chunkEndIdx - chunkStartIdx);
+                var window = chunkWindows[i];
+                var chunkStartTime = window.StartTime;
+                var chunkEndTime = window.EndTime;
 
-                var chunkStartTime = chunkVisuals.First().StartTime;
-                var chunkEndTime = chunkVisuals.Last().EndTime;
+                var chunkVisuals = BuildChunkVisualSegments(visualSegs, chunkStartTime, chunkEndTime);
+                var chunkAudioSegments = BuildChunkAudioSegments(config, chunkStartTime, chunkEndTime);
 
                 // Create config for this chunk
-                var chunkConfig = new RenderConfig
-                {
-                    AudioPath = config.AudioPath,
-                    ImagePath = config.ImagePath,
-                    OutputPath = Path.Combine(chunkTempDir, $"chunk_{i:D3}.mp4"),
-                    ResolutionWidth = config.ResolutionWidth,
-                    ResolutionHeight = config.ResolutionHeight,
-                    AspectRatio = config.AspectRatio,
-                    Quality = config.Quality,
-                    FrameRate = config.FrameRate,
-                    VideoCodec = config.VideoCodec,
-                    AudioCodec = config.AudioCodec,
-                    ScaleMode = config.ScaleMode,
-                    PrimaryAudioVolume = config.PrimaryAudioVolume,
-                    VisualSegments = chunkVisuals,
-                    TextSegments = [],  // Text already rasterized in main render prep
-                    AudioSegments = config.AudioSegments,  // Add secondary audio to each chunk
-                    UseGpuOverlay = true  // Enable GPU overlay for chunked renders (simpler filter graphs)
-                };
+                var chunkConfig = BuildChunkConfigForWindow(
+                    config,
+                    Path.Combine(chunkTempDir, $"chunk_{i:D3}.mp4"),
+                    chunkVisuals,
+                    chunkAudioSegments);
 
                 // Progress: (i / chunkCount * 0.9) — reserve 90-100% for concat phase
                 var chunkProgress = new Progress<RenderProgress>(p =>
@@ -706,12 +703,12 @@ public static class FFmpegService
                     });
                 });
 
-                Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: segments {StartIdx}..{EndIdx} " +
+                Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s " +
                                 "(time {StartTime:F2}s-{EndTime:F2}s)",
-                    i + 1, chunkCount, chunkStartIdx, chunkEndIdx - 1, chunkStartTime, chunkEndTime);
+                    i + 1, chunkCount, chunkStartTime, chunkEndTime, chunkStartTime, chunkEndTime);
 
                 // Render this chunk (monolithic, no further splitting)
-                await RenderVideoAsync(chunkConfig, chunkProgress, cancellationToken);
+                await RenderVideoAsync(chunkConfig, chunkProgress, cancellationToken, renderChunked: false);
                 intermediateChunks.Add(chunkConfig.OutputPath);
 
                 Log.Information("Chunk {ChunkNum} completed: {Path}", i + 1, chunkConfig.OutputPath);
@@ -746,6 +743,139 @@ public static class FFmpegService
                 Log.Warning(ex, "Could not clean up chunk temp directory");
             }
         }
+    }
+
+    private static List<(double StartTime, double EndTime)> BuildChunkWindows(
+        double timelineEndTime,
+        double maxChunkDurationSeconds)
+    {
+        var windows = new List<(double StartTime, double EndTime)>();
+        if (timelineEndTime <= 0)
+            return windows;
+
+        for (var startTime = 0.0; startTime < timelineEndTime; startTime += maxChunkDurationSeconds)
+        {
+            var endTime = Math.Min(timelineEndTime, startTime + maxChunkDurationSeconds);
+            windows.Add((startTime, endTime));
+        }
+
+        return windows;
+    }
+
+    internal static RenderConfig BuildChunkConfigForWindow(
+        RenderConfig sourceConfig,
+        string outputPath,
+        List<RenderVisualSegment> chunkVisuals,
+        List<RenderAudioSegment> chunkAudioSegments)
+    {
+        return new RenderConfig
+        {
+            AudioPath = sourceConfig.AudioPath,
+            ImagePath = sourceConfig.ImagePath,
+            OutputPath = outputPath,
+            ResolutionWidth = sourceConfig.ResolutionWidth,
+            ResolutionHeight = sourceConfig.ResolutionHeight,
+            AspectRatio = sourceConfig.AspectRatio,
+            Quality = sourceConfig.Quality,
+            FrameRate = sourceConfig.FrameRate,
+            VideoCodec = sourceConfig.VideoCodec,
+            AudioCodec = sourceConfig.AudioCodec,
+            ScaleMode = sourceConfig.ScaleMode,
+            // Keep the user's configured primary audio gain in chunked renders.
+            PrimaryAudioVolume = sourceConfig.PrimaryAudioVolume,
+            VisualSegments = chunkVisuals,
+            TextSegments = [],  // Text already rasterized in main render prep
+            AudioSegments = chunkAudioSegments,
+            UseGpuOverlay = true,  // Enable GPU overlay for chunked renders (simpler filter graphs)
+            DisableEmbeddedTimelineSources = true
+        };
+    }
+
+    private static List<RenderVisualSegment> BuildChunkVisualSegments(
+        IReadOnlyList<RenderVisualSegment> allVisuals,
+        double chunkStartTime,
+        double chunkEndTime)
+    {
+        var chunkVisuals = new List<RenderVisualSegment>();
+
+        foreach (var seg in allVisuals)
+        {
+            if (seg.EndTime <= chunkStartTime || seg.StartTime >= chunkEndTime)
+                continue;
+
+            var clippedStart = Math.Max(seg.StartTime, chunkStartTime);
+            var clippedEnd = Math.Min(seg.EndTime, chunkEndTime);
+            if (clippedEnd <= clippedStart)
+                continue;
+
+            var sourceOffsetAdjustment = Math.Max(0, clippedStart - seg.StartTime);
+
+            chunkVisuals.Add(new RenderVisualSegment
+            {
+                SourcePath = seg.SourcePath,
+                StartTime = clippedStart - chunkStartTime,
+                EndTime = clippedEnd - chunkStartTime,
+                IsVideo = seg.IsVideo,
+                SourceOffsetSeconds = seg.SourceOffsetSeconds + sourceOffsetAdjustment,
+                OverlayX = seg.OverlayX,
+                OverlayY = seg.OverlayY,
+                ScaleWidth = seg.ScaleWidth,
+                ScaleHeight = seg.ScaleHeight,
+                ScaleMode = seg.ScaleMode,
+                HasAlpha = seg.HasAlpha,
+                ZOrder = seg.ZOrder,
+                MotionPreset = seg.MotionPreset,
+                MotionIntensity = seg.MotionIntensity,
+                OverlayColorHex = seg.OverlayColorHex,
+                OverlayOpacity = seg.OverlayOpacity,
+                TransitionType = seg.TransitionType,
+                TransitionDuration = seg.TransitionDuration
+            });
+        }
+
+        return chunkVisuals
+            .OrderBy(v => v.ZOrder)
+            .ThenBy(v => v.StartTime)
+            .ToList();
+    }
+
+    private static List<RenderAudioSegment> BuildChunkAudioSegments(
+        RenderConfig config,
+        double chunkStartTime,
+        double chunkEndTime)
+    {
+        var chunkDuration = Math.Max(0.001, chunkEndTime - chunkStartTime);
+        var chunkAudios = new List<RenderAudioSegment>();
+
+        foreach (var seg in config.AudioSegments ?? [])
+        {
+            if (seg.EndTime <= chunkStartTime || seg.StartTime >= chunkEndTime)
+                continue;
+
+            var clippedStart = Math.Max(seg.StartTime, chunkStartTime);
+            var clippedEnd = Math.Min(seg.EndTime, chunkEndTime);
+            if (clippedEnd <= clippedStart)
+                continue;
+
+            var sourceOffsetAdjustment = Math.Max(0, clippedStart - seg.StartTime);
+            var wasClippedAtStart = clippedStart > seg.StartTime + 0.0001;
+            var wasClippedAtEnd = clippedEnd < seg.EndTime - 0.0001;
+
+            chunkAudios.Add(new RenderAudioSegment
+            {
+                SourcePath = seg.SourcePath,
+                StartTime = clippedStart - chunkStartTime,
+                EndTime = clippedEnd - chunkStartTime,
+                Volume = seg.Volume,
+                SourceOffsetSeconds = seg.SourceOffsetSeconds + sourceOffsetAdjustment,
+                // Avoid invalid/abrupt partial fades on boundary-clipped clips.
+                FadeInDuration = wasClippedAtStart ? 0 : seg.FadeInDuration,
+                FadeOutDuration = wasClippedAtEnd ? 0 : seg.FadeOutDuration,
+                IsLooping = seg.IsLooping
+            });
+        }
+
+        return chunkAudios.OrderBy(a => a.StartTime).ToList();
     }
 
     /// <summary>
