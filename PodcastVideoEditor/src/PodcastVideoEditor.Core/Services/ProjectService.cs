@@ -214,6 +214,7 @@ namespace PodcastVideoEditor.Core.Services
                 {
                     var tracked = await context.Projects
                         .Include(p => p.Tracks).ThenInclude(t => t.Segments)
+                        .Include(p => p.Assets)
                         .Include(p => p.Elements)
                         .FirstOrDefaultAsync(p => p.Id == project.Id);
 
@@ -228,6 +229,7 @@ namespace PodcastVideoEditor.Core.Services
                     tracked.UpdatedAt = DateTime.UtcNow;
 
                     var segmentIdMap = new Dictionary<string, string>(StringComparer.Ordinal);
+                    var segmentById = new Dictionary<string, Segment>(StringComparer.Ordinal);
 
                     if (snapshot.Tracks == null || snapshot.Tracks.Count == 0)
                     {
@@ -336,6 +338,7 @@ namespace PodcastVideoEditor.Core.Services
                                 };
 
                                 track.Segments.Add(segment);
+                                segmentById[segment.Id] = segment;
                                 if (!string.IsNullOrWhiteSpace(segmentSnapshot.Id))
                                     segmentIdMap[segmentSnapshot.Id] = segment.Id;
                             }
@@ -356,6 +359,19 @@ namespace PodcastVideoEditor.Core.Services
                             elementSnapshot.Type,
                             elementSnapshot.PropertiesJson,
                             importedTemplateMedia);
+
+                        if (!string.IsNullOrWhiteSpace(mappedSegmentId)
+                            && segmentById.TryGetValue(mappedSegmentId, out var mappedSegment)
+                            && string.IsNullOrWhiteSpace(mappedSegment.BackgroundAssetId))
+                        {
+                            var fallbackAssetId = ResolveAssetIdFromElementProperties(
+                                elementSnapshot.Type,
+                                materializedPropertiesJson,
+                                importedTemplateMedia,
+                                tracked.Assets ?? []);
+                            if (!string.IsNullOrWhiteSpace(fallbackAssetId))
+                                mappedSegment.BackgroundAssetId = fallbackAssetId;
+                        }
 
                         tracked.Elements.Add(new Element
                         {
@@ -524,6 +540,51 @@ namespace PodcastVideoEditor.Core.Services
 
         private static string BuildImportedMediaCacheKey(string sourceMediaPath, string importedType)
             => $"{importedType}|{NormalizeFilePath(sourceMediaPath)}";
+
+        private static string? ResolveAssetIdFromElementProperties(
+            string? elementType,
+            string? propertiesJson,
+            IDictionary<string, Asset> importedMediaCache,
+            IEnumerable<Asset> trackedAssets)
+        {
+            if (string.IsNullOrWhiteSpace(propertiesJson))
+                return null;
+
+            var mediaPathKey = ResolveMediaPathPropertyKey(elementType);
+            if (mediaPathKey == null)
+                return null;
+
+            Dictionary<string, object?>? properties;
+            try
+            {
+                properties = JsonSerializer.Deserialize<Dictionary<string, object?>>(propertiesJson);
+            }
+            catch
+            {
+                return null;
+            }
+
+            if (properties == null
+                || !properties.TryGetValue(mediaPathKey, out var mediaPathRaw)
+                || !TryReadStringValue(mediaPathRaw, out var mediaPath)
+                || string.IsNullOrWhiteSpace(mediaPath))
+            {
+                return null;
+            }
+
+            var normalized = NormalizeFilePath(mediaPath);
+
+            var cachedMatch = importedMediaCache.Values.FirstOrDefault(a =>
+                !string.IsNullOrWhiteSpace(a.FilePath)
+                && string.Equals(NormalizeFilePath(a.FilePath), normalized, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(cachedMatch?.Id))
+                return cachedMatch.Id;
+
+            var trackedMatch = trackedAssets.FirstOrDefault(a =>
+                !string.IsNullOrWhiteSpace(a.FilePath)
+                && string.Equals(NormalizeFilePath(a.FilePath), normalized, StringComparison.OrdinalIgnoreCase));
+            return trackedMatch?.Id;
+        }
 
         private static bool TryReadStringValue(object? rawValue, out string? value)
         {
