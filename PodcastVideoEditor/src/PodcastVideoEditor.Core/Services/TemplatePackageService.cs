@@ -27,7 +27,8 @@ public class TemplatePackageService
         "FilePath",
         "ImagePath",
         "SourcePath",
-        "FontFilePath"
+        "FontFilePath",
+        "BackgroundAssetPath"
     };
 
     private static readonly HashSet<string> NestedJsonStringKeys = new(StringComparer.OrdinalIgnoreCase)

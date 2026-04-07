@@ -564,6 +564,7 @@ public partial class MainWindow : Window
                 .AsNoTracking()
                 .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
+                .Include(p => p.Assets)
                 .Include(p => p.Elements)
                 .FirstOrDefaultAsync(p => p.Id == current.Id);
 
@@ -639,6 +640,7 @@ public partial class MainWindow : Window
                 .AsNoTracking()
                 .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
+                .Include(p => p.Assets)
                 .Include(p => p.Elements)
                 .FirstOrDefaultAsync(p => p.Id == current.Id);
 
@@ -837,6 +839,11 @@ public partial class MainWindow : Window
 
     private static TemplateProjectSnapshot BuildTemplateSnapshot(Project project)
     {
+        var assetById = (project.Assets ?? [])
+            .Where(a => !string.IsNullOrWhiteSpace(a.Id))
+            .GroupBy(a => a.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
         var tracks = project.Tracks?
             .OrderBy(t => t.Order)
             .Select(t => new TemplateTrackSnapshot
@@ -862,26 +869,36 @@ public partial class MainWindow : Window
                     ? []
                     : t.Segments?
                         .OrderBy(s => s.Order)
-                        .Select(s => new TemplateSegmentSnapshot
+                        .Select(s =>
                         {
-                            Id = s.Id,
-                            StartTime = s.StartTime,
-                            EndTime = s.EndTime,
-                            Text = s.Text,
-                            BackgroundAssetId = null,
-                            TransitionType = s.TransitionType,
-                            TransitionDuration = s.TransitionDuration,
-                            Order = s.Order,
-                            Kind = s.Kind,
-                            Keywords = s.Keywords,
-                            Volume = s.Volume,
-                            FadeInDuration = s.FadeInDuration,
-                            FadeOutDuration = s.FadeOutDuration,
-                            SourceStartOffset = s.SourceStartOffset,
-                            MotionPreset = s.MotionPreset,
-                            MotionIntensity = s.MotionIntensity,
-                            OverlayColorHex = s.OverlayColorHex,
-                            OverlayOpacity = s.OverlayOpacity
+                            var segAsset = !string.IsNullOrWhiteSpace(s.BackgroundAssetId)
+                                && assetById.TryGetValue(s.BackgroundAssetId, out var matchedAsset)
+                                ? matchedAsset
+                                : null;
+
+                            return new TemplateSegmentSnapshot
+                            {
+                                Id = s.Id,
+                                StartTime = s.StartTime,
+                                EndTime = s.EndTime,
+                                Text = s.Text,
+                                BackgroundAssetId = null,
+                                BackgroundAssetPath = segAsset?.FilePath,
+                                BackgroundAssetType = segAsset?.Type,
+                                TransitionType = s.TransitionType,
+                                TransitionDuration = s.TransitionDuration,
+                                Order = s.Order,
+                                Kind = s.Kind,
+                                Keywords = s.Keywords,
+                                Volume = s.Volume,
+                                FadeInDuration = s.FadeInDuration,
+                                FadeOutDuration = s.FadeOutDuration,
+                                SourceStartOffset = s.SourceStartOffset,
+                                MotionPreset = s.MotionPreset,
+                                MotionIntensity = s.MotionIntensity,
+                                OverlayColorHex = s.OverlayColorHex,
+                                OverlayOpacity = s.OverlayOpacity
+                            };
                         })
                         .ToList() ?? []
             })
@@ -945,6 +962,8 @@ public partial class MainWindow : Window
         public double EndTime { get; set; }
         public string? Text { get; set; }
         public string? BackgroundAssetId { get; set; }
+        public string? BackgroundAssetPath { get; set; }
+        public string? BackgroundAssetType { get; set; }
         public string? TransitionType { get; set; }
         public double TransitionDuration { get; set; } = 0.5;
         public int Order { get; set; }

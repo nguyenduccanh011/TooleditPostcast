@@ -301,6 +301,11 @@ namespace PodcastVideoEditor.Core.Services
                                     continue;
                                 }
 
+                                var backgroundAssetId = await MaterializeTemplateSegmentBackgroundAssetAsync(
+                                    tracked.Id,
+                                    segmentSnapshot,
+                                    importedTemplateMedia);
+
                                 var segment = new Segment
                                 {
                                     ProjectId = tracked.Id,
@@ -308,7 +313,7 @@ namespace PodcastVideoEditor.Core.Services
                                     StartTime = segmentSnapshot.StartTime,
                                     EndTime = segmentSnapshot.EndTime,
                                     Text = segmentSnapshot.Text ?? string.Empty,
-                                    BackgroundAssetId = segmentSnapshot.BackgroundAssetId,
+                                    BackgroundAssetId = backgroundAssetId,
                                     TransitionType = string.IsNullOrWhiteSpace(segmentSnapshot.TransitionType)
                                         ? "fade"
                                         : segmentSnapshot.TransitionType,
@@ -433,12 +438,12 @@ namespace PodcastVideoEditor.Core.Services
                 return JsonSerializer.Serialize(properties ?? new Dictionary<string, object?>());
             }
 
-            var normalizedPath = NormalizeFilePath(sourceMediaPath);
-            if (!importedMediaCache.TryGetValue(normalizedPath, out var importedAsset))
+            var importedType = ResolveAssetTypeForElement(elementType);
+            var cacheKey = BuildImportedMediaCacheKey(sourceMediaPath, importedType);
+            if (!importedMediaCache.TryGetValue(cacheKey, out var importedAsset))
             {
-                var importedType = ResolveAssetTypeForElement(elementType);
                 importedAsset = await AddAssetAsync(projectId, sourceMediaPath, importedType);
-                importedMediaCache[normalizedPath] = importedAsset;
+                importedMediaCache[cacheKey] = importedAsset;
             }
 
             if (string.IsNullOrWhiteSpace(importedAsset.FilePath))
@@ -446,6 +451,35 @@ namespace PodcastVideoEditor.Core.Services
 
             properties[mediaPathKey] = importedAsset.FilePath;
             return JsonSerializer.Serialize(properties);
+        }
+
+        private async Task<string?> MaterializeTemplateSegmentBackgroundAssetAsync(
+            string projectId,
+            TemplateSegmentSnapshot segmentSnapshot,
+            IDictionary<string, Asset> importedMediaCache)
+        {
+            if (segmentSnapshot == null)
+                return null;
+
+            if (string.IsNullOrWhiteSpace(segmentSnapshot.BackgroundAssetPath))
+                return null;
+
+            var sourceMediaPath = segmentSnapshot.BackgroundAssetPath;
+            if (!File.Exists(sourceMediaPath))
+            {
+                Log.Warning("Template segment background file not found: {MediaPath}. Segment will be created without background.", sourceMediaPath);
+                return null;
+            }
+
+            var importedType = ResolveAssetTypeForSegment(segmentSnapshot.BackgroundAssetType, sourceMediaPath);
+            var cacheKey = BuildImportedMediaCacheKey(sourceMediaPath, importedType);
+            if (!importedMediaCache.TryGetValue(cacheKey, out var importedAsset))
+            {
+                importedAsset = await AddAssetAsync(projectId, sourceMediaPath, importedType);
+                importedMediaCache[cacheKey] = importedAsset;
+            }
+
+            return importedAsset.Id;
         }
 
         private static string? ResolveMediaPathPropertyKey(string? elementType)
@@ -468,6 +502,28 @@ namespace PodcastVideoEditor.Core.Services
                 return "Video";
             return "Image";
         }
+
+        private static string ResolveAssetTypeForSegment(string? assetType, string sourceMediaPath)
+        {
+            if (string.Equals(assetType, "Video", StringComparison.OrdinalIgnoreCase))
+                return "Video";
+            if (string.Equals(assetType, "Audio", StringComparison.OrdinalIgnoreCase))
+                return "Audio";
+
+            var extension = Path.GetExtension(sourceMediaPath);
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                var videoExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    { ".mp4", ".mov", ".mkv", ".avi", ".webm", ".wmv", ".m4v" };
+                if (videoExtensions.Contains(extension))
+                    return "Video";
+            }
+
+            return "Image";
+        }
+
+        private static string BuildImportedMediaCacheKey(string sourceMediaPath, string importedType)
+            => $"{importedType}|{NormalizeFilePath(sourceMediaPath)}";
 
         private static bool TryReadStringValue(object? rawValue, out string? value)
         {
@@ -652,6 +708,8 @@ namespace PodcastVideoEditor.Core.Services
             public double EndTime { get; set; }
             public string? Text { get; set; }
             public string? BackgroundAssetId { get; set; }
+            public string? BackgroundAssetPath { get; set; }
+            public string? BackgroundAssetType { get; set; }
             public string? TransitionType { get; set; }
             public double TransitionDuration { get; set; } = 0.5;
             public int Order { get; set; }
