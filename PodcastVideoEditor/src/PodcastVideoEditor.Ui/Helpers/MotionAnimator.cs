@@ -1,4 +1,5 @@
 using PodcastVideoEditor.Core.Models;
+using PodcastVideoEditor.Core.Services;
 using System;
 
 namespace PodcastVideoEditor.Ui.Helpers;
@@ -44,108 +45,28 @@ public static class MotionAnimator
     /// <returns>Transform values to apply to the Image RenderTransform.</returns>
     public static MotionTransform Compute(
         string preset, double intensity, double progress,
-        double elementWidth, double elementHeight)
+        double elementWidth, double elementHeight,
+        double durationSeconds,
+        int fps)
     {
         if (string.IsNullOrEmpty(preset) || preset == MotionPresets.None || intensity <= 0)
             return MotionTransform.Identity;
 
-        progress = Math.Clamp(progress, 0.0, 1.0);
-        intensity = Math.Clamp(intensity, 0.0, 1.0);
+        var (scaleX, scaleY, translateX, translateY) = MotionEngine.ComputeTransform(
+            preset,
+            intensity,
+            progress,
+            elementWidth,
+            elementHeight,
+            durationSeconds,
+            fps);
 
-        // maxZoom matches FFmpeg MotionFilterBuilder: 1.0 + intensity * 0.4
-        var maxZoom = 1.0 + intensity * 0.4;
-
-        // Pan presets use a slight constant zoom to provide room for translation.
-        // The zoom provides overflow that gets clipped by the container.
-        var panScale = 1.0 + intensity * 0.3;
-
-        // Pan range: how far the image can translate within the clipped area.
-        // With RenderTransformOrigin (0.5, 0.5), the excess on each side is:
-        //   elementSize * (scale - 1) / 2
-        // We use a fraction of that for the actual pan distance.
-        var panRangeX = elementWidth * intensity * 0.15;
-        var panRangeY = elementHeight * intensity * 0.15;
-
-        return preset switch
+        return new MotionTransform
         {
-            // Zoom in toward center: scale grows from 1.0 to maxZoom
-            MotionPresets.ZoomIn => new MotionTransform
-            {
-                ScaleX = Lerp(1.0, maxZoom, progress),
-                ScaleY = Lerp(1.0, maxZoom, progress),
-                TranslateX = 0,
-                TranslateY = 0
-            },
-
-            // Zoom out from center: scale shrinks from maxZoom to 1.0
-            MotionPresets.ZoomOut => new MotionTransform
-            {
-                ScaleX = Lerp(maxZoom, 1.0, progress),
-                ScaleY = Lerp(maxZoom, 1.0, progress),
-                TranslateX = 0,
-                TranslateY = 0
-            },
-
-            // Pan left: camera moves right-to-left (image shifts right over time)
-            MotionPresets.PanLeft => new MotionTransform
-            {
-                ScaleX = panScale,
-                ScaleY = panScale,
-                TranslateX = Lerp(-panRangeX, panRangeX, Ease(progress)),
-                TranslateY = 0
-            },
-
-            // Pan right: camera moves left-to-right (image shifts left over time)
-            MotionPresets.PanRight => new MotionTransform
-            {
-                ScaleX = panScale,
-                ScaleY = panScale,
-                TranslateX = Lerp(panRangeX, -panRangeX, Ease(progress)),
-                TranslateY = 0
-            },
-
-            // Pan up: camera moves bottom-to-top (image shifts down over time)
-            MotionPresets.PanUp => new MotionTransform
-            {
-                ScaleX = panScale,
-                ScaleY = panScale,
-                TranslateX = 0,
-                TranslateY = Lerp(-panRangeY, panRangeY, Ease(progress))
-            },
-
-            // Pan down: camera moves top-to-bottom (image shifts up over time)
-            MotionPresets.PanDown => new MotionTransform
-            {
-                ScaleX = panScale,
-                ScaleY = panScale,
-                TranslateX = 0,
-                TranslateY = Lerp(panRangeY, -panRangeY, Ease(progress))
-            },
-
-            // Zoom in + pan left: combines zoom-in with leftward camera movement
-            MotionPresets.ZoomInPanLeft => new MotionTransform
-            {
-                ScaleX = Lerp(1.0, maxZoom, progress),
-                ScaleY = Lerp(1.0, maxZoom, progress),
-                TranslateX = Lerp(-panRangeX, panRangeX, Ease(progress)),
-                TranslateY = 0
-            },
-
-            // Zoom in + pan right: combines zoom-in with rightward camera movement
-            MotionPresets.ZoomInPanRight => new MotionTransform
-            {
-                ScaleX = Lerp(1.0, maxZoom, progress),
-                ScaleY = Lerp(1.0, maxZoom, progress),
-                TranslateX = Lerp(panRangeX, -panRangeX, Ease(progress)),
-                TranslateY = 0
-            },
-
-            _ => MotionTransform.Identity
+            ScaleX = scaleX,
+            ScaleY = scaleY,
+            TranslateX = translateX,
+            TranslateY = translateY
         };
     }
-
-    private static double Lerp(double a, double b, double t) => a + (b - a) * t;
-
-    /// <summary>Cosine ease-in-out: smooth acceleration/deceleration matching FFmpeg render.</summary>
-    private static double Ease(double t) => 0.5 - 0.5 * Math.Cos(Math.PI * t);
 }

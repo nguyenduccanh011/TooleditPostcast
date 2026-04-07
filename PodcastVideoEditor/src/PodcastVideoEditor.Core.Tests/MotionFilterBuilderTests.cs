@@ -21,7 +21,7 @@ public class MotionFilterBuilderTests
         var filter = MotionFilterBuilder.BuildZoompanFilter(seg, fps: 30, renderWidth: 1080, renderHeight: 1920);
 
         Assert.NotNull(filter);
-        Assert.Contains("x='max(0,(iw-iw/zoom))*0.3000*(1-(0.5-0.5*cos(PI*on/150.0)))'", filter);
+        Assert.Contains("x='min(max(0,(iw-iw/zoom)),max(60.0000,max(0,(iw-iw/zoom))*0.3000))*(1-(0.5-0.5*cos(PI*on/150.0)))'", filter);
         Assert.DoesNotContain("x='iw*", filter);
     }
 
@@ -41,7 +41,7 @@ public class MotionFilterBuilderTests
 
         Assert.NotNull(filter);
         Assert.Contains("z='1.0+0.002667*on'", filter);
-        Assert.Contains("x='max(0,(iw-iw/zoom))*0.3000*(0.5-0.5*cos(PI*on/150.0))'", filter);
+        Assert.Contains("x='min(max(0,(iw-iw/zoom)),max(60.0000,max(0,(iw-iw/zoom))*0.3000))*(0.5-0.5*cos(PI*on/150.0))'", filter);
         Assert.DoesNotContain("x='iw*", filter);
     }
 }

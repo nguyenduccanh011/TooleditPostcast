@@ -85,6 +85,14 @@ public class RenderConfig
     /// </summary>
     public double PrimaryAudioVolume { get; set; } = 1.0;
 
+    /// <summary>
+    /// Whether to attempt GPU overlay compositing when available.
+    /// Note: GPU overlay (overlay_cuda, etc) does NOT support FFmpeg timeline 'enable' expressions,
+    /// so segment timing with enable= is unreliable on GPU.
+    /// Default false to ensure reliable CPU compositing. Only enable for simple timelines or chunked renders.
+    /// </summary>
+    public bool UseGpuOverlay { get; set; } = false;
+
 
     /// <summary>
     /// Get CRF value based on quality setting.

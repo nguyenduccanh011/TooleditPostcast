@@ -263,9 +263,12 @@ public static class FFmpegCommandComposer
         // CUDA_ERROR_OUT_OF_MEMORY on consumer GPUs) and GPU scale + hwdownload
         // is slower than CPU scale due to PCIe round-trip overhead.
         //
-        // Strategy: GPU decode (auto) + GPU encode (nvenc) + CPU composite.
-        // Re-enable useCudaOverlay when overlay_cuda supports timeline expressions.
-        var useCudaOverlay = false;
+        // Strategy: GPU decode (auto) + GPU encode (nvenc) + CPU composite (default).
+        // GPU overlay can be enabled for simple timelines or chunked renders via
+        // config.UseGpuOverlay=true, but segment timing may be unreliable.
+        var useCudaOverlay = config.UseGpuOverlay && gpuBackend == GpuFilterBackend.Cuda;
+        if (useCudaOverlay)
+            Log.Information("GPU overlay enabled for compositing (requires simple timeline without enable expressions)");
         // GPU decode is independent of filter backend. D3D11VA works on virtually
         // ALL Windows 10+ GPUs (NVIDIA/AMD/Intel, even integrated). Using -hwaccel
         // auto lets FFmpeg try d3d11va → dxva2 → software, ensuring the best
@@ -293,6 +296,11 @@ public static class FFmpegCommandComposer
             .ToList();
 
         var useEmbeddedSources = ShouldUseEmbeddedTimelineSources(visualSegments, audioSegments);
+        var preferFastCpuScale = visualSegments.Count >= 120;
+        if (preferFastCpuScale)
+        {
+            Log.Information("Large timeline detected ({Count} visual segments) — enabling fast CPU scale flags", visualSegments.Count);
+        }
 
         if (visualSegments.Count == 0 && textSegments.Count == 0 && audioSegments.Count == 0)
             return BuildLegacySingleImageCommand(config, crf);
@@ -528,8 +536,8 @@ public static class FFmpegCommandComposer
                     // CPU fallback (alpha-needed or no GPU backend)
                     var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
-                        : BuildScalingFilter(config);
+                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, preferFastCpuScale)
+                        : BuildScalingFilter(config, preferFastCpuScale);
                     filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
@@ -539,8 +547,8 @@ public static class FFmpegCommandComposer
                 // ── Image segment: use standard -i input ──
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                    ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
-                    : BuildScalingFilter(config);
+                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, preferFastCpuScale)
+                    : BuildScalingFilter(config, preferFastCpuScale);
 
                 // Check for Ken Burns motion effect (zoom/pan) — CPU only
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
@@ -1012,7 +1020,7 @@ public static class FFmpegCommandComposer
             if (seg.IsVideo)
             {
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                    ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                     : BuildScalingFilter(config);
                 filter.Append($"[{vInput}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                 filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
@@ -1029,7 +1037,7 @@ public static class FFmpegCommandComposer
                 else
                 {
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
+                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value)
                         : BuildScalingFilter(config);
                     filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
                 }
@@ -1869,12 +1877,25 @@ public static class FFmpegCommandComposer
         }
     }
 
-    internal static string BuildScalingFilter(RenderConfig config) => config.ScaleMode switch
+    private const string HighQualityScaleFlags = "lanczos+accurate_rnd+full_chroma_int";
+    private const string FastScaleFlags = "bicubic+accurate_rnd+full_chroma_int";
+
+    private static string BuildScaleFilter(int width, int height, bool preferSpeed = false)
     {
-        "Fit" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=decrease,pad={config.ResolutionWidth}:{config.ResolutionHeight}:(ow-iw)/2:(oh-ih)/2",
-        "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}",
-        _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
+        var flags = preferSpeed ? FastScaleFlags : HighQualityScaleFlags;
+        return $"scale={width}:{height}:flags={flags}";
+    }
+
+    internal static string BuildScalingFilter(RenderConfig config, bool preferSpeed = false)
+    {
+        var flags = preferSpeed ? FastScaleFlags : HighQualityScaleFlags;
+        return config.ScaleMode switch
+    {
+        "Fit" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:flags={flags}:force_original_aspect_ratio=decrease,pad={config.ResolutionWidth}:{config.ResolutionHeight}:(ow-iw)/2:(oh-ih)/2",
+        "Stretch" => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:flags={flags}",
+        _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:flags={flags}:force_original_aspect_ratio=increase,crop={config.ResolutionWidth}:{config.ResolutionHeight}"
     };
+    }
 
     /// <summary>
     /// Returns the FFmpeg -preset value for software encoders (libx264/libx265) based on quality.

@@ -602,7 +602,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var progress = Math.Clamp(elapsed / duration, 0.0, 1.0);
 
                 // Compute and apply transform
-                var transform = MotionAnimator.Compute(preset, intensity, progress, imgEl.Width, imgEl.Height);
+                var previewFps = Math.Max(1, _projectViewModel?.CurrentProject?.RenderSettings?.FrameRate ?? 30);
+                var transform = MotionAnimator.Compute(
+                    preset,
+                    intensity,
+                    progress,
+                    imgEl.Width,
+                    imgEl.Height,
+                    duration,
+                    previewFps);
                 imgEl.MotionScaleX = transform.ScaleX;
                 imgEl.MotionScaleY = transform.ScaleY;
                 imgEl.MotionTranslateX = transform.TranslateX;

@@ -42,7 +42,7 @@ public static class MotionFilterBuilder
         var duration = seg.Duration;
         if (duration <= 0) return null;
 
-        var totalFrames = (int)Math.Round(duration * fps);
+        var totalFrames = MotionEngine.ComputeTotalFrames(duration, fps);
         if (totalFrames <= 0) return null;
 
         var intensity = Math.Clamp(seg.MotionIntensity, 0.0, 1.0);
@@ -53,93 +53,15 @@ public static class MotionFilterBuilder
 
         var inv = CultureInfo.InvariantCulture;
 
-        // Compute zoom and pan expressions based on preset
-        var (zExpr, xExpr, yExpr) = BuildExpressions(seg.MotionPreset, intensity, totalFrames, inv);
+        // Compute zoom and pan expressions using shared motion engine
+        var (zExpr, xExpr, yExpr) = MotionEngine.BuildZoomPanExpressions(
+            seg.MotionPreset,
+            intensity,
+            totalFrames,
+            outW,
+            outH,
+            inv);
 
         return $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={outW}x{outH}:fps={fps}";
-    }
-
-    /// <summary>
-    /// FFmpeg smoothstep easing expression: maps linear frame progress to a cosine ease-in-out curve.
-    /// Result: 0 at on=0, 0.5 at mid-point, 1.0 at on=totalFrames.
-    /// </summary>
-    private static string EaseExpr(int totalFrames) =>
-        $"(0.5-0.5*cos(PI*on/{totalFrames}.0))";
-
-    private static (string zExpr, string xExpr, string yExpr) BuildExpressions(
-        string preset, double intensity, int totalFrames, CultureInfo inv)
-    {
-        // maxZoom: 1.0 + intensity * 0.4 → at intensity=0.3: 1.12x, at intensity=1.0: 1.4x
-        var maxZoom = 1.0 + intensity * 0.4;
-        var maxZoomStr = maxZoom.ToString("F4", inv);
-        // zoomSpeed per frame: deterministic increment to reach maxZoom over duration
-        var zoomSpeed = (intensity * 0.4 / totalFrames).ToString("F6", inv);
-
-        // panZoom: static zoom for pan presets — matches MotionAnimator panScale for consistency
-        var panZoom = (1.0 + intensity * 0.3).ToString("F4", inv);
-
-        // panFraction: fraction of the available travel area to pan across
-        // (available travel = image size - visible window size at current zoom)
-        var panFraction = (intensity * 0.3).ToString("F4", inv);
-
-        // Eased progress: cosine smoothstep for buttery motion
-        var ease = EaseExpr(totalFrames);
-
-        return preset switch
-        {
-            MotionPresets.ZoomIn => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            MotionPresets.ZoomOut => (
-                zExpr: $"z='if(eq(on,1),{maxZoomStr},{maxZoomStr}-{zoomSpeed}*on)'",
-                xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            MotionPresets.PanLeft => (
-                zExpr: $"z='{panZoom}'",
-                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*(1-{ease})'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            MotionPresets.PanRight => (
-                zExpr: $"z='{panZoom}'",
-                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*{ease}'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            MotionPresets.PanUp => (
-                zExpr: $"z='{panZoom}'",
-                xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='max(0,(ih-ih/zoom))*{panFraction}*(1-{ease})'"
-            ),
-
-            MotionPresets.PanDown => (
-                zExpr: $"z='{panZoom}'",
-                xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='max(0,(ih-ih/zoom))*{panFraction}*{ease}'"
-            ),
-
-            MotionPresets.ZoomInPanLeft => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*(1-{ease})'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            MotionPresets.ZoomInPanRight => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*{ease}'",
-                yExpr: "y='ih/2-(ih/zoom/2)'"
-            ),
-
-            _ => (
-                zExpr: "z='1'",
-                xExpr: "x='0'",
-                yExpr: "y='0'"
-            )
-        };
     }
 }
