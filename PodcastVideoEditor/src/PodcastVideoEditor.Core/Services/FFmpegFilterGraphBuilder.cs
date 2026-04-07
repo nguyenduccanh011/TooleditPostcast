@@ -85,7 +85,7 @@ public static class FFmpegFilterGraphBuilder
         args.Append($"-/filter_complex \"{filterScriptPath}\" ");
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
         args.Append($"-c:v {videoCodec} ");
-        args.Append(FFmpegCommandComposer.BuildQualityArgs(videoCodec, crf));
+        args.Append(FFmpegCommandComposer.BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate));
         var preset = FFmpegCommandComposer.GetEncoderPreset(videoCodec, config.Quality);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");

@@ -358,6 +358,133 @@ public class FFmpegCommandComposerTests
     }
 
     [Fact]
+    public void Build_NvencCodec_UsesBitrateCaps_NotUncappedVbr()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264_nvenc",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.Contains("-rc vbr", args);
+            Assert.Contains("-cq 23", args);
+            Assert.Contains("-b:v 2200k", args);
+            Assert.Contains("-maxrate 3300k", args);
+            Assert.Contains("-bufsize 4400k", args);
+            Assert.DoesNotContain("-b:v 0", args);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
+    public void Build_AmfCodec_UsesBitrateCaps_NotUncappedVbr()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264_amf",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.Contains("-rc vbr_peak", args);
+            Assert.Contains("-qp_i 23", args);
+            Assert.Contains("-qp_p 23", args);
+            Assert.Contains("-b:v 2200k", args);
+            Assert.Contains("-maxrate 3300k", args);
+            Assert.Contains("-bufsize 4400k", args);
+            Assert.DoesNotContain("-b:v 0", args);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
+    public void Build_SoftwareCodec_UsesVbvCaps_ToAvoidOversizedOutputs()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "libx264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.Contains("-crf 23", args);
+            Assert.Contains("-maxrate 3300k", args);
+            Assert.Contains("-bufsize 4400k", args);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
     public void Build_LargeTimeline_EmbedsVisualSourcesWithMovieFilter()
     {
         var tempImages = new List<string>();

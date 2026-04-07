@@ -78,7 +78,8 @@ public static class MotionFilterBuilder
         // panZoom: static zoom for pan presets — matches MotionAnimator panScale for consistency
         var panZoom = (1.0 + intensity * 0.3).ToString("F4", inv);
 
-        // panFraction: fraction of image to pan across (0.0-0.3 based on intensity)
+        // panFraction: fraction of the available travel area to pan across
+        // (available travel = image size - visible window size at current zoom)
         var panFraction = (intensity * 0.3).ToString("F4", inv);
 
         // Eased progress: cosine smoothstep for buttery motion
@@ -100,37 +101,37 @@ public static class MotionFilterBuilder
 
             MotionPresets.PanLeft => (
                 zExpr: $"z='{panZoom}'",
-                xExpr: $"x='iw*{panFraction}*(1-{ease})'",
+                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*(1-{ease})'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"
             ),
 
             MotionPresets.PanRight => (
                 zExpr: $"z='{panZoom}'",
-                xExpr: $"x='iw*{panFraction}*{ease}'",
+                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*{ease}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"
             ),
 
             MotionPresets.PanUp => (
                 zExpr: $"z='{panZoom}'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='ih*{panFraction}*(1-{ease})'"
+                yExpr: $"y='max(0,(ih-ih/zoom))*{panFraction}*(1-{ease})'"
             ),
 
             MotionPresets.PanDown => (
                 zExpr: $"z='{panZoom}'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='ih*{panFraction}*{ease}'"
+                yExpr: $"y='max(0,(ih-ih/zoom))*{panFraction}*{ease}'"
             ),
 
             MotionPresets.ZoomInPanLeft => (
                 zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='iw*{panFraction}*(1-{ease})'",
+                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*(1-{ease})'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"
             ),
 
             MotionPresets.ZoomInPanRight => (
                 zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='iw*{panFraction}*{ease}'",
+                xExpr: $"x='max(0,(iw-iw/zoom))*{panFraction}*{ease}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"
             ),
 

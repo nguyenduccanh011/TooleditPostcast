@@ -217,7 +217,7 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
-        var qualityArgs = BuildQualityArgs(videoCodec, crf);
+        var qualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate);
         var encPreset = GetEncoderPreset(videoCodec, config.Quality);
         var presetArg = !string.IsNullOrEmpty(encPreset) ? $"-preset {encPreset} " : "";
 
@@ -757,7 +757,7 @@ public static class FFmpegCommandComposer
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
-        args.Append(BuildQualityArgs(videoCodec, crf));
+        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate));
         var preset = GetEncoderPreset(videoCodec, config.Quality);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");
@@ -1156,7 +1156,7 @@ public static class FFmpegCommandComposer
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
-        args.Append(BuildQualityArgs(videoCodec, crf));
+        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate));
         var preset = GetEncoderPreset(videoCodec, config.Quality);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");
@@ -1198,7 +1198,7 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
-        var legacyQualityArgs = BuildQualityArgs(videoCodec, crf);
+        var legacyQualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate);
         var legacyPreset = GetEncoderPreset(videoCodec, config.Quality);
         var legacyPresetArg = !string.IsNullOrEmpty(legacyPreset) ? $"-preset {legacyPreset} " : "";
 
@@ -1935,8 +1935,15 @@ public static class FFmpegCommandComposer
     /// with pre-analysis + VBAQ (matching CapCut/Premiere quality-per-bit),
     /// software encoders use <c>-crf</c>.
     /// </summary>
-    internal static string BuildQualityArgs(string videoCodec, int crfValue)
+    internal static string BuildQualityArgs(
+        string videoCodec,
+        int crfValue,
+        int width = 1080,
+        int height = 1920,
+        int frameRate = 30)
     {
+        var (targetBitrate, maxRate, bufSize) = GetBitrateBudgetFromCrf(crfValue, width, height, frameRate);
+
         if (videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
         {
             // VBR with CQ target: better quality-per-bit than constant QP.
@@ -1944,12 +1951,12 @@ public static class FFmpegCommandComposer
             // -temporal-aq 1: temporal AQ for scene motion
             // -rc-lookahead 32: look-ahead frames for rate control decisions
             // -b_ref_mode middle: B-frame as reference (~5-10% better compression)
-            // -b:v 0: uncapped bitrate, let CQ target drive quality
-            return $"-rc vbr -cq {crfValue} -b:v 0 " +
+            // Cap average/peak bitrate to avoid oversized exports on high-motion scenes.
+            return $"-rc vbr -cq {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
                    $"-spatial-aq 1 -temporal-aq 1 -rc-lookahead 32 -b_ref_mode middle ";
         }
         if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
-            return $"-global_quality {crfValue} ";
+            return $"-global_quality {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} ";
         if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
         {
             // VBR peak rate control with pre-analysis and VBAQ for quality parity
@@ -1962,12 +1969,51 @@ public static class FFmpegCommandComposer
             //   of NVENC's -spatial-aq (allocates bits to complex regions).
             // -enforce_hrd true: keeps bitrate within decoder buffer limits for
             //   smooth playback on mobile/web (CapCut does this by default).
-            // -b:v 0: uncapped average bitrate, let QP target drive quality.
-            return $"-rc vbr_peak -qp_i {crfValue} -qp_p {crfValue} -b:v 0 " +
+            // Keep explicit bitrate caps to prevent oversized outputs.
+            return $"-rc vbr_peak -qp_i {crfValue} -qp_p {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
                    $"-preanalysis true -vbaq true -enforce_hrd true ";
         }
-        // Software encoder (libx264, libx265)
+        // Software encoders: keep CRF-based quality but add VBV caps so fallback-to-CPU
+        // does not produce oversized files on high-motion timelines.
+        if (videoCodec is "libx264" or "libx265")
+            return $"-crf {crfValue} -maxrate {maxRate} -bufsize {bufSize} ";
+
+        // Unknown encoder: preserve current behavior.
         return $"-crf {crfValue} ";
+    }
+
+    private static (string TargetBitrate, string MaxRate, string BufSize) GetBitrateBudgetFromCrf(
+        int crfValue,
+        int width,
+        int height,
+        int frameRate)
+    {
+        // Baseline profile for budget scaling: 1080x1920 @ 30fps.
+        // Scale bitrate with pixel rate so quality/size stays more consistent
+        // across resolution and framerate presets.
+        var safeWidth = Math.Max(1, width);
+        var safeHeight = Math.Max(1, height);
+        var safeFps = Math.Clamp(frameRate, 1, 120);
+        var pixelRate = (double)safeWidth * safeHeight * safeFps;
+        var baselineRate = 1080d * 1920d * 30d;
+        var scale = Math.Clamp(pixelRate / baselineRate, 0.35d, 2.2d);
+
+        if (crfValue >= 28)
+            return ToBudget(1200, scale); // Low
+
+        if (crfValue <= 18)
+            return ToBudget(3200, scale); // High
+
+        return ToBudget(2200, scale); // Medium
+    }
+
+    private static (string TargetBitrate, string MaxRate, string BufSize) ToBudget(int baseTargetKbps, double scale)
+    {
+        var target = (int)Math.Round(baseTargetKbps * scale);
+        var max = (int)Math.Round(target * 1.5d);
+        var buf = target * 2;
+
+        return ($"{target}k", $"{max}k", $"{buf}k");
     }
 
     /// <summary>
