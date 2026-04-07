@@ -77,6 +77,22 @@ public class TemplatePackageService
             Assets = assetMap.Values.OrderBy(a => a.PackagePath, StringComparer.OrdinalIgnoreCase).ToList()
         };
 
+        // Validate all assets exist before attempting export
+        var missingAssets = manifest.Assets
+            .Where(a => !File.Exists(a.SourcePath))
+            .Select(a => new { FileName = a.OriginalFileName ?? Path.GetFileName(a.SourcePath), Path = a.SourcePath })
+            .ToList();
+
+        if (missingAssets.Count > 0)
+        {
+            var missingList = string.Join("\n  - ", missingAssets.Take(10).Select(m => $"{m.FileName}"));
+            var totalMissing = missingAssets.Count > 10 ? $"\n  ... and {missingAssets.Count - 10} more files" : string.Empty;
+            throw new InvalidOperationException(
+                $"Cannot export template: {missingAssets.Count} image file(s) not found.\n\n" +
+                $"Missing files:\n  - {missingList}{totalMissing}\n\n" +
+                $"Please verify these images exist before exporting.");
+        }
+
         var directory = Path.GetDirectoryName(destinationPackagePath);
         if (!string.IsNullOrWhiteSpace(directory))
             Directory.CreateDirectory(directory);
@@ -92,8 +108,6 @@ public class TemplatePackageService
 
         foreach (var asset in manifest.Assets)
         {
-            if (!File.Exists(asset.SourcePath))
-                throw new FileNotFoundException($"Template asset not found: {asset.SourcePath}", asset.SourcePath);
 
             var entry = archive.CreateEntry(asset.PackagePath, CompressionLevel.Optimal);
             await using var entryStream = entry.Open();
@@ -268,10 +282,13 @@ public class TemplatePackageService
                 if (PathPropertyKeys.Contains(property.Key) && TryGetString(property.Value, out var pathValue) && !string.IsNullOrWhiteSpace(pathValue))
                 {
                     if (packagePathMap.TryGetValue(pathValue!, out var localPath))
-                        obj[property.Key] = localPath;
-
-                    continue;
-                }
+                        {
+                            obj[property.Key] = localPath;
+                        }
+                        else
+                        {
+                            Log.Warning("Template import: Asset path not resolved: {PackagePath}. This path may fail during project creation.", pathValue);
+                        }
 
                 RewriteIncomingPaths(property.Value, packagePathMap);
             }

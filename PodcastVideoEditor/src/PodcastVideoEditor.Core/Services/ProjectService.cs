@@ -422,8 +422,15 @@ namespace PodcastVideoEditor.Core.Services
 
             if (!File.Exists(sourceMediaPath))
             {
-                Log.Warning("Template media path not found during project creation: {MediaPath}", sourceMediaPath);
-                return propertiesJson;
+                Log.Warning("Template media file not found: {MediaPath}. Segment will be created without image.", sourceMediaPath);
+                
+                // Graceful degradation: Return properties with empty path instead of broken path.
+                // This allows the element and segment to be created successfully.
+                // User can add/replace image manually using the 'Replace Image' menu.
+                if (properties != null)
+                    properties[mediaPathKey] = string.Empty;
+                
+                return JsonSerializer.Serialize(properties ?? new Dictionary<string, object?>());
             }
 
             var normalizedPath = NormalizeFilePath(sourceMediaPath);
