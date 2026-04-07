@@ -153,7 +153,7 @@ namespace PodcastVideoEditor.Core.Services
                         ProjectId = project.Id, 
                         Order = 1, 
                         TrackType = TrackTypes.Visual, 
-                        TrackRole = TrackRoles.AiContent,
+                        TrackRole = TrackRoles.Unspecified,
                         SpanMode = TrackSpanModes.SegmentBound,
                         Name = "Visual 1", 
                         IsLocked = false, 
@@ -249,7 +249,7 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = tracked.Id,
                                 Order = 1,
                                 TrackType = TrackTypes.Visual,
-                                TrackRole = TrackRoles.AiContent,
+                                TrackRole = TrackRoles.Unspecified,
                                 SpanMode = TrackSpanModes.SegmentBound,
                                 Name = "Visual 1",
                                 IsLocked = false,
@@ -271,8 +271,8 @@ namespace PodcastVideoEditor.Core.Services
                                 ProjectId = tracked.Id,
                                 Order = trackSnapshot.Order,
                                 TrackType = trackType,
-                                TrackRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType, trackSnapshot.Name),
-                                SpanMode = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackType, trackSnapshot.Name),
+                                TrackRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType),
+                                SpanMode = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackRole, trackSnapshot.TrackType),
                                 Name = string.IsNullOrWhiteSpace(trackSnapshot.Name)
                                     ? "Track"
                                     : trackSnapshot.Name,
@@ -1192,45 +1192,16 @@ namespace PodcastVideoEditor.Core.Services
             return IsDynamicOverlayTrack(track);
         }
 
-        private static string NormalizeTrackRole(string? role, string? trackType, string? name)
-        {
-            if (string.IsNullOrWhiteSpace(role))
-            {
-                var normalizedType = trackType?.Trim().ToLowerInvariant() ?? string.Empty;
-                var normalizedName = name?.Trim() ?? string.Empty;
+        private static string NormalizeTrackRole(string? role, string? trackType)
+            => TrackRolePolicies.NormalizeRoleForTrackType(role, trackType);
 
-                if (normalizedType == TrackTypes.Text)
-                    return TrackRoles.ScriptText;
-
-                if (normalizedType == TrackTypes.Visual)
-                {
-                    if (normalizedName.Contains("logo", StringComparison.OrdinalIgnoreCase)
-                        || normalizedName.Contains("icon", StringComparison.OrdinalIgnoreCase)
-                        || normalizedName.Contains("watermark", StringComparison.OrdinalIgnoreCase)
-                        || normalizedName.Contains("brand", StringComparison.OrdinalIgnoreCase))
-                        return TrackRoles.BrandOverlay;
-
-                    if (normalizedName.Contains("visualizer", StringComparison.OrdinalIgnoreCase)
-                        || normalizedName.Contains("spectrum", StringComparison.OrdinalIgnoreCase))
-                        return TrackRoles.Visualizer;
-
-                    return TrackRoles.AiContent;
-                }
-
-                return TrackRoles.Unspecified;
-            }
-
-            return role.Trim().ToLowerInvariant();
-        }
-
-        private static string NormalizeSpanMode(string? spanMode, string? trackType, string? name)
+        private static string NormalizeSpanMode(string? spanMode, string? role, string? trackType)
         {
             if (string.IsNullOrWhiteSpace(spanMode))
             {
-                var inferredRole = NormalizeTrackRole(null, trackType, name);
+                var inferredRole = NormalizeTrackRole(role, trackType);
                 return inferredRole switch
                 {
-                    TrackRoles.BrandOverlay => TrackSpanModes.ProjectDuration,
                     TrackRoles.TitleOverlay => TrackSpanModes.ProjectDuration,
                     TrackRoles.Visualizer => TrackSpanModes.ProjectDuration,
                     _ => TrackSpanModes.SegmentBound,

@@ -844,7 +844,7 @@ public partial class MainWindow : Window
                 Id = t.Id,
                 Order = t.Order,
                 TrackType = t.TrackType,
-                TrackRole = t.TrackRole,
+                TrackRole = TrackRolePolicies.NormalizeRoleForTrackType(t.TrackRole, t.TrackType),
                 SpanMode = t.SpanMode,
                 Name = t.Name,
                 IsLocked = t.IsLocked,

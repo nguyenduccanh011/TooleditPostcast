@@ -248,24 +248,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 .OrderBy(t => t.Order)
                 .ToList();
 
-            // Explicit role wins.
+            // Only explicit AI content tracks are writable by the AI pipeline.
             var roleBased = visualTracks.FirstOrDefault(t =>
                 string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase)
                 && !t.IsLocked);
             if (roleBased != null)
                 return roleBased.Id;
 
-            // Prefer a normal visual content track (not locked, not logo/icon overlay track).
-            var preferred = visualTracks.FirstOrDefault(t => !t.IsLocked && !IsDynamicOverlayVisualTrack(t));
-            if (preferred != null)
-                return preferred.Id;
-
-            // If only one editable visual track exists, keep backward-compatible behavior.
-            var editable = visualTracks.Where(t => !t.IsLocked).ToList();
-            if (editable.Count == 1)
-                return editable[0].Id;
-
-            // Otherwise create a dedicated AI visual track to avoid replacing template overlays.
+            // If no explicit AI track exists, create a dedicated one instead of reusing existing visual tracks.
             var aiTrack = new Track
             {
                 ProjectId = project.Id,
@@ -284,40 +274,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
             await _projectViewModel.SaveProjectAsync();
             Log.Information("Created dedicated AI visual track {TrackId} for project {ProjectId}", aiTrack.Id, project.Id);
             return aiTrack.Id;
-        }
-
-        private static bool IsDynamicOverlayVisualTrack(Track track)
-        {
-            if (!string.Equals(track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
-                return false;
-
-            // Explicit metadata path.
-            if (string.Equals(track.TrackRole, TrackRoles.BrandOverlay, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(track.TrackRole, TrackRoles.TitleOverlay, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(track.TrackRole, TrackRoles.Visualizer, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            var segs = (track.Segments ?? []).Where(s => s.EndTime > s.StartTime).ToList();
-            if (segs.Count != 1)
-                return false;
-
-            var seg = segs[0];
-            if (seg.StartTime > 0.05)
-                return false;
-
-            if (string.IsNullOrWhiteSpace(seg.BackgroundAssetId))
-                return false;
-
-            if (track.IsLocked)
-                return true;
-
-            var name = track.Name ?? string.Empty;
-            return name.Contains("logo", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("icon", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("overlay", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("watermark", StringComparison.OrdinalIgnoreCase)
-                || name.Contains("brand", StringComparison.OrdinalIgnoreCase);
         }
     }
 

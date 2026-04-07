@@ -55,12 +55,10 @@
                           Padding="8,5" Margin="0,0,0,8"
                           SelectionChanged="TrackRoleCombo_SelectionChanged">
                     <ComboBoxItem Content="Không chỉ định" Tag="unspecified" IsSelected="True"/>
-                    <ComboBoxItem Content="Brand Overlay (logo/icon)" Tag="brand_overlay"/>
                     <ComboBoxItem Content="Title Overlay" Tag="title_overlay"/>
                     <ComboBoxItem Content="Script Text" Tag="script_text"/>
                     <ComboBoxItem Content="AI Content" Tag="ai_content"/>
                     <ComboBoxItem Content="Visualizer" Tag="visualizer"/>
-                    <ComboBoxItem Content="Background Content" Tag="background_content"/>
                 </ComboBox>
 
                 <TextBlock Text="Chế độ thời lượng (Span):" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>

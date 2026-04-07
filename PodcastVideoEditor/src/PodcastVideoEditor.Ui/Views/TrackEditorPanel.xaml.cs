@@ -122,11 +122,35 @@ public partial class TrackEditorPanel : UserControl
 
     private void SyncTrackPolicyControls(Track track)
     {
+        var roleChanged = false;
         _suppressTrackPolicyChanged = true;
-        SelectComboByTag(TrackRoleCombo, NormalizeTrackRole(track.TrackRole));
+        ApplyTrackRoleOptions(track);
+        var normalizedRole = TrackRolePolicies.NormalizeRoleForTrackType(track.TrackRole, track.TrackType);
+        if (!string.Equals(NormalizeTrackRole(track.TrackRole), normalizedRole, StringComparison.OrdinalIgnoreCase))
+        {
+            track.TrackRole = normalizedRole;
+            roleChanged = true;
+        }
+
+        SelectComboByTag(TrackRoleCombo, normalizedRole);
         SelectComboByTag(TrackSpanCombo, NormalizeSpanMode(track.SpanMode));
         TrackPolicyHintText.Text = BuildPolicyHint(track);
         _suppressTrackPolicyChanged = false;
+
+        if (roleChanged)
+            _viewModel?.RequestProjectSave();
+    }
+
+    private void ApplyTrackRoleOptions(Track track)
+    {
+        var allowedRoles = TrackRolePolicies.GetAllowedRoles(track.TrackType);
+        foreach (var item in TrackRoleCombo.Items.OfType<ComboBoxItem>())
+        {
+            var roleTag = NormalizeTrackRole(item.Tag as string);
+            var isAllowed = allowedRoles.Contains(roleTag);
+            item.IsEnabled = isAllowed;
+            item.Visibility = isAllowed ? Visibility.Visible : Visibility.Collapsed;
+        }
     }
 
     private static void SelectComboByTag(ComboBox combo, string tag)
@@ -151,12 +175,10 @@ public partial class TrackEditorPanel : UserControl
     {
         var roleText = NormalizeTrackRole(track.TrackRole) switch
         {
-            TrackRoles.BrandOverlay => "Brand overlay: logo/icon cố định.",
             TrackRoles.TitleOverlay => "Title overlay: title xuyên suốt hoặc theo mẫu.",
             TrackRoles.ScriptText => "Script text: nội dung lấy từ script mới.",
             TrackRoles.AiContent => "AI content: track nhận segment ảnh do AI sinh.",
             TrackRoles.Visualizer => "Visualizer: lớp hiệu ứng phổ âm thanh.",
-            TrackRoles.BackgroundContent => "Background content: nền dài hoặc intro/outro.",
             _ => "Vai trò chưa chỉ định: hệ thống sẽ fallback theo heuristic."
         };
 
@@ -177,7 +199,9 @@ public partial class TrackEditorPanel : UserControl
         if (_viewModel?.SelectedTrack == null) return;
         if (TrackRoleCombo.SelectedItem is not ComboBoxItem item || item.Tag is not string role) return;
 
-        _viewModel.SelectedTrack.TrackRole = NormalizeTrackRole(role);
+        var normalizedRole = TrackRolePolicies.NormalizeRoleForTrackType(role, _viewModel.SelectedTrack.TrackType);
+        _viewModel.SelectedTrack.TrackRole = normalizedRole;
+        SelectComboByTag(TrackRoleCombo, normalizedRole);
         TrackPolicyHintText.Text = BuildPolicyHint(_viewModel.SelectedTrack);
         _viewModel.RequestProjectSave();
     }

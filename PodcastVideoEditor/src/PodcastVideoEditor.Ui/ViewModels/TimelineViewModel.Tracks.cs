@@ -40,7 +40,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 TrackRole = trackType switch
                 {
                     TrackTypes.Text => TrackRoles.ScriptText,
-                    TrackTypes.Visual => TrackRoles.AiContent,
+                    TrackTypes.Visual => TrackRoles.Unspecified,
                     _ => TrackRoles.Unspecified,
                 },
                 SpanMode = TrackSpanModes.SegmentBound,
@@ -91,7 +91,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 TrackRole = trackType switch
                 {
                     TrackTypes.Text => TrackRoles.ScriptText,
-                    TrackTypes.Visual => TrackRoles.AiContent,
+                    TrackTypes.Visual => TrackRoles.Unspecified,
                     _ => TrackRoles.Unspecified,
                 },
                 SpanMode = TrackSpanModes.SegmentBound,
