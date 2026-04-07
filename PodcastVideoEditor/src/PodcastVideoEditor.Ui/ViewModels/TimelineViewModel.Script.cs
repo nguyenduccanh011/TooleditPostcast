@@ -255,7 +255,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (roleBased != null)
             {
                 Log.Information("Found existing AI content track {TrackId} for project {ProjectId}", roleBased.Id, project.Id);
-                return roleBased.Id;
+               {
+                   Log.Information("Found existing AI content track {TrackId} for project {ProjectId}", roleBased.Id, project.Id);
+                   return roleBased.Id;
+               }
             }
 
             // If no explicit AI track exists, create a dedicated one instead of reusing existing visual tracks.
@@ -276,21 +279,35 @@ namespace PodcastVideoEditor.Ui.ViewModels
             project.Tracks ??= [];
             project.Tracks.Add(aiTrack);
 
-            // Save the new track to database and wait for completion
-            // (cannot use fire-and-forget since we need to verify track is persisted before using it)
-            await _projectViewModel.SaveProjectAsync();
+           Log.Information("Creating new AI visual track {TrackId} for project {ProjectId}", trackId, project.Id);
 
-            // Verify the track was actually saved to the database
-            var savedTrack = _projectViewModel.CurrentProject?.Tracks
-                ?.FirstOrDefault(t => string.Equals(t.Id, trackId, StringComparison.Ordinal));
-            if (savedTrack == null)
+           // Use UpdateProjectAsync directly to bypass SaveProjectAsync semaphore
+           // (semaphore might block if concurrent save is happening, causing track to not persist)
+           try
+           {
+               await _projectViewModel.ProjectService.UpdateProjectAsync(project);
+               Log.Information("Persisted AI visual track {TrackId} to database", trackId);
+           }
+           catch (Exception ex)
+           {
+               Log.Error(ex, "Failed to persist AI visual track {TrackId}", trackId);
+               throw new InvalidOperationException(
+                   $"Failed to create AI visual track: {ex.Message}", ex);
+           }
+
+           // Verify track was saved by querying DB
+           var saved = await _projectViewModel.ProjectService.GetProjectAsync(project.Id);
+           var savedTrack = saved?.Tracks?.FirstOrDefault(t => string.Equals(t.Id, trackId, StringComparison.Ordinal));
+           if (savedTrack == null)
             {
-                Log.Error("Failed to persist AI visual track {TrackId} for project {ProjectId}", trackId, project.Id);
+               Log.Error("AI visual track {TrackId} not found in database after save", trackId);
                 throw new InvalidOperationException(
                     $"Failed to create AI visual track. Track was not persisted to database.");
             }
 
-            Log.Information("Created and persisted AI visual track {TrackId} for project {ProjectId}", trackId, project.Id);
+           // Update CurrentProject so UI sees the new track
+           _projectViewModel.CurrentProject = saved;
+           Log.Information("AI visual track {TrackId} created and verified in database", trackId);
             return trackId;
         }
     }
