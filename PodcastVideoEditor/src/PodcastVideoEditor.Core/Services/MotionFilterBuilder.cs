@@ -28,8 +28,9 @@ public static class MotionFilterBuilder
 {
     private const string MotionDownscaleFlags = "lanczos+accurate_rnd+full_chroma_int";
     private const double MotionTargetInternalPixelsPerFrame = 1.0;
+    private const double MotionTargetInternalPixelsPerFrameShimmerBand = 1.35;
     private const int MotionSuperSampleMin = 2;
-    private const int MotionSuperSampleMax = 4;
+    private const int MotionSuperSampleMax = 5;
 
     /// <summary>
     /// Build the FFmpeg zoompan filter string for a visual segment.
@@ -69,14 +70,18 @@ public static class MotionFilterBuilder
 
         // Supersample motion output to reduce visible stair-stepping during pan/zoom,
         // then downscale with high-quality kernel.
-        var motionSuperSample = DetermineMotionSupersample(estimatedSourcePxPerFrame);
+        var estimatedStepHzSource = fps * estimatedSourcePxPerFrame;
+        var motionSuperSample = DetermineMotionSupersample(estimatedSourcePxPerFrame, estimatedStepHzSource);
         var internalW = Math.Max(1, outW * motionSuperSample);
         var internalH = Math.Max(1, outH * motionSuperSample);
+        var estimatedStepHzInternal = fps * estimatedSourcePxPerFrame * motionSuperSample;
 
-        Log.Debug(
-            "MotionFilterBuilder: preset={Preset}, intensity={Intensity:F3}, frames={Frames}, out={OutW}x{OutH}, internal={InternalW}x{InternalH}, supersample={Supersample}, estPanPxPerFrame=({PanX:F4},{PanY:F4}), estZoomCenterPxPerFrame=({ZoomX:F4},{ZoomY:F4}), estSourcePxPerFrame={SourcePx:F4}",
+        Log.Information(
+            "MotionDiagnostics: preset={Preset}, intensity={Intensity:F3}, duration={Duration:F3}s, fps={Fps}, frames={Frames}, out={OutW}x{OutH}, internal={InternalW}x{InternalH}, supersample={Supersample}, estPanPxPerFrame=({PanX:F4},{PanY:F4}), estZoomCenterPxPerFrame=({ZoomX:F4},{ZoomY:F4}), estSourcePxPerFrame={SourcePx:F4}, estStepHzSource={StepHzSource:F2}, estStepHzInternal={StepHzInternal:F2}",
             seg.MotionPreset,
             intensity,
+            duration,
+            fps,
             totalFrames,
             outW,
             outH,
@@ -87,7 +92,9 @@ public static class MotionFilterBuilder
             estimatedPanPxPerFrameY,
             estimatedZoomCenterPxPerFrameX,
             estimatedZoomCenterPxPerFrameY,
-            estimatedSourcePxPerFrame);
+            estimatedSourcePxPerFrame,
+            estimatedStepHzSource,
+            estimatedStepHzInternal);
 
         if (estimatedSourcePxPerFrame * motionSuperSample < 1.0)
         {
@@ -95,6 +102,14 @@ public static class MotionFilterBuilder
                 "MotionFilterBuilder: motion quantization risk remains high (est source {SourcePx:F4} px/frame, supersample={SuperSample}, internal={InternalPx:F4} px/frame).",
                 estimatedSourcePxPerFrame,
                 motionSuperSample);
+        }
+
+        if (IsShimmerBand(estimatedStepHzSource))
+        {
+            Log.Warning(
+                "MotionFilterBuilder: estimated source step frequency is in visible shimmer band ({StepHzSource:F2} Hz). Internal supersampled step is {StepHzInternal:F2} Hz.",
+                estimatedStepHzSource,
+                estimatedStepHzInternal);
         }
 
         var inv = CultureInfo.InvariantCulture;
@@ -113,12 +128,17 @@ public static class MotionFilterBuilder
              $"scale={outW}:{outH}:flags={MotionDownscaleFlags},format={outputPixelFormat}";
     }
 
-    private static int DetermineMotionSupersample(double estimatedSourcePxPerFrame)
+    private static int DetermineMotionSupersample(double estimatedSourcePxPerFrame, double estimatedStepHzSource)
     {
         var safePx = Math.Max(0.0001, estimatedSourcePxPerFrame);
-        var needed = (int)Math.Ceiling(MotionTargetInternalPixelsPerFrame / safePx);
+        var targetInternalPxPerFrame = IsShimmerBand(estimatedStepHzSource)
+            ? MotionTargetInternalPixelsPerFrameShimmerBand
+            : MotionTargetInternalPixelsPerFrame;
+        var needed = (int)Math.Ceiling(targetInternalPxPerFrame / safePx);
         return Math.Clamp(needed, MotionSuperSampleMin, MotionSuperSampleMax);
     }
+
+    private static bool IsShimmerBand(double hz) => hz >= 8.0 && hz <= 20.0;
 
     private static double MinPositive(params double[] values)
     {
