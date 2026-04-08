@@ -570,7 +570,7 @@ public static class FFmpegCommandComposer
                             estimatedFanout);
                     }
 
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format=rgba,{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else if (useCudaOverlay && !forceCpu)
                 {
@@ -1078,7 +1078,7 @@ public static class FFmpegCommandComposer
                             estimatedFanout);
                     }
 
-                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format=rgba,{zoompanFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
+                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
                 }
                 else
                 {
