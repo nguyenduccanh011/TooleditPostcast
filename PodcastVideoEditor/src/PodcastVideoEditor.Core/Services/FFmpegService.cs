@@ -578,9 +578,8 @@ public static class FFmpegService
 
                 // Log GPU pipeline status for diagnostics
                 var gpuCaps = FFmpegCommandComposer.GetGpuCapabilities();
-                Log.Information("GPU pipeline: {Status}", gpuCaps.StatusText);
-                Log.Information("GPU encode: {GpuEncode}, GPU filter: {GpuFilter}, H264: {H264}, HEVC: {HEVC}",
-                    gpuCaps.IsGpuEncoding, gpuCaps.IsGpuFiltering,
+                Log.Debug("GPU capabilities: {Status} | Encode: {GpuEncode}, Filter: {GpuFilter}, H264: {H264}, HEVC: {HEVC}",
+                    gpuCaps.StatusText, gpuCaps.IsGpuEncoding, gpuCaps.IsGpuFiltering,
                     gpuCaps.H264Encoder, gpuCaps.HevcEncoder);
 
                 // Execute FFmpeg

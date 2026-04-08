@@ -268,7 +268,7 @@ public static class FFmpegCommandComposer
         // config.UseGpuOverlay=true, but segment timing may be unreliable.
         var useCudaOverlay = config.UseGpuOverlay && gpuBackend == GpuFilterBackend.Cuda;
         if (useCudaOverlay)
-            Log.Information("GPU overlay enabled for compositing (requires simple timeline without enable expressions)");
+            Log.Debug("GPU overlay enabled for compositing (requires simple timeline without enable expressions)");
         // GPU decode is independent of filter backend. D3D11VA works on virtually
         // ALL Windows 10+ GPUs (NVIDIA/AMD/Intel, even integrated). Using -hwaccel
         // auto lets FFmpeg try d3d11va → dxva2 → software, ensuring the best
@@ -380,7 +380,7 @@ public static class FFmpegCommandComposer
             }
         }
 
-        Log.Information("Timeline command input dedup: visual segments={SegmentCount}, unique visual sources={UniqueCount}",
+        Log.Debug("Timeline input dedup: visual {SegCount} → {UniqueCount} unique sources",
             visualSegments.Count, visualUniqueInputs.Count);
 
         // ── Primary audio or silent placeholder
@@ -419,13 +419,13 @@ public static class FFmpegCommandComposer
 
         if (audioSegments.Count > 0)
         {
-            Log.Information("Timeline command input dedup: audio segments={SegmentCount}, unique audio sources={UniqueCount}",
+            Log.Debug("Timeline input dedup: audio {SegCount} → {UniqueCount} unique sources",
                 audioSegments.Count, audioUniqueInputs.Count);
         }
 
         if (useEmbeddedSources)
         {
-            Log.Information("Timeline command using embedded movie/amovie sources for large timeline fallback");
+            Log.Debug("Using embedded movie/amovie sources for large timeline fallback");
         }
 
         // ── filter_complex
@@ -438,13 +438,13 @@ public static class FFmpegCommandComposer
                            videoCodec.Contains("qsv",   StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("amf",   StringComparison.OrdinalIgnoreCase);
         if (hasGpuFilters && cudaZeroCopy)
-            Log.Information("Render: CUDA full-GPU pipeline — scale_cuda + overlay_cuda, encoder {Encoder}", videoCodec);
+            Log.Debug("GPU: CUDA full-GPU pipeline (scale_cuda + overlay_cuda), encoder {Encoder}", videoCodec);
         else if (hasGpuFilters)
-            Log.Information("Render: GPU backend {Backend} for scale (overlay on CPU), encoder {Encoder}", gpuBackend, videoCodec);
+            Log.Debug("GPU: {Backend} for scale + CPU overlay, encoder {Encoder}", gpuBackend, videoCodec);
         else if (isGpuEncoder)
-            Log.Information("Render: GPU encode ({Encoder}) + auto decode — CPU composite", videoCodec);
+            Log.Debug("GPU: encode ({Encoder}) + auto decode, CPU composite", videoCodec);
         else
-            Log.Information("Render: CPU-only pipeline (no GPU acceleration), encoder {Encoder}", videoCodec);
+            Log.Debug("GPU: CPU-only pipeline (no GPU), encoder {Encoder}", videoCodec);
 
         // useCudaOverlay policy is declared above (before input declarations).
 
@@ -788,7 +788,7 @@ public static class FFmpegCommandComposer
         //   (e.g. separate visual segment scale+motion operations run concurrently).
         args.Append($"-filter_threads {filterThreads} ");
         args.Append($"-filter_complex_threads {filterThreads} ");
-        Log.Information("Render threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
+        Log.Debug("Threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
             renderThreads, logicalCores, filterThreads);
         args.Append("-movflags +faststart ");
         // Prevent "Too many packets buffered for output stream" on long timelines
@@ -881,8 +881,10 @@ public static class FFmpegCommandComposer
         for (int i = 0; i < visualTier.Count; i++)
             textByVisual[i] = [];
 
+        var unmatchedTextCount = 0;
         foreach (var textSeg in textTier)
         {
+            var matched = false;
             // Find the visual segment that this text overlaps with
             for (int i = 0; i < visualTier.Count; i++)
             {
@@ -890,10 +892,19 @@ public static class FFmpegCommandComposer
                 if (textSeg.StartTime >= vs.StartTime - 0.05 && textSeg.EndTime <= vs.EndTime + 0.05)
                 {
                     textByVisual[i].Add(textSeg);
+                    matched = true;
                     break;
                 }
             }
-            // Text segments that don't match any visual are handled as standalone clips
+            if (!matched)
+                unmatchedTextCount++;
+        }
+
+        if (unmatchedTextCount > 0)
+        {
+            Log.Information("Concat pipeline: {Count} text segments are not fully contained in any visual segment — using overlay pipeline",
+                unmatchedTextCount);
+            return null;
         }
 
         var audioSegments = (config.AudioSegments ?? [])
@@ -943,10 +954,12 @@ public static class FFmpegCommandComposer
             visualInputMap[i] = mappedIndex;
         }
 
-        Log.Information("Concat command input dedup: visual segments={SegmentCount}, unique visual sources={UniqueCount}",
+        Log.Debug("Concat input dedup: {SegCount} visual → {UniqueCount} unique sources",
             visualTier.Count, concatVisualInputByKey.Count);
 
         // Text PNG inputs (deduplicated by source path)
+        // Note: textTier can contain BOTH rasterized PNG overlays (images, need -loop 1)
+        // and visualizer video files (IsVideo=true, should NOT have -loop 1).
         var textInputMap = new Dictionary<RenderVisualSegment, int>();
         var textInputByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var textSeg in textTier)
@@ -956,7 +969,12 @@ public static class FFmpegCommandComposer
             {
                 mappedIndex = inputIndex;
                 textInputByKey[key] = mappedIndex;
-                args.Append($"-thread_queue_size 512 -loop 1 -i \"{textSeg.SourcePath}\" ");
+                
+                // Only add -loop 1 for image files (PNGs), not for videos (MOV files)
+                if (textSeg.IsVideo)
+                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{textSeg.SourcePath}\" ");
+                else
+                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{textSeg.SourcePath}\" ");
                 inputIndex++;
             }
 
@@ -1071,16 +1089,15 @@ public static class FFmpegCommandComposer
                 currentClipVideo = textOut;
             }
 
-            // Ensure the final clip output is yuv420p for concat compatibility
-            if (needsAlpha || matchedTexts.Count > 0)
-            {
-                filter.Append($"[{currentClipVideo}]format=yuv420p[{clipLabel}];");
-            }
-            else
-            {
-                // Rename to clipLabel
-                filter.Append($"[{currentClipVideo}]null[{clipLabel}];");
-            }
+            // Normalize every clip to the render canvas before concat.
+            // This prevents concat failures when a segment has explicit local scale
+            // (e.g. 1080x1080) while the project canvas is 1080x1920.
+            var clipCanvasLabel = $"clipbg{clipIndex}";
+            var overlayXExpr = seg.OverlayX ?? "0";
+            var overlayYExpr = seg.OverlayY ?? "0";
+            filter.Append($"[0:v]trim=duration={duration},setpts=PTS-STARTPTS,format=yuv420p,setsar=1[{clipCanvasLabel}];");
+            filter.Append($"[{clipCanvasLabel}][{currentClipVideo}]overlay=x={overlayXExpr}:y={overlayYExpr}:" +
+                          $"format=auto:shortest=0:repeatlast=0:eof_action=pass[{clipLabel}];");
             clipLabels.Add(clipLabel);
 
             // Check for gap between this segment and the next
@@ -1179,7 +1196,7 @@ public static class FFmpegCommandComposer
         args.Append($"-threads {renderThreads} ");
         args.Append($"-filter_threads {filterThreads} ");
         args.Append($"-filter_complex_threads {filterThreads} ");
-        Log.Information("Concat render threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
+        Log.Debug("Concat threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
             renderThreads, logicalCores, filterThreads);
 
         args.Append("-movflags +faststart ");
@@ -1196,7 +1213,7 @@ public static class FFmpegCommandComposer
         args.Append("-y ");
         args.Append($"\"{config.OutputPath}\"");
 
-        Log.Information("Concat pipeline: {Clips} clips, {Texts} text overlays, {Gaps} gap fills, {Audio} audio segments",
+        Log.Debug("Concat pipeline: {Clips} clips, {Texts} texts, {Gaps} gaps, {Audio} audio",
             visualTier.Count, textTier.Count, clipLabels.Count - visualTier.Count, audioSegments.Count);
 
         return args.ToString();
@@ -1533,7 +1550,7 @@ public static class FFmpegCommandComposer
             _preferredHevcEncoder = "libx265";
 
             var ffmpegPath = FFmpegService.GetFFmpegPath();
-            Log.Information("GPU probe: FFmpeg path = '{Path}', exists = {Exists}",
+            Log.Debug("GPU probe: FFmpeg path = '{Path}', exists = {Exists}",
                 ffmpegPath ?? "(null)", !string.IsNullOrWhiteSpace(ffmpegPath) && File.Exists(ffmpegPath!));
             if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
             {
@@ -1584,7 +1601,7 @@ public static class FFmpegCommandComposer
                 // This avoids ~1-2s wasted per failed validation of irrelevant encoders
                 // (e.g. testing h264_nvenc on an AMD-only machine).
                 var gpuVendor = DetectGpuVendor();
-                Log.Information("Detected GPU vendor: {Vendor}", gpuVendor);
+                Log.Debug("GPU vendor: {Vendor}", gpuVendor);
 
                 string[] h264Candidates = gpuVendor switch
                 {
@@ -1599,7 +1616,7 @@ public static class FFmpegCommandComposer
                     if (ValidateEncoder(ffmpegPath, candidate, out var h264Err))
                     {
                         _preferredH264Encoder = candidate;
-                        Log.Information("H264 GPU encoder '{Encoder}' validated successfully.", candidate);
+                        Log.Debug("H264 GPU encoder '{Encoder}' validated", candidate);
                         break;
                     }
                     Log.Warning("H264 GPU encoder '{Encoder}' listed but failed validation: {Error}. Trying next candidate…",

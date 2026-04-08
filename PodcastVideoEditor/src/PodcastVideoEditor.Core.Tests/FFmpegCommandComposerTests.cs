@@ -618,6 +618,140 @@ public class FFmpegCommandComposerTests
         }
     }
 
+    [Fact]
+    public void Build_ConcatPipeline_WithMixedClipSizes_NormalizesEachClipToCanvasBeforeConcat()
+    {
+        var tempPngA = CreateTempPng();
+        var tempPngB = CreateTempPng();
+        try
+        {
+            var segA = new RenderVisualSegment
+            {
+                SourcePath = tempPngA,
+                StartTime = 0,
+                EndTime = 3,
+                ScaleWidth = 1080,
+                ScaleHeight = 1080,
+                ZOrder = 0
+            };
+
+            var segB = new RenderVisualSegment
+            {
+                SourcePath = tempPngB,
+                StartTime = 3,
+                EndTime = 6,
+                ZOrder = 0
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [segA, segB],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("[clipbg0][vbase0]overlay=x=0:y=0", script);
+            Assert.Contains("[clipbg1][vbase1]overlay=x=0:y=0", script);
+            Assert.Contains("concat=n=2:v=1:a=0[vconcat]", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPngA))
+                System.IO.File.Delete(tempPngA);
+            if (System.IO.File.Exists(tempPngB))
+                System.IO.File.Delete(tempPngB);
+        }
+    }
+
+    [Fact]
+    public void Build_ConcatPipeline_WithUnmatchedTextTier_FallsBackToOverlayPipeline()
+    {
+        var tempPngA = CreateTempPng();
+        var tempPngB = CreateTempPng();
+        var tempTextPng = CreateTempPng();
+        try
+        {
+            var segA = new RenderVisualSegment
+            {
+                SourcePath = tempPngA,
+                StartTime = 0,
+                EndTime = 2,
+                ZOrder = 0
+            };
+
+            var segB = new RenderVisualSegment
+            {
+                SourcePath = tempPngB,
+                StartTime = 4,
+                EndTime = 6,
+                ZOrder = 0
+            };
+
+            var textTierSeg = new RenderVisualSegment
+            {
+                SourcePath = tempTextPng,
+                StartTime = 1,
+                EndTime = 5,
+                ZOrder = 10000,
+                ScaleWidth = 800,
+                ScaleHeight = 120
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [segA, segB, textTierSeg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.DoesNotContain("concat=n=", script);
+            Assert.Contains("overlay=x=0:y=0", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPngA))
+                System.IO.File.Delete(tempPngA);
+            if (System.IO.File.Exists(tempPngB))
+                System.IO.File.Delete(tempPngB);
+            if (System.IO.File.Exists(tempTextPng))
+                System.IO.File.Delete(tempTextPng);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════
