@@ -25,6 +25,8 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class MotionFilterBuilder
 {
+    private const string MotionDownscaleFlags = "lanczos+accurate_rnd+full_chroma_int";
+
     /// <summary>
     /// Build the FFmpeg zoompan filter string for a visual segment.
     /// Returns null if the preset is None or the segment is a video.
@@ -47,9 +49,15 @@ public static class MotionFilterBuilder
 
         var intensity = Math.Clamp(seg.MotionIntensity, 0.0, 1.0);
 
-        // Determine output size — use segment scale if available, otherwise render resolution
+        // Determine output size — use segment scale if available, otherwise render resolution.
         var outW = seg.ScaleWidth ?? renderWidth;
         var outH = seg.ScaleHeight ?? renderHeight;
+
+        // Supersample motion output to reduce visible stair-stepping during pan/zoom,
+        // then downscale with high-quality kernel.
+        const int motionSuperSample = 2;
+        var internalW = Math.Max(1, outW * motionSuperSample);
+        var internalH = Math.Max(1, outH * motionSuperSample);
 
         var inv = CultureInfo.InvariantCulture;
 
@@ -62,6 +70,7 @@ public static class MotionFilterBuilder
             outH,
             inv);
 
-        return $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={outW}x{outH}:fps={fps}";
+        return $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={internalW}x{internalH}:fps={fps}," +
+               $"scale={outW}:{outH}:flags={MotionDownscaleFlags}";
     }
 }

@@ -30,7 +30,7 @@ Implemented two aggressive optimizations to address the 0.56x realtime render bo
 
 ### Option A: Chunked Parallel Rendering ✅ IMPLEMENTED
 
-**Concept**: Split 420 segments into 7 chunks (60 segments each), render separately, concat
+**Concept**: Split long timelines into adaptive time windows, render separately, then concat
 
 #### Before (Monolithic):
 ```
@@ -41,17 +41,17 @@ Filter Graph (1): 420 scale + 420 trim + 420 format + 420 overlay
 
 #### After (Chunked):
 ```
-Filter Graph (1): 60 segments → Chunk 1.mp4
-Filter Graph (2): 60 segments → Chunk 2.mp4
-... × 7 chunks
+Filter Graph (1): adaptive window (e.g., 20-60s) → Chunk 1.mp4
+Filter Graph (2): adaptive window (e.g., 20-60s) → Chunk 2.mp4
+... × N chunks (depends on timeline density)
 Concat: All chunks → Final.mp4 (no re-encode, -c copy)
   ↓ (Each chunk: simpler CPU workload)
   → Estimated: ~700-800 seconds (MINUS 420 seconds ≈ +40-50% faster)
 ```
 
 #### Features:
-- **Automatic activation** at 220+ visual segments
-- **Configurable chunk size** (default 60 segments/chunk)
+- **Automatic activation** at 45+ visual segments
+- **Adaptive chunk windows** (20-60s), reduced automatically when segment density is high
 - **Progress tracking** for each chunk + concat phase
 - **Error handling** with intermediate cleanup
 - **GPU-friendly** concat phase (can be re-encoded with GPU if needed)
@@ -60,7 +60,7 @@ Concat: All chunks → Final.mp4 (no re-encode, -c copy)
 - **New method**: `RenderVideoAsync_Chunked()`
   - Location: `FFmpegService.cs` lines 605-720+
   - Signature: `async Task<string> RenderVideoAsync_Chunked(RenderConfig, IProgress, CancellationToken, chunkSize = 60)`
-- **Auto-detection**: Modified `RenderVideoAsync()` to call chunked version when `VisualSegments.Count >= 220`
+- **Auto-detection**: Modified `RenderVideoAsync()` to call chunked version when `VisualSegments.Count >= 45`
 - **Concat utility**: `ConcatenateChunksAsync()` uses FFmpeg concat demuxer with `-c copy` (stream copy, no re-encode)
 - **Logging**: Detailed per-chunk progress and timing metrics
 
@@ -146,13 +146,13 @@ Optimal (chunks + GPU): [██████████] 500-600s (8-10 min) +50
 **Expected Log Messages**:
 ```
 [INF] Large timeline detected (420 visual segments) — using chunked render pipeline for better CPU efficiency
-[INF] Chunked render: splitting 420 visual segments into 7 chunks of ~60 segments each
+[INF] Chunked render: splitting timeline into adaptive windows (20-60s)
 [INF] Rendering chunk 1/7: segments 0..59 ...
 [INF] Rendering chunk 2/7: segments 60..119 ...
-... (7 chunks total)
+... (N chunks total)
 [INF] Concatenating chunks...
 [INF] Chunk X completed: C:\Users\DUC CANH PC\AppData\Local\Temp\pve\chunks-XXX\chunk_N.mp4
-[INF] Chunked render completed (7 chunks concatenated)
+[INF] Chunked render completed (N chunks concatenated)
 ```
 
 **Metrics to Monitor**:
@@ -185,7 +185,7 @@ Optimal (chunks + GPU): [██████████] 500-600s (8-10 min) +50
 | Component | File | Lines | Notes |
 |---|---|---|---|
 | Chunked render | `FFmpegService.cs` | 605-720+ | New method: `RenderVideoAsync_Chunked()` |
-| Auto-detection | `FFmpegService.cs` | 540-544 | Threshold: 220+ segments |
+| Auto-detection | `FFmpegService.cs` | 540-544 | Threshold: 45+ segments |
 | Concat utility | `FFmpegService.cs` | 722-775+ | `ConcatenateChunksAsync()` |
 | GPU overlay config | `RenderConfig.cs` | 94 | New property: `UseGpuOverlay` |
 | GPU overlay logic | `FFmpegCommandComposer.cs` | 263-271 | Uses `config.UseGpuOverlay` |
@@ -199,8 +199,7 @@ If chunking causes issues:
 // Disable chunking entirely:
 await FFmpegService.RenderVideoAsync(config, progress, cancellationToken, renderChunked: false);
 
-// Or reduce chunk size:
-await FFmpegService.RenderVideoAsync_Chunked(config, progress, cancellationToken, chunkSize: 40);
+// Chunking is adaptive by time windows; tune window limits in BuildChunkWindows if needed.
 ```
 
 ---
@@ -212,7 +211,7 @@ await FFmpegService.RenderVideoAsync_Chunked(config, progress, cancellationToken
    - [ ] GPU utilization > 20%? (✅ improvement visible)
    - [ ] Per-chunk logs appear? (✅ confirms chunking active)
 3. **If speedup insufficient**:
-   - Reduce chunk size to 40-50 (more granular parallelization potential)
+  - Tune adaptive window bounds (20-60s) for specific hardware profiles
    - Enable GPU overlay on main (not just chunks) for further gains
    - Consider text segment decoupling (Option C) for future iteration
 4. **If speedup successful**:
@@ -225,15 +224,15 @@ await FFmpegService.RenderVideoAsync_Chunked(config, progress, cancellationToken
 
 ### Why Chunking Works
 - **Before**: 420 scale filters must be linearly composed: `scale(1)[s1] -> scale(2)[s2] -> ... -> scale(420)`
-- **After**: 60 scale filters × 7: Each chunk does `scale(1) -> scale(2) -> ... -> scale(60)` in parallel-friendly size
+- **After**: Smaller adaptive windows reduce filter graph pressure and keep chunk complexity bounded
 - **CPU scheduling**: Smaller graphs allow better CPU cache utilization and thread scheduling
 - **PCIe throughput**: GPU scaling reduced from 420 operations to 0-7 (with GPU overlay on chunks)
 
-### Why 60 Segments Per Chunk
-- **Too large** (100+): Still bottleneck, minimal improvement
-- **Too small** (20): More overhead from concat + intermediate I/O
-- **Sweet spot** (~60): Balances filter graph complexity vs chunk overhead
-- **Configurable**: Can tune based on user hardware (GPU VRAM, CPU cores)
+### Why Adaptive Time Windows
+- **Dense windows**: Automatically shrink toward 20s when too many visuals overlap
+- **Light windows**: Stay closer to 60s to reduce concat/intermediate I/O overhead
+- **Bounded**: Prevents pathological monolithic chunks while avoiding too many tiny chunks
+- **Tunable**: Window bounds and density target can be tuned by hardware profile
 
 ### Why GPU Overlay Helps on Chunks
 - **Full render**: Timeline expressions like `enable='between(t,START,END)'` can't be reliably evaluated by overlay_cuda

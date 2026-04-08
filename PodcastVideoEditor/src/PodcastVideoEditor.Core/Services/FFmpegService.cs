@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -536,8 +537,9 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
 
-        // Automatic chunking for large timelines: 220+ visual segments benefit from chunked rendering
-        if (renderChunked && config.VisualSegments != null && config.VisualSegments.Count >= 220)
+        // Automatic chunking for medium/large timelines: at ~45+ visual segments,
+        // the monolithic overlay graph usually becomes CPU-bound on consumer CPUs.
+        if (renderChunked && config.VisualSegments != null && config.VisualSegments.Count >= 45)
         {
             Log.Information("Large timeline detected ({Count} segments) — using chunked render pipeline " +
                             "for better CPU efficiency", config.VisualSegments.Count);
@@ -640,12 +642,14 @@ public static class FFmpegService
         CancellationToken cancellationToken,
         int chunkSize = 60)
     {
-        if (config.VisualSegments == null || config.VisualSegments.Count < chunkSize * 2)
+        const int minVisualSegmentsForChunking = 45;
+
+        if (config.VisualSegments == null || config.VisualSegments.Count < minVisualSegmentsForChunking)
         {
             // Not worth chunking for small timelines; fall back to monolithic render
-            Log.Information("Chunked render: timeline too small ({Count} segments), using monolithic pipeline",
-                config.VisualSegments?.Count ?? 0);
-            return await RenderVideoAsync(config, progress, cancellationToken);
+            Log.Information("Chunked render: timeline too small ({Count} segments, threshold={Threshold}), using monolithic pipeline",
+                config.VisualSegments?.Count ?? 0, minVisualSegmentsForChunking);
+            return await RenderVideoAsync(config, progress, cancellationToken, renderChunked: false);
         }
 
         var visualSegs = config.VisualSegments;
@@ -659,11 +663,17 @@ public static class FFmpegService
             .Concat((config.AudioSegments ?? []).Select(a => a.EndTime));
         var timelineEndTime = allEndTimes.Any() ? allEndTimes.Max() : 0;
 
-        var chunkWindows = BuildChunkWindows(timelineEndTime, maxChunkDurationSeconds: 60);
+        // Analyze effect complexity to determine adaptive chunk window size
+        var effectAnalysis = AnalyzeEffectComplexity(visualsByTime);
+        var adaptiveMaxChunkDuration = DetermineAdaptiveChunkWindow(effectAnalysis);
+
+        var chunkWindows = BuildChunkWindows(visualsByTime, timelineEndTime, maxChunkDurationSeconds: adaptiveMaxChunkDuration);
         var chunkCount = chunkWindows.Count;
 
         Log.Information("Chunked render: splitting {TotalSegments} visual segments into {ChunkCount} chunks " +
-                "(fixed 60s windows)", visualSegs.Count, chunkCount);
+            "(adaptive window={AdaptiveWindow:F1}s, base=60s; effect densities: zoom={ZoomDensity:P1}, visualizer={VisualizerDensity:P1})", 
+            visualSegs.Count, chunkCount, adaptiveMaxChunkDuration, 
+            effectAnalysis.ZoomPanDensity, effectAnalysis.VisualizerDensity);
 
         var intermediateChunks = new List<string>();
         var chunkTempDir = Path.Combine(Path.GetTempPath(), "pve", $"chunks-{Guid.NewGuid():N}");
@@ -704,12 +714,29 @@ public static class FFmpegService
                 });
 
                 Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s " +
-                                "(time {StartTime:F2}s-{EndTime:F2}s)",
-                    i + 1, chunkCount, chunkStartTime, chunkEndTime, chunkStartTime, chunkEndTime);
+                                "(time {StartTime:F2}s-{EndTime:F2}s), visuals={VisualCount}, audios={AudioCount}",
+                    i + 1, chunkCount, chunkStartTime, chunkEndTime, chunkStartTime, chunkEndTime,
+                    chunkVisuals.Count, chunkAudioSegments.Count);
 
+                // Measure per-chunk render time for effect profiling
+                var chunkTimer = System.Diagnostics.Stopwatch.StartNew();
+                
                 // Render this chunk (monolithic, no further splitting)
                 await RenderVideoAsync(chunkConfig, chunkProgress, cancellationToken, renderChunked: false);
+                chunkTimer.Stop();
+                
                 intermediateChunks.Add(chunkConfig.OutputPath);
+
+                // Structured effect timing logging
+                var chunkDurationSeconds = chunkEndTime - chunkStartTime;
+                var chunkHasMotion = chunkVisuals.Any(v => v.MotionPreset != null && v.MotionPreset != "None");
+                var effectProfile = chunkHasMotion ? "motion" : "static";
+
+                Log.Information("EffectRenderTiming Chunk {ChunkNum}: duration={ChunkDurationSec:F2}s, elapsed={ElapsedMs:F0}ms, " +
+                                "realtime={RealtimeX:F3}x, effects={EffectProfile}, visualCount={VisualCount}",
+                    i + 1, chunkDurationSeconds, chunkTimer.Elapsed.TotalMilliseconds,
+                    (chunkDurationSeconds * 1000) / chunkTimer.Elapsed.TotalMilliseconds,
+                    effectProfile, chunkVisuals.Count);
 
                 Log.Information("Chunk {ChunkNum} completed: {Path}", i + 1, chunkConfig.OutputPath);
             }
@@ -746,6 +773,7 @@ public static class FFmpegService
     }
 
     private static List<(double StartTime, double EndTime)> BuildChunkWindows(
+        IReadOnlyList<RenderVisualSegment> visuals,
         double timelineEndTime,
         double maxChunkDurationSeconds)
     {
@@ -753,13 +781,102 @@ public static class FFmpegService
         if (timelineEndTime <= 0)
             return windows;
 
-        for (var startTime = 0.0; startTime < timelineEndTime; startTime += maxChunkDurationSeconds)
+        const double minChunkDurationSeconds = 20;
+        const int targetMaxVisualsPerChunk = 24;
+
+        var startTime = 0.0;
+        while (startTime < timelineEndTime)
         {
-            var endTime = Math.Min(timelineEndTime, startTime + maxChunkDurationSeconds);
+            var chunkDuration = Math.Min(maxChunkDurationSeconds, timelineEndTime - startTime);
+            var endTime = Math.Min(timelineEndTime, startTime + chunkDuration);
+
+            var overlapCount = CountVisualsInWindow(visuals, startTime, endTime);
+            while (overlapCount > targetMaxVisualsPerChunk &&
+                   chunkDuration > minChunkDurationSeconds + 0.001)
+            {
+                chunkDuration = Math.Max(minChunkDurationSeconds, chunkDuration - 10);
+                endTime = Math.Min(timelineEndTime, startTime + chunkDuration);
+                overlapCount = CountVisualsInWindow(visuals, startTime, endTime);
+            }
+
             windows.Add((startTime, endTime));
+
+            // Guarantee forward progress even with pathological timing data.
+            startTime = Math.Max(endTime, startTime + 0.001);
         }
 
         return windows;
+    }
+
+    /// <summary>
+    /// Analyze effect complexity for adaptive chunk sizing.
+    /// Returns metrics for zoom/pan/visualizer density to inform chunking strategy.
+    /// </summary>
+    private static (double ZoomPanDensity, double VisualizerDensity, bool HasHighComplexity) AnalyzeEffectComplexity(
+        IReadOnlyList<RenderVisualSegment> visuals)
+    {
+        if (visuals.Count == 0)
+            return (0, 0, false);
+
+        int zoomPanCount = 0;
+        int totalCount = visuals.Count;
+
+        foreach (var seg in visuals)
+        {
+            // Detect zoom/pan motion presets
+            if (seg.MotionPreset != null && seg.MotionPreset != "None")
+            {
+                zoomPanCount++;
+            }
+        }
+
+        var zoomPanDensity = (double)zoomPanCount / totalCount;
+        var hasHighComplexity = zoomPanDensity > 0.6;
+
+        return (zoomPanDensity, 0.0, hasHighComplexity);
+    }
+
+    /// <summary>
+    /// Determine adaptive chunk window based on effect complexity analysis.
+    /// - Low complexity: 90-120s (larger chunks = less overhead)
+    /// - Medium complexity: 60s (balanced)
+    /// - High complexity: 30-45s (smaller chunks = better GPU cache utilization)
+    /// </summary>
+    private static double DetermineAdaptiveChunkWindow(
+        (double ZoomPanDensity, double VisualizerDensity, bool HasHighComplexity) analysis)
+    {
+        var (zoomPanDensity, vizDensity, hasHighComplexity) = analysis;
+
+        if (hasHighComplexity)
+        {
+            // High complexity: zoom+pan+visualizer heavy → smaller chunks
+            // Target: 30-45s to keep GPU filter graph cache warm
+            return 40.0;
+        }
+
+        if (zoomPanDensity > 0.3 || vizDensity > 0.2)
+        {
+            // Medium complexity: some motion/visualizer → balanced chunk
+            return 60.0;
+        }
+
+        // Low complexity: mostly static images → larger chunks (less startup overhead)
+        return 90.0;
+    }
+
+    private static int CountVisualsInWindow(
+        IReadOnlyList<RenderVisualSegment> visuals,
+        double windowStart,
+        double windowEnd)
+    {
+        var count = 0;
+        foreach (var seg in visuals)
+        {
+            if (seg.EndTime <= windowStart || seg.StartTime >= windowEnd)
+                continue;
+            count++;
+        }
+        return count;
     }
 
     internal static RenderConfig BuildChunkConfigForWindow(
@@ -1216,6 +1333,29 @@ public static class FFmpegService
 
             bool success = _currentRenderProcess.ExitCode == 0;
             var fullStderr = string.Join(Environment.NewLine, stderrLines);
+
+            var effectiveDurationSeconds = totalDurationSeconds > 0
+                ? totalDurationSeconds
+                : (maxDurationFromHeaders > 0 ? maxDurationFromHeaders : 0);
+            var elapsedSeconds = Math.Max(0.001, encodingStopwatch.Elapsed.TotalSeconds);
+            var realtimeFactor = effectiveDurationSeconds > 0
+                ? effectiveDurationSeconds / elapsedSeconds
+                : 0;
+
+            Log.Information("FFmpeg finished: exit={ExitCode}, elapsed={Elapsed:F2}s, target={Target:F2}s, realtime=x{Realtime:F2}",
+                _currentRenderProcess.ExitCode,
+                elapsedSeconds,
+                effectiveDurationSeconds,
+                realtimeFactor);
+
+            if (!success)
+            {
+                var (category, summary, keyLines) = AnalyzeFfmpegFailure(fullStderr);
+                Log.Error("FFmpeg failure category: {Category}; summary: {Summary}", category, summary);
+                foreach (var key in keyLines)
+                    Log.Error("FFmpeg failure line: {Line}", key);
+            }
+
             return (success, success ? stdout : fullStderr);
         }
         catch (OperationCanceledException)
@@ -1243,7 +1383,7 @@ public static class FFmpegService
     /// </summary>
     private static double ExtractExplicitDuration(string args)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(args, @"-t\s+(\d+\.\d+)");
+        var match = Regex.Match(args, @"-t\s+(\d+(?:\.\d+)?)");
         if (match.Success && double.TryParse(match.Groups[1].Value,
                 System.Globalization.NumberStyles.Float,
                 CultureInfo.InvariantCulture, out var duration))
@@ -1251,6 +1391,66 @@ public static class FFmpegService
             return duration;
         }
         return 0;
+    }
+
+    private static (string category, string summary, string[] keyLines) AnalyzeFfmpegFailure(string stderr)
+    {
+        var lines = stderr
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Trim())
+            .Where(l => !string.IsNullOrWhiteSpace(l))
+            .ToArray();
+
+        var joined = string.Join("\n", lines).ToLowerInvariant();
+
+        string category;
+        string summary;
+
+        if (joined.Contains("out of memory") || joined.Contains("cannot allocate memory") || joined.Contains("cuda_error_out_of_memory"))
+        {
+            category = "memory";
+            summary = "Renderer ran out of memory (GPU or system RAM) while building/executing the FFmpeg graph.";
+        }
+        else if (joined.Contains("command line too long") || joined.Contains("argument list too long"))
+        {
+            category = "command-length";
+            summary = "FFmpeg command line exceeded OS limit; timeline/filter graph must be split or script-based.";
+        }
+        else if (joined.Contains("unknown encoder") || joined.Contains("encoder not found"))
+        {
+            category = "encoder";
+            summary = "Selected encoder is unavailable on current FFmpeg build or machine.";
+        }
+        else if (joined.Contains("no such filter") || joined.Contains("error initializing filter") || joined.Contains("error reinitializing filters"))
+        {
+            category = "filter-graph";
+            summary = "FFmpeg filter graph is invalid or failed to initialize at runtime.";
+        }
+        else if (joined.Contains("permission denied") || joined.Contains("access is denied") || joined.Contains("device or resource busy"))
+        {
+            category = "io-permission";
+            summary = "Output/input file could not be accessed due to permissions or file lock.";
+        }
+        else if (joined.Contains("invalid argument") || joined.Contains("option not found"))
+        {
+            category = "invalid-arguments";
+            summary = "FFmpeg rejected one or more command arguments/options.";
+        }
+        else
+        {
+            category = "unknown";
+            summary = "FFmpeg exited with an unknown error; inspect key error lines below.";
+        }
+
+        var keyLines = lines
+            .Where(l => Regex.IsMatch(l, "error|failed|invalid|cannot|denied|not found|out of memory", RegexOptions.IgnoreCase))
+            .TakeLast(8)
+            .ToArray();
+
+        if (keyLines.Length == 0)
+            keyLines = lines.TakeLast(8).ToArray();
+
+        return (category, summary, keyLines);
     }
 }
 #pragma warning restore CS0618
