@@ -217,8 +217,8 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
-        var qualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate);
-        var encPreset = GetEncoderPreset(videoCodec, config.Quality);
+        var qualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate, motionComplexity: 0.0);
+        var encPreset = GetAdaptiveEncoderPreset(videoCodec, config.Quality, motionComplexity: 0.0);
         var presetArg = !string.IsNullOrEmpty(encPreset) ? $"-preset {encPreset} " : "";
 
         var logicalCores = Environment.ProcessorCount;
@@ -553,11 +553,24 @@ public static class FFmpegCommandComposer
 
                 // Check for Ken Burns motion effect (zoom/pan) — CPU only
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
-                    config.ResolutionWidth, config.ResolutionHeight);
+                    config.ResolutionWidth, config.ResolutionHeight, pixFmt);
 
                 if (zoompanFilter != null)
                 {
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    var estimatedInputFrames = Math.Max(1, (int)Math.Ceiling((seg.EndTime - seg.StartTime) * config.FrameRate));
+                    var motionFrames = Math.Max(1, MotionEngine.ComputeTotalFrames(seg.Duration, config.FrameRate));
+                    var estimatedFanout = estimatedInputFrames * motionFrames;
+                    if (estimatedInputFrames > 1)
+                    {
+                        Log.Warning(
+                            "Motion segment {Index} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
+                            i,
+                            estimatedInputFrames,
+                            motionFrames,
+                            estimatedFanout);
+                    }
+
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format=rgba,{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else if (useCudaOverlay && !forceCpu)
                 {
@@ -766,8 +779,9 @@ public static class FFmpegCommandComposer
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
-        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate));
-        var preset = GetEncoderPreset(videoCodec, config.Quality);
+        var overlayMotionComplexity = ComputeMotionComplexity(visualSegments);
+        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate, overlayMotionComplexity));
+        var preset = GetAdaptiveEncoderPreset(videoCodec, config.Quality, overlayMotionComplexity);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");
         args.Append("-pix_fmt yuv420p ");
@@ -1047,11 +1061,24 @@ public static class FFmpegCommandComposer
             else
             {
                 var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
-                    config.ResolutionWidth, config.ResolutionHeight);
+                    config.ResolutionWidth, config.ResolutionHeight, pixFmt);
 
                 if (zoompanFilter != null)
                 {
-                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
+                    var estimatedInputFrames = Math.Max(1, (int)Math.Ceiling((seg.EndTime - seg.StartTime) * config.FrameRate));
+                    var motionFrames = Math.Max(1, MotionEngine.ComputeTotalFrames(seg.Duration, config.FrameRate));
+                    var estimatedFanout = estimatedInputFrames * motionFrames;
+                    if (estimatedInputFrames > 1)
+                    {
+                        Log.Warning(
+                            "Concat motion clip {ClipIndex} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
+                            clipIndex,
+                            estimatedInputFrames,
+                            motionFrames,
+                            estimatedFanout);
+                    }
+
+                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format=rgba,{zoompanFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
                 }
                 else
                 {
@@ -1182,8 +1209,9 @@ public static class FFmpegCommandComposer
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
 
         args.Append($"-c:v {videoCodec} ");
-        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate));
-        var preset = GetEncoderPreset(videoCodec, config.Quality);
+        var concatMotionComplexity = ComputeMotionComplexity(visualTier);
+        args.Append(BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate, concatMotionComplexity));
+        var preset = GetAdaptiveEncoderPreset(videoCodec, config.Quality, concatMotionComplexity);
         if (!string.IsNullOrEmpty(preset))
             args.Append($"-preset {preset} ");
         args.Append("-pix_fmt yuv420p ");
@@ -1224,8 +1252,8 @@ public static class FFmpegCommandComposer
         var videoCodec = MapVideoCodec(config.VideoCodec);
         var audioCodec = MapAudioCodec(config.AudioCodec);
         var scaleFilter = BuildScalingFilter(config);
-        var legacyQualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate);
-        var legacyPreset = GetEncoderPreset(videoCodec, config.Quality);
+        var legacyQualityArgs = BuildQualityArgs(videoCodec, crf, config.ResolutionWidth, config.ResolutionHeight, config.FrameRate, motionComplexity: 0.0);
+        var legacyPreset = GetAdaptiveEncoderPreset(videoCodec, config.Quality, motionComplexity: 0.0);
         var legacyPresetArg = !string.IsNullOrEmpty(legacyPreset) ? $"-preset {legacyPreset} " : "";
 
         return $"-loop 1 " +
@@ -1968,6 +1996,64 @@ public static class FFmpegCommandComposer
         };
     }
 
+    private static string GetAdaptiveEncoderPreset(string videoCodec, string quality, double motionComplexity)
+    {
+        var preset = GetEncoderPreset(videoCodec, quality);
+        if (string.IsNullOrWhiteSpace(preset))
+            return preset;
+
+        if (!videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+            return preset;
+
+        var minPreset = motionComplexity switch
+        {
+            >= 0.30d => "p5",
+            >= 0.18d => "p4",
+            >= 0.10d => "p3",
+            >= 0.05d => "p2",
+            _ => ""
+        };
+
+        if (string.IsNullOrEmpty(minPreset))
+            return preset;
+
+        var upgraded = MaxNvencPreset(preset, minPreset);
+        if (!string.Equals(upgraded, preset, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Information(
+                "EncoderPreset: codec={Codec}, quality={Quality}, motionComplexity={Motion:F3}, preset={From}->{To}",
+                videoCodec,
+                quality,
+                motionComplexity,
+                preset,
+                upgraded);
+        }
+
+        return upgraded;
+    }
+
+    private static string MaxNvencPreset(string currentPreset, string minPreset)
+    {
+        var current = ParseNvencPresetNumber(currentPreset);
+        var minimum = ParseNvencPresetNumber(minPreset);
+
+        if (current <= 0 || minimum <= 0)
+            return currentPreset;
+
+        return $"p{Math.Max(current, minimum)}";
+    }
+
+    private static int ParseNvencPresetNumber(string preset)
+    {
+        if (string.IsNullOrWhiteSpace(preset))
+            return 0;
+
+        if (preset.Length == 2 && (preset[0] == 'p' || preset[0] == 'P') && char.IsDigit(preset[1]))
+            return preset[1] - '0';
+
+        return 0;
+    }
+
     /// <summary>
     /// Returns the quality parameter string appropriate for the given video encoder.
     /// NVENC uses <c>-cq</c>, QSV uses <c>-global_quality</c>, AMF uses VBR peak
@@ -1979,9 +2065,24 @@ public static class FFmpegCommandComposer
         int crfValue,
         int width = 1080,
         int height = 1920,
-        int frameRate = 30)
+        int frameRate = 30,
+        double motionComplexity = 0.0)
     {
-        var (targetBitrate, maxRate, bufSize) = GetBitrateBudgetFromCrf(crfValue, width, height, frameRate);
+        var complexity = Math.Clamp(motionComplexity, 0.0d, 1.0d);
+        var effectiveCrf = GetMotionAwareCrf(videoCodec, crfValue, complexity);
+        var (targetBitrate, maxRate, bufSize) = GetBitrateBudgetFromCrf(effectiveCrf, width, height, frameRate, complexity);
+        Log.Information(
+            "EncoderBudget: codec={Codec}, crf={Crf}->{EffectiveCrf}, size={W}x{H}@{Fps}, motionComplexity={Motion:F3}, b:v={Target}, maxrate={MaxRate}, bufsize={BufSize}",
+            videoCodec,
+            crfValue,
+            effectiveCrf,
+            width,
+            height,
+            frameRate,
+            complexity,
+            targetBitrate,
+            maxRate,
+            bufSize);
 
         if (videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
         {
@@ -1991,11 +2092,11 @@ public static class FFmpegCommandComposer
             // -rc-lookahead 32: look-ahead frames for rate control decisions
             // -b_ref_mode middle: B-frame as reference (~5-10% better compression)
             // Cap average/peak bitrate to avoid oversized exports on high-motion scenes.
-            return $"-rc vbr -cq {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
+            return $"-rc vbr -cq {effectiveCrf} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
                    $"-spatial-aq 1 -temporal-aq 1 -rc-lookahead 32 -b_ref_mode middle ";
         }
         if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
-            return $"-global_quality {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} ";
+            return $"-global_quality {effectiveCrf} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} ";
         if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
         {
             // VBR peak rate control with pre-analysis and VBAQ for quality parity
@@ -2009,23 +2110,41 @@ public static class FFmpegCommandComposer
             // -enforce_hrd true: keeps bitrate within decoder buffer limits for
             //   smooth playback on mobile/web (CapCut does this by default).
             // Keep explicit bitrate caps to prevent oversized outputs.
-            return $"-rc vbr_peak -qp_i {crfValue} -qp_p {crfValue} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
+                 return $"-rc vbr_peak -qp_i {effectiveCrf} -qp_p {effectiveCrf} -b:v {targetBitrate} -maxrate {maxRate} -bufsize {bufSize} " +
                    $"-preanalysis true -vbaq true -enforce_hrd true ";
         }
         // Software encoders: keep CRF-based quality but add VBV caps so fallback-to-CPU
         // does not produce oversized files on high-motion timelines.
         if (videoCodec is "libx264" or "libx265")
-            return $"-crf {crfValue} -maxrate {maxRate} -bufsize {bufSize} ";
+            return $"-crf {effectiveCrf} -maxrate {maxRate} -bufsize {bufSize} ";
 
         // Unknown encoder: preserve current behavior.
-        return $"-crf {crfValue} ";
+        return $"-crf {effectiveCrf} ";
+    }
+
+    private static int GetMotionAwareCrf(string videoCodec, int crfValue, double motionComplexity)
+    {
+        if (!videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+            return crfValue;
+
+        var delta = motionComplexity switch
+        {
+            >= 0.30d => 4,
+            >= 0.18d => 3,
+            >= 0.10d => 2,
+            >= 0.05d => 1,
+            _ => 0
+        };
+
+        return Math.Max(22, crfValue - delta);
     }
 
     private static (string TargetBitrate, string MaxRate, string BufSize) GetBitrateBudgetFromCrf(
         int crfValue,
         int width,
         int height,
-        int frameRate)
+        int frameRate,
+        double motionComplexity)
     {
         // Baseline profile for budget scaling: 1080x1920 @ 30fps.
         // Scale bitrate with pixel rate so quality/size stays more consistent
@@ -2036,23 +2155,60 @@ public static class FFmpegCommandComposer
         var pixelRate = (double)safeWidth * safeHeight * safeFps;
         var baselineRate = 1080d * 1920d * 30d;
         var scale = Math.Clamp(pixelRate / baselineRate, 0.35d, 2.2d);
+        var complexity = Math.Clamp(motionComplexity, 0.0d, 1.0d);
+        var motionBoost = 1.0d + complexity * 1.2d;
 
         if (crfValue >= 28)
-            return ToBudget(1200, scale); // Low
+            return ToBudget(1200, scale, complexity, motionBoost, motionFloorBaseKbps: 3200); // Low
 
         if (crfValue <= 18)
-            return ToBudget(3200, scale); // High
+            return ToBudget(3200, scale, complexity, motionBoost, motionFloorBaseKbps: 5600); // High
 
-        return ToBudget(2200, scale); // Medium
+        return ToBudget(2200, scale, complexity, motionBoost, motionFloorBaseKbps: 4200); // Medium
     }
 
-    private static (string TargetBitrate, string MaxRate, string BufSize) ToBudget(int baseTargetKbps, double scale)
+    private static (string TargetBitrate, string MaxRate, string BufSize) ToBudget(
+        int baseTargetKbps,
+        double scale,
+        double motionComplexity,
+        double motionBoost,
+        int motionFloorBaseKbps)
     {
-        var target = (int)Math.Round(baseTargetKbps * scale);
-        var max = (int)Math.Round(target * 1.5d);
-        var buf = target * 2;
+        var target = (int)Math.Round(baseTargetKbps * scale * motionBoost);
+        if (motionComplexity > 0.05d)
+        {
+            var motionFloor = (int)Math.Round(motionFloorBaseKbps * scale);
+            target = Math.Max(target, motionFloor);
+        }
+
+        var maxMultiplier = motionComplexity > 0.05d ? 1.7d : 1.5d;
+        var bufMultiplier = motionComplexity > 0.05d ? 3.0d : 2.0d;
+        var max = (int)Math.Round(target * maxMultiplier);
+        var buf = (int)Math.Round(target * bufMultiplier);
 
         return ($"{target}k", $"{max}k", $"{buf}k");
+    }
+
+    private static double ComputeMotionComplexity(IReadOnlyCollection<RenderVisualSegment> visualSegments)
+    {
+        if (visualSegments.Count == 0)
+            return 0.0d;
+
+        var stills = visualSegments
+            .Where(v => !v.IsVideo && !v.HasAlpha)
+            .ToList();
+        if (stills.Count == 0)
+            return 0.0d;
+
+        var motionStills = stills
+            .Where(v => !string.IsNullOrWhiteSpace(v.MotionPreset) && v.MotionPreset != MotionPresets.None)
+            .ToList();
+        if (motionStills.Count == 0)
+            return 0.0d;
+
+        var density = (double)motionStills.Count / stills.Count;
+        var avgIntensity = motionStills.Average(v => Math.Clamp(v.MotionIntensity, 0.0d, 1.0d));
+        return Math.Clamp(density * (0.55d + 0.45d * avgIntensity), 0.0d, 1.0d);
     }
 
     /// <summary>

@@ -913,6 +913,7 @@ public static class FFmpegService
         double chunkEndTime)
     {
         var chunkVisuals = new List<RenderVisualSegment>();
+        var motionClippedAtChunkStart = 0;
 
         foreach (var seg in allVisuals)
         {
@@ -925,6 +926,13 @@ public static class FFmpegService
                 continue;
 
             var sourceOffsetAdjustment = Math.Max(0, clippedStart - seg.StartTime);
+            if (!seg.IsVideo &&
+                sourceOffsetAdjustment > 0.0001 &&
+                !string.IsNullOrWhiteSpace(seg.MotionPreset) &&
+                seg.MotionPreset != MotionPresets.None)
+            {
+                motionClippedAtChunkStart++;
+            }
 
             chunkVisuals.Add(new RenderVisualSegment
             {
@@ -947,6 +955,15 @@ public static class FFmpegService
                 TransitionType = seg.TransitionType,
                 TransitionDuration = seg.TransitionDuration
             });
+        }
+
+        if (motionClippedAtChunkStart > 0)
+        {
+            Log.Warning(
+                "Chunked render window {Start:F2}s..{End:F2}s clips {Count} image motion segments at chunk start; motion restarts inside this window.",
+                chunkStartTime,
+                chunkEndTime,
+                motionClippedAtChunkStart);
         }
 
         return chunkVisuals

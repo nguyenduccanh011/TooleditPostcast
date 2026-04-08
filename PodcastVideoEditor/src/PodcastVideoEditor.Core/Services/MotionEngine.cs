@@ -11,6 +11,9 @@ namespace PodcastVideoEditor.Core.Services;
 /// </summary>
 public static class MotionEngine
 {
+    private const double DurationReferenceSeconds = 5.0;
+    private const double MinDurationDamping = 0.30;
+
     public static int ComputeTotalFrames(double durationSeconds, int fps) =>
         Math.Max(1, (int)Math.Ceiling(Math.Max(0, durationSeconds) * Math.Max(1, fps)));
 
@@ -35,13 +38,15 @@ public static class MotionEngine
         intensity = Math.Clamp(intensity, 0.0, 1.0);
         progress = Math.Clamp(progress, 0.0, 1.0);
 
-        var maxZoom = 1.0 + intensity * 0.4;
-        var panScale = 1.0 + intensity * 0.3;
+        var effectiveIntensity = ApplyDurationDamping(intensity, durationSeconds);
+
+        var maxZoom = 1.0 + effectiveIntensity * 0.4;
+        var panScale = 1.0 + effectiveIntensity * 0.3;
         var eased = Ease(progress);
         var totalFrames = ComputeTotalFrames(durationSeconds, fps);
 
-        var travelX = ComputePanTravelPixels(width, intensity, totalFrames);
-        var travelY = ComputePanTravelPixels(height, intensity, totalFrames);
+        var travelX = ComputePanTravelPixels(width, effectiveIntensity, totalFrames);
+        var travelY = ComputePanTravelPixels(height, effectiveIntensity, totalFrames);
 
         return preset switch
         {
@@ -100,6 +105,7 @@ public static class MotionEngine
     public static (string zExpr, string xExpr, string yExpr) BuildZoomPanExpressions(
         string preset,
         double intensity,
+        double durationSeconds,
         int totalFrames,
         int outW,
         int outH,
@@ -108,22 +114,24 @@ public static class MotionEngine
         intensity = Math.Clamp(intensity, 0.0, 1.0);
         totalFrames = Math.Max(1, totalFrames);
 
-        var maxZoom = 1.0 + intensity * 0.4;
+        var effectiveIntensity = ApplyDurationDamping(intensity, durationSeconds);
+
+        var maxZoom = 1.0 + effectiveIntensity * 0.4;
         var maxZoomStr = maxZoom.ToString("F4", inv);
-        var zoomSpeed = (intensity * 0.4 / totalFrames).ToString("F6", inv);
+        var zoomSpeed = (effectiveIntensity * 0.4 / totalFrames).ToString("F6", inv);
 
-        var panZoom = (1.0 + intensity * 0.3).ToString("F4", inv);
-        var panFraction = (intensity * 0.3).ToString("F4", inv);
+        var panZoom = (1.0 + effectiveIntensity * 0.3).ToString("F4", inv);
 
-        var minPanX = Math.Clamp(totalFrames * (0.18 + intensity * 0.22), 12.0, outW * 0.12);
-        var minPanY = Math.Clamp(totalFrames * (0.18 + intensity * 0.22), 12.0, outH * 0.12);
-        var minPanXStr = minPanX.ToString("F4", inv);
-        var minPanYStr = minPanY.ToString("F4", inv);
-
-        var panTravelX = $"min(max(0,(iw-iw/zoom)),max({minPanXStr},max(0,(iw-iw/zoom))*{panFraction}))";
-        var panTravelY = $"min(max(0,(ih-ih/zoom)),max({minPanYStr},max(0,(ih-ih/zoom))*{panFraction}))";
-
+        const double edgeSafetyFraction = 0.02;
         var ease = $"(0.5-0.5*cos(PI*on/{totalFrames}.0))";
+        var edgeSafetyStr = edgeSafetyFraction.ToString("F4", inv);
+        var motionSpanExpr = $"(1-2*{edgeSafetyStr})";
+        var txRight = $"({edgeSafetyStr}+{motionSpanExpr}*{ease})";
+        var txLeft = $"({edgeSafetyStr}+{motionSpanExpr}*(1-{ease}))";
+        var tyDown = txRight;
+        var tyUp = txLeft;
+        var xRange = "max(0,(iw-iw/zoom))";
+        var yRange = "max(0,(ih-ih/zoom))";
 
         return preset switch
         {
@@ -139,32 +147,32 @@ public static class MotionEngine
 
             MotionPresets.PanLeft => (
                 zExpr: $"z='{panZoom}'",
-                xExpr: $"x='{panTravelX}*(1-{ease})'",
+                xExpr: $"x='{xRange}*{txLeft}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             MotionPresets.PanRight => (
                 zExpr: $"z='{panZoom}'",
-                xExpr: $"x='{panTravelX}*{ease}'",
+                xExpr: $"x='{xRange}*{txRight}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             MotionPresets.PanUp => (
                 zExpr: $"z='{panZoom}'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='{panTravelY}*(1-{ease})'"),
+                yExpr: $"y='{yRange}*{tyUp}'"),
 
             MotionPresets.PanDown => (
                 zExpr: $"z='{panZoom}'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
-                yExpr: $"y='{panTravelY}*{ease}'"),
+                yExpr: $"y='{yRange}*{tyDown}'"),
 
             MotionPresets.ZoomInPanLeft => (
                 zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='{panTravelX}*(1-{ease})'",
+                xExpr: $"x='{xRange}*{txLeft}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             MotionPresets.ZoomInPanRight => (
                 zExpr: $"z='1.0+{zoomSpeed}*on'",
-                xExpr: $"x='{panTravelX}*{ease}'",
+                xExpr: $"x='{xRange}*{txRight}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             _ => (
@@ -174,11 +182,40 @@ public static class MotionEngine
         };
     }
 
+    public static double EstimatePanPixelsPerFrame(double durationSeconds, int fps, int axisSize, double intensity)
+    {
+        var totalFrames = ComputeTotalFrames(durationSeconds, fps);
+        var effectiveIntensity = ApplyDurationDamping(Math.Clamp(intensity, 0.0, 1.0), durationSeconds);
+        var travel = ComputePanTravelPixels(axisSize, effectiveIntensity, totalFrames);
+        return totalFrames <= 1 ? travel : travel / totalFrames;
+    }
+
+    public static double EstimateZoomCenterShiftPixelsPerFrame(double durationSeconds, int fps, int axisSize, double intensity)
+    {
+        var totalFrames = ComputeTotalFrames(durationSeconds, fps);
+        var effectiveIntensity = ApplyDurationDamping(Math.Clamp(intensity, 0.0, 1.0), durationSeconds);
+        var maxZoom = 1.0 + effectiveIntensity * 0.4;
+        var centerShiftTravel = axisSize * (1.0 - (1.0 / maxZoom)) * 0.5;
+        return totalFrames <= 1 ? centerShiftTravel : centerShiftTravel / totalFrames;
+    }
+
     private static double ComputePanTravelPixels(double axisSize, double intensity, int totalFrames)
     {
         var baseline = axisSize * intensity * 0.15;
         var minimum = Math.Clamp(totalFrames * (0.18 + intensity * 0.22), 12.0, axisSize * 0.12);
-        return Math.Min(axisSize * 0.5, Math.Max(baseline, minimum));
+        var travel = Math.Min(axisSize * 0.5, Math.Max(baseline, minimum));
+
+        // Keep per-frame pan velocity bounded to reduce visible pulse/jitter on very short segments.
+        var maxPixelsPerFrame = 0.6 + 0.9 * intensity;
+        var maxTravelForDuration = maxPixelsPerFrame * Math.Max(1, totalFrames);
+        return Math.Min(travel, maxTravelForDuration);
+    }
+
+    private static double ApplyDurationDamping(double intensity, double durationSeconds)
+    {
+        var normalized = Math.Clamp(durationSeconds / DurationReferenceSeconds, 0.0, 1.0);
+        var damping = MinDurationDamping + (1.0 - MinDurationDamping) * normalized;
+        return Math.Clamp(intensity * damping, 0.0, 1.0);
     }
 
     private static double Lerp(double a, double b, double t) => a + (b - a) * t;

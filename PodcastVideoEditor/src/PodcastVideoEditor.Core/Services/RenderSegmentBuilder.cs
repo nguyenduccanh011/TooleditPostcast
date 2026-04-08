@@ -238,6 +238,25 @@ public static class RenderSegmentBuilder
             }
         }
 
+        var motionImageSegments = segments
+            .Where(s => !s.IsVideo && !string.IsNullOrWhiteSpace(s.MotionPreset) && s.MotionPreset != Models.MotionPresets.None)
+            .ToList();
+
+        if (motionImageSegments.Count > 0)
+        {
+            var shortHighMotionCount = motionImageSegments.Count(s => s.Duration <= 1.2 && s.MotionIntensity >= 0.9);
+            if (shortHighMotionCount > 0)
+            {
+                var shortest = motionImageSegments.Min(s => s.Duration);
+                var avg = motionImageSegments.Average(s => s.Duration);
+                Log.Warning(
+                    "RenderSegmentBuilder: detected {Count} short high-intensity motion image segments (<=1.2s, intensity>=0.9). This can look pulse-like if motion resets at segment boundaries. duration(min/avg)={Min:F3}/{Avg:F3}s",
+                    shortHighMotionCount,
+                    shortest,
+                    avg);
+            }
+        }
+
         return segments;
     }
 

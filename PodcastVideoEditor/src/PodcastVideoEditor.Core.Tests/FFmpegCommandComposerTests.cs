@@ -358,6 +358,56 @@ public class FFmpegCommandComposerTests
     }
 
     [Fact]
+    public void Build_ImageMotionSegment_UsesSingleFrameFeedBeforeZoompan()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5,
+                IsVideo = false,
+                MotionPreset = MotionPresets.PanLeft,
+                MotionIntensity = 0.6
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("zoompan=", script);
+            Assert.Contains("select='eq(n,0)'", script);
+            Assert.Contains("format=rgba,zoompan=", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
     public void Build_NvencCodec_UsesBitrateCaps_NotUncappedVbr()
     {
         var tempPng = CreateTempPng();
@@ -392,6 +442,70 @@ public class FFmpegCommandComposerTests
             Assert.Contains("-maxrate 3300k", args);
             Assert.Contains("-bufsize 4400k", args);
             Assert.DoesNotContain("-b:v 0", args);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
+    public void Build_NvencCodec_WithImageMotion_UsesHigherBitrateBudget()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 12.5,
+                MotionPreset = MotionPresets.ZoomIn,
+                MotionIntensity = 1.0,
+                IsVideo = false
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264_nvenc",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            Assert.Contains("-rc vbr", args);
+            var cqMatch = System.Text.RegularExpressions.Regex.Match(args, @"-cq\s+(\d+)");
+            var bMatch = System.Text.RegularExpressions.Regex.Match(args, @"-b:v\s+(\d+)k");
+            var maxMatch = System.Text.RegularExpressions.Regex.Match(args, @"-maxrate\s+(\d+)k");
+            var bufMatch = System.Text.RegularExpressions.Regex.Match(args, @"-bufsize\s+(\d+)k");
+            var presetMatch = System.Text.RegularExpressions.Regex.Match(args, @"-preset\s+(p\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            Assert.True(cqMatch.Success, "-cq not found in ffmpeg args");
+            Assert.True(bMatch.Success, "-b:v bitrate not found in ffmpeg args");
+            Assert.True(maxMatch.Success, "-maxrate not found in ffmpeg args");
+            Assert.True(bufMatch.Success, "-bufsize not found in ffmpeg args");
+            Assert.True(presetMatch.Success, "-preset not found in ffmpeg args");
+
+            var cq = int.Parse(cqMatch.Groups[1].Value);
+            var b = int.Parse(bMatch.Groups[1].Value);
+            var max = int.Parse(maxMatch.Groups[1].Value);
+            var buf = int.Parse(bufMatch.Groups[1].Value);
+            var preset = presetMatch.Groups[1].Value.ToLowerInvariant();
+
+            Assert.True(cq <= 26, $"Expected motion-aware CQ <= 26, got {cq}");
+            Assert.True(b > 2200, $"Expected motion-aware target bitrate > 2200k, got {b}k");
+            Assert.True(max > 3300, $"Expected motion-aware maxrate > 3300k, got {max}k");
+            Assert.True(buf > 4400, $"Expected motion-aware bufsize > 4400k, got {buf}k");
+            Assert.True(preset is "p2" or "p3" or "p4" or "p5" or "p6" or "p7", $"Expected motion-aware NVENC preset >= p2, got {preset}");
         }
         finally
         {
