@@ -488,6 +488,26 @@ public partial class MainWindow : Window
         await ExportTemplatePackageAsync(template.Id);
     }
 
+    private async void HomeTemplateDeleteButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element || element.DataContext is not EpisodeWizardDialog.TemplateOption template)
+            return;
+
+        if (string.Equals(template.Id, "blank", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var result = MessageBox.Show(
+            $"Delete template '{template.DisplayName}'? This action cannot be undone.",
+            "Delete Template",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        await DeleteTemplateAsync(template.Id, template.DisplayName);
+    }
+
     private async Task LaunchTemplateWizardAsync(string? preselectedTemplateId = null)
     {
         var templateOptions = await LoadWizardTemplatesAsync();
@@ -557,6 +577,8 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog() != true)
             return;
 
+        var tempPackagePath = Path.Combine(Path.GetTempPath(), $"pve-template-{Guid.NewGuid():N}.pvtemplate");
+
         try
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
@@ -581,19 +603,15 @@ public partial class MainWindow : Window
                 WriteIndented = false
             });
 
-            var template = new Template
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = dialog.TemplateName,
-                Description = dialog.TemplateDescription,
-                LayoutJson = layoutJson,
-                CreatedAt = DateTime.UtcNow,
-                LastUsedAt = null,
-                IsSystem = false
-            };
+            await _templatePackageService.ExportTemplatePackageAsync(
+                dialog.TemplateName,
+                dialog.TemplateDescription,
+                layoutJson,
+                null,
+                tempPackagePath);
 
-            context.Templates.Add(template);
-            await context.SaveChangesAsync();
+            await _templatePackageService.ImportTemplatePackageAsync(tempPackagePath);
+            await RefreshHomeTemplateOptionsAsync();
 
             MessageBox.Show("Template saved successfully.", "Save Template", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -601,6 +619,20 @@ public partial class MainWindow : Window
         {
             Log.Error(ex, "Failed to save template from project {ProjectId}", current.Id);
             MessageBox.Show($"Could not save template: {ex.Message}", "Save Template", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            if (File.Exists(tempPackagePath))
+            {
+                try
+                {
+                    File.Delete(tempPackagePath);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Log.Warning(cleanupEx, "Failed to delete temporary template package {TempPackagePath}", tempPackagePath);
+                }
+            }
         }
     }
 
@@ -745,6 +777,52 @@ public partial class MainWindow : Window
         {
             Log.Error(ex, "Failed to import template package {PackagePath}", openFileDialog.FileName);
             MessageBox.Show($"Could not import template package: {ex.Message}", "Import Template Package", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async Task DeleteTemplateAsync(string templateId, string templateDisplayName)
+    {
+        try
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var template = await context.Templates.FirstOrDefaultAsync(t => t.Id == templateId);
+
+            if (template == null)
+            {
+                MessageBox.Show("Template not found.", "Delete Template", MessageBoxButton.OK, MessageBoxImage.Information);
+                await RefreshHomeTemplateOptionsAsync();
+                return;
+            }
+
+            if (template.IsSystem)
+            {
+                MessageBox.Show("System template cannot be deleted.", "Delete Template", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            context.Templates.Remove(template);
+            await context.SaveChangesAsync();
+
+            var templateAssetsFolder = Path.Combine(_appDataPath, "templates", templateId);
+            if (Directory.Exists(templateAssetsFolder))
+            {
+                try
+                {
+                    Directory.Delete(templateAssetsFolder, recursive: true);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Log.Warning(cleanupEx, "Failed to delete template asset folder {TemplateAssetsFolder}", templateAssetsFolder);
+                }
+            }
+
+            await RefreshHomeTemplateOptionsAsync();
+            MessageBox.Show($"Deleted template '{templateDisplayName}'.", "Delete Template", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to delete template {TemplateId}", templateId);
+            MessageBox.Show($"Could not delete template: {ex.Message}", "Delete Template", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
