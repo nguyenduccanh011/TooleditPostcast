@@ -333,9 +333,28 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         Log.Warning("Render: visual segments detected but all skipped — asset files may be missing or inaccessible");
                 }
 
+                var resolvedPrimaryAudioPath = RenderSegmentBuilder.ResolveProjectAudioPath(snapshot.Project) ?? string.Empty;
+                var normalizedPrimaryAudioPath = NormalizePathForComparison(resolvedPrimaryAudioPath);
+                var primaryAlreadyRepresentedBySegment = timelineAudioSegments.Any(s =>
+                    string.Equals(
+                        NormalizePathForComparison(s.SourcePath),
+                        normalizedPrimaryAudioPath,
+                        StringComparison.OrdinalIgnoreCase));
+
+                var audioPathForRender = primaryAlreadyRepresentedBySegment
+                    ? string.Empty
+                    : resolvedPrimaryAudioPath;
+
+                if (primaryAlreadyRepresentedBySegment)
+                {
+                    Log.Information(
+                        "Render audio dedupe: primary audio {AudioPath} already represented by timeline audio segments; primary transport input disabled",
+                        resolvedPrimaryAudioPath);
+                }
+
                 var config = new RenderConfig
                 {
-                    AudioPath = RenderSegmentBuilder.ResolveProjectAudioPath(snapshot.Project) ?? string.Empty,
+                    AudioPath = audioPathForRender,
                     ImagePath = imagePath,
                     VisualSegments = timelineVisualSegments,
                     TextSegments   = [],  // Text is rasterized to PNG overlays (WYSIWYG)
@@ -590,6 +609,22 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (double.IsNaN(offset) || double.IsInfinity(offset))
                 return 0;
             return Math.Max(0, offset);
+        }
+
+        private static string? NormalizePathForComparison(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return null;
+
+            try
+            {
+                var fullPath = System.IO.Path.GetFullPath(path);
+                return fullPath.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                return path;
+            }
         }
 
         public void ApplyProjectRenderSettings(RenderSettings? settings)

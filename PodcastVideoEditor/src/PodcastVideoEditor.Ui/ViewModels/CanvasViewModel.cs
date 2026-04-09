@@ -1639,14 +1639,23 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return;
 
             var validSegmentIds = new HashSet<string>(StringComparer.Ordinal);
+            var textSegmentContents = new HashSet<string>(StringComparer.Ordinal);
             foreach (var track in _timelineViewModel.Tracks)
             {
                 foreach (var seg in track.Segments)
                 {
                     if (seg.Id != null)
                         validSegmentIds.Add(seg.Id);
+
+                    if (string.Equals(track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase)
+                        && !string.IsNullOrWhiteSpace(seg.Text))
+                    {
+                        textSegmentContents.Add(seg.Text.Trim());
+                    }
                 }
             }
+
+            bool hasTimelineTextSegments = textSegmentContents.Count > 0;
 
             var toRemove = new List<CanvasElement>();
             foreach (var element in Elements)
@@ -1662,15 +1671,29 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Remove ghost TextOverlayElements: orphaned global overlays with empty or
                 // legacy placeholder content (leftover from previous default-value bug).
+                // Also remove legacy auto-caption ghosts that have no SegmentId but duplicate
+                // a timeline script line and sit in the default subtitle area.
                 if (element is TextOverlayElement tov
-                    && element.SegmentId == null
-                    && (string.IsNullOrWhiteSpace(tov.Content)
-                        || string.Equals(tov.Content, "Text", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(tov.Content, "Title", StringComparison.OrdinalIgnoreCase)))
+                    && element.SegmentId == null)
                 {
-                    Log.Warning("Removing ghost TextOverlayElement {ElementId} ({Name}) with placeholder Content '{Content}'",
-                        element.Id, element.Name, tov.Content);
-                    toRemove.Add(element);
+                    var normalized = tov.Content?.Trim();
+                    bool isPlaceholderGhost = string.IsNullOrWhiteSpace(normalized)
+                        || string.Equals(normalized, "Text", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(normalized, "Title", StringComparison.OrdinalIgnoreCase);
+
+                    bool isDuplicateScriptGhost = hasTimelineTextSegments
+                        && !string.IsNullOrWhiteSpace(normalized)
+                        && textSegmentContents.Contains(normalized)
+                        && tov.Width >= 300
+                        && tov.Height >= 40
+                        && tov.Y >= CanvasHeight * 0.5;
+
+                    if (isPlaceholderGhost || isDuplicateScriptGhost)
+                    {
+                        Log.Warning("Removing ghost TextOverlayElement {ElementId} ({Name}) with Content '{Content}'",
+                            element.Id, element.Name, tov.Content);
+                        toRemove.Add(element);
+                    }
                 }
             }
 

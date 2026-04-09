@@ -637,6 +637,10 @@ public static class RenderSegmentBuilder
         if (audioTracks == null || audioTracks.Count == 0)
             return [];
 
+        // Keep render behavior consistent with preview for legacy projects where
+        // Project.AudioPath is loaded into the primary transport.
+        var normalizedPrimaryAudioPath = NormalizePathForComparison(project.AudioPath);
+
         var segments = new List<RenderAudioSegment>();
         foreach (var track in audioTracks)
         {
@@ -649,6 +653,19 @@ public static class RenderSegmentBuilder
                 var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
                 if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !File.Exists(asset.FilePath))
                     continue;
+
+                var normalizedSegmentAudioPath = NormalizePathForComparison(asset.FilePath);
+                if (!string.IsNullOrWhiteSpace(normalizedPrimaryAudioPath)
+                    && !string.IsNullOrWhiteSpace(normalizedSegmentAudioPath)
+                    && string.Equals(normalizedSegmentAudioPath, normalizedPrimaryAudioPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Information(
+                        "Render audio dedupe: skipping segment {SegmentId} on track {TrackId} because it matches primary audio {AudioPath}",
+                        segment.Id,
+                        track.Id,
+                        asset.FilePath);
+                    continue;
+                }
 
                 segments.Add(new RenderAudioSegment
                 {
@@ -664,6 +681,22 @@ public static class RenderSegmentBuilder
         }
 
         return segments;
+    }
+
+    private static string? NormalizePathForComparison(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return null;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            return fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path;
+        }
     }
 
     /// <summary>

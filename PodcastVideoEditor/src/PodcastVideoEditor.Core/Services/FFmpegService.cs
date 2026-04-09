@@ -510,7 +510,8 @@ public static class FFmpegService
         RenderConfig config,
         IProgress<RenderProgress>? progress,
         CancellationToken cancellationToken = default,
-        bool renderChunked = true)
+        bool renderChunked = true,
+        bool cleanupTempFiles = true)
     {
         if (!IsInitialized())
             throw new InvalidOperationException("FFmpeg is not initialized. Call InitializeAsync() first.");
@@ -614,7 +615,8 @@ public static class FFmpegService
             finally
             {
                 // Clean up temp filter script and text files created during render
-                CleanupRenderTempFiles(normalizedConfig.OutputPath);
+                if (cleanupTempFiles)
+                    CleanupRenderTempFiles(normalizedConfig.OutputPath);
             }
         }, cancellationToken);
     }
@@ -721,7 +723,12 @@ public static class FFmpegService
                 var chunkTimer = System.Diagnostics.Stopwatch.StartNew();
                 
                 // Render this chunk (monolithic, no further splitting)
-                await RenderVideoAsync(chunkConfig, chunkProgress, cancellationToken, renderChunked: false);
+                await RenderVideoAsync(
+                    chunkConfig,
+                    chunkProgress,
+                    cancellationToken,
+                    renderChunked: false,
+                    cleanupTempFiles: false);
                 chunkTimer.Stop();
                 
                 intermediateChunks.Add(chunkConfig.OutputPath);
@@ -758,6 +765,11 @@ public static class FFmpegService
         }
         finally
         {
+            // Chunk renders share the same rasterized text temp directory.
+            // Clean once after all chunks complete to avoid deleting text inputs
+            // needed by later chunks.
+            CleanupRenderTempFiles(config.OutputPath);
+
             // Clean up intermediate chunks
             try
             {
