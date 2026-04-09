@@ -85,7 +85,7 @@ public class MotionFilterBuilderTests
         var filter = MotionFilterBuilder.BuildZoompanFilter(seg, fps: 30, renderWidth: 1080, renderHeight: 1920);
 
         Assert.NotNull(filter);
-        Assert.Contains("scale=4320:7680:flags=lanczos+accurate_rnd+full_chroma_int", filter);
+        Assert.Contains("scale=3240:5760:flags=bilinear", filter);
         Assert.Contains(":s=1080x1920:fps=30", filter);
     }
 }

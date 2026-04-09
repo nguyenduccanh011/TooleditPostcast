@@ -27,10 +27,17 @@ namespace PodcastVideoEditor.Core.Services;
 public static class MotionFilterBuilder
 {
     private const string MotionDownscaleFlags = "lanczos+accurate_rnd+full_chroma_int";
+    // For the supersample UPSCALE step before zoompan, bilinear is:
+    //   (a) faster than lanczos (especially at 3x = 3240x3240 or 5400x5400)
+    //   (b) better quality — lanczos for upscaling introduces ringing artifacts
+    private const string MotionSuperSampleUpscaleFlags = "bilinear";
     private const double MotionTargetInternalPixelsPerFrame = 1.0;
     private const double MotionTargetInternalPixelsPerFrameShimmerBand = 1.35;
-    private const int MotionSuperSampleMin = 2;
-    private const int MotionSuperSampleMax = 6;
+    // Min=1: allow skipping supersample for fast motion (≥1 px/frame already smooth)
+    // Max=3: cap supersample at 3x (9x area). Was 6x (36x area) = 4x more CPU work.
+    //        Difference in visual quality between 3x and 5x is imperceptible for video.
+    private const int MotionSuperSampleMin = 1;
+    private const int MotionSuperSampleMax = 3;
 
     /// <summary>
     /// Build the FFmpeg zoompan filter string for a visual segment.
@@ -128,9 +135,17 @@ public static class MotionFilterBuilder
             inv);
 
         var normalizeFilter = BuildMotionInputNormalizeFilter(outW, outH, seg.ScaleMode, MotionDownscaleFlags);
-        var supersampleInputFilter = $"scale={internalW}:{internalH}:flags={MotionDownscaleFlags}";
+        // Use bilinear (not lanczos) for the supersample upscale step:
+        // - We are UPSCALING from outW/outH to internalW/internalH before zoompan
+        // - Lanczos is designed for downscaling; on upscaling it is slower + adds ringing
+        // - Bilinear is faster and produces smoother result as zoompan input
+        var supersampleInputFilter = motionSuperSample > 1
+            ? $"scale={internalW}:{internalH}:flags={MotionSuperSampleUpscaleFlags}"
+            : string.Empty;
 
-        return $"{normalizeFilter},{supersampleInputFilter}," +
+        var supersamplePart = supersampleInputFilter.Length > 0 ? $",{supersampleInputFilter}" : string.Empty;
+
+        return $"{normalizeFilter}{supersamplePart}," +
             $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={outW}x{outH}:fps={fps}," +
             $"format={outputPixelFormat}";
     }

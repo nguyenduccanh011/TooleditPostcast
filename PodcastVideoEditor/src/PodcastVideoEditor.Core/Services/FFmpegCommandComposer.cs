@@ -170,8 +170,28 @@ public static class FFmpegCommandComposer
     /// </summary>
     public static (string args, RenderConfig normalizedConfig) Build(RenderConfig config)
     {
+        var totalTimer = Stopwatch.StartNew();
+
+        var normalizeTimer = Stopwatch.StartNew();
         var normalized = NormalizeRenderConfig(config);
-        var args = BuildFFmpegCommand(StageRenderInputsIfNeeded(normalized));
+        normalizeTimer.Stop();
+
+        var stageTimer = Stopwatch.StartNew();
+        var staged = StageRenderInputsIfNeeded(normalized);
+        stageTimer.Stop();
+
+        var commandTimer = Stopwatch.StartNew();
+        var args = BuildFFmpegCommand(staged);
+        commandTimer.Stop();
+
+        totalTimer.Stop();
+        Log.Information(
+            "ComposerStageTiming: normalize={NormalizeMs:F0}ms, stageInputs={StageMs:F0}ms, buildCommand={BuildMs:F0}ms, total={TotalMs:F0}ms",
+            normalizeTimer.Elapsed.TotalMilliseconds,
+            stageTimer.Elapsed.TotalMilliseconds,
+            commandTimer.Elapsed.TotalMilliseconds,
+            totalTimer.Elapsed.TotalMilliseconds);
+
         return (args, normalized);
     }
 
@@ -270,10 +290,15 @@ public static class FFmpegCommandComposer
 
         var useEmbeddedSources = !config.DisableEmbeddedTimelineSources &&
                      ShouldUseEmbeddedTimelineSources(visualSegments, audioSegments);
-        var preferFastCpuScale = visualSegments.Count >= 120;
+        // For chunked renders (DisableEmbeddedTimelineSources=true) or any timeline
+        // with 20+ segments, use bicubic instead of lanczos for non-motion scale ops.
+        // For podcast content (thumbs, logos, text PNGs), lanczos vs bicubic is
+        // imperceptible, but bicubic is measurably faster for CPU compositing.
+        var preferFastCpuScale = config.DisableEmbeddedTimelineSources || visualSegments.Count >= 20;
         if (preferFastCpuScale)
         {
-            Log.Information("Large timeline detected ({Count} visual segments) — enabling fast CPU scale flags", visualSegments.Count);
+            Log.Debug("Fast CPU scale flags active ({Count} visual segments, chunked={Chunked})",
+                visualSegments.Count, config.DisableEmbeddedTimelineSources);
         }
 
         if (visualSegments.Count == 0 && textSegments.Count == 0 && audioSegments.Count == 0)
@@ -746,11 +771,12 @@ public static class FFmpegCommandComposer
         var filterStr = filter.ToString().TrimEnd(';');
 
         // Write filter to a temp script file (short path to save command-line chars)
-        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
+        // Name derived from output file so parallel chunk renders don't overwrite each other.
+        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt";
+        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", filterScriptName);
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
         Log.Debug("Filter script written to: {Path} ({Length} chars)", filterScriptPath, filterStr.Length);
-
         // -filter_complex_script was removed in FFmpeg 7.1; use -/filter_complex to
         // read the graph from a file (FFmpeg itself suggests this in the deprecation msg).
         args.Append($"-/filter_complex \"{filterScriptPath}\" ");
@@ -771,8 +797,7 @@ public static class FFmpegCommandComposer
         // available cores. Combined with BelowNormal process priority, this
         // ensures the system stays usable during long renders.
         var logicalCores = Environment.ProcessorCount;
-        var renderThreads = Math.Max(2, logicalCores - 2);
-        var filterThreads = Math.Max(2, logicalCores / 2);
+        var (renderThreads, filterThreads) = ComputeThreadBudget(config);
         args.Append($"-threads {renderThreads} ");
         // -filter_threads: parallelize individual filter operations (overlay, scale)
         //   that are normally single-threaded. Significantly reduces wall time when
@@ -781,8 +806,8 @@ public static class FFmpegCommandComposer
         //   (e.g. separate visual segment scale+motion operations run concurrently).
         args.Append($"-filter_threads {filterThreads} ");
         args.Append($"-filter_complex_threads {filterThreads} ");
-        Log.Debug("Threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
-            renderThreads, logicalCores, filterThreads);
+        Log.Debug("Threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}, chunked={Chunked}",
+            renderThreads, logicalCores, filterThreads, config.DisableEmbeddedTimelineSources);
         args.Append("-movflags +faststart ");
         // Prevent "Too many packets buffered for output stream" on long timelines
         // with many audio/video inputs. Default (128) is too small for podcasts
@@ -947,7 +972,7 @@ public static class FFmpegCommandComposer
             visualInputMap[i] = mappedIndex;
         }
 
-        Log.Debug("Concat input dedup: {SegCount} visual → {UniqueCount} unique sources",
+        Log.Debug("Concat input dedup: {SegCount} visual -> {UniqueCount} unique sources",
             visualTier.Count, concatVisualInputByKey.Count);
 
         // Text PNG inputs (deduplicated by source path)
@@ -1182,7 +1207,8 @@ public static class FFmpegCommandComposer
 
         // Write filter script
         var filterStr = filter.ToString().TrimEnd(';');
-        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
+        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt";
+        var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", filterScriptName);
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
         Log.Debug("Concat filter script written to: {Path} ({Length} chars)", filterScriptPath, filterStr.Length);
@@ -1201,13 +1227,12 @@ public static class FFmpegCommandComposer
         args.Append($"-c:a {audioCodec} ");
 
         var logicalCores = Environment.ProcessorCount;
-        var renderThreads = Math.Max(2, logicalCores - 2);
-        var filterThreads = Math.Max(2, logicalCores / 2);
+        var (renderThreads, filterThreads) = ComputeThreadBudget(config);
         args.Append($"-threads {renderThreads} ");
         args.Append($"-filter_threads {filterThreads} ");
         args.Append($"-filter_complex_threads {filterThreads} ");
-        Log.Debug("Concat threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}",
-            renderThreads, logicalCores, filterThreads);
+        Log.Debug("Concat threads: {RenderThreads}/{LogicalCores} cores, filter_threads: {FilterThreads}, chunked={Chunked}",
+            renderThreads, logicalCores, filterThreads, config.DisableEmbeddedTimelineSources);
 
         args.Append("-movflags +faststart ");
         args.Append("-max_muxing_queue_size 4096 ");
@@ -1252,6 +1277,24 @@ public static class FFmpegCommandComposer
                $"-shortest " +
                $"-y " +
                $"\"{config.OutputPath}\"";
+    }
+
+    private static (int RenderThreads, int FilterThreads) ComputeThreadBudget(RenderConfig config)
+    {
+        var logicalCores = Environment.ProcessorCount;
+
+        // When chunked rendering runs in parallel (2 FFmpeg workers), avoid core oversubscription
+        // by shrinking per-process thread budgets.
+        if (config.DisableEmbeddedTimelineSources && logicalCores >= 12)
+        {
+            var renderThreadsParallel = Math.Max(2, logicalCores / 2 - 1);
+            var filterThreadsParallel = Math.Max(2, logicalCores / 4);
+            return (renderThreadsParallel, filterThreadsParallel);
+        }
+
+        var renderThreads = Math.Max(2, logicalCores - 2);
+        var filterThreads = Math.Max(2, logicalCores / 2);
+        return (renderThreads, filterThreads);
     }
 
     // ── Normalisation ───────────────────────────────────────────────────
@@ -1352,15 +1395,37 @@ public static class FFmpegCommandComposer
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
-        // Large timelines with many unique sources can still hit argument-size
-        // limits even with staged short paths. Embed those sources via movie/amovie.
-        if (visualUniqueCount + audioUniqueCount >= 24)
-            return true;
-
         long totalSourcePathChars = visualSegments.Sum(s => s.SourcePath?.Length ?? 0)
             + audioSegments.Sum(s => s.SourcePath?.Length ?? 0);
 
-        return totalSourcePathChars >= 8_000;
+        // Embedded movie/amovie sources avoid Windows command-line limits but are
+        // often slower than regular -i inputs. Only enable when argument-length
+        // risk is genuinely high.
+        //
+        // Rough per-input argument cost (with staged short paths):
+        //   visual: ~130 chars (-thread_queue_size/-loop or -hwaccel/-i + quoting)
+        //   audio : ~80 chars
+        const int visualArgOverhead = 130;
+        const int audioArgOverhead = 80;
+        const int fixedArgOverhead = 2_200;
+        const int commandSoftLimit = 28_000;
+
+        var estimatedArgumentChars = fixedArgOverhead
+            + visualUniqueCount * visualArgOverhead
+            + audioUniqueCount * audioArgOverhead;
+
+        var shouldEmbed = estimatedArgumentChars >= commandSoftLimit
+            || totalSourcePathChars >= 24_000;
+
+        Log.Debug(
+            "EmbeddedSourceGate: visualUnique={VisualUnique}, audioUnique={AudioUnique}, pathChars={PathChars}, estimatedArgs={EstimatedArgs} => {Decision}",
+            visualUniqueCount,
+            audioUniqueCount,
+            totalSourcePathChars,
+            estimatedArgumentChars,
+            shouldEmbed ? "embedded" : "direct-input");
+
+        return shouldEmbed;
     }
 
     private static RenderConfig StageRenderInputs(RenderConfig config)

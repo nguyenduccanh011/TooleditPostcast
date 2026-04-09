@@ -732,7 +732,9 @@ public class FFmpegCommandComposerTests
 
             var (args, _) = FFmpegCommandComposer.Build(config);
 
-            Assert.DoesNotContain("-thread_queue_size 512 -loop 1 -i", args);
+            // Medium-large timelines should prefer direct -i inputs unless
+            // command-line length risk is genuinely high.
+            Assert.Contains("-thread_queue_size 512 -loop 1 -i", args);
             Assert.Contains("-/filter_complex", args);
 
             var scriptMatch = System.Text.RegularExpressions.Regex.Match(
@@ -743,7 +745,7 @@ public class FFmpegCommandComposerTests
             Assert.True(System.IO.File.Exists(scriptPath));
 
             var script = System.IO.File.ReadAllText(scriptPath);
-            Assert.Contains("movie=filename='", script);
+            Assert.DoesNotContain("movie=filename='", script);
         }
         finally
         {
@@ -804,7 +806,9 @@ public class FFmpegCommandComposerTests
 
             var (args, _) = FFmpegCommandComposer.Build(config);
 
-            Assert.DoesNotContain("-thread_queue_size 512 -i", args);
+            // Medium-large timelines should prefer direct -i inputs unless
+            // command-line length risk is genuinely high.
+            Assert.Contains(" -i \"", args);
 
             var scriptMatch = System.Text.RegularExpressions.Regex.Match(
                 args, @"-/filter_complex ""([^""]+)""");
@@ -814,7 +818,7 @@ public class FFmpegCommandComposerTests
             Assert.True(System.IO.File.Exists(scriptPath));
 
             var script = System.IO.File.ReadAllText(scriptPath);
-            Assert.Contains("amovie=filename='", script);
+            Assert.DoesNotContain("amovie=filename='", script);
         }
         finally
         {

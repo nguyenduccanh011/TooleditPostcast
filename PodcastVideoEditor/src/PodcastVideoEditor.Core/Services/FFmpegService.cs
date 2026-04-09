@@ -21,7 +21,8 @@ public static class FFmpegService
     private static string? _ffmpegPath;
     private static string? _ffprobePath;
     private static Version? _ffmpegVersion;
-    private static Process? _currentRenderProcess;
+        // Tracks all concurrently running FFmpeg render processes (supports parallel chunk rendering).
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, Process> _activeProcesses = new();
 
     /// <summary>
     /// Initialize FFmpeg service and validate installation
@@ -511,7 +512,8 @@ public static class FFmpegService
         IProgress<RenderProgress>? progress,
         CancellationToken cancellationToken = default,
         bool renderChunked = true,
-        bool cleanupTempFiles = true)
+        bool cleanupTempFiles = true,
+        TimeSpan? ffmpegTimeout = null)
     {
         if (!IsInitialized())
             throw new InvalidOperationException("FFmpeg is not initialized. Call InitializeAsync() first.");
@@ -538,12 +540,9 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
 
-        // Automatic chunking for medium/large timelines: at ~45+ visual segments,
-        // the monolithic overlay graph usually becomes CPU-bound on consumer CPUs.
-        if (renderChunked && config.VisualSegments != null && config.VisualSegments.Count >= 45)
+        if (ShouldUseChunkedRender(config, renderChunked))
         {
-            Log.Information("Large timeline detected ({Count} segments) — using chunked render pipeline " +
-                            "for better CPU efficiency", config.VisualSegments.Count);
+            Log.Information("Chunked render enabled: using adaptive chunk pipeline for this timeline.");
             return await RenderVideoAsync_Chunked(config, progress, cancellationToken, chunkSize: 60);
         }
 
@@ -560,12 +559,17 @@ public static class FFmpegService
                 IsComplete = false
             });
 
+            var renderTotalTimer = Stopwatch.StartNew();
+            var buildTimer = Stopwatch.StartNew();
             var (ffmpegArgs, normalizedConfig) = FFmpegCommandComposer.Build(config);
+            buildTimer.Stop();
 
             // Ensure output directory exists
+            var ioPrepTimer = Stopwatch.StartNew();
             var outputDir = Path.GetDirectoryName(normalizedConfig.OutputPath);
             if (!string.IsNullOrEmpty(outputDir) && !Directory.Exists(outputDir))
                 Directory.CreateDirectory(outputDir);
+            ioPrepTimer.Stop();
 
             try
             {
@@ -576,6 +580,10 @@ public static class FFmpegService
                     normalizedConfig.VisualSegments?.Count ?? 0,
                     normalizedConfig.TextSegments?.Count ?? 0,
                     normalizedConfig.AudioSegments?.Count ?? 0);
+                Log.Information(
+                    "RenderStageTiming: buildCommand={BuildMs:F0}ms, prepareOutputDir={IoPrepMs:F0}ms",
+                    buildTimer.Elapsed.TotalMilliseconds,
+                    ioPrepTimer.Elapsed.TotalMilliseconds);
 
                 // Log GPU pipeline status for diagnostics
                 var gpuCaps = FFmpegCommandComposer.GetGpuCapabilities();
@@ -584,7 +592,9 @@ public static class FFmpegService
                     gpuCaps.H264Encoder, gpuCaps.HevcEncoder);
 
                 // Execute FFmpeg
-                var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken);
+                var ffmpegExecTimer = Stopwatch.StartNew();
+                var (success, output) = await ExecuteFFmpegAsync(_ffmpegPath!, ffmpegArgs, progress, cancellationToken, ffmpegTimeout);
+                ffmpegExecTimer.Stop();
 
                 if (!success)
                 {
@@ -596,7 +606,12 @@ public static class FFmpegService
                     throw new FileNotFoundException("Output file was not created");
 
                 var fileSize = new FileInfo(normalizedConfig.OutputPath).Length;
+                renderTotalTimer.Stop();
                 Log.Information("Render completed: {OutputPath} ({FileSize} bytes)", normalizedConfig.OutputPath, fileSize);
+                Log.Information(
+                    "RenderStageTiming: ffmpegExecute={ExecMs:F0}ms, totalRender={TotalMs:F0}ms",
+                    ffmpegExecTimer.Elapsed.TotalMilliseconds,
+                    renderTotalTimer.Elapsed.TotalMilliseconds);
 
                 progress?.Report(new RenderProgress
                 {
@@ -621,6 +636,81 @@ public static class FFmpegService
         }, cancellationToken);
     }
 
+    private static bool ShouldUseChunkedRender(RenderConfig config, bool renderChunked)
+    {
+        if (!renderChunked)
+            return false;
+
+        var visuals = (config.VisualSegments ?? [])
+            .Where(v => v.EndTime > v.StartTime)
+            .ToList();
+
+        const int hardMinimumVisuals = 45;
+        if (visuals.Count < hardMinimumVisuals)
+            return false;
+
+        var timelineDuration = ComputeTimelineDuration(config, visuals);
+        var peakConcurrency = EstimatePeakVisualConcurrency(visuals);
+
+        // Avoid chunk startup/concat overhead on short medium-density projects.
+        // For heavier timelines (many visuals, longer duration, or dense overlap),
+        // chunking usually wins despite per-chunk FFmpeg startup cost.
+        const int preferredVisualThreshold = 80;
+        const double preferredDurationThreshold = 180.0;
+        const int preferredConcurrencyThreshold = 6;
+
+        var shouldChunk = visuals.Count >= preferredVisualThreshold
+            || timelineDuration >= preferredDurationThreshold
+            || peakConcurrency >= preferredConcurrencyThreshold;
+
+        Log.Information(
+            "Chunked render gate: visuals={Visuals}, timeline={Timeline:F2}s, peakConcurrency={Peak} => {Decision}",
+            visuals.Count,
+            timelineDuration,
+            peakConcurrency,
+            shouldChunk ? "chunked" : "monolithic");
+
+        return shouldChunk;
+    }
+
+    private static double ComputeTimelineDuration(RenderConfig config, IReadOnlyCollection<RenderVisualSegment> visuals)
+    {
+        var endTimes = visuals.Select(v => v.EndTime)
+            .Concat((config.TextSegments ?? []).Select(t => t.EndTime))
+            .Concat((config.AudioSegments ?? []).Select(a => a.EndTime));
+
+        return endTimes.Any() ? endTimes.Max() : 0;
+    }
+
+    private static int EstimatePeakVisualConcurrency(IReadOnlyCollection<RenderVisualSegment> visuals)
+    {
+        if (visuals.Count == 0)
+            return 0;
+
+        var events = new List<(double Time, int Delta)>();
+        foreach (var seg in visuals)
+        {
+            events.Add((seg.StartTime, +1));
+            events.Add((seg.EndTime, -1));
+        }
+
+        var sorted = events
+            .OrderBy(e => e.Time)
+            .ThenBy(e => e.Delta)
+            .ToList();
+
+        var active = 0;
+        var peak = 0;
+        foreach (var evt in sorted)
+        {
+            active += evt.Delta;
+            if (active > peak)
+                peak = active;
+        }
+
+        return peak;
+    }
+
     /// <summary>
     /// Render video using chunked pipeline: split large visual timelines into smaller chunks,
     /// render each independently, then concatenate results.
@@ -643,6 +733,8 @@ public static class FFmpegService
         CancellationToken cancellationToken,
         int chunkSize = 60)
     {
+        var chunkedTotalTimer = Stopwatch.StartNew();
+        var chunkPlanningTimer = Stopwatch.StartNew();
         const int minVisualSegmentsForChunking = 45;
 
         if (config.VisualSegments == null || config.VisualSegments.Count < minVisualSegmentsForChunking)
@@ -664,17 +756,27 @@ public static class FFmpegService
             .Concat((config.AudioSegments ?? []).Select(a => a.EndTime));
         var timelineEndTime = allEndTimes.Any() ? allEndTimes.Max() : 0;
 
-        // Analyze effect complexity to determine adaptive chunk window size
+        // Analyze effect complexity and timeline density to determine adaptive chunk windows.
         var effectAnalysis = AnalyzeEffectComplexity(visualsByTime);
         var adaptiveMaxChunkDuration = DetermineAdaptiveChunkWindow(effectAnalysis);
+        var peakConcurrency = EstimatePeakVisualConcurrency(visualsByTime);
+        var averageConcurrency = EstimateAverageVisualConcurrency(visualsByTime, Math.Max(0.001, timelineEndTime));
+        var (targetMaxVisualsPerChunk, minChunkDurationSeconds) = DetermineChunkPlannerTargets(visualsByTime.Count, peakConcurrency);
 
-        var chunkWindows = BuildChunkWindows(visualsByTime, timelineEndTime, maxChunkDurationSeconds: adaptiveMaxChunkDuration);
+        var chunkWindows = BuildChunkWindows(
+            visualsByTime,
+            timelineEndTime,
+            maxChunkDurationSeconds: adaptiveMaxChunkDuration,
+            targetMaxVisualsPerChunk: targetMaxVisualsPerChunk,
+            minChunkDurationSeconds: minChunkDurationSeconds);
         var chunkCount = chunkWindows.Count;
+        chunkPlanningTimer.Stop();
 
         Log.Information("Chunked render: splitting {TotalSegments} visual segments into {ChunkCount} chunks " +
-            "(adaptive window={AdaptiveWindow:F1}s, base=60s; effect densities: zoom={ZoomDensity:P1}, visualizer={VisualizerDensity:P1})", 
-            visualSegs.Count, chunkCount, adaptiveMaxChunkDuration, 
-            effectAnalysis.ZoomPanDensity, effectAnalysis.VisualizerDensity);
+            "(adaptive window={AdaptiveWindow:F1}s, min window={MinWindow:F1}s, target visuals/chunk={TargetVisuals}; effect densities: zoom={ZoomDensity:P1}, visualizer={VisualizerDensity:P1}, peakConcurrency={PeakConcurrency}, avgConcurrency={AvgConcurrency:F2})", 
+            visualSegs.Count, chunkCount, adaptiveMaxChunkDuration, minChunkDurationSeconds, targetMaxVisualsPerChunk,
+            effectAnalysis.ZoomPanDensity, effectAnalysis.VisualizerDensity, peakConcurrency, averageConcurrency);
+        Log.Information("Chunked render planning completed in {ElapsedMs:F0}ms", chunkPlanningTimer.Elapsed.TotalMilliseconds);
 
         var intermediateChunks = new List<string>();
         var chunkTempDir = Path.Combine(Path.GetTempPath(), "pve", $"chunks-{Guid.NewGuid():N}");
@@ -682,70 +784,115 @@ public static class FFmpegService
 
         try
         {
-            // Render each chunk
-            for (int i = 0; i < chunkCount; i++)
-            {
-                if (cancellationToken.IsCancellationRequested)
-                    throw new OperationCanceledException("Render canceled");
+                // Degree of parallelism: 2 on machines with ≥12 logical cores.
+                // Each parallel FFmpeg handles a separate zoompan/overlay graph on independent cores.
+                var parallelDegree = Environment.ProcessorCount >= 12 ? 2 : 1;
+                Log.Information("Parallel chunk rendering: degree={Degree} ({Cores} logical cores)", parallelDegree, Environment.ProcessorCount);
 
-                var window = chunkWindows[i];
-                var chunkStartTime = window.StartTime;
-                var chunkEndTime = window.EndTime;
+                var completedCount = 0;
+                var totalChunksForProgress = chunkWindows.Count;
+                var chunkOutputPaths = new string?[chunkWindows.Count];
+                var semaphore = new System.Threading.SemaphoreSlim(parallelDegree);
+                long serialEquivalentTicks = 0;
+                var parallelPhaseTimer = Stopwatch.StartNew();
 
-                var chunkVisuals = BuildChunkVisualSegments(visualSegs, chunkStartTime, chunkEndTime);
-                var chunkAudioSegments = BuildChunkAudioSegments(config, chunkStartTime, chunkEndTime);
-
-                // Create config for this chunk
-                var chunkConfig = BuildChunkConfigForWindow(
-                    config,
-                    Path.Combine(chunkTempDir, $"chunk_{i:D3}.mp4"),
-                    chunkVisuals,
-                    chunkAudioSegments);
-
-                // Progress: (i / chunkCount * 0.9) — reserve 90-100% for concat phase
-                var chunkProgress = new Progress<RenderProgress>(p =>
+                // Build and start all chunk tasks. A chunk that times out is retried
+                // sequentially after the parallel phase completes.
+                var chunkTasks = Enumerable.Range(0, chunkWindows.Count).Select(async idx =>
                 {
-                    var overallPct = (int)(i / (double)chunkCount * 90 + p.ProgressPercentage / (double)chunkCount * 0.9);
-                    progress?.Report(new RenderProgress
+                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
                     {
-                        ProgressPercentage = Math.Max(0, Math.Min(89, overallPct)),
-                        Message = $"Chunk {i + 1}/{chunkCount}: {p.Message}",
-                        IsComplete = false
-                    });
-                });
+                        var window = chunkWindows[idx];
+                        var chunkStartTime = window.StartTime;
+                        var chunkEndTime = window.EndTime;
+                        var chunkVisuals = BuildChunkVisualSegments(visualSegs, chunkStartTime, chunkEndTime);
+                        var chunkAudioSegments = BuildChunkAudioSegments(config, chunkStartTime, chunkEndTime);
+                        var chunkDurationSeconds = Math.Max(0.1, chunkEndTime - chunkStartTime);
+                        var chunkFfmpegTimeout = EstimateChunkFfmpegTimeout(chunkDurationSeconds);
+                        var chunkPeakConcurrency = EstimatePeakVisualConcurrency(chunkVisuals);
+                        var chunkAverageConcurrency = EstimateAverageVisualConcurrency(chunkVisuals, chunkDurationSeconds);
+                        var chunkMotionDensity = chunkVisuals.Count == 0
+                            ? 0.0
+                            : (double)chunkVisuals.Count(v => !string.IsNullOrWhiteSpace(v.MotionPreset) && v.MotionPreset != MotionPresets.None) / chunkVisuals.Count;
 
-                Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s " +
-                                "(time {StartTime:F2}s-{EndTime:F2}s), visuals={VisualCount}, audios={AudioCount}",
-                    i + 1, chunkCount, chunkStartTime, chunkEndTime, chunkStartTime, chunkEndTime,
-                    chunkVisuals.Count, chunkAudioSegments.Count);
+                        var chunkConfig = BuildChunkConfigForWindow(
+                            config,
+                            Path.Combine(chunkTempDir, $"chunk_{idx:D3}.mp4"),
+                            chunkVisuals,
+                            chunkAudioSegments);
 
-                // Measure per-chunk render time for effect profiling
-                var chunkTimer = System.Diagnostics.Stopwatch.StartNew();
-                
-                // Render this chunk (monolithic, no further splitting)
-                await RenderVideoAsync(
-                    chunkConfig,
-                    chunkProgress,
-                    cancellationToken,
-                    renderChunked: false,
-                    cleanupTempFiles: false);
-                chunkTimer.Stop();
-                
-                intermediateChunks.Add(chunkConfig.OutputPath);
+                        int localIdx = idx; // capture for lambda
+                        var chunkProgress = new Progress<RenderProgress>(p =>
+                        {
+                            var done = Volatile.Read(ref completedCount);
+                            var overallPct = (int)(done / (double)totalChunksForProgress * 90);
+                            progress?.Report(new RenderProgress
+                            {
+                                ProgressPercentage = Math.Max(0, Math.Min(89, overallPct)),
+                                Message = $"Chunk {localIdx + 1}/{totalChunksForProgress}: {p.Message}",
+                                IsComplete = false
+                            });
+                        });
 
-                // Structured effect timing logging
-                var chunkDurationSeconds = chunkEndTime - chunkStartTime;
-                var chunkHasMotion = chunkVisuals.Any(v => v.MotionPreset != null && v.MotionPreset != "None");
-                var effectProfile = chunkHasMotion ? "motion" : "static";
+                        Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s, visuals={VisualCount}, audios={AudioCount}",
+                            idx + 1, totalChunksForProgress, chunkStartTime, chunkEndTime,
+                            chunkVisuals.Count, chunkAudioSegments.Count);
 
-                Log.Information("EffectRenderTiming Chunk {ChunkNum}: duration={ChunkDurationSec:F2}s, elapsed={ElapsedMs:F0}ms, " +
-                                "realtime={RealtimeX:F3}x, effects={EffectProfile}, visualCount={VisualCount}",
-                    i + 1, chunkDurationSeconds, chunkTimer.Elapsed.TotalMilliseconds,
-                    (chunkDurationSeconds * 1000) / chunkTimer.Elapsed.TotalMilliseconds,
-                    effectProfile, chunkVisuals.Count);
+                        var chunkTimer = Stopwatch.StartNew();
+                        await RenderVideoAsync(
+                            chunkConfig,
+                            chunkProgress,
+                            cancellationToken,
+                            renderChunked: false,
+                            cleanupTempFiles: false,
+                            ffmpegTimeout: chunkFfmpegTimeout);
+                        chunkTimer.Stop();
+                        Interlocked.Add(ref serialEquivalentTicks, chunkTimer.ElapsedTicks);
 
-                Log.Information("Chunk {ChunkNum} completed: {Path}", i + 1, chunkConfig.OutputPath);
-            }
+                        chunkOutputPaths[idx] = chunkConfig.OutputPath;
+                        var done2 = Interlocked.Increment(ref completedCount);
+
+                        var chunkHasMotion = chunkVisuals.Any(v => v.MotionPreset != null && v.MotionPreset != "None");
+                        Log.Information("EffectRenderTiming Chunk {ChunkNum}: duration={Duration:F2}s, elapsed={ElapsedMs:F0}ms, " +
+                            "realtime={Rt:F3}x, effects={Effects}, visualCount={VisCount}, peakConcurrency={PeakConcurrency}, avgConcurrency={AvgConcurrency:F2}, motionDensity={MotionDensity:P1}",
+                            idx + 1, chunkDurationSeconds, chunkTimer.Elapsed.TotalMilliseconds,
+                            chunkDurationSeconds * 1000 / chunkTimer.Elapsed.TotalMilliseconds,
+                            chunkHasMotion ? "motion" : "static", chunkVisuals.Count,
+                            chunkPeakConcurrency, chunkAverageConcurrency, chunkMotionDensity);
+                        Log.Information("Chunk {ChunkNum} completed: {Path}", idx + 1, chunkConfig.OutputPath);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }).ToList();
+
+                await Task.WhenAll(chunkTasks).ConfigureAwait(false);
+                parallelPhaseTimer.Stop();
+
+                var serialEquivalent = TimeSpan.FromTicks(Volatile.Read(ref serialEquivalentTicks));
+                var wallMs = parallelPhaseTimer.Elapsed.TotalMilliseconds;
+                var serialMs = serialEquivalent.TotalMilliseconds;
+                var speedup = wallMs > 1.0 ? serialMs / wallMs : 1.0;
+                var efficiency = parallelDegree > 0 ? speedup / parallelDegree : 1.0;
+                Log.Information(
+                    "ParallelChunkEfficiency: degree={Degree}, chunkCount={ChunkCount}, serialEquivalentMs={SerialMs:F0}, wallMs={WallMs:F0}, speedup={Speedup:F2}x, efficiency={Efficiency:P0}",
+                    parallelDegree,
+                    totalChunksForProgress,
+                    serialMs,
+                    wallMs,
+                    speedup,
+                    efficiency);
+
+                // Collect results in order
+                for (int i = 0; i < chunkOutputPaths.Length; i++)
+                {
+                    var path = chunkOutputPaths[i];
+                    if (path == null)
+                        throw new InvalidOperationException($"Chunk {i + 1} did not produce an output file");
+                    intermediateChunks.Add(path);
+                }
 
             // Concatenate all chunks into final output
             progress?.Report(new RenderProgress
@@ -755,11 +902,18 @@ public static class FFmpegService
                 IsComplete = false
             });
 
+            var concatTimer = Stopwatch.StartNew();
             var finalPath = await ConcatenateChunksAsync(_ffmpegPath!, intermediateChunks, config.OutputPath,
                 progress, cancellationToken);
+            concatTimer.Stop();
+            chunkedTotalTimer.Stop();
 
             Log.Information("Chunked render completed: {Path} ({ChunkCount} chunks concatenated)",
                 finalPath, chunkCount);
+            Log.Information(
+                "ChunkedRenderTiming: concat={ConcatMs:F0}ms, total={TotalMs:F0}ms",
+                concatTimer.Elapsed.TotalMilliseconds,
+                chunkedTotalTimer.Elapsed.TotalMilliseconds);
 
             return finalPath;
         }
@@ -783,17 +937,29 @@ public static class FFmpegService
         }
     }
 
+    private static bool IsFfmpegTimeoutError(InvalidOperationException ex)
+    {
+        return ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TimeSpan EstimateChunkFfmpegTimeout(double chunkDurationSeconds)
+    {
+        // Keep enough headroom for heavy chunks, but do not allow unbounded waits.
+        // 12x realtime with clamps has worked well in practice for motion-heavy windows.
+        var seconds = Math.Clamp(chunkDurationSeconds * 12.0, 180.0, 900.0);
+        return TimeSpan.FromSeconds(seconds);
+    }
+
     private static List<(double StartTime, double EndTime)> BuildChunkWindows(
         IReadOnlyList<RenderVisualSegment> visuals,
         double timelineEndTime,
-        double maxChunkDurationSeconds)
+        double maxChunkDurationSeconds,
+        int targetMaxVisualsPerChunk,
+        double minChunkDurationSeconds)
     {
         var windows = new List<(double StartTime, double EndTime)>();
         if (timelineEndTime <= 0)
             return windows;
-
-        const double minChunkDurationSeconds = 20;
-        const int targetMaxVisualsPerChunk = 24;
 
         var startTime = 0.0;
         while (startTime < timelineEndTime)
@@ -817,6 +983,22 @@ public static class FFmpegService
         }
 
         return windows;
+    }
+
+    private static (int TargetMaxVisualsPerChunk, double MinChunkDurationSeconds) DetermineChunkPlannerTargets(
+        int totalVisualSegments,
+        int peakConcurrency)
+    {
+        // Dense timelines benefit from smaller chunk windows because FFmpeg overlay
+        // cost scales with the number of segment chains in the filter graph.
+        // Lowering the gate to >=7 helps medium-large projects where overlap is high.
+        if (totalVisualSegments >= 100 || peakConcurrency >= 7)
+            return (16, 12.0);
+
+        if (totalVisualSegments >= 80 || peakConcurrency >= 6)
+            return (20, 16.0);
+
+        return (24, 20.0);
     }
 
     /// <summary>
@@ -888,6 +1070,67 @@ public static class FFmpegService
             count++;
         }
         return count;
+    }
+
+    private static double EstimateAverageVisualConcurrency(
+        IReadOnlyList<RenderVisualSegment> visuals,
+        double timelineDurationSeconds)
+    {
+        if (timelineDurationSeconds <= 0 || visuals.Count == 0)
+            return 0;
+
+        var events = new List<(double Time, int Delta)>(visuals.Count * 2);
+        foreach (var seg in visuals)
+        {
+            var start = Math.Max(0, seg.StartTime);
+            var end = Math.Min(timelineDurationSeconds, seg.EndTime);
+            if (end <= start)
+                continue;
+
+            events.Add((start, +1));
+            events.Add((end, -1));
+        }
+
+        if (events.Count == 0)
+            return 0;
+
+        events.Sort((a, b) =>
+        {
+            var timeCmp = a.Time.CompareTo(b.Time);
+            if (timeCmp != 0)
+                return timeCmp;
+
+            // End events first at identical timestamps to keep boundary-exclusive behavior.
+            return a.Delta.CompareTo(b.Delta);
+        });
+
+        double previousTime = 0;
+        double area = 0;
+        var active = 0;
+        var index = 0;
+
+        while (index < events.Count)
+        {
+            var currentTime = events[index].Time;
+            if (currentTime > previousTime)
+            {
+                area += active * (currentTime - previousTime);
+                previousTime = currentTime;
+            }
+
+            while (index < events.Count && Math.Abs(events[index].Time - currentTime) < 0.000001)
+            {
+                active += events[index].Delta;
+                index++;
+            }
+        }
+
+        if (previousTime < timelineDurationSeconds)
+        {
+            area += active * (timelineDurationSeconds - previousTime);
+        }
+
+        return area / timelineDurationSeconds;
     }
 
     internal static RenderConfig BuildChunkConfigForWindow(
@@ -1104,9 +1347,12 @@ public static class FFmpegService
             if (Directory.Exists(pveDir))
             {
                 // Delete filter script
-                var filterScript = Path.Combine(pveDir, "fc.txt");
-                if (File.Exists(filterScript))
-                    File.Delete(filterScript);
+                    // Filter scripts are now named fc-{outputname}.txt (one per render/chunk)
+                    foreach (var fScript in Directory.EnumerateFiles(pveDir, "fc-*.txt"))
+                    {
+                        try { File.Delete(fScript); }
+                        catch { /* best-effort */ }
+                    }
 
                 // Delete drawtext temp files
                 var rtDir = Path.Combine(pveDir, "rt");
@@ -1148,11 +1394,14 @@ public static class FFmpegService
     {
         try
         {
-            if (_currentRenderProcess != null && !_currentRenderProcess.HasExited)
-            {
-                _currentRenderProcess.Kill();
-                Log.Information("Render process terminated");
-            }
+                var killed = 0;
+                foreach (var (_, proc) in _activeProcesses)
+                {
+                    try { if (!proc.HasExited) { proc.Kill(); killed++; } }
+                    catch { /* best-effort per-process */ }
+                }
+                if (killed > 0)
+                    Log.Information("Render canceled: {Count} FFmpeg process(es) terminated", killed);
         }
         catch (Exception ex)
         {
@@ -1168,11 +1417,18 @@ public static class FFmpegService
         string ffmpegPath,
         string args,
         IProgress<RenderProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? ffmpegTimeout = null)
     {
         // Declared outside try so catch/finally blocks can access it.
-        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var timeoutCts = ffmpegTimeout.HasValue ? new CancellationTokenSource(ffmpegTimeout.Value) : null;
+        using var executionCts = timeoutCts != null
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var heartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(executionCts.Token);
         Task? heartbeatTask = null;
+                var procKey = Guid.NewGuid();
+                Process? proc = null;
         try
         {
             // Windows CreateProcess limit: 32,767 chars for the full command line.
@@ -1198,18 +1454,19 @@ public static class FFmpegService
                 WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
             };
 
-            _currentRenderProcess = Process.Start(processInfo);
-            if (_currentRenderProcess == null)
+            proc = Process.Start(processInfo);
+            if (proc == null)
                 return (false, "Failed to start FFmpeg process");
+            _activeProcesses[procKey] = proc;
 
             // Use default scheduler behavior for render throughput.
             // Prior throttling (BelowNormal + affinity pinning) reduced export speed
             // significantly on CPU-composite workloads.
             try
             {
-                _currentRenderProcess.PriorityClass = ProcessPriorityClass.Normal;
-                Log.Information("FFmpeg process: Normal priority, all scheduler-managed cores (PID {Pid})",
-                    _currentRenderProcess.Id);
+                    proc.PriorityClass = ProcessPriorityClass.Normal;
+                    Log.Information("FFmpeg process: Normal priority, all scheduler-managed cores (PID {Pid})",
+                        proc.Id);
             }
             catch (Exception ex)
             {
@@ -1217,7 +1474,7 @@ public static class FFmpegService
             }
 
             // Read stdout fully in background (usually empty for FFmpeg)
-            var outputTask = _currentRenderProcess.StandardOutput.ReadToEndAsync(cancellationToken);
+                var outputTask = proc.StandardOutput.ReadToEndAsync(executionCts.Token);
 
             // Parse stderr line-by-line for progress
             var stderrLines = new System.Collections.Generic.List<string>();
@@ -1260,9 +1517,9 @@ public static class FFmpegService
                 catch (OperationCanceledException) { /* normal shutdown */ }
             }, heartbeatCts.Token);
 
-            var stderrReader = _currentRenderProcess.StandardError;
+            var stderrReader = proc.StandardError;
             string? line;
-            while ((line = await stderrReader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
+            while ((line = await stderrReader.ReadLineAsync(executionCts.Token).ConfigureAwait(false)) != null)
             {
                 stderrLines.Add(line);
 
@@ -1356,10 +1613,10 @@ public static class FFmpegService
             });
 
             await heartbeatTask.ConfigureAwait(false);
-            await _currentRenderProcess.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await proc.WaitForExitAsync(executionCts.Token).ConfigureAwait(false);
             var stdout = await outputTask.ConfigureAwait(false);
 
-            bool success = _currentRenderProcess.ExitCode == 0;
+            bool success = proc.ExitCode == 0;
             var fullStderr = string.Join(Environment.NewLine, stderrLines);
 
             var effectiveDurationSeconds = totalDurationSeconds > 0
@@ -1371,7 +1628,7 @@ public static class FFmpegService
                 : 0;
 
             Log.Information("FFmpeg finished: exit={ExitCode}, elapsed={Elapsed:F2}s, target={Target:F2}s, realtime=x{Realtime:F2}",
-                _currentRenderProcess.ExitCode,
+                proc.ExitCode,
                 elapsedSeconds,
                 effectiveDurationSeconds,
                 realtimeFactor);
@@ -1388,6 +1645,26 @@ public static class FFmpegService
         }
         catch (OperationCanceledException)
         {
+            if (cancellationToken.IsCancellationRequested)
+                return (false, "Render canceled");
+
+            if (timeoutCts?.IsCancellationRequested == true)
+            {
+                try
+                {
+                        if (proc != null && !proc.HasExited)
+                            proc.Kill(entireProcessTree: true);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Could not terminate timed-out FFmpeg process");
+                }
+
+                var timeoutSeconds = ffmpegTimeout?.TotalSeconds ?? 0;
+                Log.Error("FFmpeg timed out after {TimeoutSeconds:F0}s", timeoutSeconds);
+                return (false, $"FFmpeg timed out after {timeoutSeconds:F0}s");
+            }
+
             return (false, "Render canceled");
         }
         catch (Exception ex)
@@ -1400,8 +1677,11 @@ public static class FFmpegService
             heartbeatCts.Cancel();
             if (heartbeatTask != null)
                 await heartbeatTask.ConfigureAwait(false);
-            _currentRenderProcess?.Dispose();
-            _currentRenderProcess = null;
+                if (proc != null)
+                {
+                    _activeProcesses.TryRemove(procKey, out _);
+                    proc.Dispose();
+                }
         }
     }
 
