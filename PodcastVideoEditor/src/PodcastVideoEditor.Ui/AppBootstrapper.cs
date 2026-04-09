@@ -66,6 +66,7 @@ public static class AppBootstrapper
 
     private static void RegisterCoreServices(IServiceCollection services)
     {
+        services.AddSingleton<TemplateSnapshotService>();
         services.AddSingleton<ProjectService>();
         services.AddSingleton<IProjectService>(sp => sp.GetRequiredService<ProjectService>());
         services.AddSingleton<TemplatePackageService>(sp =>

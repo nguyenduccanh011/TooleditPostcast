@@ -26,11 +26,12 @@ public static class TrackRolePolicies
 {
     private static readonly StringComparer RoleComparer = StringComparer.OrdinalIgnoreCase;
 
+    private const string LegacyTitleOverlayRole = TrackRoles.TitleOverlay;
+
     private static readonly HashSet<string> TextRoles = new(RoleComparer)
     {
         TrackRoles.Unspecified,
         TrackRoles.ScriptText,
-        TrackRoles.TitleOverlay,
     };
 
     private static readonly HashSet<string> VisualRoles = new(RoleComparer)
@@ -54,7 +55,6 @@ public static class TrackRolePolicies
     {
         TrackRoles.Unspecified,
         TrackRoles.BrandOverlay,
-        TrackRoles.TitleOverlay,
         TrackRoles.ScriptText,
         TrackRoles.AiContent,
         TrackRoles.Visualizer,
@@ -91,6 +91,9 @@ public static class TrackRolePolicies
         var normalizedRole = Normalize(role);
         if (string.IsNullOrWhiteSpace(normalizedRole))
             normalizedRole = TrackRoles.Unspecified;
+
+        if (string.Equals(normalizedRole, LegacyTitleOverlayRole, StringComparison.OrdinalIgnoreCase))
+            return TrackRoles.Unspecified;
 
         return GetAllowedRoles(trackType).Contains(normalizedRole)
             ? normalizedRole

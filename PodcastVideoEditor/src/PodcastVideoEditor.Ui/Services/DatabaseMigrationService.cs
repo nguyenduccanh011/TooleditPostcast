@@ -19,6 +19,7 @@ internal static class DatabaseMigrationService
             context.Database.Migrate();
             Log.Information("Database migration applied successfully");
             EnsureColumnsExist(context);
+            RepairLegacyTrackRoles(context);
             return;
         }
         catch (Exception ex) when (IsMigrationConflict(ex))
@@ -28,19 +29,23 @@ internal static class DatabaseMigrationService
 
         RepairMigrationHistory(context);
         EnsureColumnsExist(context);
+        RepairLegacyTrackRoles(context);
         try
         {
             context.Database.Migrate();
             Log.Information("Database migration applied successfully after history repair");
             EnsureColumnsExist(context);
+            RepairLegacyTrackRoles(context);
         }
         catch (Exception ex) when (IsMigrationConflict(ex))
         {
             RepairMigrationHistory(context);
             EnsureColumnsExist(context);
+            RepairLegacyTrackRoles(context);
             context.Database.Migrate();
             Log.Information("Database migration applied successfully after second history repair");
             EnsureColumnsExist(context);
+            RepairLegacyTrackRoles(context);
         }
     }
 
@@ -271,6 +276,40 @@ internal static class DatabaseMigrationService
                     Log.Warning(ex, "Schema fix failed (non-critical): {Sql}", sql);
                 }
             }
+        }
+        finally
+        {
+            if (opened) conn.Close();
+        }
+    }
+
+    private static void RepairLegacyTrackRoles(AppDbContext context)
+    {
+        var conn = context.Database.GetDbConnection();
+        bool opened = conn.State != System.Data.ConnectionState.Open;
+        if (opened) conn.Open();
+
+        try
+        {
+            using var updateCmd = conn.CreateCommand();
+            updateCmd.CommandText = @"
+                UPDATE Tracks
+                SET
+                    TrackRole = 'unspecified',
+                    SpanMode = CASE
+                        WHEN IFNULL(SpanMode, '') = '' OR LOWER(SpanMode) = 'segment_bound'
+                            THEN 'project_duration'
+                        ELSE SpanMode
+                    END
+                WHERE LOWER(TrackRole) = 'title_overlay';";
+
+            var affected = updateCmd.ExecuteNonQuery();
+            if (affected > 0)
+                Log.Information("Legacy track roles repaired: normalized {Count} title_overlay row(s)", affected);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Legacy track role repair failed (non-critical)");
         }
         finally
         {

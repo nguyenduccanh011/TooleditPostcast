@@ -192,6 +192,12 @@ namespace PodcastVideoEditor.Core.Services
 
             try
             {
+                Log.Information(
+                    "TemplateUseStart: templateId={TemplateId} projectName={ProjectName} hasAudio={HasAudio}",
+                    templateId,
+                    name,
+                    !string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath));
+
                 Template? template;
                 using (var lookupContext = _contextFactory.CreateDbContext())
                 {
@@ -209,6 +215,12 @@ namespace PodcastVideoEditor.Core.Services
                 var project = await CreateProjectAsync(name, null);
                 var snapshot = DeserializeTemplateSnapshot(template.LayoutJson);
                 var importedTemplateMedia = new Dictionary<string, Asset>(StringComparer.OrdinalIgnoreCase);
+                Log.Information(
+                    "TemplateUseSnapshot: templateId={TemplateId} tracks={TrackCount} segments={SegmentCount} elements={ElementCount}",
+                    templateId,
+                    snapshot.Tracks?.Count ?? 0,
+                    snapshot.Tracks?.Sum(t => t.Segments?.Count ?? 0) ?? 0,
+                    snapshot.Elements?.Count ?? 0);
 
                 using (var context = _contextFactory.CreateDbContext())
                 {
@@ -268,13 +280,24 @@ namespace PodcastVideoEditor.Core.Services
                                 ? TrackTypes.Visual
                                 : trackSnapshot.TrackType;
 
+                            var normalizedRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType);
+                            var normalizedSpan = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackRole, trackSnapshot.TrackType);
+                            Log.Information(
+                                "TemplateUseTrackSnapshot: type={TrackType} roleRaw={TrackRoleRaw} role={TrackRole} spanRaw={SpanRaw} span={SpanMode} segmentCount={SegmentCount}",
+                                trackType,
+                                trackSnapshot.TrackRole,
+                                normalizedRole,
+                                trackSnapshot.SpanMode,
+                                normalizedSpan,
+                                trackSnapshot.Segments?.Count ?? 0);
+
                             var track = new Track
                             {
                                 ProjectId = tracked.Id,
                                 Order = trackSnapshot.Order,
                                 TrackType = trackType,
-                                TrackRole = NormalizeTrackRole(trackSnapshot.TrackRole, trackSnapshot.TrackType),
-                                SpanMode = NormalizeSpanMode(trackSnapshot.SpanMode, trackSnapshot.TrackRole, trackSnapshot.TrackType),
+                                TrackRole = normalizedRole,
+                                SpanMode = normalizedSpan,
                                 Name = string.IsNullOrWhiteSpace(trackSnapshot.Name)
                                     ? "Track"
                                     : trackSnapshot.Name,
@@ -295,11 +318,31 @@ namespace PodcastVideoEditor.Core.Services
                             track.Segments = new List<Segment>();
                             foreach (var segmentSnapshot in (trackSnapshot.Segments ?? []).OrderBy(s => s.Order))
                             {
+                                // Dynamic segment payload is project-specific and should not be
+                                // materialized from templates (legacy template compatibility guard).
+                                if (string.Equals(track.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(track.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    Log.Information(
+                                        "TemplateUseSkipSegment: reason=dynamic_role trackType={TrackType} role={TrackRole} start={StartTime:F3} end={EndTime:F3}",
+                                        trackType,
+                                        track.TrackRole,
+                                        segmentSnapshot.StartTime,
+                                        segmentSnapshot.EndTime);
+                                    continue;
+                                }
+
                                 // Template snapshots may contain audio blocks without a valid asset binding.
                                 // Those segments are not playable in timeline preview and should not be materialized.
                                 if (string.Equals(trackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
                                     && string.IsNullOrWhiteSpace(segmentSnapshot.BackgroundAssetId))
                                 {
+                                    Log.Warning(
+                                        "TemplateUseSkipSegment: reason=audio_without_asset trackType={TrackType} role={TrackRole} start={StartTime:F3} end={EndTime:F3}",
+                                        trackType,
+                                        track.TrackRole,
+                                        segmentSnapshot.StartTime,
+                                        segmentSnapshot.EndTime);
                                     continue;
                                 }
 
@@ -351,8 +394,20 @@ namespace PodcastVideoEditor.Core.Services
                     foreach (var elementSnapshot in snapshot.Elements ?? [])
                     {
                         string? mappedSegmentId = null;
+                        var hasLinkedSegment = !string.IsNullOrWhiteSpace(elementSnapshot.SegmentId);
                         if (!string.IsNullOrWhiteSpace(elementSnapshot.SegmentId))
                             segmentIdMap.TryGetValue(elementSnapshot.SegmentId, out mappedSegmentId);
+
+                        // If a template element was linked to a segment that was intentionally skipped
+                        // (dynamic role or invalid payload), do not convert it into a global element.
+                        if (hasLinkedSegment && string.IsNullOrWhiteSpace(mappedSegmentId))
+                        {
+                            Log.Information(
+                                "TemplateUseSkipElement: reason=missing_mapped_segment type={ElementType} sourceSegmentId={SourceSegmentId}",
+                                elementSnapshot.Type,
+                                elementSnapshot.SegmentId);
+                            continue;
+                        }
 
                         var materializedPropertiesJson = await MaterializeTemplateElementPropertiesAsync(
                             tracked.Id,
@@ -397,10 +452,26 @@ namespace PodcastVideoEditor.Core.Services
                         trackedTemplate.LastUsedAt = DateTime.UtcNow;
 
                     await context.SaveChangesAsync();
+
+                    Log.Information(
+                        "TemplateUsePersisted: projectId={ProjectId} tracks={TrackCount} segments={SegmentCount} elements={ElementCount} importedMedia={ImportedMediaCount}",
+                        tracked.Id,
+                        tracked.Tracks?.Count ?? 0,
+                        tracked.Tracks?.Sum(t => t.Segments?.Count ?? 0) ?? 0,
+                        tracked.Elements?.Count ?? 0,
+                        importedTemplateMedia.Count);
                 }
 
                 if (!string.IsNullOrWhiteSpace(audioPath) && File.Exists(audioPath))
+                {
                     await AttachPrimaryAudioAsync(project.Id, audioPath);
+                    Log.Information("TemplateUseAudioAttached: projectId={ProjectId} audioPath={AudioPath}", project.Id, audioPath);
+                }
+
+                var stretched = await StretchDynamicVisualOverlaysAsync(project.Id);
+                Log.Information("TemplateUseStretchApplied: projectId={ProjectId} changedTracks={Changed}", project.Id, stretched);
+
+                Log.Information("TemplateUseComplete: templateId={TemplateId} projectId={ProjectId}", templateId, project.Id);
 
                 return await GetProjectAsync(project.Id) ?? project;
             }
@@ -1255,6 +1326,19 @@ namespace PodcastVideoEditor.Core.Services
                     if (!ShouldAutoStretchToProjectDuration(track))
                         continue;
 
+                    var trackSegmentCount = track.Segments?.Count ?? 0;
+                    if (trackSegmentCount != 1)
+                    {
+                        Log.Warning(
+                            "StretchOverlaySkip: projectId={ProjectId} trackId={TrackId} role={TrackRole} span={SpanMode} segmentCount={SegmentCount}",
+                            projectId,
+                            track.Id,
+                            track.TrackRole,
+                            track.SpanMode,
+                            trackSegmentCount);
+                        continue;
+                    }
+
                     var seg = track.Segments!.Single();
                     if (Math.Abs(seg.EndTime - targetEnd) <= 0.01)
                         continue;
@@ -1323,12 +1407,14 @@ namespace PodcastVideoEditor.Core.Services
 
         private static string NormalizeSpanMode(string? spanMode, string? role, string? trackType)
         {
+            if (string.Equals(role, TrackRoles.TitleOverlay, StringComparison.OrdinalIgnoreCase))
+                return TrackSpanModes.ProjectDuration;
+
             if (string.IsNullOrWhiteSpace(spanMode))
             {
                 var inferredRole = NormalizeTrackRole(role, trackType);
                 return inferredRole switch
                 {
-                    TrackRoles.TitleOverlay => TrackSpanModes.ProjectDuration,
                     TrackRoles.Visualizer => TrackSpanModes.ProjectDuration,
                     _ => TrackSpanModes.SegmentBound,
                 };

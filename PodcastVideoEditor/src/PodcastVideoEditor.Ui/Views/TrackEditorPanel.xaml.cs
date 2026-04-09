@@ -175,11 +175,10 @@ public partial class TrackEditorPanel : UserControl
     {
         var roleText = NormalizeTrackRole(track.TrackRole) switch
         {
-            TrackRoles.TitleOverlay => "Title overlay: title xuyên suốt hoặc theo mẫu.",
             TrackRoles.ScriptText => "Script text: nội dung lấy từ script mới.",
             TrackRoles.AiContent => "AI content: track nhận segment ảnh do AI sinh.",
             TrackRoles.Visualizer => "Visualizer: lớp hiệu ứng phổ âm thanh.",
-            _ => "Vai trò chưa chỉ định: hệ thống sẽ fallback theo heuristic."
+            _ => "Vai trò chưa chỉ định: dùng cho text cố định hoặc alias title cũ."
         };
 
         var spanText = NormalizeSpanMode(track.SpanMode) switch

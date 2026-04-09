@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private readonly SettingsViewModel _settingsViewModel;
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly TemplatePackageService _templatePackageService;
+    private readonly TemplateSnapshotService _templateSnapshotService;
     private readonly AutosaveService _autosaveService;
     private readonly IUpdateService _updateService;
     private readonly IAppInfoService _appInfoService;
@@ -57,6 +58,7 @@ public partial class MainWindow : Window
         SettingsViewModel settingsViewModel,
         IDbContextFactory<AppDbContext> contextFactory,
         TemplatePackageService templatePackageService,
+        TemplateSnapshotService templateSnapshotService,
         AutosaveService autosaveService,
         IAIAnalysisOrchestrator aiOrchestrator,
         IUpdateService updateService,
@@ -78,6 +80,7 @@ public partial class MainWindow : Window
             _settingsViewModel = settingsViewModel;
             _contextFactory = contextFactory;
             _templatePackageService = templatePackageService;
+            _templateSnapshotService = templateSnapshotService;
             _autosaveService = autosaveService;
             _updateService = updateService;
             _appInfoService = appInfoService;
@@ -581,14 +584,18 @@ public partial class MainWindow : Window
 
         try
         {
+            Log.Information("TemplateSaveLoadStart: project={ProjectId}", current.Id);
             await using var context = await _contextFactory.CreateDbContextAsync();
             var sourceProject = await context.Projects
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
                 .Include(p => p.Assets)
                 .Include(p => p.Elements)
                 .FirstOrDefaultAsync(p => p.Id == current.Id);
+
+            Log.Information("TemplateSaveLoadComplete: project={ProjectId} found={Found}", current.Id, sourceProject != null);
 
             if (sourceProject == null)
             {
@@ -596,7 +603,39 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var snapshot = BuildTemplateSnapshot(sourceProject);
+            var sourceTracks = sourceProject.Tracks?.ToList() ?? [];
+            var sourceSegments = sourceTracks.SelectMany(t => t.Segments ?? []).ToList();
+            var aiSourceTracks = sourceTracks.Count(t => string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase));
+            var aiSourceSegments = sourceTracks
+                .Where(t => string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(t => t.Segments ?? [])
+                .Count();
+            Log.Information(
+                "TemplateSaveStart: project={ProjectId} name={ProjectName} tracks={TrackCount} segments={SegmentCount} elements={ElementCount} aiTracks={AiTrackCount} aiSegments={AiSegmentCount}",
+                sourceProject.Id,
+                sourceProject.Name,
+                sourceTracks.Count,
+                sourceSegments.Count,
+                sourceProject.Elements?.Count ?? 0,
+                aiSourceTracks,
+                aiSourceSegments);
+
+            var snapshot = _templateSnapshotService.BuildSnapshot(sourceProject);
+            var snapshotTrackCount = snapshot.Tracks?.Count ?? 0;
+            var snapshotSegmentCount = snapshot.Tracks?.Sum(t => t.Segments?.Count ?? 0) ?? 0;
+            var snapshotAiTrackCount = snapshot.Tracks?.Count(t => string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase)) ?? 0;
+            var snapshotAiSegmentCount = snapshot.Tracks?
+                .Where(t => string.Equals(t.TrackRole, TrackRoles.AiContent, StringComparison.OrdinalIgnoreCase))
+                .Sum(t => t.Segments?.Count ?? 0) ?? 0;
+            Log.Information(
+                "TemplateSaveSnapshot: project={ProjectId} tracks={TrackCount} segments={SegmentCount} elements={ElementCount} aiTracks={AiTrackCount} aiSegments={AiSegmentCount}",
+                sourceProject.Id,
+                snapshotTrackCount,
+                snapshotSegmentCount,
+                snapshot.Elements?.Count ?? 0,
+                snapshotAiTrackCount,
+                snapshotAiSegmentCount);
+
             var layoutJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -612,6 +651,11 @@ public partial class MainWindow : Window
 
             await _templatePackageService.ImportTemplatePackageAsync(tempPackagePath);
             await RefreshHomeTemplateOptionsAsync();
+
+            Log.Information(
+                "TemplateSaveComplete: project={ProjectId} templateName={TemplateName}",
+                sourceProject.Id,
+                dialog.TemplateName);
 
             MessageBox.Show("Template saved successfully.", "Save Template", MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -667,14 +711,18 @@ public partial class MainWindow : Window
 
         try
         {
+            Log.Information("TemplateExportLoadStart: project={ProjectId}", current.Id);
             await using var context = await _contextFactory.CreateDbContextAsync();
             var sourceProject = await context.Projects
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.Tracks)
                     .ThenInclude(t => t.Segments)
                 .Include(p => p.Assets)
                 .Include(p => p.Elements)
                 .FirstOrDefaultAsync(p => p.Id == current.Id);
+
+            Log.Information("TemplateExportLoadComplete: project={ProjectId} found={Found}", current.Id, sourceProject != null);
 
             if (sourceProject == null)
             {
@@ -682,7 +730,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var snapshot = BuildTemplateSnapshot(sourceProject);
+            var snapshot = _templateSnapshotService.BuildSnapshot(sourceProject);
             var layoutJson = JsonSerializer.Serialize(snapshot, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -915,162 +963,6 @@ public partial class MainWindow : Window
         return string.IsNullOrWhiteSpace(cleaned) ? "template-package" : cleaned;
     }
 
-    private static TemplateProjectSnapshot BuildTemplateSnapshot(Project project)
-    {
-        var assetById = (project.Assets ?? [])
-            .Where(a => !string.IsNullOrWhiteSpace(a.Id))
-            .GroupBy(a => a.Id, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-
-        var tracks = project.Tracks?
-            .OrderBy(t => t.Order)
-            .Select(t => new TemplateTrackSnapshot
-            {
-                Id = t.Id,
-                Order = t.Order,
-                TrackType = t.TrackType,
-                TrackRole = TrackRolePolicies.NormalizeRoleForTrackType(t.TrackRole, t.TrackType),
-                SpanMode = t.SpanMode,
-                Name = t.Name,
-                IsLocked = t.IsLocked,
-                IsVisible = t.IsVisible,
-                ImageLayoutPreset = t.ImageLayoutPreset,
-                AutoMotionEnabled = t.AutoMotionEnabled,
-                MotionIntensity = t.MotionIntensity,
-                OverlayColorHex = t.OverlayColorHex,
-                OverlayOpacity = t.OverlayOpacity,
-                TextStyleJson = t.TextStyleJson,
-                // Templates capture reusable layout/style and text timing only.
-                // Audio segments are intentionally excluded because their media bindings
-                // are project-specific and should come from the wizard-selected audio import.
-                Segments = string.Equals(t.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
-                    ? []
-                    : t.Segments?
-                        .OrderBy(s => s.Order)
-                        .Select(s =>
-                        {
-                            var segAsset = !string.IsNullOrWhiteSpace(s.BackgroundAssetId)
-                                && assetById.TryGetValue(s.BackgroundAssetId, out var matchedAsset)
-                                ? matchedAsset
-                                : null;
-
-                            return new TemplateSegmentSnapshot
-                            {
-                                Id = s.Id,
-                                StartTime = s.StartTime,
-                                EndTime = s.EndTime,
-                                Text = s.Text,
-                                BackgroundAssetId = null,
-                                BackgroundAssetPath = segAsset?.FilePath,
-                                BackgroundAssetType = segAsset?.Type,
-                                TransitionType = s.TransitionType,
-                                TransitionDuration = s.TransitionDuration,
-                                Order = s.Order,
-                                Kind = s.Kind,
-                                Keywords = s.Keywords,
-                                Volume = s.Volume,
-                                FadeInDuration = s.FadeInDuration,
-                                FadeOutDuration = s.FadeOutDuration,
-                                SourceStartOffset = s.SourceStartOffset,
-                                MotionPreset = s.MotionPreset,
-                                MotionIntensity = s.MotionIntensity,
-                                OverlayColorHex = s.OverlayColorHex,
-                                OverlayOpacity = s.OverlayOpacity
-                            };
-                        })
-                        .ToList() ?? []
-            })
-            .ToList() ?? [];
-
-        var elements = project.Elements?
-            .Select(e => new TemplateElementSnapshot
-            {
-                Type = e.Type,
-                X = e.X,
-                Y = e.Y,
-                Width = e.Width,
-                Height = e.Height,
-                Rotation = e.Rotation,
-                ZIndex = e.ZIndex,
-                Opacity = e.Opacity,
-                PropertiesJson = e.PropertiesJson,
-                IsVisible = e.IsVisible,
-                SegmentId = e.SegmentId
-            })
-            .ToList() ?? [];
-
-        return new TemplateProjectSnapshot
-        {
-            RenderSettings = project.RenderSettings ?? new RenderSettings(),
-            Tracks = tracks,
-            Elements = elements
-        };
-    }
-
-    private sealed class TemplateProjectSnapshot
-    {
-        public RenderSettings? RenderSettings { get; set; }
-        public List<TemplateTrackSnapshot> Tracks { get; set; } = [];
-        public List<TemplateElementSnapshot> Elements { get; set; } = [];
-    }
-
-    private sealed class TemplateTrackSnapshot
-    {
-        public string? Id { get; set; }
-        public int Order { get; set; }
-        public string? TrackType { get; set; }
-        public string? TrackRole { get; set; }
-        public string? SpanMode { get; set; }
-        public string? Name { get; set; }
-        public bool IsLocked { get; set; }
-        public bool IsVisible { get; set; } = true;
-        public string? ImageLayoutPreset { get; set; }
-        public bool AutoMotionEnabled { get; set; }
-        public double MotionIntensity { get; set; } = 0.3;
-        public string? OverlayColorHex { get; set; }
-        public double OverlayOpacity { get; set; }
-        public string? TextStyleJson { get; set; }
-        public List<TemplateSegmentSnapshot> Segments { get; set; } = [];
-    }
-
-    private sealed class TemplateSegmentSnapshot
-    {
-        public string? Id { get; set; }
-        public double StartTime { get; set; }
-        public double EndTime { get; set; }
-        public string? Text { get; set; }
-        public string? BackgroundAssetId { get; set; }
-        public string? BackgroundAssetPath { get; set; }
-        public string? BackgroundAssetType { get; set; }
-        public string? TransitionType { get; set; }
-        public double TransitionDuration { get; set; } = 0.5;
-        public int Order { get; set; }
-        public string? Kind { get; set; }
-        public string? Keywords { get; set; }
-        public double Volume { get; set; } = 1.0;
-        public double FadeInDuration { get; set; }
-        public double FadeOutDuration { get; set; }
-        public double SourceStartOffset { get; set; }
-        public string? MotionPreset { get; set; }
-        public double? MotionIntensity { get; set; }
-        public string? OverlayColorHex { get; set; }
-        public double? OverlayOpacity { get; set; }
-    }
-
-    private sealed class TemplateElementSnapshot
-    {
-        public string? Type { get; set; }
-        public double X { get; set; }
-        public double Y { get; set; }
-        public double Width { get; set; } = 100;
-        public double Height { get; set; } = 50;
-        public double Rotation { get; set; }
-        public int ZIndex { get; set; }
-        public double Opacity { get; set; } = 1.0;
-        public string? PropertiesJson { get; set; }
-        public bool IsVisible { get; set; } = true;
-        public string? SegmentId { get; set; }
-    }
 
     private async void OpenSelectedMenu_Click(object sender, RoutedEventArgs e)
     {
