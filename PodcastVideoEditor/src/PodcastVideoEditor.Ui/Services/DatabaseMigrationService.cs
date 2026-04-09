@@ -18,24 +18,36 @@ internal static class DatabaseMigrationService
         {
             context.Database.Migrate();
             Log.Information("Database migration applied successfully");
+            EnsureColumnsExist(context);
+            return;
         }
-        catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.Message.Contains("duplicate column name"))
+        catch (Exception ex) when (IsMigrationConflict(ex))
         {
-            Log.Warning(ex, "Migration conflict detected (column already exists in schema). Repairing migration history...");
-            RepairMigrationHistory(context);
-            context.Database.Migrate();
-            Log.Information("Database migration applied successfully after history repair");
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Database migration failed, falling back to EnsureCreated");
-            context.Database.EnsureCreated();
+            Log.Warning(ex, "Database migration failed. Repairing migration history and retrying...");
         }
 
-        // Ensure new columns exist even if Migrate/EnsureCreated didn't add them
-        // (EnsureCreated skips ALTER on existing tables; Migrate may fail silently).
+        RepairMigrationHistory(context);
         EnsureColumnsExist(context);
+        try
+        {
+            context.Database.Migrate();
+            Log.Information("Database migration applied successfully after history repair");
+            EnsureColumnsExist(context);
+        }
+        catch (Exception ex) when (IsMigrationConflict(ex))
+        {
+            RepairMigrationHistory(context);
+            EnsureColumnsExist(context);
+            context.Database.Migrate();
+            Log.Information("Database migration applied successfully after second history repair");
+            EnsureColumnsExist(context);
+        }
     }
+
+    private static bool IsMigrationConflict(Exception ex)
+        => ex is Microsoft.Data.Sqlite.SqliteException sqliteEx
+            && (sqliteEx.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase)
+                || sqliteEx.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase));
 
     private static void RepairMigrationHistory(AppDbContext context)
     {
@@ -47,6 +59,23 @@ internal static class DatabaseMigrationService
         {
             EnsureMigrationHistoryTable(conn);
 
+            MarkMigrationIfAllTablesExist(conn,
+                migrationId: "20260206163048_InitialCreate",
+                productVersion,
+                ["Projects", "Templates", "Assets", "BgmTracks", "Elements", "Segments"]);
+
+            MarkMigrationIfTableAndColumnExist(conn,
+                migrationId: "20260212034910_AddMultiTrackSupport",
+                tableName: "Tracks",
+                columnTableName: "Segments",
+                columnName: "TrackId",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260212120000_AddElementSegmentId",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Elements') WHERE name='SegmentId'",
+                productVersion);
+
             MarkMigrationIfColumnExists(conn,
                 migrationId: "20260210100000_AddSegmentKind",
                 checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Kind'",
@@ -54,7 +83,32 @@ internal static class DatabaseMigrationService
 
             MarkMigrationIfColumnExists(conn,
                 migrationId: "20260313100000_AddSegmentAudioProperties",
-                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Volume'",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='FadeOutDuration'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260318100000_AddKeywordsToSegment",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='Keywords'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260318120000_AddTrackImageLayoutPreset",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Tracks') WHERE name='ImageLayoutPreset'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260320100000_AddSegmentSourceStartOffset",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='SourceStartOffset'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260326100000_AddMotionEffectProperties",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Segments') WHERE name='MotionPreset'",
+                productVersion);
+
+            MarkMigrationIfColumnExists(conn,
+                migrationId: "20260328100000_AddOverlayProperties",
+                checkSql: "SELECT COUNT(*) FROM pragma_table_info('Tracks') WHERE name='OverlayColorHex'",
                 productVersion);
 
             MarkMigrationIfColumnExists(conn,
@@ -110,6 +164,68 @@ internal static class DatabaseMigrationService
             insertCmd.ExecuteNonQuery();
             Log.Information("Migration history repaired: marked {MigrationId} as applied", migrationId);
         }
+    }
+
+    private static void MarkMigrationIfAllTablesExist(
+        System.Data.Common.DbConnection conn,
+        string migrationId,
+        string productVersion,
+        string[] tableNames)
+    {
+        foreach (var tableName in tableNames)
+        {
+            if (!TableExists(conn, tableName))
+                return;
+        }
+
+        InsertMigrationHistoryRow(conn, migrationId, productVersion);
+    }
+
+    private static void MarkMigrationIfTableAndColumnExist(
+        System.Data.Common.DbConnection conn,
+        string migrationId,
+        string tableName,
+        string columnTableName,
+        string columnName,
+        string productVersion)
+    {
+        if (!TableExists(conn, tableName))
+            return;
+
+        var count = GetColumnCount(conn, columnTableName, columnName);
+        if (count > 0)
+            InsertMigrationHistoryRow(conn, migrationId, productVersion);
+    }
+
+    private static long GetColumnCount(System.Data.Common.DbConnection conn, string tableName, string columnName)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{tableName}') WHERE name='{columnName}'";
+        return (long)(checkCmd.ExecuteScalar() ?? 0L);
+    }
+
+    private static bool TableExists(System.Data.Common.DbConnection conn, string tableName)
+    {
+        using var checkCmd = conn.CreateCommand();
+        checkCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=@name";
+        var parameter = checkCmd.CreateParameter();
+        parameter.ParameterName = "@name";
+        parameter.Value = tableName;
+        checkCmd.Parameters.Add(parameter);
+        return Convert.ToInt64(checkCmd.ExecuteScalar() ?? 0L) > 0;
+    }
+
+    private static void InsertMigrationHistoryRow(System.Data.Common.DbConnection conn, string migrationId, string productVersion)
+    {
+        using var insertCmd = conn.CreateCommand();
+        insertCmd.CommandText =
+            "INSERT OR IGNORE INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES (@id, @ver)";
+        var pId = insertCmd.CreateParameter(); pId.ParameterName = "@id"; pId.Value = migrationId;
+        var pVer = insertCmd.CreateParameter(); pVer.ParameterName = "@ver"; pVer.Value = productVersion;
+        insertCmd.Parameters.Add(pId);
+        insertCmd.Parameters.Add(pVer);
+        insertCmd.ExecuteNonQuery();
+        Log.Information("Migration history repaired: marked {MigrationId} as applied", migrationId);
     }
 
     /// <summary>

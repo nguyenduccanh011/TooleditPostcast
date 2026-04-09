@@ -1201,18 +1201,27 @@ public partial class MainWindow : Window
         e.Cancel = true;
         _isClosing = true;
 
-        _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
-        _timelineViewModel.PropertyChanged -= OnTimelinePropertyChanged;
-        _timelineViewModel.Tracks.CollectionChanged -= OnTimelineTracksChanged;
+        try
+        {
+            _audioPlayerViewModel.AudioLoaded -= OnAudioLoaded;
+            _timelineViewModel.PropertyChanged -= OnTimelinePropertyChanged;
+            _timelineViewModel.Tracks.CollectionChanged -= OnTimelineTracksChanged;
 
-        // Flush any pending autosave before disposing
-        await _autosaveService.FlushAsync(force: true);
-        _autosaveService.Dispose();
+            // Flush any pending autosave before disposing.
+            await _autosaveService.FlushAsync(force: true);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Error while closing main window");
+        }
+        finally
+        {
+            _autosaveService.Dispose();
+            _mainViewModel?.Dispose();
 
-        _mainViewModel?.Dispose();
-
-        // Now actually close the window
-        Close();
+            // Defer the second close until the current Closing event unwinds.
+            _ = Dispatcher.BeginInvoke(new Action(Close));
+        }
     }
 
     private Task LoadProjectAudioAsync()
