@@ -2,6 +2,8 @@ using PodcastVideoEditor.Ui.Configuration;
 using Serilog;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -25,19 +27,22 @@ public sealed class GitHubReleaseUpdateService : IUpdateService
     private readonly UserSettingsStore _userSettingsStore;
     private readonly string _appDataPath;
     private readonly HttpClient _httpClient;
+    private readonly Func<string, string, bool> _startInstaller;
 
     public GitHubReleaseUpdateService(
         AppConfiguration configuration,
         IAppInfoService appInfoService,
         UserSettingsStore userSettingsStore,
         string appDataPath,
-        HttpClient? httpClient = null)
+        HttpClient? httpClient = null,
+        Func<string, string, bool>? startInstaller = null)
     {
         _configuration = configuration;
         _appInfoService = appInfoService;
         _userSettingsStore = userSettingsStore;
         _appDataPath = appDataPath;
         _httpClient = httpClient ?? new HttpClient();
+        _startInstaller = startInstaller ?? StartInstaller;
     }
 
     public bool ShouldCheckForUpdates()
@@ -138,6 +143,76 @@ public sealed class GitHubReleaseUpdateService : IUpdateService
         }
     }
 
+    public async Task<UpdateInstallResult> DownloadAndInstallUpdateAsync(UpdateCheckResult update, CancellationToken cancellationToken = default)
+    {
+        if (update is null)
+            return UpdateInstallResult.Failure("Update payload is missing.");
+
+        if (!update.IsUpdateAvailable)
+            return UpdateInstallResult.Failure("No newer update is currently available.");
+
+        var downloadUrl = update.DownloadUrl;
+        if (string.IsNullOrWhiteSpace(downloadUrl))
+            return UpdateInstallResult.Failure("No installer download URL was provided by the release metadata.");
+
+        if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var downloadUri))
+            return UpdateInstallResult.Failure("Installer download URL is invalid.");
+
+        var fileName = Path.GetFileName(downloadUri.LocalPath);
+        if (string.IsNullOrWhiteSpace(fileName) || !fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return UpdateInstallResult.Failure(
+                "The selected release asset is not a Windows installer (.exe). Please use manual update for this release.");
+        }
+
+        try
+        {
+            var updateDir = Path.Combine(_appDataPath, "Updates");
+            Directory.CreateDirectory(updateDir);
+            var installerPath = Path.Combine(updateDir, fileName);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, downloadUri);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("PodcastVideoEditor", _appInfoService.DisplayVersion));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return UpdateInstallResult.Failure(
+                    $"Could not download installer. Server returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            }
+
+            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+            await using (var destination = File.Create(installerPath))
+            {
+                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+            }
+
+            var fileInfo = new FileInfo(installerPath);
+            if (!fileInfo.Exists || fileInfo.Length <= 0)
+                return UpdateInstallResult.Failure("Downloaded installer is empty or missing.");
+
+            var installerArgs = "/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS";
+            if (!_startInstaller(installerPath, installerArgs))
+                return UpdateInstallResult.Failure("Failed to launch the downloaded installer.");
+
+            return UpdateInstallResult.Success(
+                $"Downloaded {fileName} and started installer in silent mode.",
+                installerPath);
+        }
+        catch (OperationCanceledException)
+        {
+            return UpdateInstallResult.Failure("Update install canceled.");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to download/install update");
+            return UpdateInstallResult.Failure($"Could not install update: {ex.Message}");
+        }
+    }
+
     internal static GitHubReleaseAsset? SelectInstallerAsset(IReadOnlyList<GitHubReleaseAsset>? assets)
     {
         if (assets is null || assets.Count == 0)
@@ -174,6 +249,19 @@ public sealed class GitHubReleaseUpdateService : IUpdateService
         {
             Log.Warning(ex, "Failed to persist last update check timestamp");
         }
+    }
+
+    private static bool StartInstaller(string installerPath, string arguments)
+    {
+        var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = installerPath,
+            Arguments = arguments,
+            UseShellExecute = true,
+            WorkingDirectory = Path.GetDirectoryName(installerPath) ?? AppContext.BaseDirectory
+        });
+
+        return process is not null;
     }
 
     internal sealed class GitHubReleaseResponse

@@ -76,6 +76,65 @@ public sealed class ReleaseUpdateServiceTests
         Assert.Equal("https://github.com/nguyenduccanh011/TooleditPostcast/releases/download/v1.1.0/PodcastVideoEditor-Setup-v1.1.0.exe", result.DownloadUrl);
     }
 
+    [Fact]
+    public async Task DownloadAndInstallUpdateAsync_DownloadsInstaller_AndStartsProcess()
+    {
+        using var tempDir = new TemporaryDirectory();
+        var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent([1, 2, 3, 4, 5])
+        });
+
+        string? startedPath = null;
+        string? startedArgs = null;
+        var service = new GitHubReleaseUpdateService(
+            CreateConfiguration(),
+            new FakeAppInfoService(new Version(1, 0, 0)),
+            new UserSettingsStore(),
+            tempDir.Path,
+            new HttpClient(handler),
+            (path, args) =>
+            {
+                startedPath = path;
+                startedArgs = args;
+                return true;
+            });
+
+        var install = await service.DownloadAndInstallUpdateAsync(new UpdateCheckResult
+        {
+            IsSuccessful = true,
+            IsUpdateAvailable = true,
+            DownloadUrl = "https://example.com/releases/PodcastVideoEditor-Setup-v1.1.0.exe"
+        });
+
+        Assert.True(install.IsSuccessful);
+        Assert.False(string.IsNullOrWhiteSpace(startedPath));
+        Assert.True(File.Exists(startedPath!));
+        Assert.Contains("VERYSILENT", startedArgs);
+    }
+
+    [Fact]
+    public async Task DownloadAndInstallUpdateAsync_Fails_ForNonExeAssets()
+    {
+        using var tempDir = new TemporaryDirectory();
+        var service = new GitHubReleaseUpdateService(
+            CreateConfiguration(),
+            new FakeAppInfoService(new Version(1, 0, 0)),
+            new UserSettingsStore(),
+            tempDir.Path,
+            new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK))));
+
+        var install = await service.DownloadAndInstallUpdateAsync(new UpdateCheckResult
+        {
+            IsSuccessful = true,
+            IsUpdateAvailable = true,
+            DownloadUrl = "https://example.com/releases/notes.txt"
+        });
+
+        Assert.False(install.IsSuccessful);
+        Assert.Contains(".exe", install.Message);
+    }
+
     private static AppConfiguration CreateConfiguration()
     {
         return new AppConfiguration

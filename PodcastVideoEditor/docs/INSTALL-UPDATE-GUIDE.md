@@ -15,12 +15,20 @@
 ## Updating from a Previous Version
 
 ### Installer Version
-Run the new installer over the existing installation. Your settings and projects are preserved.
+Preferred: open the app and choose **Check for Updates**, then confirm **Download and install now**.
+
+Alternative: run the new installer over the existing installation manually. Your settings and projects are preserved.
 
 ### Portable Version
 1. Extract the new ZIP to a **new** folder.
 2. Copy your `%APPDATA%\PodcastVideoEditor\` data folder if you want to migrate settings manually (settings migrate automatically on first launch).
 3. Replace your shortcut to point to the new folder.
+
+## In-App Auto Update (Installer Build)
+
+- The app checks GitHub Releases for newer stable versions.
+- When a new version is found, choose **Download and install now** to let the app download the setup `.exe` and start a silent installer.
+- The app closes automatically after launching the installer.
 
 ## First Run — AI Settings
 

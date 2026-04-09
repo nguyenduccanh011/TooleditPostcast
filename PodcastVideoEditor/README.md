@@ -5,7 +5,7 @@ Windows WPF app for editing podcast timelines and rendering video outputs with v
 ## Release Status
 - Windows x64 release packaging is based on `dotnet publish` plus Inno Setup.
 - Installer distribution targets GitHub Releases.
-- App updates are notification-only in V1. The app opens the download page for a newer installer instead of patching itself.
+- App can check GitHub Releases, download the latest installer, and start silent update directly from inside the app.
 
 ## System Requirements
 - Windows 10 or Windows 11, 64-bit

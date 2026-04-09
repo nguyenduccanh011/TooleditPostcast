@@ -153,7 +153,7 @@ public partial class MainWindow : Window
         BundledFfmpegText.Text = _appInfoService.BundledFfmpegPath is null
             ? "Bundled FFmpeg: not found in this build."
             : $"Bundled FFmpeg: {_appInfoService.BundledFfmpegPath}";
-        UpdateStatusText.Text = "Checks GitHub Releases for the latest stable installer.";
+        UpdateStatusText.Text = "Checks GitHub Releases and can install updates directly from the app.";
     }
 
     private async Task CheckForUpdatesOnStartupAsync()
@@ -165,7 +165,7 @@ public partial class MainWindow : Window
         if (result.IsUpdateAvailable)
         {
             UpdateStatusText.Text = result.Message;
-            ShowUpdateResult(result, isInteractive: false);
+            await ShowUpdateResultAsync(result, isInteractive: false);
             return;
         }
 
@@ -181,10 +181,10 @@ public partial class MainWindow : Window
         UpdateStatusText.Text = "Checking GitHub Releases...";
         var result = await _updateService.CheckForUpdatesAsync(ignoreSchedule: true);
         UpdateStatusText.Text = result.Message;
-        ShowUpdateResult(result, isInteractive: true);
+        await ShowUpdateResultAsync(result, isInteractive: true);
     }
 
-    private void ShowUpdateResult(UpdateCheckResult result, bool isInteractive)
+    private async Task ShowUpdateResultAsync(UpdateCheckResult result, bool isInteractive)
     {
         if (result.IsUpdateAvailable)
         {
@@ -196,10 +196,33 @@ public partial class MainWindow : Window
                 $"{result.ReleaseTitle ?? "A new release"} is available.{Environment.NewLine}{Environment.NewLine}" +
                 $"Current version: {_appInfoService.DisplayVersion}{Environment.NewLine}" +
                 $"Latest version: {latestVersion}{Environment.NewLine}{Environment.NewLine}" +
-                "Open the download page now?";
+                "Yes: Download and install now (silent).\nNo: Open download page.\nCancel: Remind me later.";
 
-            if (MessageBox.Show(message, "Update Available", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes
-                && !string.IsNullOrWhiteSpace(downloadUrl))
+            var choice = MessageBox.Show(message, "Update Available", MessageBoxButton.YesNoCancel, MessageBoxImage.Information);
+            if (choice == MessageBoxResult.Yes)
+            {
+                UpdateStatusText.Text = "Downloading update installer...";
+                var installResult = await _updateService.DownloadAndInstallUpdateAsync(result);
+                UpdateStatusText.Text = installResult.Message;
+
+                if (installResult.IsSuccessful)
+                {
+                    MessageBox.Show(
+                        "Installer started successfully. The app will close now to complete the update.",
+                        "Updating",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    Application.Current.Shutdown();
+                }
+                else
+                {
+                    MessageBox.Show(installResult.Message, "Update Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
+                return;
+            }
+
+            if (choice == MessageBoxResult.No && !string.IsNullOrWhiteSpace(downloadUrl))
             {
                 OpenExternalUrl(downloadUrl);
             }
