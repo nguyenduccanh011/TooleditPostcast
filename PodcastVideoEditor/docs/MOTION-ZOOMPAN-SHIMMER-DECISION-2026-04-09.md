@@ -37,6 +37,7 @@
   - Kết quả user test: không thấy cải thiện rõ rằng.
   - Tác động phụ: render chậm hơn đáng kể.
   - Kết luận: rollback (giữ pixFmt theo ngữ cảnh alpha/yuv420p).
+- Root cause bổ sung đã xác nhận: nhánh `FFmpegFilterGraphBuilder` còn thiếu lớp ép single-frame trước `zoompan`, nên looped image input có thể làm fan-out và quay lại kiểu jitter/reset theo chu kỳ. Nhánh này đã được đồng bộ với composer bằng `select='eq(n,0)'`.
 
 ## 6) Vấn đề còn tồn tại
 - Micro-shimmer nội tại của zoompan vẫn còn một phần nhỏ trong một số cảnh subtle motion.

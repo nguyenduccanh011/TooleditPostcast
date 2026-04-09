@@ -398,7 +398,104 @@ public class FFmpegCommandComposerTests
             var script = System.IO.File.ReadAllText(scriptPath);
             Assert.Contains("zoompan=", script);
             Assert.Contains("select='eq(n,0)'", script);
-            Assert.Contains("format=rgba,zoompan=", script);
+            Assert.Contains("format=rgba", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
+    public void Build_ImageSegment_WithExplicitBounds_UsesFillCoverCrop()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5,
+                ScaleWidth = 600,
+                ScaleHeight = 400,
+                ScaleMode = "Fill"
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(args, "-/filter_complex \"([^\"]+)\"");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("force_original_aspect_ratio=increase", script);
+            Assert.Contains("crop=600:400", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPng))
+                System.IO.File.Delete(tempPng);
+        }
+    }
+
+    [Fact]
+    public void Build_ImageSegment_WithExplicitBounds_Stretch_DoesNotForceAspectCrop()
+    {
+        var tempPng = CreateTempPng();
+        try
+        {
+            var seg = new RenderVisualSegment
+            {
+                SourcePath = tempPng,
+                StartTime = 0,
+                EndTime = 5,
+                ScaleWidth = 600,
+                ScaleHeight = 400,
+                ScaleMode = "Stretch"
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [seg],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(args, "-/filter_complex \"([^\"]+)\"");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("scale=600:400:flags=", script);
+            Assert.DoesNotContain("force_original_aspect_ratio=increase", script);
+            Assert.DoesNotContain("crop=600:400", script);
         }
         finally
         {

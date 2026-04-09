@@ -199,6 +199,13 @@ public static class RenderSegmentBuilder
                     renderSeg.OverlayY     = overlayY.ToString(CultureInfo.InvariantCulture);
                     renderSeg.ScaleWidth   = scaleW;
                     renderSeg.ScaleHeight  = scaleH;
+
+                    renderSeg.ScaleMode = linkedElement switch
+                    {
+                        ImageElement image => image.ScaleMode.ToString(),
+                        LogoElement logo => logo.ScaleMode.ToString(),
+                        _ => renderSeg.ScaleMode
+                    };
                 }
                 else if (renderWidth > 0 && renderHeight > 0)
                 {

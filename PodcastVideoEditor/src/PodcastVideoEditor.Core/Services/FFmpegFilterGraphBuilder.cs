@@ -232,7 +232,7 @@ public static class FFmpegFilterGraphBuilder
                     config.ResolutionWidth, config.ResolutionHeight);
 
                 if (zoompanFilter != null)
-                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1");
+                    filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1");
                 else
                     filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1");
             }
@@ -454,7 +454,7 @@ public static class FFmpegFilterGraphBuilder
         var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
-        Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);
+        Log.Debug("Filter script written to: {Path} ({Length} chars)", filterScriptPath, filterStr.Length);
         return filterScriptPath;
     }
 }

@@ -12,108 +12,191 @@ using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
 
+/*
+
+            var preserveAspect = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                && !string.Equals(seg.ScaleMode, "Stretch", StringComparison.OrdinalIgnoreCase);
+
+            if (seg.IsVideo)
+            {
+                if (useCudaOverlay && !forceCpu && !preserveAspect)
+                {
+                    // CUDA path: keep as CUDA surface for overlay_cuda.
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    if (cudaZeroCopy)
+                    {
+                        // Frames are already CUDA surfaces from -hwaccel_output_format cuda.
+                        filter.Append($"{gpuScaleExact},setsar=1[{scaledLabel}];");
+                    }
+                    else
+                    {
+                        filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
+                    }
+                    segOnGpu[i] = true;
+                }
+                else if (hasGpuFilters && !needsAlpha && !preserveAspect)
+                {
+                    // GPU scale but download to CPU (has fade or non-CUDA backend).
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    if (cudaZeroCopy)
+                        filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                    else
+                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else
+                {
+                    // CPU fallback (alpha-needed, explicit fill/fit, or no GPU backend).
+                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                    var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
+                        : BuildScalingFilter(config, preferFastCpuScale);
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+            }
+            else
+            {
+                // ── Image segment: use standard -i input ──
+                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
+                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
+                    : BuildScalingFilter(config, preferFastCpuScale);
+
+                // Check for Ken Burns motion effect (zoom/pan) — CPU only
+                var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
+                    config.ResolutionWidth, config.ResolutionHeight, pixFmt);
+
+                if (zoompanFilter != null)
+                {
+                    var estimatedInputFrames = Math.Max(1, (int)Math.Ceiling((seg.EndTime - seg.StartTime) * config.FrameRate));
+                    var motionFrames = Math.Max(1, MotionEngine.ComputeTotalFrames(seg.Duration, config.FrameRate));
+                    var estimatedFanout = estimatedInputFrames * motionFrames;
+                    if (estimatedInputFrames > 1)
+                    {
+                        Log.Debug(
+                            "Motion segment {Index} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
+                            i,
+                            estimatedInputFrames,
+                            motionFrames,
+                            estimatedFanout);
+                    }
+
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else if (useCudaOverlay && !forceCpu && !preserveAspect)
+                {
+                    // GPU scale for non-alpha images, keep as CUDA surface.
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
+                    segOnGpu[i] = true;
+                }
+                else if (hasGpuFilters && !needsAlpha && !preserveAspect)
+                {
+                    // GPU scale but download to CPU (non-CUDA backend or has fade).
+                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
+                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        : (config.ResolutionWidth, config.ResolutionHeight);
+                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+                else
+                {
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                }
+            }
+
+*/
+
 namespace PodcastVideoEditor.Core.Services;
 
-/// <summary>
-/// Builds FFmpeg command-line arguments and filter_complex graphs from a <see cref="RenderConfig"/>.
-/// Extracted from FFmpegService to keep that class focused on path detection, validation,
-/// and process execution only.
-/// </summary>
 public static class FFmpegCommandComposer
 {
+    public enum GpuVendor
+    {
+        Unknown,
+        Nvidia,
+        Amd,
+        Intel
+    }
+
+    public enum GpuFilterBackend
+    {
+        None,
+        Cuda,
+        Qsv,
+        Vulkan,
+        OpenCL
+    }
+
     private static readonly object _encoderProbeLock = new();
     private static string? _preferredH264Encoder;
     private static string? _preferredHevcEncoder;
-
-    // ── GPU filter backend detection ────────────────────────────────────
-    // Probed once alongside encoder detection. Determines whether the FFmpeg
-    // filter graph can run scale/overlay on GPU (CUDA, QSV, Vulkan, or OpenCL).
-    // When a backend is available the compose methods emit hwupload + GPU filters
-    // instead of CPU libswscale, keeping decoded frames on the GPU and avoiding
-    // costly CPU↔GPU round-trips. Falls back gracefully to CPU if none found.
-
-    /// <summary>GPU filter backends in preference order.</summary>
-    public enum GpuFilterBackend { None, Cuda, Qsv, Vulkan, OpenCL }
-
-    /// <summary>GPU hardware vendor, detected via WMI to prioritise the correct encoder.</summary>
-    private enum GpuVendor { Unknown, Nvidia, Amd, Intel }
-
-    private static GpuFilterBackend _gpuFilterBackend = GpuFilterBackend.None;
+    private static GpuFilterBackend _gpuFilterBackend;
     private static bool _gpuFilterProbed;
 
-    /// <summary>Returns the detected GPU filter backend (probe runs lazily on first call).</summary>
-    public static GpuFilterBackend DetectedGpuBackend
-    {
-        get
-        {
-            EnsurePreferredEncodersInitialized(); // also probes GPU filters
-            return _gpuFilterBackend;
-        }
-    }
+    internal static GpuFilterBackend DetectedGpuBackend => _gpuFilterBackend;
 
-    /// <summary>
-    /// Returns the FFmpeg <c>-init_hw_device</c> argument and the <c>-filter_hw_device</c>
-    /// name for the detected GPU backend.  Empty strings when no GPU backend is available.
-    /// </summary>
-    internal static (string initHwDevice, string filterHwDevice, string hwuploadFilter, string scaleFilter, string overlayFilter) GetGpuFilterArgs(int width, int height)
+    public static (string initHwDevice, string filterHwDevice, string gpuHwupload, string gpuScale, string gpuOverlay) GetGpuFilterArgs(int width, int height) => _gpuFilterBackend switch
     {
-        return _gpuFilterBackend switch
-        {
-            GpuFilterBackend.Cuda => (
-                "-init_hw_device cuda=gpudev -filter_hw_device gpudev",
-                "gpudev",
-                "hwupload_cuda",
-                $"scale_cuda={width}:{height}:force_original_aspect_ratio=0",
-                "overlay_cuda"),
-            GpuFilterBackend.Qsv => (
-                "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
-                "gpudev",
-                "hwupload=extra_hw_frames=64",
-                $"scale_qsv=w={width}:h={height}",
-                "overlay_qsv"),
-            GpuFilterBackend.Vulkan => (
-                "-init_hw_device vulkan=gpudev -filter_hw_device gpudev",
-                "gpudev",
-                "hwupload",
-                $"scale_vulkan=w={width}:h={height}",
-                "overlay_vulkan"),
-            GpuFilterBackend.OpenCL => (
-                "-init_hw_device opencl=gpudev -filter_hw_device gpudev",
-                "gpudev",
-                "hwupload",
-                $"scale_opencl=w={width}:h={height}",
-                "overlay_opencl"),
-            _ => ("", "", "", "", "")
-        };
-    }
+        GpuFilterBackend.Cuda => (
+            "-init_hw_device cuda=gpudev -filter_hw_device gpudev",
+            "gpudev",
+            "hwupload_cuda",
+            $"scale_cuda={width}:{height}",
+            "overlay_cuda"),
+        GpuFilterBackend.Qsv => (
+            "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
+            "gpudev",
+            "hwupload=extra_hw_frames=64",
+            $"scale_qsv=w={width}:h={height}",
+            "overlay_qsv"),
+        GpuFilterBackend.Vulkan => (
+            "-init_hw_device vulkan=gpudev -filter_hw_device gpudev",
+            "gpudev",
+            "hwupload",
+            $"scale_vulkan=w={width}:h={height}",
+            "overlay_vulkan"),
+        GpuFilterBackend.OpenCL => (
+            "-init_hw_device opencl=gpudev -filter_hw_device gpudev",
+            "gpudev",
+            "hwupload",
+            $"scale_opencl=w={width}:h={height}",
+            "overlay_opencl"),
+        _ => ("", "", "", "", "")
+    };
 
-    /// <summary>
-    /// Returns the hwupload filter string for the detected GPU backend.
-    /// Used in filter_complex chains: <c>format=yuv420p,{hwupload},scale_cuda=...,hwdownload,format=yuv420p</c>.
-    /// </summary>
-    public static string GpuHwuploadFilter() => _gpuFilterBackend switch
+    internal static string GpuHwuploadFilter() => _gpuFilterBackend switch
     {
-        GpuFilterBackend.Cuda   => "hwupload_cuda",
-        GpuFilterBackend.Qsv    => "hwupload=extra_hw_frames=64",
+        GpuFilterBackend.Cuda => "hwupload_cuda",
+        GpuFilterBackend.Qsv => "hwupload=extra_hw_frames=64",
         GpuFilterBackend.Vulkan => "hwupload",
         GpuFilterBackend.OpenCL => "hwupload",
         _ => ""
     };
 
-    /// <summary>
-    /// Returns the GPU-specific scale filter string for the given dimensions.
-    /// Centralises the backend switch that was previously duplicated 4+ times.
-    /// </summary>
     internal static string BuildGpuScaleExact(int width, int height) => _gpuFilterBackend switch
     {
-        GpuFilterBackend.Cuda   => $"scale_cuda={width}:{height}",
-        GpuFilterBackend.Qsv    => $"scale_qsv=w={width}:h={height}",
+        GpuFilterBackend.Cuda => $"scale_cuda={width}:{height}",
+        GpuFilterBackend.Qsv => $"scale_qsv=w={width}:h={height}",
         GpuFilterBackend.Vulkan => $"scale_vulkan=w={width}:h={height}",
         GpuFilterBackend.OpenCL => $"scale_opencl=w={width}:h={height}",
         _ => $"scale={width}:{height}"
     };
-
-    // ── GPU capabilities (exposed to UI layer) ──────────────────────────
 
     /// <summary>
     /// Snapshot of detected GPU capabilities for display in the render UI.
@@ -537,7 +620,7 @@ public static class FFmpegCommandComposer
                     // CPU fallback (alpha-needed or no GPU backend)
                     var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, preferFastCpuScale)
+                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
                         : BuildScalingFilter(config, preferFastCpuScale);
                     filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                     filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
@@ -548,7 +631,7 @@ public static class FFmpegCommandComposer
                 // ── Image segment: use standard -i input ──
                 var pixFmt = needsAlpha ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, preferFastCpuScale)
+                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
                     : BuildScalingFilter(config, preferFastCpuScale);
 
                 // Check for Ken Burns motion effect (zoom/pan) — CPU only
@@ -562,7 +645,7 @@ public static class FFmpegCommandComposer
                     var estimatedFanout = estimatedInputFrames * motionFrames;
                     if (estimatedInputFrames > 1)
                     {
-                        Log.Warning(
+                        Log.Debug(
                             "Motion segment {Index} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
                             i,
                             estimatedInputFrames,
@@ -770,7 +853,7 @@ public static class FFmpegCommandComposer
         var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
-        Log.Debug("Filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);
+        Log.Debug("Filter script written to: {Path} ({Length} chars)", filterScriptPath, filterStr.Length);
 
         // -filter_complex_script was removed in FFmpeg 7.1; use -/filter_complex to
         // read the graph from a file (FFmpeg itself suggests this in the deprecation msg).
@@ -1053,7 +1136,7 @@ public static class FFmpegCommandComposer
             if (seg.IsVideo)
             {
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                     : BuildScalingFilter(config);
                 filter.Append($"[{vInput}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
                 filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
@@ -1070,7 +1153,7 @@ public static class FFmpegCommandComposer
                     var estimatedFanout = estimatedInputFrames * motionFrames;
                     if (estimatedInputFrames > 1)
                     {
-                        Log.Warning(
+                        Log.Debug(
                             "Concat motion clip {ClipIndex} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
                             clipIndex,
                             estimatedInputFrames,
@@ -1083,7 +1166,7 @@ public static class FFmpegCommandComposer
                 else
                 {
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value)
+                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                         : BuildScalingFilter(config);
                     filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
                 }
@@ -1203,7 +1286,7 @@ public static class FFmpegCommandComposer
         var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", "fc.txt");
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
-        Log.Debug("Concat filter script written to: {Path}\n{Content}", filterScriptPath, filterStr);
+        Log.Debug("Concat filter script written to: {Path} ({Length} chars)", filterScriptPath, filterStr.Length);
 
         args.Append($"-/filter_complex \"{filterScriptPath}\" ");
         args.Append($"-map \"[{currentVideo}]\" -map \"[{audioOut}]\" ");
@@ -1926,10 +2009,19 @@ public static class FFmpegCommandComposer
     private const string HighQualityScaleFlags = "lanczos+accurate_rnd+full_chroma_int";
     private const string FastScaleFlags = "bicubic+accurate_rnd+full_chroma_int";
 
-    private static string BuildScaleFilter(int width, int height, bool preferSpeed = false)
+    private static string BuildScaleFilter(int width, int height, bool preferSpeed = false) =>
+        BuildScaleFilter(width, height, "Fill", preferSpeed);
+
+    private static string BuildScaleFilter(int width, int height, string? scaleMode, bool preferSpeed = false)
     {
         var flags = preferSpeed ? FastScaleFlags : HighQualityScaleFlags;
-        return $"scale={width}:{height}:flags={flags}";
+        var mode = (scaleMode ?? "Fill").ToUpperInvariant();
+        return mode switch
+        {
+            "FIT" => $"scale={width}:{height}:flags={flags}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            "STRETCH" => $"scale={width}:{height}:flags={flags}",
+            _ => $"scale={width}:{height}:flags={flags}:force_original_aspect_ratio=increase,crop={width}:{height}"
+        };
     }
 
     internal static string BuildScalingFilter(RenderConfig config, bool preferSpeed = false)

@@ -22,8 +22,9 @@ public class MotionFilterBuilderTests
 
         Assert.NotNull(filter);
         Assert.Contains("x='max(0,(iw-iw/zoom))*(0.0200+(1-2*0.0200)*(1-(0.5-0.5*cos(PI*on/150.0))))'", filter);
-        Assert.Contains(":s=2160x3840:fps=30", filter);
-        Assert.Contains("scale=1080:1920:flags=lanczos+accurate_rnd+full_chroma_int", filter);
+        Assert.Contains("force_original_aspect_ratio=increase,crop=1080:1920", filter);
+        Assert.Contains(":s=1080x1920:fps=30", filter);
+        Assert.Contains(",format=yuv420p", filter);
         Assert.DoesNotContain("x='iw*", filter);
     }
 
@@ -44,8 +45,9 @@ public class MotionFilterBuilderTests
         Assert.NotNull(filter);
         Assert.Contains("z='1.0+0.002667*on'", filter);
         Assert.Contains("x='max(0,(iw-iw/zoom))*(0.0200+(1-2*0.0200)*(0.5-0.5*cos(PI*on/150.0)))'", filter);
-        Assert.Contains(":s=2160x3840:fps=30", filter);
-        Assert.Contains("scale=1080:1920:flags=lanczos+accurate_rnd+full_chroma_int", filter);
+        Assert.Contains("force_original_aspect_ratio=increase,crop=1080:1920", filter);
+        Assert.Contains(":s=1080x1920:fps=30", filter);
+        Assert.Contains(",format=yuv420p", filter);
         Assert.DoesNotContain("x='iw*", filter);
     }
 
@@ -83,7 +85,7 @@ public class MotionFilterBuilderTests
         var filter = MotionFilterBuilder.BuildZoompanFilter(seg, fps: 30, renderWidth: 1080, renderHeight: 1920);
 
         Assert.NotNull(filter);
-        Assert.Contains(":s=4320x7680:fps=30", filter);
-        Assert.Contains("scale=1080:1920:flags=lanczos+accurate_rnd+full_chroma_int", filter);
+        Assert.Contains("scale=4320:7680:flags=lanczos+accurate_rnd+full_chroma_int", filter);
+        Assert.Contains(":s=1080x1920:fps=30", filter);
     }
 }

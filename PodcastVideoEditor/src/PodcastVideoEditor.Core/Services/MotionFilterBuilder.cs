@@ -30,7 +30,7 @@ public static class MotionFilterBuilder
     private const double MotionTargetInternalPixelsPerFrame = 1.0;
     private const double MotionTargetInternalPixelsPerFrameShimmerBand = 1.35;
     private const int MotionSuperSampleMin = 2;
-    private const int MotionSuperSampleMax = 5;
+    private const int MotionSuperSampleMax = 6;
 
     /// <summary>
     /// Build the FFmpeg zoompan filter string for a visual segment.
@@ -62,7 +62,8 @@ public static class MotionFilterBuilder
         var estimatedPanPxPerFrameY = MotionEngine.EstimatePanPixelsPerFrame(duration, fps, outH, intensity);
         var estimatedZoomCenterPxPerFrameX = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(duration, fps, outW, intensity);
         var estimatedZoomCenterPxPerFrameY = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(duration, fps, outH, intensity);
-        var estimatedSourcePxPerFrame = MinPositive(
+        var estimatedSourcePxPerFrame = EstimateActiveMotionPixelsPerFrame(
+            seg.MotionPreset,
             estimatedPanPxPerFrameX,
             estimatedPanPxPerFrameY,
             estimatedZoomCenterPxPerFrameX,
@@ -76,7 +77,7 @@ public static class MotionFilterBuilder
         var internalH = Math.Max(1, outH * motionSuperSample);
         var estimatedStepHzInternal = fps * estimatedSourcePxPerFrame * motionSuperSample;
 
-        Log.Information(
+        Log.Debug(
             "MotionDiagnostics: preset={Preset}, intensity={Intensity:F3}, duration={Duration:F3}s, fps={Fps}, frames={Frames}, out={OutW}x{OutH}, internal={InternalW}x{InternalH}, supersample={Supersample}, estPanPxPerFrame=({PanX:F4},{PanY:F4}), estZoomCenterPxPerFrame=({ZoomX:F4},{ZoomY:F4}), estSourcePxPerFrame={SourcePx:F4}, estStepHzSource={StepHzSource:F2}, estStepHzInternal={StepHzInternal:F2}",
             seg.MotionPreset,
             intensity,
@@ -96,12 +97,14 @@ public static class MotionFilterBuilder
             estimatedStepHzSource,
             estimatedStepHzInternal);
 
-        if (estimatedSourcePxPerFrame * motionSuperSample < 1.0)
+        var estimatedInternalPxPerFrame = estimatedSourcePxPerFrame * motionSuperSample;
+        if (estimatedInternalPxPerFrame < 1.0)
         {
             Log.Warning(
                 "MotionFilterBuilder: motion quantization risk remains high (est source {SourcePx:F4} px/frame, supersample={SuperSample}, internal={InternalPx:F4} px/frame).",
                 estimatedSourcePxPerFrame,
-                motionSuperSample);
+            motionSuperSample,
+            estimatedInternalPxPerFrame);
         }
 
         if (IsShimmerBand(estimatedStepHzSource))
@@ -124,8 +127,12 @@ public static class MotionFilterBuilder
             outH,
             inv);
 
-         return $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={internalW}x{internalH}:fps={fps}," +
-             $"scale={outW}:{outH}:flags={MotionDownscaleFlags},format={outputPixelFormat}";
+        var normalizeFilter = BuildMotionInputNormalizeFilter(outW, outH, seg.ScaleMode, MotionDownscaleFlags);
+        var supersampleInputFilter = $"scale={internalW}:{internalH}:flags={MotionDownscaleFlags}";
+
+        return $"{normalizeFilter},{supersampleInputFilter}," +
+            $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={outW}x{outH}:fps={fps}," +
+            $"format={outputPixelFormat}";
     }
 
     private static int DetermineMotionSupersample(double estimatedSourcePxPerFrame, double estimatedStepHzSource)
@@ -139,6 +146,31 @@ public static class MotionFilterBuilder
     }
 
     private static bool IsShimmerBand(double hz) => hz >= 8.0 && hz <= 20.0;
+
+    private static string BuildMotionInputNormalizeFilter(int width, int height, string? scaleMode, string flags)
+    {
+        var mode = (scaleMode ?? "Fill").ToUpperInvariant();
+        return mode switch
+        {
+            "FIT" => $"scale={width}:{height}:flags={flags}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            "STRETCH" => $"scale={width}:{height}:flags={flags}",
+            _ => $"scale={width}:{height}:flags={flags}:force_original_aspect_ratio=increase,crop={width}:{height}"
+        };
+    }
+
+    private static double EstimateActiveMotionPixelsPerFrame(
+        string preset,
+        double panX,
+        double panY,
+        double zoomCenterX,
+        double zoomCenterY) => preset switch
+    {
+        MotionPresets.PanLeft or MotionPresets.PanRight => Math.Max(0.0001, panX),
+        MotionPresets.PanUp or MotionPresets.PanDown => Math.Max(0.0001, panY),
+        MotionPresets.ZoomIn or MotionPresets.ZoomOut => Math.Max(0.0001, MinPositive(zoomCenterX, zoomCenterY)),
+        MotionPresets.ZoomInPanLeft or MotionPresets.ZoomInPanRight => Math.Max(0.0001, MinPositive(panX, zoomCenterX, zoomCenterY)),
+        _ => Math.Max(0.0001, MinPositive(panX, panY, zoomCenterX, zoomCenterY))
+    };
 
     private static double MinPositive(params double[] values)
     {
