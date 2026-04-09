@@ -963,6 +963,129 @@ public class FFmpegCommandComposerTests
         }
     }
 
+    [Fact]
+    public void Build_OverlayPipeline_WithTrackTint_EmitsDrawboxFilter()
+    {
+        var tempPngA = CreateTempPng();
+        var tempPngB = CreateTempPng();
+        try
+        {
+            // Overlap forces overlay pipeline (not concat).
+            var segA = new RenderVisualSegment
+            {
+                SourcePath = tempPngA,
+                StartTime = 0,
+                EndTime = 4,
+                ZOrder = 0,
+                OverlayColorHex = "#000000",
+                OverlayOpacity = 0.7
+            };
+
+            var segB = new RenderVisualSegment
+            {
+                SourcePath = tempPngB,
+                StartTime = 2,
+                EndTime = 6,
+                ZOrder = 1
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [segA, segB],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.7:t=fill", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPngA))
+                System.IO.File.Delete(tempPngA);
+            if (System.IO.File.Exists(tempPngB))
+                System.IO.File.Delete(tempPngB);
+        }
+    }
+
+    [Fact]
+    public void Build_ConcatPipeline_WithTrackTint_EmitsDrawboxFilter()
+    {
+        var tempPngA = CreateTempPng();
+        var tempPngB = CreateTempPng();
+        try
+        {
+            // Sequential segments use concat pipeline.
+            var segA = new RenderVisualSegment
+            {
+                SourcePath = tempPngA,
+                StartTime = 0,
+                EndTime = 3,
+                ZOrder = 0,
+                OverlayColorHex = "#000000",
+                OverlayOpacity = 0.7
+            };
+
+            var segB = new RenderVisualSegment
+            {
+                SourcePath = tempPngB,
+                StartTime = 3,
+                EndTime = 6,
+                ZOrder = 0
+            };
+
+            var config = new RenderConfig
+            {
+                OutputPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_output.mp4"),
+                ResolutionWidth = 1080,
+                ResolutionHeight = 1920,
+                FrameRate = 30,
+                VideoCodec = "h264",
+                AudioCodec = "aac",
+                Quality = "Medium",
+                VisualSegments = [segA, segB],
+                TextSegments = [],
+                AudioSegments = []
+            };
+
+            var (args, _) = FFmpegCommandComposer.Build(config);
+
+            var scriptMatch = System.Text.RegularExpressions.Regex.Match(
+                args, @"-/filter_complex ""([^""]+)""");
+            Assert.True(scriptMatch.Success, "-/filter_complex path not found in args");
+
+            var scriptPath = scriptMatch.Groups[1].Value;
+            Assert.True(System.IO.File.Exists(scriptPath));
+
+            var script = System.IO.File.ReadAllText(scriptPath);
+            Assert.Contains("concat=n=2:v=1:a=0[vconcat]", script);
+            Assert.Contains("drawbox=x=0:y=0:w=iw:h=ih:color=0x000000@0.7:t=fill", script);
+        }
+        finally
+        {
+            if (System.IO.File.Exists(tempPngA))
+                System.IO.File.Delete(tempPngA);
+            if (System.IO.File.Exists(tempPngB))
+                System.IO.File.Delete(tempPngB);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════

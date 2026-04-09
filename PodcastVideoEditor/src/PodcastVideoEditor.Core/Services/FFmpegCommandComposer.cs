@@ -12,116 +12,6 @@ using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
 
-/*
-
-            var preserveAspect = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                && !string.Equals(seg.ScaleMode, "Stretch", StringComparison.OrdinalIgnoreCase);
-
-            if (seg.IsVideo)
-            {
-                if (useCudaOverlay && !forceCpu && !preserveAspect)
-                {
-                    // CUDA path: keep as CUDA surface for overlay_cuda.
-                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
-                        : (config.ResolutionWidth, config.ResolutionHeight);
-                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                    if (cudaZeroCopy)
-                    {
-                        // Frames are already CUDA surfaces from -hwaccel_output_format cuda.
-                        filter.Append($"{gpuScaleExact},setsar=1[{scaledLabel}];");
-                    }
-                    else
-                    {
-                        filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
-                    }
-                    segOnGpu[i] = true;
-                }
-                else if (hasGpuFilters && !needsAlpha && !preserveAspect)
-                {
-                    // GPU scale but download to CPU (has fade or non-CUDA backend).
-                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
-                        : (config.ResolutionWidth, config.ResolutionHeight);
-                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                    if (cudaZeroCopy)
-                        filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
-                    else
-                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
-                }
-                else
-                {
-                    // CPU fallback (alpha-needed, explicit fill/fit, or no GPU backend).
-                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
-                    var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                        ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
-                        : BuildScalingFilter(config, preferFastCpuScale);
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                    filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
-                }
-            }
-            else
-            {
-                // ── Image segment: use standard -i input ──
-                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
-                var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
-                    ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
-                    : BuildScalingFilter(config, preferFastCpuScale);
-
-                // Check for Ken Burns motion effect (zoom/pan) — CPU only
-                var zoompanFilter = MotionFilterBuilder.BuildZoompanFilter(seg, config.FrameRate,
-                    config.ResolutionWidth, config.ResolutionHeight, pixFmt);
-
-                if (zoompanFilter != null)
-                {
-                    var estimatedInputFrames = Math.Max(1, (int)Math.Ceiling((seg.EndTime - seg.StartTime) * config.FrameRate));
-                    var motionFrames = Math.Max(1, MotionEngine.ComputeTotalFrames(seg.Duration, config.FrameRate));
-                    var estimatedFanout = estimatedInputFrames * motionFrames;
-                    if (estimatedInputFrames > 1)
-                    {
-                        Log.Debug(
-                            "Motion segment {Index} uses still-image zoompan with {InputFrames} input frames and d={MotionFrames} (est. fan-out {Fanout}); forcing single-frame feed to avoid frame explosion and jitter.",
-                            i,
-                            estimatedInputFrames,
-                            motionFrames,
-                            estimatedFanout);
-                    }
-
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
-                }
-                else if (useCudaOverlay && !forceCpu && !preserveAspect)
-                {
-                    // GPU scale for non-alpha images, keep as CUDA surface.
-                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
-                        : (config.ResolutionWidth, config.ResolutionHeight);
-                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
-                    filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
-                    segOnGpu[i] = true;
-                }
-                else if (hasGpuFilters && !needsAlpha && !preserveAspect)
-                {
-                    // GPU scale but download to CPU (non-CUDA backend or has fade).
-                    var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
-                        ? (seg.ScaleWidth.Value, seg.ScaleHeight.Value)
-                        : (config.ResolutionWidth, config.ResolutionHeight);
-                    var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
-                    filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
-                }
-                else
-                {
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
-                }
-            }
-
-*/
-
 namespace PodcastVideoEditor.Core.Services;
 
 public static class FFmpegCommandComposer
@@ -575,9 +465,15 @@ public static class FFmpegCommandComposer
             // Build optional fade-in/fade-out filter for this segment
             var fadeFilter = BuildFadeFilter(seg, invariant);
             var hasFade = !string.IsNullOrEmpty(fadeFilter);
+            var overlayTintFilter = BuildOverlayTintFilter(seg, invariant);
+            var hasOverlayTint = !string.IsNullOrEmpty(overlayTintFilter);
 
-            // Segments that MUST stay on CPU (alpha blending, zoompan, fade)
-            var forceCpu = needsAlpha || hasFade;
+            // Tint in RGB space to avoid YUV chroma washout (gray-looking output).
+            // When tint is active, force RGBA processing for this segment chain.
+            var segmentPixFmt = hasOverlayTint ? "rgba" : null;
+
+            // Segments that MUST stay on CPU (alpha blending, zoompan, fade, tint overlay)
+            var forceCpu = needsAlpha || hasFade || hasOverlayTint;
 
             if (seg.IsVideo)
             {
@@ -618,18 +514,18 @@ public static class FFmpegCommandComposer
                 else
                 {
                     // CPU fallback (alpha-needed or no GPU backend)
-                    var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                    var pixFmt = segmentPixFmt ?? (needsAlpha ? "rgba" : "yuv420p");
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                         ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
                         : BuildScalingFilter(config, preferFastCpuScale);
                     filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                    filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[{scaledLabel}];");
                 }
             }
             else
             {
                 // ── Image segment: use standard -i input ──
-                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var pixFmt = segmentPixFmt ?? (needsAlpha ? "rgba" : "yuv420p");
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
                     : BuildScalingFilter(config, preferFastCpuScale);
@@ -653,7 +549,7 @@ public static class FFmpegCommandComposer
                             estimatedFanout);
                     }
 
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{overlayTintFilter}{fadeFilter}[{scaledLabel}];");
                 }
                 else if (useCudaOverlay && !forceCpu)
                 {
@@ -678,7 +574,7 @@ public static class FFmpegCommandComposer
                 }
                 else
                 {
-                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[{scaledLabel}];");
                 }
             }
         }
@@ -1129,9 +1025,12 @@ public static class FFmpegCommandComposer
 
             // Build the visual part of this clip
             var fadeFilter = BuildFadeFilter(seg, invariant);
+            var overlayTintFilter = BuildOverlayTintFilter(seg, invariant);
+            var hasOverlayTint = !string.IsNullOrEmpty(overlayTintFilter);
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
             var needsAlpha = isPngOverlay || seg.HasAlpha;
-            var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+            // Keep tint blend in RGB to preserve saturation.
+            var pixFmt = hasOverlayTint || needsAlpha ? "rgba" : "yuv420p";
 
             if (seg.IsVideo)
             {
@@ -1139,7 +1038,7 @@ public static class FFmpegCommandComposer
                     ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                     : BuildScalingFilter(config);
                 filter.Append($"[{vInput}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
-                filter.Append($"format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
+                filter.Append($"format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[vbase{clipIndex}];");
             }
             else
             {
@@ -1161,14 +1060,14 @@ public static class FFmpegCommandComposer
                             estimatedFanout);
                     }
 
-                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
+                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,select='eq(n,0)',setpts=PTS-STARTPTS,format={pixFmt},{zoompanFilter},setsar=1{overlayTintFilter}{fadeFilter}[vbase{clipIndex}];");
                 }
                 else
                 {
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                         ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                         : BuildScalingFilter(config);
-                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{fadeFilter}[vbase{clipIndex}];");
+                    filter.Append($"[{vInput}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[vbase{clipIndex}];");
                 }
             }
 
@@ -2323,6 +2222,31 @@ public static class FFmpegCommandComposer
         var outStart = Math.Max(0, seg.Duration - dur);
         return $",fade=t=in:st=0:d={dur.ToString("F3", invariant)}:alpha=1" +
                $",fade=t=out:st={outStart.ToString("F3", invariant)}:d={dur.ToString("F3", invariant)}:alpha=1";
+    }
+
+    /// <summary>
+    /// Builds a comma-prefixed drawbox tint overlay filter for visual darkening/tint.
+    /// Accepts #RRGGBB and legacy #AARRGGBB; alpha channel in color is ignored because
+    /// opacity is controlled by <see cref="RenderVisualSegment.OverlayOpacity"/>.
+    /// Returns an empty string when tint is disabled or color format is invalid.
+    /// </summary>
+    private static string BuildOverlayTintFilter(RenderVisualSegment seg, IFormatProvider invariant)
+    {
+        if (seg.OverlayOpacity <= 0 || string.IsNullOrWhiteSpace(seg.OverlayColorHex))
+            return string.Empty;
+
+        var hex = seg.OverlayColorHex.Trim();
+        if (hex.StartsWith('#'))
+            hex = hex[1..];
+
+        if (hex.Length == 8)
+            hex = hex[2..];
+
+        if (hex.Length != 6 || !hex.All(Uri.IsHexDigit))
+            return string.Empty;
+
+        var alpha = Math.Clamp(seg.OverlayOpacity, 0.0, 1.0).ToString("0.###", invariant);
+        return $",drawbox=x=0:y=0:w=iw:h=ih:color=0x{hex}@{alpha}:t=fill";
     }
 
     internal static string EscapeFilterPath(string path) =>

@@ -140,6 +140,12 @@ public static class RenderSegmentBuilder
             return [];
 
         var segments = new List<RenderVisualSegment>();
+        var totalVisualSegments = 0;
+        var activeOverlaySegments = 0;
+        var fadeTransitionSegments = 0;
+        var invalidFadeSegments = 0;
+        var diagnosticSamples = new List<string>();
+        const int maxDiagnosticSamples = 20;
         foreach (var track in visualTracks)
         {
             if (track.Segments == null) continue;
@@ -149,6 +155,8 @@ public static class RenderSegmentBuilder
             {
                 if (string.IsNullOrWhiteSpace(segment.BackgroundAssetId) || segment.EndTime <= segment.StartTime)
                     continue;
+
+                totalVisualSegments++;
 
                 var asset = project.Assets?.FirstOrDefault(a => a.Id == segment.BackgroundAssetId);
                 if (asset == null || string.IsNullOrWhiteSpace(asset.FilePath) || !File.Exists(asset.FilePath))
@@ -169,6 +177,38 @@ public static class RenderSegmentBuilder
                     TransitionType      = string.IsNullOrWhiteSpace(segment.TransitionType) ? "none" : segment.TransitionType,
                     TransitionDuration  = segment.TransitionDuration
                 };
+
+                // Segment-level overlay overrides track defaults.
+                var effectiveOverlayColor = segment.OverlayColorHex ?? track.OverlayColorHex;
+                var effectiveOverlayOpacity = Math.Clamp(segment.OverlayOpacity ?? track.OverlayOpacity, 0.0, 1.0);
+
+                renderSeg.OverlayColorHex = effectiveOverlayColor;
+                renderSeg.OverlayOpacity = effectiveOverlayOpacity;
+
+                var hasFadeTransition = string.Equals(renderSeg.TransitionType, "fade", StringComparison.OrdinalIgnoreCase);
+                var fadeDuration = renderSeg.TransitionDuration;
+                var fadeIsValid = hasFadeTransition
+                    && fadeDuration > 0
+                    && fadeDuration <= renderSeg.Duration / 2.0;
+
+                if (fadeIsValid)
+                    fadeTransitionSegments++;
+                else if (hasFadeTransition)
+                    invalidFadeSegments++;
+
+                if (effectiveOverlayOpacity > 0 && !string.IsNullOrWhiteSpace(effectiveOverlayColor))
+                {
+                    activeOverlaySegments++;
+                }
+
+                var hasActiveOverlay = effectiveOverlayOpacity > 0 && !string.IsNullOrWhiteSpace(effectiveOverlayColor);
+                if (diagnosticSamples.Count < maxDiagnosticSamples && (hasActiveOverlay || hasFadeTransition))
+                {
+                    diagnosticSamples.Add(
+                        $"seg={segment.Id} track={track.Id} t={segment.StartTime:F3}-{segment.EndTime:F3} " +
+                        $"overlay={(hasActiveOverlay ? $"{effectiveOverlayColor}@{effectiveOverlayOpacity:F2}" : "off")} " +
+                        $"transition={renderSeg.TransitionType}:{renderSeg.TransitionDuration:F3} fadeValid={fadeIsValid}");
+                }
 
                 // Sync position and size from the linked canvas element when available.
                 var linkedElement = elements?.FirstOrDefault(e =>
@@ -242,6 +282,29 @@ public static class RenderSegmentBuilder
                 }
 
                 segments.Add(renderSeg);
+            }
+        }
+
+        if (totalVisualSegments > 0)
+        {
+            Log.Information(
+                "BuildTimelineVisualSegments: overlays {OverlayActive}/{Total}, fadeTransitions {FadeValid}/{Total} (invalidFade={InvalidFade})",
+                activeOverlaySegments,
+                totalVisualSegments,
+                fadeTransitionSegments,
+                totalVisualSegments,
+                invalidFadeSegments);
+
+            if (invalidFadeSegments > 0)
+            {
+                Log.Warning(
+                    "BuildTimelineVisualSegments: {Count} segment(s) use transition=fade but duration is invalid for clip length",
+                    invalidFadeSegments);
+            }
+
+            foreach (var sample in diagnosticSamples)
+            {
+                Log.Information("Render visual diagnostic: {Sample}", sample);
             }
         }
 

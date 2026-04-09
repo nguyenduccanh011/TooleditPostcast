@@ -196,6 +196,8 @@ public static class FFmpegFilterGraphBuilder
 
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
             var needsAlpha = isPngOverlay || seg.HasAlpha;
+            var overlayTintFilter = BuildOverlayTintFilter(seg);
+            var hasOverlayTint = !string.IsNullOrEmpty(overlayTintFilter);
 
             if (seg.IsVideo && hasGpu && !needsAlpha)
             {
@@ -213,7 +215,7 @@ public static class FFmpegFilterGraphBuilder
             else if (seg.IsVideo)
             {
                 // CPU fallback for video (alpha-needed or no GPU)
-                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var pixFmt = needsAlpha || hasOverlayTint ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                     : BuildScalingFilter(config);
@@ -223,7 +225,7 @@ public static class FFmpegFilterGraphBuilder
             else
             {
                 // Image/PNG input (added as -i with -loop 1 -t)
-                var pixFmt = needsAlpha ? "rgba" : "yuv420p";
+                var pixFmt = needsAlpha || hasOverlayTint ? "rgba" : "yuv420p";
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? $"scale={seg.ScaleWidth.Value}:{seg.ScaleHeight.Value}"
                     : BuildScalingFilter(config);
@@ -237,13 +239,9 @@ public static class FFmpegFilterGraphBuilder
                     filter.Append($"[{inputIdx}:v]trim=duration={duration},setpts=PTS-STARTPTS,format={pixFmt},{scaleFilter},setsar=1");
             }
 
-            // Apply color overlay tint (darken/tint effect) when opacity > 0
-            if (seg.OverlayOpacity > 0 && !string.IsNullOrWhiteSpace(seg.OverlayColorHex))
-            {
-                var hex = seg.OverlayColorHex.TrimStart('#');
-                var alpha = seg.OverlayOpacity.ToString("F2", Inv);
-                filter.Append($",drawbox=x=0:y=0:w=iw:h=ih:color=0x{hex}@{alpha}:t=fill");
-            }
+            // Apply color overlay tint (darken/tint effect) when opacity > 0.
+            // Tint in RGB space to avoid YUV chroma washout.
+            filter.Append(overlayTintFilter);
 
             filter.Append($"[{scaledLabel}];");
         }
@@ -428,6 +426,25 @@ public static class FFmpegFilterGraphBuilder
             _ => $"scale={config.ResolutionWidth}:{config.ResolutionHeight}:force_original_aspect_ratio=increase," +
                  $"crop={config.ResolutionWidth}:{config.ResolutionHeight}"
         };
+    }
+
+    private static string BuildOverlayTintFilter(RenderVisualSegment seg)
+    {
+        if (seg.OverlayOpacity <= 0 || string.IsNullOrWhiteSpace(seg.OverlayColorHex))
+            return string.Empty;
+
+        var hex = seg.OverlayColorHex.Trim();
+        if (hex.StartsWith('#'))
+            hex = hex[1..];
+
+        if (hex.Length == 8)
+            hex = hex[2..];
+
+        if (hex.Length != 6 || !hex.All(Uri.IsHexDigit))
+            return string.Empty;
+
+        var alpha = Math.Clamp(seg.OverlayOpacity, 0.0, 1.0).ToString("0.###", Inv);
+        return $",drawbox=x=0:y=0:w=iw:h=ih:color=0x{hex}@{alpha}:t=fill";
     }
 
     private static string BuildLegacySingleImageCommand(
