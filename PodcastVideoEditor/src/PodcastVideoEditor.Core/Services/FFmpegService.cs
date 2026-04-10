@@ -542,13 +542,33 @@ public static class FFmpegService
         if (string.IsNullOrWhiteSpace(config.OutputPath))
             throw new ArgumentException("Output path is required", nameof(config.OutputPath));
 
+        // FFmpeg (MinGW builds) uses the system's ANSI code page for file paths.
+        // On machines where the code page doesn't support the filename characters
+        // (e.g. Vietnamese on a non-Vietnamese locale), the path gets corrupted.
+        // Workaround: render to a temp ASCII-safe path, then rename afterwards.
+        var finalOutputPath = config.OutputPath;
+        var needsRename = ContainsNonAscii(finalOutputPath);
+        if (needsRename)
+        {
+            var dir = Path.GetDirectoryName(finalOutputPath) ?? Path.GetTempPath();
+            var ext = Path.GetExtension(finalOutputPath);
+            var safeName = $"pve-render-{Guid.NewGuid():N}{ext}";
+            config.OutputPath = Path.Combine(dir, safeName);
+            Log.Information("Output path contains non-ASCII characters; using temp path: {TempPath}", config.OutputPath);
+        }
+
+        try
+        {
+
+        string resultPath;
         if (ShouldUseChunkedRender(config, renderChunked))
         {
             Log.Information("Chunked render enabled: using adaptive chunk pipeline for this timeline.");
-            return await RenderVideoAsync_Chunked(config, progress, cancellationToken, chunkSize: 60);
+            resultPath = await RenderVideoAsync_Chunked(config, progress, cancellationToken, chunkSize: 60);
         }
-
-        return await Task.Run(async () =>
+        else
+        {
+        resultPath = await Task.Run(async () =>
         {
             // Build() runs inside Task.Run so it never blocks the UI thread.
             // EnsurePreferredEncodersInitialized() (called lazily from Build) can
@@ -636,6 +656,38 @@ public static class FFmpegService
                     CleanupRenderTempFiles(normalizedConfig.OutputPath);
             }
         }, cancellationToken);
+        }
+
+        // Rename temp file to final Unicode path if needed
+        if (needsRename && File.Exists(resultPath))
+        {
+            File.Move(resultPath, finalOutputPath, overwrite: true);
+            Log.Information("Renamed temp render output to final path: {FinalPath}", finalOutputPath);
+            resultPath = finalOutputPath;
+        }
+
+        return resultPath;
+
+        }
+        finally
+        {
+            // Restore original OutputPath on config in case caller inspects it
+            if (needsRename)
+                config.OutputPath = finalOutputPath;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if the path contains any character outside the ASCII range (0-127).
+    /// Used to detect paths that may be corrupted by ffmpeg's ANSI code page handling on Windows.
+    /// </summary>
+    private static bool ContainsNonAscii(string path)
+    {
+        foreach (var c in path)
+        {
+            if (c > 127) return true;
+        }
+        return false;
     }
 
     private static bool ShouldUseChunkedRender(RenderConfig config, bool renderChunked)
