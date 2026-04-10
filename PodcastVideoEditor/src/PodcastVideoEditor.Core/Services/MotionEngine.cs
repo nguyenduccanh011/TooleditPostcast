@@ -109,7 +109,8 @@ public static class MotionEngine
         int totalFrames,
         int outW,
         int outH,
-        CultureInfo inv)
+        CultureInfo inv,
+        double startFrameOffset = 0)
     {
         intensity = Math.Clamp(intensity, 0.0, 1.0);
         totalFrames = Math.Max(1, totalFrames);
@@ -119,11 +120,13 @@ public static class MotionEngine
         var maxZoom = 1.0 + effectiveIntensity * 0.4;
         var maxZoomStr = maxZoom.ToString("F4", inv);
         var zoomSpeed = (effectiveIntensity * 0.4 / totalFrames).ToString("F6", inv);
+        var startFrameOffsetStr = startFrameOffset.ToString("F4", inv);
+        var frameExpr = startFrameOffset > 0.0001 ? $"(on+{startFrameOffsetStr})" : "on";
 
         var panZoom = (1.0 + effectiveIntensity * 0.3).ToString("F4", inv);
 
         const double edgeSafetyFraction = 0.02;
-        var ease = $"(0.5-0.5*cos(PI*on/{totalFrames}.0))";
+        var ease = $"(0.5-0.5*cos(PI*{frameExpr}/{totalFrames}.0))";
         var edgeSafetyStr = edgeSafetyFraction.ToString("F4", inv);
         var motionSpanExpr = $"(1-2*{edgeSafetyStr})";
         var txRight = $"({edgeSafetyStr}+{motionSpanExpr}*{ease})";
@@ -136,12 +139,16 @@ public static class MotionEngine
         return preset switch
         {
             MotionPresets.ZoomIn => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
+                zExpr: startFrameOffset > 0.0001
+                    ? $"z='1.0+{zoomSpeed}*{frameExpr}'"
+                    : $"z='1.0+{zoomSpeed}*on'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             MotionPresets.ZoomOut => (
-                zExpr: $"z='if(eq(on,1),{maxZoomStr},{maxZoomStr}-{zoomSpeed}*on)'",
+                zExpr: startFrameOffset > 0.0001
+                    ? $"z='{maxZoomStr}-{zoomSpeed}*{frameExpr}'"
+                    : $"z='if(eq(on,1),{maxZoomStr},{maxZoomStr}-{zoomSpeed}*on)'",
                 xExpr: "x='iw/2-(iw/zoom/2)'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
@@ -166,12 +173,16 @@ public static class MotionEngine
                 yExpr: $"y='{yRange}*{tyDown}'"),
 
             MotionPresets.ZoomInPanLeft => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
+                zExpr: startFrameOffset > 0.0001
+                    ? $"z='1.0+{zoomSpeed}*{frameExpr}'"
+                    : $"z='1.0+{zoomSpeed}*on'",
                 xExpr: $"x='{xRange}*{txLeft}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 
             MotionPresets.ZoomInPanRight => (
-                zExpr: $"z='1.0+{zoomSpeed}*on'",
+                zExpr: startFrameOffset > 0.0001
+                    ? $"z='1.0+{zoomSpeed}*{frameExpr}'"
+                    : $"z='1.0+{zoomSpeed}*on'",
                 xExpr: $"x='{xRange}*{txRight}'",
                 yExpr: "y='ih/2-(ih/zoom/2)'"),
 

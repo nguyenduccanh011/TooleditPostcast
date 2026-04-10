@@ -236,6 +236,9 @@ public static class FFmpegCommandComposer
 
     private static string BuildTimelineFFmpegCommand(RenderConfig config)
     {
+        const int videoInputQueueSize = 256;
+        const int audioInputQueueSize = 128;
+
         // ── Try concat pipeline first (dramatically faster for sequential segments) ──
         var concatResult = TryBuildConcatPipeline(config);
         if (concatResult != null)
@@ -328,8 +331,9 @@ public static class FFmpegCommandComposer
         args.Append($"-f lavfi -i \"color=c=black:s={config.ResolutionWidth}x{config.ResolutionHeight}:r={config.FrameRate}:d={canvasDuration}\" ");
 
         // ── Inputs 1..N : visual sources (deduplicated by source path)
-        // -thread_queue_size 512: prevents buffer underrun when many inputs compete
-        // for decode bandwidth. Default (8) is too small for 10+ concurrent inputs.
+        // Queueing is only helpful for demuxed video/audio inputs.
+        // Applying large thread_queue_size to looped image inputs can inflate memory
+        // and increase startup jitter when multiple chunk renders run in parallel.
         var cudaZeroCopy = useCudaOverlay && gpuBackend == GpuFilterBackend.Cuda;
 
         var visualSourceRefByKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -360,20 +364,20 @@ public static class FFmpegCommandComposer
                     if (cudaZeroCopy)
                     {
                         // CUDA zero-copy: decode on GPU, keep frames in VRAM.
-                        args.Append($"-thread_queue_size 512 -hwaccel cuda -hwaccel_output_format cuda -i \"{input.SourcePath}\" ");
+                        args.Append($"-thread_queue_size {videoInputQueueSize} -hwaccel cuda -hwaccel_output_format cuda -i \"{input.SourcePath}\" ");
                     }
                     else
                     {
                         // -hwaccel auto: FFmpeg tries d3d11va → dxva2 → software.
                         // Safer than hard-coding d3d11va — graceful fallback for
                         // unsupported codecs (VP9/AV1 on older GPUs) or Windows 7.
-                        args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{input.SourcePath}\" ");
+                        args.Append($"-thread_queue_size {videoInputQueueSize} -hwaccel auto -i \"{input.SourcePath}\" ");
                     }
                 }
                 else
                 {
                     // Infinite loop image input can be reused for many timeline segments of the same source.
-                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{input.SourcePath}\" ");
+                    args.Append($"-loop 1 -i \"{input.SourcePath}\" ");
                 }
             }
         }
@@ -412,7 +416,7 @@ public static class FFmpegCommandComposer
         if (!useEmbeddedSources)
         {
             foreach (var audioInput in audioUniqueInputs)
-                args.Append($"-i \"{audioInput.SourcePath}\" ");
+                args.Append($"-thread_queue_size {audioInputQueueSize} -i \"{audioInput.SourcePath}\" ");
         }
 
         if (audioSegments.Count > 0)
@@ -770,9 +774,10 @@ public static class FFmpegCommandComposer
 
         var filterStr = filter.ToString().TrimEnd(';');
 
-        // Write filter to a temp script file (short path to save command-line chars)
-        // Name derived from output file so parallel chunk renders don't overwrite each other.
-        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt";
+        // Write filter to a temp script file (short path to save command-line chars).
+        // Keep filename unique per command build so concurrent/leftover ffmpeg processes
+        // never share or overwrite the same script path.
+        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}-{Guid.NewGuid():N}.txt";
         var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", filterScriptName);
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
@@ -852,6 +857,9 @@ public static class FFmpegCommandComposer
     /// </summary>
     private static string? TryBuildConcatPipeline(RenderConfig config)
     {
+        const int videoInputQueueSize = 256;
+        const int audioInputQueueSize = 128;
+
         const int TextZOrderThreshold = 10_000; // text tier starts at 10000
         var invariant = CultureInfo.InvariantCulture;
 
@@ -963,9 +971,9 @@ public static class FFmpegCommandComposer
                 mappedIndex = inputIndex;
                 concatVisualInputByKey[key] = mappedIndex;
                 if (seg.IsVideo)
-                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{seg.SourcePath}\" ");
+                    args.Append($"-thread_queue_size {videoInputQueueSize} -hwaccel auto -i \"{seg.SourcePath}\" ");
                 else
-                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{seg.SourcePath}\" ");
+                    args.Append($"-loop 1 -i \"{seg.SourcePath}\" ");
                 inputIndex++;
             }
 
@@ -990,9 +998,9 @@ public static class FFmpegCommandComposer
                 
                 // Only add -loop 1 for image files (PNGs), not for videos (MOV files)
                 if (textSeg.IsVideo)
-                    args.Append($"-thread_queue_size 512 -hwaccel auto -i \"{textSeg.SourcePath}\" ");
+                    args.Append($"-thread_queue_size {videoInputQueueSize} -hwaccel auto -i \"{textSeg.SourcePath}\" ");
                 else
-                    args.Append($"-thread_queue_size 512 -loop 1 -i \"{textSeg.SourcePath}\" ");
+                    args.Append($"-loop 1 -i \"{textSeg.SourcePath}\" ");
                 inputIndex++;
             }
 
@@ -1019,7 +1027,7 @@ public static class FFmpegCommandComposer
             {
                 mappedIndex = inputIndex;
                 concatAudioInputByKey[key] = mappedIndex;
-                args.Append($"-i \"{aseg.SourcePath}\" ");
+                args.Append($"-thread_queue_size {audioInputQueueSize} -i \"{aseg.SourcePath}\" ");
                 inputIndex++;
             }
 
@@ -1207,7 +1215,7 @@ public static class FFmpegCommandComposer
 
         // Write filter script
         var filterStr = filter.ToString().TrimEnd(';');
-        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}.txt";
+        var filterScriptName = $"fc-{Path.GetFileNameWithoutExtension(config.OutputPath)}-{Guid.NewGuid():N}.txt";
         var filterScriptPath = Path.Combine(Path.GetTempPath(), "pve", filterScriptName);
         Directory.CreateDirectory(Path.GetDirectoryName(filterScriptPath)!);
         File.WriteAllText(filterScriptPath, filterStr, new UTF8Encoding(false));
@@ -1484,6 +1492,8 @@ public static class FFmpegCommandComposer
                 ZOrder = seg.ZOrder,
                 MotionPreset = seg.MotionPreset,
                 MotionIntensity = seg.MotionIntensity,
+                MotionReferenceOffsetSeconds = seg.MotionReferenceOffsetSeconds,
+                MotionReferenceDurationSeconds = seg.MotionReferenceDurationSeconds,
                 OverlayColorHex = seg.OverlayColorHex,
                 OverlayOpacity = seg.OverlayOpacity,
                 TransitionType = seg.TransitionType,

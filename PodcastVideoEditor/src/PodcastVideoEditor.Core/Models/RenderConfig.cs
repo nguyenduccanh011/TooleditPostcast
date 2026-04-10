@@ -199,6 +199,18 @@ public class RenderVisualSegment
     public double MotionIntensity { get; set; } = 0.3;
 
     /// <summary>
+    /// Offset into the original motion timeline when this segment is a clipped view of a larger source segment.
+    /// Used to preserve motion continuity across chunk boundaries.
+    /// </summary>
+    public double MotionReferenceOffsetSeconds { get; set; }
+
+    /// <summary>
+    /// Duration of the original motion timeline before chunk clipping.
+    /// Zero means use the current segment duration.
+    /// </summary>
+    public double MotionReferenceDurationSeconds { get; set; }
+
+    /// <summary>
     /// Overlay color hex (e.g. "#000000") for a color tint on top of the image.
     /// Null = no overlay.
     /// </summary>

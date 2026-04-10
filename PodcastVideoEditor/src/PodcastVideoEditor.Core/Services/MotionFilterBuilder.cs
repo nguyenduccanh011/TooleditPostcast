@@ -53,11 +53,22 @@ public static class MotionFilterBuilder
         if (seg.IsVideo) return null;
         if (seg.MotionPreset == MotionPresets.None) return null;
 
-        var duration = seg.Duration;
-        if (duration <= 0) return null;
+        var localDuration = seg.Duration;
+        if (localDuration <= 0) return null;
 
-        var totalFrames = MotionEngine.ComputeTotalFrames(duration, fps);
-        if (totalFrames <= 0) return null;
+        var referenceDuration = seg.MotionReferenceDurationSeconds > 0.0001
+            ? Math.Max(seg.MotionReferenceDurationSeconds, localDuration)
+            : localDuration;
+        var referenceOffsetSeconds = Math.Clamp(
+            seg.MotionReferenceOffsetSeconds,
+            0,
+            Math.Max(0, referenceDuration - (1.0 / Math.Max(1, fps))));
+
+        var localFrames = MotionEngine.ComputeTotalFrames(localDuration, fps);
+        if (localFrames <= 0) return null;
+
+        var referenceFrames = MotionEngine.ComputeTotalFrames(referenceDuration, fps);
+        var referenceOffsetFrames = Math.Max(0, referenceOffsetSeconds * Math.Max(1, fps));
 
         var intensity = Math.Clamp(seg.MotionIntensity, 0.0, 1.0);
 
@@ -65,10 +76,10 @@ public static class MotionFilterBuilder
         var outW = seg.ScaleWidth ?? renderWidth;
         var outH = seg.ScaleHeight ?? renderHeight;
 
-        var estimatedPanPxPerFrameX = MotionEngine.EstimatePanPixelsPerFrame(duration, fps, outW, intensity);
-        var estimatedPanPxPerFrameY = MotionEngine.EstimatePanPixelsPerFrame(duration, fps, outH, intensity);
-        var estimatedZoomCenterPxPerFrameX = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(duration, fps, outW, intensity);
-        var estimatedZoomCenterPxPerFrameY = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(duration, fps, outH, intensity);
+        var estimatedPanPxPerFrameX = MotionEngine.EstimatePanPixelsPerFrame(referenceDuration, fps, outW, intensity);
+        var estimatedPanPxPerFrameY = MotionEngine.EstimatePanPixelsPerFrame(referenceDuration, fps, outH, intensity);
+        var estimatedZoomCenterPxPerFrameX = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(referenceDuration, fps, outW, intensity);
+        var estimatedZoomCenterPxPerFrameY = MotionEngine.EstimateZoomCenterShiftPixelsPerFrame(referenceDuration, fps, outH, intensity);
         var estimatedSourcePxPerFrame = EstimateActiveMotionPixelsPerFrame(
             seg.MotionPreset,
             estimatedPanPxPerFrameX,
@@ -85,12 +96,15 @@ public static class MotionFilterBuilder
         var estimatedStepHzInternal = fps * estimatedSourcePxPerFrame * motionSuperSample;
 
         Log.Debug(
-            "MotionDiagnostics: preset={Preset}, intensity={Intensity:F3}, duration={Duration:F3}s, fps={Fps}, frames={Frames}, out={OutW}x{OutH}, internal={InternalW}x{InternalH}, supersample={Supersample}, estPanPxPerFrame=({PanX:F4},{PanY:F4}), estZoomCenterPxPerFrame=({ZoomX:F4},{ZoomY:F4}), estSourcePxPerFrame={SourcePx:F4}, estStepHzSource={StepHzSource:F2}, estStepHzInternal={StepHzInternal:F2}",
+            "MotionDiagnostics: preset={Preset}, intensity={Intensity:F3}, localDuration={LocalDuration:F3}s, referenceDuration={ReferenceDuration:F3}s, referenceOffset={ReferenceOffset:F3}s, fps={Fps}, localFrames={LocalFrames}, referenceFrames={ReferenceFrames}, out={OutW}x{OutH}, internal={InternalW}x{InternalH}, supersample={Supersample}, estPanPxPerFrame=({PanX:F4},{PanY:F4}), estZoomCenterPxPerFrame=({ZoomX:F4},{ZoomY:F4}), estSourcePxPerFrame={SourcePx:F4}, estStepHzSource={StepHzSource:F2}, estStepHzInternal={StepHzInternal:F2}",
             seg.MotionPreset,
             intensity,
-            duration,
+            localDuration,
+            referenceDuration,
+            referenceOffsetSeconds,
             fps,
-            totalFrames,
+            localFrames,
+            referenceFrames,
             outW,
             outH,
             internalW,
@@ -107,7 +121,7 @@ public static class MotionFilterBuilder
         var estimatedInternalPxPerFrame = estimatedSourcePxPerFrame * motionSuperSample;
         if (estimatedInternalPxPerFrame < 1.0)
         {
-            Log.Warning(
+            Log.Debug(
                 "MotionFilterBuilder: motion quantization risk remains high (est source {SourcePx:F4} px/frame, supersample={SuperSample}, internal={InternalPx:F4} px/frame).",
                 estimatedSourcePxPerFrame,
             motionSuperSample,
@@ -116,7 +130,7 @@ public static class MotionFilterBuilder
 
         if (IsShimmerBand(estimatedStepHzSource))
         {
-            Log.Warning(
+            Log.Debug(
                 "MotionFilterBuilder: estimated source step frequency is in visible shimmer band ({StepHzSource:F2} Hz). Internal supersampled step is {StepHzInternal:F2} Hz.",
                 estimatedStepHzSource,
                 estimatedStepHzInternal);
@@ -128,11 +142,12 @@ public static class MotionFilterBuilder
         var (zExpr, xExpr, yExpr) = MotionEngine.BuildZoomPanExpressions(
             seg.MotionPreset,
             intensity,
-            duration,
-            totalFrames,
+            referenceDuration,
+            referenceFrames,
             outW,
             outH,
-            inv);
+            inv,
+            referenceOffsetFrames);
 
         var normalizeFilter = BuildMotionInputNormalizeFilter(outW, outH, seg.ScaleMode, MotionDownscaleFlags);
         // Use bilinear (not lanczos) for the supersample upscale step:
@@ -146,7 +161,7 @@ public static class MotionFilterBuilder
         var supersamplePart = supersampleInputFilter.Length > 0 ? $",{supersampleInputFilter}" : string.Empty;
 
         return $"{normalizeFilter}{supersamplePart}," +
-            $"zoompan={zExpr}:{xExpr}:{yExpr}:d={totalFrames}:s={outW}x{outH}:fps={fps}," +
+            $"zoompan={zExpr}:{xExpr}:{yExpr}:d={localFrames}:s={outW}x{outH}:fps={fps}," +
             $"format={outputPixelFormat}";
     }
 

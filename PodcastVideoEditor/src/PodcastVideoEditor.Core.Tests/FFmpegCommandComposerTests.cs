@@ -266,6 +266,7 @@ public class FFmpegCommandComposerTests
             // Uses -hwaccel auto to let FFmpeg pick best decoder (d3d11va → dxva2 → sw)
             // across all Windows GPUs without hard-coding a specific backend.
             Assert.Contains("-hwaccel auto", args);
+            Assert.Contains("-thread_queue_size 256 -hwaccel auto", args);
         }
         finally
         {
@@ -350,6 +351,8 @@ public class FFmpegCommandComposerTests
             };
             var (args, _) = FFmpegCommandComposer.Build(config);
             Assert.DoesNotContain("-hwaccel auto", args);
+            Assert.DoesNotContain("-thread_queue_size 512 -loop 1", args);
+            Assert.DoesNotContain("-thread_queue_size 256 -loop 1", args);
         }
         finally
         {
@@ -734,7 +737,8 @@ public class FFmpegCommandComposerTests
 
             // Medium-large timelines should prefer direct -i inputs unless
             // command-line length risk is genuinely high.
-            Assert.Contains("-thread_queue_size 512 -loop 1 -i", args);
+            Assert.Contains("-loop 1 -i", args);
+            Assert.DoesNotContain("-thread_queue_size 512 -loop 1", args);
             Assert.Contains("-/filter_complex", args);
 
             var scriptMatch = System.Text.RegularExpressions.Regex.Match(

@@ -88,4 +88,25 @@ public class MotionFilterBuilderTests
         Assert.Contains("scale=3240:5760:flags=bilinear", filter);
         Assert.Contains(":s=1080x1920:fps=30", filter);
     }
+
+    [Fact]
+    public void BuildZoompanFilter_UsesReferenceOffsetToPreserveMotionContinuity()
+    {
+        var seg = new RenderVisualSegment
+        {
+            IsVideo = false,
+            MotionPreset = MotionPresets.ZoomIn,
+            MotionIntensity = 1.0,
+            StartTime = 0,
+            EndTime = 3,
+            MotionReferenceOffsetSeconds = 3,
+            MotionReferenceDurationSeconds = 8
+        };
+
+        var filter = MotionFilterBuilder.BuildZoompanFilter(seg, fps: 30, renderWidth: 1080, renderHeight: 1920);
+
+        Assert.NotNull(filter);
+        Assert.Contains("z='1.0+0.001667*(on+90.0000)'", filter);
+        Assert.Contains(":d=90:s=1080x1920:fps=30", filter);
+    }
 }

@@ -7,6 +7,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -769,6 +771,7 @@ public static class FFmpegService
             maxChunkDurationSeconds: adaptiveMaxChunkDuration,
             targetMaxVisualsPerChunk: targetMaxVisualsPerChunk,
             minChunkDurationSeconds: minChunkDurationSeconds);
+        chunkWindows = NormalizeChunkWindowsToFrameGrid(chunkWindows, timelineEndTime, config.FrameRate);
         var chunkCount = chunkWindows.Count;
         chunkPlanningTimer.Stop();
 
@@ -793,6 +796,7 @@ public static class FFmpegService
                 var totalChunksForProgress = chunkWindows.Count;
                 var chunkOutputPaths = new string?[chunkWindows.Count];
                 var semaphore = new System.Threading.SemaphoreSlim(parallelDegree);
+                var timedOutChunkIndexes = new System.Collections.Concurrent.ConcurrentBag<int>();
                 long serialEquivalentTicks = 0;
                 var parallelPhaseTimer = Stopwatch.StartNew();
 
@@ -806,7 +810,7 @@ public static class FFmpegService
                         var window = chunkWindows[idx];
                         var chunkStartTime = window.StartTime;
                         var chunkEndTime = window.EndTime;
-                        var chunkVisuals = BuildChunkVisualSegments(visualSegs, chunkStartTime, chunkEndTime);
+                        var chunkVisuals = BuildChunkVisualSegments(visualSegs, chunkStartTime, chunkEndTime, config.FrameRate);
                         var chunkAudioSegments = BuildChunkAudioSegments(config, chunkStartTime, chunkEndTime);
                         var chunkDurationSeconds = Math.Max(0.1, chunkEndTime - chunkStartTime);
                         var chunkFfmpegTimeout = EstimateChunkFfmpegTimeout(chunkDurationSeconds);
@@ -815,6 +819,7 @@ public static class FFmpegService
                         var chunkMotionDensity = chunkVisuals.Count == 0
                             ? 0.0
                             : (double)chunkVisuals.Count(v => !string.IsNullOrWhiteSpace(v.MotionPreset) && v.MotionPreset != MotionPresets.None) / chunkVisuals.Count;
+                        var chunkDiag = AnalyzeChunkDiagnostics(chunkVisuals, chunkAudioSegments);
 
                         var chunkConfig = BuildChunkConfigForWindow(
                             config,
@@ -827,26 +832,58 @@ public static class FFmpegService
                         {
                             var done = Volatile.Read(ref completedCount);
                             var overallPct = (int)(done / (double)totalChunksForProgress * 90);
+                            var stageMessage = p.IsComplete ? "encoded" : p.Message;
                             progress?.Report(new RenderProgress
                             {
                                 ProgressPercentage = Math.Max(0, Math.Min(89, overallPct)),
-                                Message = $"Chunk {localIdx + 1}/{totalChunksForProgress}: {p.Message}",
+                                Message = $"Chunk {localIdx + 1}/{totalChunksForProgress}: {stageMessage}",
                                 IsComplete = false
                             });
                         });
 
-                        Log.Information("Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s, visuals={VisualCount}, audios={AudioCount}",
-                            idx + 1, totalChunksForProgress, chunkStartTime, chunkEndTime,
-                            chunkVisuals.Count, chunkAudioSegments.Count);
+                        Log.Information(
+                            "Rendering chunk {ChunkNum}/{TotalChunks}: window {StartTime:F2}s..{EndTime:F2}s, visuals={VisualCount}, audios={AudioCount}, signature={ChunkSignature}, media=img:{ImageCount},vid:{VideoCount},alpha:{AlphaCount},motion:{MotionCount},fade:{FadeCount},uniqueVisualSources:{UniqueVisualSources},uniqueAudioSources:{UniqueAudioSources}",
+                            idx + 1,
+                            totalChunksForProgress,
+                            chunkStartTime,
+                            chunkEndTime,
+                            chunkVisuals.Count,
+                            chunkAudioSegments.Count,
+                            chunkDiag.Signature,
+                            chunkDiag.ImageCount,
+                            chunkDiag.VideoCount,
+                            chunkDiag.AlphaCount,
+                            chunkDiag.MotionCount,
+                            chunkDiag.FadeCount,
+                            chunkDiag.UniqueVisualSourceCount,
+                            chunkDiag.UniqueAudioSourceCount);
 
                         var chunkTimer = Stopwatch.StartNew();
-                        await RenderVideoAsync(
-                            chunkConfig,
-                            chunkProgress,
-                            cancellationToken,
-                            renderChunked: false,
-                            cleanupTempFiles: false,
-                            ffmpegTimeout: chunkFfmpegTimeout);
+                        try
+                        {
+                            await RenderVideoAsync(
+                                chunkConfig,
+                                chunkProgress,
+                                cancellationToken,
+                                renderChunked: false,
+                                cleanupTempFiles: false,
+                                ffmpegTimeout: chunkFfmpegTimeout);
+                        }
+                        catch (InvalidOperationException ex) when (IsRecoverableChunkRenderError(ex))
+                        {
+                            chunkTimer.Stop();
+                            timedOutChunkIndexes.Add(idx);
+                            var recoverReason = GetRecoverableChunkErrorReason(ex);
+                            Log.Warning(
+                                ex,
+                                "Chunk {ChunkNum}/{TotalChunks} hit recoverable FFmpeg startup failure ({Reason}) after {TimeoutSeconds:F0}s timeout budget; scheduling sequential split fallback (signature={ChunkSignature}).",
+                                idx + 1,
+                                totalChunksForProgress,
+                                recoverReason,
+                                chunkFfmpegTimeout.TotalSeconds,
+                                chunkDiag.Signature);
+                            return;
+                        }
                         chunkTimer.Stop();
                         Interlocked.Add(ref serialEquivalentTicks, chunkTimer.ElapsedTicks);
 
@@ -869,6 +906,46 @@ public static class FFmpegService
                 }).ToList();
 
                 await Task.WhenAll(chunkTasks).ConfigureAwait(false);
+
+                var timedOutChunks = timedOutChunkIndexes
+                    .Distinct()
+                    .OrderBy(i => i)
+                    .ToList();
+
+                if (timedOutChunks.Count > 0)
+                {
+                    Log.Warning(
+                        "Sequential split fallback activated for {Count} recoverable failed chunk(s): {Chunks}",
+                        timedOutChunks.Count,
+                        string.Join(",", timedOutChunks.Select(i => (i + 1).ToString(CultureInfo.InvariantCulture))));
+
+                    foreach (var idx in timedOutChunks)
+                    {
+                        var fallbackTimer = Stopwatch.StartNew();
+                        var recoveredPath = await RenderChunkWithSplitFallbackAsync(
+                            config,
+                            visualSegs,
+                            chunkWindows[idx],
+                            idx,
+                            chunkTempDir,
+                            cancellationToken).ConfigureAwait(false);
+                        fallbackTimer.Stop();
+                        Interlocked.Add(ref serialEquivalentTicks, fallbackTimer.ElapsedTicks);
+
+                        chunkOutputPaths[idx] = recoveredPath;
+                        Interlocked.Increment(ref completedCount);
+
+                        var done = Volatile.Read(ref completedCount);
+                        var overallPct = (int)(done / (double)totalChunksForProgress * 90);
+                        progress?.Report(new RenderProgress
+                        {
+                            ProgressPercentage = Math.Max(0, Math.Min(89, overallPct)),
+                            Message = $"Chunk {idx + 1}/{totalChunksForProgress}: recovered via split fallback",
+                            IsComplete = false
+                        });
+                    }
+                }
+
                 parallelPhaseTimer.Stop();
 
                 var serialEquivalent = TimeSpan.FromTicks(Volatile.Read(ref serialEquivalentTicks));
@@ -937,9 +1014,131 @@ public static class FFmpegService
         }
     }
 
-    private static bool IsFfmpegTimeoutError(InvalidOperationException ex)
+    private static bool IsRecoverableChunkRenderError(InvalidOperationException ex)
     {
-        return ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase);
+        if (ex == null)
+            return false;
+
+        var message = ex.Message ?? string.Empty;
+        return message.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("startup stalled", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("opening inputs", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetRecoverableChunkErrorReason(InvalidOperationException ex)
+    {
+        var message = ex.Message ?? string.Empty;
+        if (message.Contains("startup stalled", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("opening inputs", StringComparison.OrdinalIgnoreCase))
+        {
+            return "startup-stall";
+        }
+
+        if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase))
+            return "timeout";
+
+        return "unknown";
+    }
+
+    internal static bool TrySplitChunkWindow(double startTime, double endTime, out (double Start, double End) left, out (double Start, double End) right)
+    {
+        left = default;
+        right = default;
+
+        var duration = endTime - startTime;
+        if (duration < 6.0)
+            return false;
+
+        var midpoint = startTime + duration / 2.0;
+        left = (startTime, midpoint);
+        right = (midpoint, endTime);
+        return true;
+    }
+
+    private static async Task<string> RenderChunkWithSplitFallbackAsync(
+        RenderConfig sourceConfig,
+        IReadOnlyList<RenderVisualSegment> allVisuals,
+        (double StartTime, double EndTime) window,
+        int chunkIndex,
+        string chunkTempDir,
+        CancellationToken cancellationToken)
+    {
+        var targetOutputPath = Path.Combine(chunkTempDir, $"chunk_{chunkIndex:D3}.mp4");
+        var duration = Math.Max(0.1, window.EndTime - window.StartTime);
+
+        // If the timed-out window is already tiny, retry once with a higher timeout.
+        if (!TrySplitChunkWindow(window.StartTime, window.EndTime, out var leftWindow, out var rightWindow))
+        {
+            var directVisuals = BuildChunkVisualSegments(allVisuals, window.StartTime, window.EndTime, sourceConfig.FrameRate);
+            var directAudios = BuildChunkAudioSegments(sourceConfig, window.StartTime, window.EndTime);
+            var directConfig = BuildChunkConfigForWindow(sourceConfig, targetOutputPath, directVisuals, directAudios);
+            var directTimeout = TimeSpan.FromSeconds(Math.Clamp(duration * 18.0, 240.0, 1200.0));
+
+            Log.Warning(
+                "Chunk fallback direct retry (unsplittable window {Start:F2}s..{End:F2}s, timeout={Timeout:F0}s)",
+                window.StartTime,
+                window.EndTime,
+                directTimeout.TotalSeconds);
+
+            await RenderVideoAsync(
+                directConfig,
+                progress: null,
+                cancellationToken,
+                renderChunked: false,
+                cleanupTempFiles: false,
+                ffmpegTimeout: directTimeout).ConfigureAwait(false);
+
+            return directConfig.OutputPath;
+        }
+
+        var splitParts = new[] { leftWindow, rightWindow };
+        var splitOutputs = new List<string>(2);
+
+        for (var part = 0; part < splitParts.Length; part++)
+        {
+            var partWindow = splitParts[part];
+            var partDuration = Math.Max(0.1, partWindow.End - partWindow.Start);
+            var partVisuals = BuildChunkVisualSegments(allVisuals, partWindow.Start, partWindow.End, sourceConfig.FrameRate);
+            var partAudios = BuildChunkAudioSegments(sourceConfig, partWindow.Start, partWindow.End);
+            var partDiag = AnalyzeChunkDiagnostics(partVisuals, partAudios);
+            var partOutputPath = Path.Combine(chunkTempDir, $"chunk_{chunkIndex:D3}_retry_{part}.mp4");
+            var partConfig = BuildChunkConfigForWindow(sourceConfig, partOutputPath, partVisuals, partAudios);
+            var partTimeout = TimeSpan.FromSeconds(Math.Clamp(partDuration * 18.0, 180.0, 900.0));
+
+            Log.Warning(
+                "Chunk fallback split render: chunk {ChunkNum} part {PartNum}/2 window {Start:F2}s..{End:F2}s, timeout={Timeout:F0}s, signature={ChunkSignature}, media=img:{ImageCount},vid:{VideoCount},alpha:{AlphaCount},motion:{MotionCount},fade:{FadeCount}",
+                chunkIndex + 1,
+                part + 1,
+                partWindow.Start,
+                partWindow.End,
+                partTimeout.TotalSeconds,
+                partDiag.Signature,
+                partDiag.ImageCount,
+                partDiag.VideoCount,
+                partDiag.AlphaCount,
+                partDiag.MotionCount,
+                partDiag.FadeCount);
+
+            await RenderVideoAsync(
+                partConfig,
+                progress: null,
+                cancellationToken,
+                renderChunked: false,
+                cleanupTempFiles: false,
+                ffmpegTimeout: partTimeout).ConfigureAwait(false);
+
+            splitOutputs.Add(partConfig.OutputPath);
+        }
+
+        Log.Warning(
+            "Chunk fallback concat: chunk {ChunkNum} from {PartCount} split part(s)",
+            chunkIndex + 1,
+            splitOutputs.Count);
+
+        await ConcatenateChunksAsync(_ffmpegPath!, splitOutputs, targetOutputPath, progress: null, cancellationToken)
+            .ConfigureAwait(false);
+
+        return targetOutputPath;
     }
 
     private static TimeSpan EstimateChunkFfmpegTimeout(double chunkDurationSeconds)
@@ -950,7 +1149,7 @@ public static class FFmpegService
         return TimeSpan.FromSeconds(seconds);
     }
 
-    private static List<(double StartTime, double EndTime)> BuildChunkWindows(
+    internal static List<(double StartTime, double EndTime)> BuildChunkWindows(
         IReadOnlyList<RenderVisualSegment> visuals,
         double timelineEndTime,
         double maxChunkDurationSeconds,
@@ -976,6 +1175,13 @@ public static class FFmpegService
                 overlapCount = CountVisualsInWindow(visuals, startTime, endTime);
             }
 
+            endTime = AlignChunkEndToVisualBoundary(
+                visuals,
+                startTime,
+                endTime,
+                timelineEndTime,
+                minChunkDurationSeconds);
+
             windows.Add((startTime, endTime));
 
             // Guarantee forward progress even with pathological timing data.
@@ -985,17 +1191,130 @@ public static class FFmpegService
         return windows;
     }
 
+    internal static List<(double StartTime, double EndTime)> NormalizeChunkWindowsToFrameGrid(
+        IReadOnlyList<(double StartTime, double EndTime)> windows,
+        double timelineEndTime,
+        int frameRate)
+    {
+        if (windows.Count == 0)
+            return [];
+
+        var fps = Math.Max(1, frameRate);
+        var frameDuration = 1.0 / fps;
+        var normalized = new List<(double StartTime, double EndTime)>(windows.Count);
+        var currentStart = 0.0;
+
+        for (var i = 0; i < windows.Count; i++)
+        {
+            var isLast = i == windows.Count - 1;
+            var rawEnd = isLast ? timelineEndTime : windows[i].EndTime;
+            var snappedEnd = isLast ? timelineEndTime : Math.Round(rawEnd * fps) / fps;
+
+            if (snappedEnd <= currentStart + 0.000001)
+                snappedEnd = Math.Min(timelineEndTime, currentStart + frameDuration);
+
+            if (snappedEnd > timelineEndTime)
+                snappedEnd = timelineEndTime;
+
+            if (!isLast && Math.Abs(snappedEnd - rawEnd) >= 0.0005)
+            {
+                Log.Information(
+                    "Chunk frame-grid normalization: boundary {OriginalEnd:F4}s -> {SnappedEnd:F4}s at {Fps}fps",
+                    rawEnd,
+                    snappedEnd,
+                    fps);
+            }
+
+            normalized.Add((currentStart, snappedEnd));
+            currentStart = snappedEnd;
+        }
+
+        return normalized;
+    }
+
+    internal static double AlignChunkEndToVisualBoundary(
+        IReadOnlyList<RenderVisualSegment> visuals,
+        double chunkStartTime,
+        double proposedEndTime,
+        double timelineEndTime,
+        double minChunkDurationSeconds)
+    {
+        const double epsilon = 0.0001;
+        const double maxForwardExtensionSeconds = 4.0;
+
+        var adjustedEndTime = proposedEndTime;
+        for (var iteration = 0; iteration < visuals.Count; iteration++)
+        {
+            var overlappingSensitiveSegment = visuals
+                .Where(seg => IsChunkBoundarySensitive(seg))
+                .FirstOrDefault(seg => seg.StartTime < adjustedEndTime - epsilon && seg.EndTime > adjustedEndTime + epsilon);
+
+            if (overlappingSensitiveSegment == null)
+                break;
+
+            var snapBackEndTime = overlappingSensitiveSegment.StartTime;
+            var snapForwardEndTime = Math.Min(timelineEndTime, overlappingSensitiveSegment.EndTime);
+            var canSnapBack = snapBackEndTime - chunkStartTime >= minChunkDurationSeconds - epsilon;
+            var forwardExtension = snapForwardEndTime - adjustedEndTime;
+            var canSnapForward = forwardExtension <= maxForwardExtensionSeconds;
+
+            if (!canSnapBack && !canSnapForward)
+                break;
+
+            if (canSnapBack && (!canSnapForward || adjustedEndTime - snapBackEndTime <= forwardExtension))
+            {
+                Log.Information(
+                    "Chunk planner adjusted boundary {OriginalEnd:F2}s -> {AdjustedEnd:F2}s for {Source} ({SegStart:F2}s..{SegEnd:F2}s, reason=snap-back, sensitiveMotion={HasMotion}, sensitiveFade={HasFade})",
+                    adjustedEndTime,
+                    snapBackEndTime,
+                    Path.GetFileName(overlappingSensitiveSegment.SourcePath),
+                    overlappingSensitiveSegment.StartTime,
+                    overlappingSensitiveSegment.EndTime,
+                    !string.IsNullOrWhiteSpace(overlappingSensitiveSegment.MotionPreset) && overlappingSensitiveSegment.MotionPreset != MotionPresets.None,
+                    string.Equals(overlappingSensitiveSegment.TransitionType, "fade", StringComparison.OrdinalIgnoreCase) && overlappingSensitiveSegment.TransitionDuration > 0);
+                adjustedEndTime = snapBackEndTime;
+                continue;
+            }
+
+            Log.Information(
+                "Chunk planner adjusted boundary {OriginalEnd:F2}s -> {AdjustedEnd:F2}s for {Source} ({SegStart:F2}s..{SegEnd:F2}s, reason=snap-forward, sensitiveMotion={HasMotion}, sensitiveFade={HasFade})",
+                adjustedEndTime,
+                snapForwardEndTime,
+                Path.GetFileName(overlappingSensitiveSegment.SourcePath),
+                overlappingSensitiveSegment.StartTime,
+                overlappingSensitiveSegment.EndTime,
+                !string.IsNullOrWhiteSpace(overlappingSensitiveSegment.MotionPreset) && overlappingSensitiveSegment.MotionPreset != MotionPresets.None,
+                string.Equals(overlappingSensitiveSegment.TransitionType, "fade", StringComparison.OrdinalIgnoreCase) && overlappingSensitiveSegment.TransitionDuration > 0);
+            adjustedEndTime = snapForwardEndTime;
+        }
+
+        return Math.Max(chunkStartTime + 0.001, adjustedEndTime);
+    }
+
+    internal static bool IsChunkBoundarySensitive(RenderVisualSegment seg)
+    {
+        var hasFade = string.Equals(seg.TransitionType, "fade", StringComparison.OrdinalIgnoreCase)
+            && seg.TransitionDuration > 0
+            && seg.TransitionDuration <= seg.Duration / 2.0;
+        var hasImageMotion = !seg.IsVideo
+            && !string.IsNullOrWhiteSpace(seg.MotionPreset)
+            && seg.MotionPreset != MotionPresets.None;
+
+        return hasFade || hasImageMotion;
+    }
+
     private static (int TargetMaxVisualsPerChunk, double MinChunkDurationSeconds) DetermineChunkPlannerTargets(
         int totalVisualSegments,
         int peakConcurrency)
     {
         // Dense timelines benefit from smaller chunk windows because FFmpeg overlay
         // cost scales with the number of segment chains in the filter graph.
-        // Lowering the gate to >=7 helps medium-large projects where overlap is high.
-        if (totalVisualSegments >= 100 || peakConcurrency >= 7)
+        // Avoid over-fragmenting medium-concurrency projects into too many 12s chunks,
+        // which increases startup/concat overhead and motion-boundary restarts.
+        if (totalVisualSegments >= 140 || peakConcurrency >= 7)
             return (16, 12.0);
 
-        if (totalVisualSegments >= 80 || peakConcurrency >= 6)
+        if (totalVisualSegments >= 100 || peakConcurrency >= 6)
             return (20, 16.0);
 
         return (24, 20.0);
@@ -1139,6 +1458,8 @@ public static class FFmpegService
         List<RenderVisualSegment> chunkVisuals,
         List<RenderAudioSegment> chunkAudioSegments)
     {
+        var useGpuOverlayForChunk = ShouldEnableGpuOverlayForChunk(chunkVisuals);
+
         return new RenderConfig
         {
             AudioPath = sourceConfig.AudioPath,
@@ -1157,18 +1478,47 @@ public static class FFmpegService
             VisualSegments = chunkVisuals,
             TextSegments = [],  // Text already rasterized in main render prep
             AudioSegments = chunkAudioSegments,
-            UseGpuOverlay = true,  // Enable GPU overlay for chunked renders (simpler filter graphs)
+            // Avoid forcing GPU overlay for chunks that contain motion/fade/alpha/tint
+            // because those paths run on CPU and can cause costly hwdownload/hwupload thrash.
+            UseGpuOverlay = useGpuOverlayForChunk,
             DisableEmbeddedTimelineSources = true
         };
     }
 
-    private static List<RenderVisualSegment> BuildChunkVisualSegments(
+    private static bool ShouldEnableGpuOverlayForChunk(IReadOnlyCollection<RenderVisualSegment> chunkVisuals)
+    {
+        if (chunkVisuals.Count == 0)
+            return false;
+
+        foreach (var seg in chunkVisuals)
+        {
+            var hasTint = seg.OverlayOpacity > 0 && !string.IsNullOrWhiteSpace(seg.OverlayColorHex);
+            var hasFade = string.Equals(seg.TransitionType, "fade", StringComparison.OrdinalIgnoreCase)
+                && seg.TransitionDuration > 0
+                && seg.TransitionDuration <= seg.Duration / 2.0;
+            var hasImageMotion = !seg.IsVideo
+                && !string.IsNullOrWhiteSpace(seg.MotionPreset)
+                && seg.MotionPreset != MotionPresets.None;
+
+            // These features force CPU filter chains in the composer.
+            if (seg.HasAlpha || hasTint || hasFade || hasImageMotion)
+                return false;
+        }
+
+        return true;
+    }
+
+    internal static List<RenderVisualSegment> BuildChunkVisualSegments(
         IReadOnlyList<RenderVisualSegment> allVisuals,
         double chunkStartTime,
-        double chunkEndTime)
+        double chunkEndTime,
+        int frameRate)
     {
         var chunkVisuals = new List<RenderVisualSegment>();
         var motionClippedAtChunkStart = 0;
+        var droppedSubFrameSegments = 0;
+        const double epsilon = 0.0001;
+        var minRenderableDuration = 0.95 / Math.Max(1, frameRate);
 
         foreach (var seg in allVisuals)
         {
@@ -1180,7 +1530,31 @@ public static class FFmpegService
             if (clippedEnd <= clippedStart)
                 continue;
 
+            var localStart = clippedStart - chunkStartTime;
+            if (localStart >= 0 && localStart < 0.0005)
+                localStart = 0;
+
+            var localEnd = clippedEnd - chunkStartTime;
+            if (localEnd <= localStart + 0.000001)
+                continue;
+
+            var localDuration = localEnd - localStart;
+            if (localDuration < minRenderableDuration)
+            {
+                droppedSubFrameSegments++;
+                continue;
+            }
+
             var sourceOffsetAdjustment = Math.Max(0, clippedStart - seg.StartTime);
+            var wasClippedAtStart = clippedStart > seg.StartTime + epsilon;
+            var wasClippedAtEnd = clippedEnd < seg.EndTime - epsilon;
+            var motionReferenceDuration = seg.MotionReferenceDurationSeconds > epsilon
+                ? Math.Max(seg.MotionReferenceDurationSeconds, seg.Duration)
+                : seg.Duration;
+            var motionReferenceOffset = Math.Max(0, seg.MotionReferenceOffsetSeconds + sourceOffsetAdjustment);
+            var hasImageMotion = !seg.IsVideo &&
+                !string.IsNullOrWhiteSpace(seg.MotionPreset) &&
+                seg.MotionPreset != MotionPresets.None;
             if (!seg.IsVideo &&
                 sourceOffsetAdjustment > 0.0001 &&
                 !string.IsNullOrWhiteSpace(seg.MotionPreset) &&
@@ -1192,8 +1566,8 @@ public static class FFmpegService
             chunkVisuals.Add(new RenderVisualSegment
             {
                 SourcePath = seg.SourcePath,
-                StartTime = clippedStart - chunkStartTime,
-                EndTime = clippedEnd - chunkStartTime,
+                StartTime = localStart,
+                EndTime = localEnd,
                 IsVideo = seg.IsVideo,
                 SourceOffsetSeconds = seg.SourceOffsetSeconds + sourceOffsetAdjustment,
                 OverlayX = seg.OverlayX,
@@ -1205,20 +1579,32 @@ public static class FFmpegService
                 ZOrder = seg.ZOrder,
                 MotionPreset = seg.MotionPreset,
                 MotionIntensity = seg.MotionIntensity,
+                MotionReferenceOffsetSeconds = hasImageMotion ? motionReferenceOffset : 0,
+                MotionReferenceDurationSeconds = hasImageMotion ? motionReferenceDuration : 0,
                 OverlayColorHex = seg.OverlayColorHex,
                 OverlayOpacity = seg.OverlayOpacity,
-                TransitionType = seg.TransitionType,
-                TransitionDuration = seg.TransitionDuration
+                // Prevent duplicated transition fades when a source segment is split across chunks.
+                TransitionType = (wasClippedAtStart || wasClippedAtEnd) ? "none" : seg.TransitionType,
+                TransitionDuration = (wasClippedAtStart || wasClippedAtEnd) ? 0 : seg.TransitionDuration
             });
         }
 
         if (motionClippedAtChunkStart > 0)
         {
-            Log.Warning(
-                "Chunked render window {Start:F2}s..{End:F2}s clips {Count} image motion segments at chunk start; motion restarts inside this window.",
+            Log.Information(
+                "Chunked render window {Start:F2}s..{End:F2}s clips {Count} image motion segments at chunk start; motion continuity is preserved with reference offsets.",
                 chunkStartTime,
                 chunkEndTime,
                 motionClippedAtChunkStart);
+        }
+
+        if (droppedSubFrameSegments > 0)
+        {
+            Log.Information(
+                "Chunked render window {Start:F2}s..{End:F2}s skipped {Count} sub-frame visual segment(s) to avoid startup stalls.",
+                chunkStartTime,
+                chunkEndTime,
+                droppedSubFrameSegments);
         }
 
         return chunkVisuals
@@ -1397,7 +1783,14 @@ public static class FFmpegService
                 var killed = 0;
                 foreach (var (_, proc) in _activeProcesses)
                 {
-                    try { if (!proc.HasExited) { proc.Kill(); killed++; } }
+                    try
+                    {
+                        if (!proc.HasExited)
+                        {
+                            proc.Kill(entireProcessTree: true);
+                            killed++;
+                        }
+                    }
                     catch { /* best-effort per-process */ }
                 }
                 if (killed > 0)
@@ -1484,8 +1877,12 @@ public static class FFmpegService
             // which may come from a lavfi color source or a -loop 1 image input
             // (both report unhelpful durations).
             double totalDurationSeconds = ExtractExplicitDuration(args);
+            var inputOpenTimeoutSeconds = EstimateInputOpenTimeoutSeconds(args, totalDurationSeconds);
+            var inputCount = CountInputOccurrences(args);
             double maxDurationFromHeaders = 0;
             int inputHeaderCount = 0;
+            int startupStallFlag = 0;
+            int startupStallElapsedSeconds = 0;
 
             // Track encoding phase vs finalization (faststart) phase
             bool encodingStarted = false;
@@ -1511,6 +1908,33 @@ public static class FFmpegService
                                 Message = $"Opening inputs… {elapsed}s (large projects may take up to 60s)",
                                 IsComplete = false
                             });
+
+                            if (elapsed >= inputOpenTimeoutSeconds)
+                            {
+                                Interlocked.Exchange(ref startupStallFlag, 1);
+                                Interlocked.Exchange(ref startupStallElapsedSeconds, elapsed);
+
+                                Log.Warning(
+                                    "FFmpeg startup stall watchdog: no frame after {Elapsed}s (threshold={Threshold}s, inputs={Inputs}) — terminating process to allow fallback/retry",
+                                    elapsed,
+                                    inputOpenTimeoutSeconds,
+                                    inputCount);
+
+                                try
+                                {
+                                    if (proc != null && !proc.HasExited)
+                                    {
+                                        proc.Kill(entireProcessTree: true);
+                                        proc.WaitForExit(5000);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Log.Warning(ex, "Could not terminate FFmpeg process after startup stall watchdog fired");
+                                }
+
+                                heartbeatCts.Cancel();
+                            }
                         }
                     }
                 }
@@ -1602,6 +2026,24 @@ public static class FFmpegService
                 }
             }
 
+            if (Volatile.Read(ref startupStallFlag) == 1)
+            {
+                var elapsed = Math.Max(1, Volatile.Read(ref startupStallElapsedSeconds));
+                var filterScriptPath = ExtractFilterScriptPath(args);
+                var filterScriptExists = !string.IsNullOrWhiteSpace(filterScriptPath) && File.Exists(filterScriptPath);
+                Log.Warning(
+                    "FFmpeg startup stall context: elapsed={Elapsed}s, threshold={Threshold}s, inputCount={InputCount}, durationArg={DurationArg:F3}, inputHeadersSeen={InputHeadersSeen}, encodingStarted={EncodingStarted}, filterScript={FilterScript}, filterScriptExists={FilterScriptExists}",
+                    elapsed,
+                    inputOpenTimeoutSeconds,
+                    inputCount,
+                    totalDurationSeconds,
+                    inputHeaderCount,
+                    encodingStarted,
+                    filterScriptPath ?? "<none>",
+                    filterScriptExists);
+                return (false, $"FFmpeg startup stalled while opening inputs after {elapsed}s");
+            }
+
             // Encoding phase finished (stderr closed). Now FFmpeg may be doing
             // movflags +faststart (MOOV atom relocation) which produces no output.
             heartbeatCts.Cancel();
@@ -1677,11 +2119,25 @@ public static class FFmpegService
             heartbeatCts.Cancel();
             if (heartbeatTask != null)
                 await heartbeatTask.ConfigureAwait(false);
-                if (proc != null)
+            if (proc != null)
+            {
+                if (!proc.HasExited)
                 {
-                    _activeProcesses.TryRemove(procKey, out _);
-                    proc.Dispose();
+                    try
+                    {
+                        proc.Kill(entireProcessTree: true);
+                        proc.WaitForExit(5000);
+                        Log.Warning("Forced cleanup terminated lingering FFmpeg process PID {Pid}", proc.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Could not terminate lingering FFmpeg process PID {Pid} during cleanup", proc.Id);
+                    }
                 }
+
+                _activeProcesses.TryRemove(procKey, out _);
+                proc.Dispose();
+            }
         }
     }
 
@@ -1699,6 +2155,89 @@ public static class FFmpegService
             return duration;
         }
         return 0;
+    }
+
+    private static int CountInputOccurrences(string args)
+    {
+        if (string.IsNullOrWhiteSpace(args))
+            return 0;
+
+        return Regex.Matches(args, "(?:^|\\s)-i\\s+\\\"").Count;
+    }
+
+    private static int EstimateInputOpenTimeoutSeconds(string args, double explicitDurationSeconds)
+    {
+        var inputCount = Math.Max(1, CountInputOccurrences(args));
+        var byInputCount = 20 + (inputCount * 2);
+        var byDuration = explicitDurationSeconds > 0
+            ? 20 + (int)Math.Ceiling(Math.Min(120.0, explicitDurationSeconds * 0.8))
+            : 45;
+
+        return Math.Clamp(Math.Max(byInputCount, byDuration), 45, 120);
+    }
+
+    private static string? ExtractFilterScriptPath(string args)
+    {
+        if (string.IsNullOrWhiteSpace(args))
+            return null;
+
+        var match = Regex.Match(args, "-/filter_complex\\s+\"([^\"]+)\"");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private static string ComputeStableSignature(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return "000000000000";
+
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).Substring(0, 12);
+    }
+
+    private static (string Signature, int ImageCount, int VideoCount, int AlphaCount, int MotionCount, int FadeCount, int UniqueVisualSourceCount, int UniqueAudioSourceCount)
+        AnalyzeChunkDiagnostics(
+            IReadOnlyList<RenderVisualSegment> visuals,
+            IReadOnlyList<RenderAudioSegment> audios)
+    {
+        var imageCount = visuals.Count(v => !v.IsVideo);
+        var videoCount = visuals.Count(v => v.IsVideo);
+        var alphaCount = visuals.Count(v => v.HasAlpha);
+        var motionCount = visuals.Count(v => !string.IsNullOrWhiteSpace(v.MotionPreset) && v.MotionPreset != MotionPresets.None);
+        var fadeCount = visuals.Count(v => string.Equals(v.TransitionType, "fade", StringComparison.OrdinalIgnoreCase) && v.TransitionDuration > 0);
+        var uniqueVisualSourceCount = visuals
+            .Select(v => v.SourcePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var uniqueAudioSourceCount = audios
+            .Select(a => a.SourcePath)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        var fingerprint = string.Join("|", visuals
+            .OrderBy(v => v.StartTime)
+            .ThenBy(v => v.ZOrder)
+            .Select(v => string.Concat(
+                Path.GetFileName(v.SourcePath), ":",
+                v.IsVideo ? "V" : "I", ":",
+                v.StartTime.ToString("F3", CultureInfo.InvariantCulture), "-",
+                v.EndTime.ToString("F3", CultureInfo.InvariantCulture), ":",
+                v.MotionPreset ?? string.Empty, ":",
+                v.TransitionType ?? string.Empty, ":",
+                v.ZOrder.ToString(CultureInfo.InvariantCulture), ":",
+                v.HasAlpha ? "A1" : "A0")));
+        fingerprint += "#" + string.Join("|", audios
+            .OrderBy(a => a.StartTime)
+            .Select(a => string.Concat(
+                Path.GetFileName(a.SourcePath), ":",
+                a.StartTime.ToString("F3", CultureInfo.InvariantCulture), "-",
+                a.EndTime.ToString("F3", CultureInfo.InvariantCulture), ":",
+                a.Volume.ToString("F2", CultureInfo.InvariantCulture))));
+
+        var signature = ComputeStableSignature(fingerprint);
+        return (signature, imageCount, videoCount, alphaCount, motionCount, fadeCount, uniqueVisualSourceCount, uniqueAudioSourceCount);
     }
 
     private static (string category, string summary, string[] keyLines) AnalyzeFfmpegFailure(string stderr)
