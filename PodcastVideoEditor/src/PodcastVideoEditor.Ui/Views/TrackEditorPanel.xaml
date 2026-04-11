@@ -3,7 +3,15 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              Background="Transparent"
-             Foreground="#e0e0e0">
+             Foreground="{StaticResource PanelForegroundBrush}">
+
+    <UserControl.Resources>
+        <!-- Implicit overrides: make all controls inside match PropertyEditorView's flat compact style -->
+        <Style TargetType="{x:Type ComboBox}"  BasedOn="{StaticResource FlatComboBoxStyle}"/>
+        <Style TargetType="{x:Type ComboBoxItem}" BasedOn="{StaticResource FlatComboBoxItemStyle}"/>
+        <Style TargetType="{x:Type TextBox}"   BasedOn="{StaticResource FlatTextBoxStyle}"/>
+        <Style TargetType="{x:Type Slider}"    BasedOn="{StaticResource CompactSliderStyle}"/>
+    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -21,10 +29,7 @@
         <TextBlock x:Name="NoSelectionText"
                    Grid.Row="1"
                    Text="Click vào phần đầu track trên timeline để chỉnh thuộc tính"
-                   Foreground="#7a8a96"
-                   FontStyle="Italic"
-                   TextWrapping="Wrap"
-                   Margin="15,15,15,0"
+                   Style="{StaticResource NoSelectionTextStyle}"
                    Visibility="Visible"/>
 
         <!-- Properties (shown when a track is selected) -->
@@ -32,167 +37,191 @@
                       Grid.Row="1"
                       VerticalScrollBarVisibility="Auto"
                       Visibility="Collapsed">
-            <StackPanel Margin="15,12,15,12">
+            <StackPanel Margin="12,10,12,10">
 
-                <!-- Track name (read-only display) -->
-                <TextBlock Text="Tên track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
-                <TextBlock x:Name="TrackNameText"
-                           Foreground="#81c784"
-                           FontFamily="Courier New"
-                           Margin="0,0,0,15"/>
+                <!-- Track name -->
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Tên track:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <TextBlock x:Name="TrackNameText" Grid.Column="1"
+                               Style="{StaticResource PropertyValueTextStyle}" FontSize="11" VerticalAlignment="Center"/>
+                </Grid>
 
-                <!-- Track type (read-only) -->
-                <TextBlock Text="Loại track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
-                <TextBlock x:Name="TrackTypeText"
-                           Foreground="#64b5f6"
-                           FontFamily="Courier New"
-                           Margin="0,0,0,15"/>
+                <!-- Track type -->
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Loại:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <TextBlock x:Name="TrackTypeText" Grid.Column="1"
+                               Foreground="{StaticResource AccentLightBlueBrush}"
+                               FontFamily="Courier New" FontSize="11" VerticalAlignment="Center"/>
+                </Grid>
 
-                <TextBlock Text="Vai trò track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
-                <ComboBox x:Name="TrackRoleCombo"
-                          Padding="8,5" Margin="0,0,0,8"
-                          SelectionChanged="TrackRoleCombo_SelectionChanged">
-                    <ComboBoxItem Content="Không chỉ định" Tag="unspecified" IsSelected="True"/>
-                    <ComboBoxItem Content="Script Text" Tag="script_text"/>
-                    <ComboBoxItem Content="AI Content" Tag="ai_content"/>
-                    <ComboBoxItem Content="Visualizer" Tag="visualizer"/>
-                </ComboBox>
+                <!-- Track role -->
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Vai trò:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <ComboBox x:Name="TrackRoleCombo" Grid.Column="1" SelectionChanged="TrackRoleCombo_SelectionChanged">
+                        <ComboBoxItem Content="Không chỉ định" Tag="unspecified" IsSelected="True"/>
+                        <ComboBoxItem Content="Script Text" Tag="script_text"/>
+                        <ComboBoxItem Content="AI Content" Tag="ai_content"/>
+                        <ComboBoxItem Content="Visualizer" Tag="visualizer"/>
+                    </ComboBox>
+                </Grid>
 
-                <TextBlock Text="Chế độ thời lượng (Span):" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
-                <ComboBox x:Name="TrackSpanCombo"
-                          Padding="8,5" Margin="0,0,0,8"
-                          SelectionChanged="TrackSpanCombo_SelectionChanged">
-                    <ComboBoxItem Content="Segment Bound" Tag="segment_bound" IsSelected="True"/>
-                    <ComboBoxItem Content="Project Duration (tự kéo dài)" Tag="project_duration"/>
-                    <ComboBoxItem Content="Template Duration (giữ như mẫu)" Tag="template_duration"/>
-                    <ComboBoxItem Content="Manual" Tag="manual"/>
-                </ComboBox>
+                <!-- Track span -->
+                <Grid Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Span:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <ComboBox x:Name="TrackSpanCombo" Grid.Column="1" SelectionChanged="TrackSpanCombo_SelectionChanged">
+                        <ComboBoxItem Content="Segment Bound" Tag="segment_bound" IsSelected="True"/>
+                        <ComboBoxItem Content="Project Duration" Tag="project_duration"/>
+                        <ComboBoxItem Content="Template Duration" Tag="template_duration"/>
+                        <ComboBoxItem Content="Manual" Tag="manual"/>
+                    </ComboBox>
+                </Grid>
 
-                <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
+                <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,10">
                     <TextBlock x:Name="TrackPolicyHintText"
                                Text="Role quyết định track dùng để làm gì. Span quyết định track có tự kéo dài theo project hay giữ nguyên thời lượng mẫu."
                                Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                 </Border>
 
-                <!-- Separator — only show image layout for visual tracks -->
+                <!-- Image Layout (visual tracks only) -->
                 <StackPanel x:Name="ImageLayoutSection" Visibility="Collapsed">
-                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+                    <Separator Style="{StaticResource PropertySeparatorStyle}"/>
+                    <TextBlock Text="📐  Layout ảnh" Style="{StaticResource PropertySectionHeaderTextStyle}"/>
 
-                    <TextBlock Text="📐  Layout ảnh:" Style="{StaticResource PropertyLabelTextStyle}"
-                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
-
-                    <!-- Radio buttons for common presets -->
                     <RadioButton x:Name="RadioFullFrame"
                                  Content="Full Frame  (ảnh phủ toàn khung)"
-                                 Foreground="#e0e0e0" Margin="0,0,0,6"
-                                 GroupName="LayoutPreset"
-                                 Checked="RadioPreset_Checked" Tag="FullFrame"/>
-
+                                 Margin="0,0,0,5"
+                                 GroupName="LayoutPreset" Checked="RadioPreset_Checked" Tag="FullFrame"/>
                     <RadioButton x:Name="RadioSquareCenter"
-                                 Content="1:1 Giữa khung  (để trống trên/dưới cho title + sub)"
-                                 Foreground="#e0e0e0" Margin="0,0,0,6"
-                                 GroupName="LayoutPreset"
-                                 Checked="RadioPreset_Checked" Tag="Square_Center"/>
-
+                                 Content="1:1 Giữa khung  (để trống trên/dưới)"
+                                 Margin="0,0,0,5"
+                                 GroupName="LayoutPreset" Checked="RadioPreset_Checked" Tag="Square_Center"/>
                     <RadioButton x:Name="RadioWidescreenCenter"
                                  Content="16:9 Giữa khung  (letterbox trong frame dọc)"
-                                 Foreground="#e0e0e0" Margin="0,0,0,14"
-                                 GroupName="LayoutPreset"
-                                 Checked="RadioPreset_Checked" Tag="Widescreen_Center"/>
+                                 Margin="0,0,0,8"
+                                 GroupName="LayoutPreset" Checked="RadioPreset_Checked" Tag="Widescreen_Center"/>
 
-                    <!-- Visual preview hint -->
-                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
-                        <TextBlock x:Name="PresetHintText"
-                                   Style="{StaticResource PropertyHintTextStyle}"
-                                   FontSize="11"/>
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,10">
+                        <TextBlock x:Name="PresetHintText" Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                     </Border>
 
-                    <!-- Auto-motion (Ken Burns) -->
-                    <Separator Background="#37474f" Margin="0,0,0,12"/>
-
-                    <TextBlock Text="🎬  Hiệu ứng chuyển động (Ken Burns):" Style="{StaticResource PropertyLabelTextStyle}"
-                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+                    <!-- Motion (Ken Burns) -->
+                    <Separator Style="{StaticResource PropertySeparatorStyle}"/>
+                    <TextBlock Text="🎬  Chuyển động (Ken Burns)" Style="{StaticResource PropertySectionHeaderTextStyle}"/>
 
                     <CheckBox x:Name="AutoMotionCheckBox"
-                              Content="Tự động áp dụng hiệu ứng ngẫu nhiên cho ảnh"
-                              Foreground="#e0e0e0" Margin="0,0,0,8"
-                              Checked="AutoMotionCheckBox_Changed"
-                              Unchecked="AutoMotionCheckBox_Changed"/>
+                              Content="Tự động áp dụng hiệu ứng ngẫu nhiên"
+                              Margin="0,0,0,6"
+                              Checked="AutoMotionCheckBox_Changed" Unchecked="AutoMotionCheckBox_Changed"/>
 
-                    <StackPanel x:Name="MotionIntensityPanel" Visibility="Collapsed" Margin="0,0,0,8">
-                        <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
-                            <Run Text="Cường độ: "/><Run x:Name="MotionIntensityValueText" Text="30%"/>
-                        </TextBlock>
-                        <Slider x:Name="MotionIntensitySlider"
+                    <Grid x:Name="MotionIntensityPanel" Visibility="Collapsed" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="48"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Cường độ:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                        <Slider Grid.Column="1" x:Name="MotionIntensitySlider"
                                 Minimum="0" Maximum="100" Value="30"
                                 TickFrequency="10" IsSnapToTickEnabled="False"
+                                VerticalAlignment="Center" Margin="0,0,6,0"
                                 ValueChanged="MotionIntensitySlider_ValueChanged"/>
-                    </StackPanel>
+                        <TextBlock x:Name="MotionIntensityValueText" Grid.Column="2" Text="30%"
+                                   Style="{StaticResource PropertyValueTextStyle}" FontSize="11"
+                                   TextAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
 
-                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,10">
                         <TextBlock x:Name="MotionHintText"
-                                   Text="Khi bật, mỗi ảnh tĩnh sẽ tự động có hiệu ứng zoom/pan ngẫu nhiên. Hiệu ứng cố định theo segment (render lại cho kết quả giống nhau)."
-                                   Style="{StaticResource PropertyHintTextStyle}"
-                                   FontSize="11"/>
+                                   Text="Khi bật, mỗi ảnh tĩnh sẽ tự động có hiệu ứng zoom/pan ngẫu nhiên."
+                                   Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                     </Border>
 
-                    <!-- Color Overlay (darken / tint) -->
-                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+                    <!-- Overlay -->
+                    <Separator Style="{StaticResource PropertySeparatorStyle}"/>
+                    <TextBlock Text="🎨  Lớp phủ màu" Style="{StaticResource PropertySectionHeaderTextStyle}"/>
 
-                    <TextBlock Text="🎨  Lớp phủ màu (Overlay):" Style="{StaticResource PropertyLabelTextStyle}"
-                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
+                    <Grid Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="48"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Độ mờ:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                        <Slider Grid.Column="1" x:Name="OverlayOpacitySlider"
+                                Minimum="0" Maximum="100" Value="0"
+                                TickFrequency="5" IsSnapToTickEnabled="False"
+                                VerticalAlignment="Center" Margin="0,0,6,0"
+                                ValueChanged="OverlayOpacitySlider_ValueChanged"/>
+                        <TextBlock x:Name="OverlayOpacityValueText" Grid.Column="2" Text="0%"
+                                   Style="{StaticResource PropertyValueTextStyle}" FontSize="11"
+                                   TextAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
 
-                    <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
-                        <Run Text="Độ mờ: "/><Run x:Name="OverlayOpacityValueText" Text="0%"/>
-                    </TextBlock>
-                    <Slider x:Name="OverlayOpacitySlider"
-                            Minimum="0" Maximum="100" Value="0"
-                            TickFrequency="5" IsSnapToTickEnabled="False"
-                            ValueChanged="OverlayOpacitySlider_ValueChanged"/>
+                    <Grid Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Màu:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Border x:Name="OverlayColorSwatch"
+                                    Width="22" Height="22" CornerRadius="4"
+                                    Background="Black" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
+                                    Cursor="Hand" VerticalAlignment="Center"
+                                    MouseLeftButtonDown="OverlayColorSwatch_Click"/>
+                            <TextBlock x:Name="OverlayColorHexText"
+                                       Text="#000000" Foreground="{StaticResource ValueDisplayBrush}"
+                                       FontFamily="Courier New" FontSize="11"
+                                       VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBlock Text="Màu:" Foreground="#b0bec5" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12"/>
-                        <Border x:Name="OverlayColorSwatch"
-                                Width="28" Height="28" CornerRadius="4"
-                                Background="Black" BorderBrush="#546e7a" BorderThickness="1"
-                                Cursor="Hand"
-                                MouseLeftButtonDown="OverlayColorSwatch_Click"/>
-                        <TextBlock x:Name="OverlayColorHexText"
-                                   Text="#000000" Foreground="#81c784"
-                                   FontFamily="Courier New" FontSize="12"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
-                    </StackPanel>
-
-                    <!-- Color picker popup -->
                     <Popup x:Name="OverlayColorPopup"
                            PlacementTarget="{Binding ElementName=OverlayColorSwatch}"
                            Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                            PopupAnimation="Fade">
-                        <Border Background="#252530" BorderBrush="#546e7a" BorderThickness="1"
-                                CornerRadius="6" Padding="2">
+                        <Border Style="{StaticResource PropertyPopupBorderStyle}">
                             <controls:ColorPickerPopup x:Name="OverlayColorPicker"/>
                         </Border>
                     </Popup>
 
-                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,8,0,12">
-                        <TextBlock Text="Lớp phủ màu áp dụng cho toàn bộ segment trong track. Segment có thể ghi đè riêng trong Segment Properties."
-                                   Style="{StaticResource PropertyHintTextStyle}"
-                                   FontSize="11"/>
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,10">
+                        <TextBlock Text="Lớp phủ màu áp dụng cho toàn bộ segment trong track. Segment có thể ghi đè riêng."
+                                   Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                     </Border>
 
-                    <!-- Scale Mode (batch apply to all segments) -->
-                    <Separator Background="#37474f" Margin="0,0,0,12"/>
+                    <!-- Scale Mode -->
+                    <Separator Style="{StaticResource PropertySeparatorStyle}"/>
+                    <TextBlock Text="🖼  Scale Mode" Style="{StaticResource PropertySectionHeaderTextStyle}"/>
 
-                    <TextBlock Text="🖼  Chế độ co giãn ảnh (Scale Mode):" Style="{StaticResource PropertyLabelTextStyle}"
-                               Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
-
-                    <ComboBox x:Name="ScaleModeCombo"
-                              Padding="8,5" Margin="0,0,0,8"
-                              SelectionChanged="ScaleModeCombo_SelectionChanged">
-                        <ComboBoxItem Content="Fill  (lấp đầy, có thể crop)" Tag="Fill" IsSelected="True"/>
-                        <ComboBoxItem Content="Fit  (vừa khung, giữ tỉ lệ)" Tag="Fit"/>
-                        <ComboBoxItem Content="Stretch  (kéo giãn, có thể méo)" Tag="Stretch"/>
-                    </ComboBox>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Chế độ:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                        <ComboBox x:Name="ScaleModeCombo" Grid.Column="1" SelectionChanged="ScaleModeCombo_SelectionChanged">
+                            <ComboBoxItem Content="Fill  (lấp đầy, có thể crop)" Tag="Fill" IsSelected="True"/>
+                            <ComboBoxItem Content="Fit  (vừa khung, giữ tỉ lệ)" Tag="Fit"/>
+                            <ComboBoxItem Content="Stretch  (kéo giãn, có thể méo)" Tag="Stretch"/>
+                        </ComboBox>
+                    </Grid>
 
                     <Button x:Name="ApplyScaleModeBtn"
                             Content="Áp dụng cho toàn bộ segment"
@@ -200,15 +229,15 @@
                             Padding="10,6" Cursor="Hand" HorizontalAlignment="Left"
                             Click="ApplyScaleModeBtn_Click"/>
 
-                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,8,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,8,0,10">
                         <TextBlock Text="Chọn chế độ co giãn rồi nhấn nút để áp dụng cho tất cả ảnh trong track này."
                                    Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                     </Border>
                 </StackPanel>
 
                 <!-- Lock / Visibility -->
-                <Separator Background="#37474f" Margin="0,0,0,12"/>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Separator Style="{StaticResource PropertySeparatorStyle}"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
                     <Button x:Name="LockBtn" Width="100" Padding="8,5" Margin="0,0,8,0"
                             Style="{StaticResource NeutralActionButtonStyle}"
                             Cursor="Hand" Click="LockBtn_Click">

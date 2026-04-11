@@ -41,7 +41,7 @@
 
                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                     <Button Name="BrowseButton" Content="Browse..." Click="Browse_Click" 
-                            Padding="12,6" Background="{DynamicResource AccentBrush}" Margin="0,0,8,0"/>
+                            Padding="12,6" Background="{DynamicResource AccentBlueBrush}" Margin="0,0,8,0"/>
                     <TextBlock Name="SelectedFileTextBlock" VerticalAlignment="Center" 
                                Foreground="{DynamicResource SecondaryForegroundBrush}" 
                                TextWrapping="Wrap" Text="No file selected"/>
@@ -51,7 +51,7 @@
             <!-- Right: Preview -->
             <StackPanel Grid.Column="1" VerticalAlignment="Top">
                 <TextBlock Text="Preview:" FontSize="12" Foreground="{DynamicResource SecondaryForegroundBrush}"/>
-                <Border BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" 
+                <Border BorderThickness="1" BorderBrush="{DynamicResource AppCardBorderBrush}" 
                         Width="180" Height="180" Margin="0,4,0,8"
                         Background="{DynamicResource SecondaryBackgroundBrush}">
                     <Image Name="PreviewImage" Stretch="UniformToFill"/>
@@ -68,7 +68,7 @@
         <!-- File Info -->
         <Border Grid.Row="2" Padding="12" Margin="0,12,0,0"
                 Background="{DynamicResource SecondaryBackgroundBrush}"
-                BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}">
+                BorderThickness="1" BorderBrush="{DynamicResource AppCardBorderBrush}">
             <StackPanel>
                 <TextBlock Text="Format: PNG, JPG, JPEG, WEBP, BMP, GIF, SVG (max 50 MB)" 
                            FontSize="11" Foreground="{DynamicResource SecondaryForegroundBrush}"/>
@@ -80,7 +80,7 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Name="CancelButton" Content="Cancel" Click="Cancel_Click" Padding="16,6" IsCancel="True" Margin="0,0,8,0"/>
             <Button Name="OkButton" Content="Open" Click="Ok_Click" Padding="16,6" 
-                    Background="{DynamicResource AccentBrush}" IsDefault="True"/>
+                    Background="{DynamicResource AccentBlueBrush}" IsDefault="True"/>
         </StackPanel>
     </Grid>
 </Window>

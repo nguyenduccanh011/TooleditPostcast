@@ -2,13 +2,13 @@
     x:Class="PodcastVideoEditor.Ui.Views.RenderView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="#1E1E1E"
-    Foreground="#FFFFFF">
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PrimaryForegroundBrush}">
 
     <UserControl.Resources>
         <!-- Action button (Start Render) -->
         <Style x:Key="ActionButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
@@ -42,7 +42,7 @@
 
         <!-- Danger button (Cancel) -->
         <Style x:Key="DangerButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#D13438"/>
+            <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
@@ -109,7 +109,7 @@
                 FontSize="18"
                 FontWeight="Bold"
                 Margin="0,0,0,12"
-                Foreground="#007ACC" />
+                Foreground="{StaticResource AccentBlueBrush}" />
 
             <!-- GPU status badge -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
@@ -122,7 +122,7 @@
 
             <!-- Resolution & Quality: compact outline buttons (like ratio under preview) -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                <TextBlock Text="Resolution:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+                <TextBlock Text="Resolution:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
                 <Button x:Name="ResolutionButton" Content="{Binding SelectedResolution}" Style="{StaticResource CompactOptionButtonStyle}"
                         Click="ResolutionButton_Click">
                     <Button.ContextMenu>
@@ -133,7 +133,7 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-                <TextBlock Text="Quality:" Margin="20,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+                <TextBlock Text="Quality:" Margin="20,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
                 <Button x:Name="QualityButton" Content="{Binding SelectedQuality}" Style="{StaticResource CompactOptionButtonStyle}"
                         Click="QualityButton_Click">
                     <Button.ContextMenu>
@@ -144,7 +144,7 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
-                <TextBlock Text="Scale:" Margin="20,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+                <TextBlock Text="Scale:" Margin="20,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
                 <Button x:Name="ScaleModeButton" Content="{Binding SelectedScaleMode}" Style="{StaticResource CompactOptionButtonStyle}"
                         Click="ScaleModeButton_Click">
                     <Button.ContextMenu>
@@ -159,10 +159,10 @@
 
             <!-- Output Folder -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                <TextBlock Text="Output:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12" Width="60"/>
+                <TextBlock Text="Output:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12" Width="60"/>
                 <TextBox Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}"
                          Width="300" Height="26" VerticalContentAlignment="Center"
-                         Background="#252526" Foreground="#CCCCCC" BorderBrush="#3E3E42" BorderThickness="1"
+                         Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource SecondaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                          FontSize="11" Padding="4,0" IsReadOnly="False"/>
                 <Button Content="Browse…" Command="{Binding BrowseOutputFolderCommand}"
                         Style="{StaticResource CompactOptionButtonStyle}"
@@ -177,8 +177,8 @@
                     Maximum="100"
                     Value="{Binding RenderProgress}"
                     IsIndeterminate="{Binding RenderProgressIsIndeterminate}"
-                    Background="#252526"
-                    Foreground="#28A745" />
+                    Background="{StaticResource SecondaryBackgroundBrush}"
+                    Foreground="{StaticResource AccentGreenBrush}" />
             </StackPanel>
 
             <!-- Status Message -->
@@ -186,14 +186,14 @@
                 <TextBlock Text="Status:" Margin="0,0,0,5" />
                 <Border
                     Padding="10"
-                    Background="#252526"
-                    BorderBrush="#3E3E42"
+                    Background="{StaticResource SecondaryBackgroundBrush}"
+                    BorderBrush="{StaticResource AppCardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="3">
                     <TextBox
                         Text="{Binding StatusMessage}"
                         TextWrapping="Wrap"
-                        Foreground="#FFFFFF"
+                        Foreground="{StaticResource PrimaryForegroundBrush}"
                         Background="Transparent"
                         BorderThickness="0"
                         IsReadOnly="True"

@@ -9,8 +9,8 @@
         Icon="Assets/PodcastVideoEditor.ico"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        Background="#1E1E1E"
-        Foreground="#FFFFFF"
+        Background="{StaticResource PrimaryBackgroundBrush}"
+        Foreground="{StaticResource PrimaryForegroundBrush}"
         Loaded="MainWindow_Loaded"
         Closing="MainWindow_Closing"
         StateChanged="MainWindow_StateChanged">
@@ -27,7 +27,7 @@
         <KeyBinding Key="S" Modifiers="Control"
                     Command="{Binding ProjectViewModel.SaveProjectCommand}"/>
     </Window.InputBindings>
-    <Border x:Name="WindowBorder" BorderBrush="#3E3E42" BorderThickness="1">
+    <Border x:Name="WindowBorder" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="38"/>
@@ -35,7 +35,7 @@
         </Grid.RowDefinitions>
 
         <!-- ═══════════ Custom Title Bar ═══════════ -->
-        <Grid Grid.Row="0" Background="#1e1e1e">
+        <Grid Grid.Row="0" Background="{StaticResource PrimaryBackgroundBrush}">
             <Grid.Resources>
                 <!-- Title bar tab button (RadioButton styled as flat tab) -->
                 <Style x:Key="TitleBarTab" TargetType="RadioButton">
@@ -136,7 +136,7 @@
             <!-- Icon + Title -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,8,0">
                 <TextBlock Text="🎙" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBlock Text="Podcast Video Editor" FontSize="12" Foreground="#CCCCCC"
+                <TextBlock Text="Podcast Video Editor" FontSize="12" Foreground="{StaticResource SecondaryForegroundBrush}"
                            VerticalAlignment="Center" FontWeight="SemiBold"/>
             </StackPanel>
 
@@ -179,7 +179,7 @@
 
             <!-- Render button (visible only on Editor tab) -->
             <Button x:Name="TitleBarRenderBtn" Grid.Column="3"
-                    Content="▶ Render" Background="#007ACC" Foreground="White"
+                    Content="▶ Render" Background="{StaticResource AccentBlueBrush}" Foreground="White"
                     FontSize="12" Padding="14,5" Height="26" Margin="0,0,8,0"
                     WindowChrome.IsHitTestVisibleInChrome="True"
                     Visibility="Collapsed"
@@ -195,7 +195,7 @@
 
         <!-- ═══════════ Content: Tab pages (headers hidden) ═══════════ -->
         <TabControl x:Name="MainTabControl" Grid.Row="1" SelectedIndex="0"
-                    Background="#1E1E1E" Foreground="#FFFFFF"
+                    Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"
                     SelectionChanged="MainTabControl_SelectionChanged"
                     DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}">
             <TabControl.Template>
@@ -208,7 +208,7 @@
                 <ScrollViewer>
                     <StackPanel Margin="20">
                         <TextBlock Text="Welcome to Podcast Video Editor" FontSize="22" FontWeight="Bold" Foreground="#007ACC" />
-                        <TextBlock Text="Create a new project or open a recent one." Margin="0,6,0,20" Foreground="#CCCCCC" />
+                        <TextBlock Text="Create a new project or open a recent one." Margin="0,6,0,20" Foreground="{StaticResource SecondaryForegroundBrush}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
                             <Button Content="New Project" Width="130" Height="36" Margin="0,0,10,0"
@@ -232,13 +232,13 @@
                             <StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                     <TextBlock Text="Recent Projects" FontSize="14" FontWeight="Bold" />
-                                    <TextBlock Text="{Binding Projects.Count, StringFormat=' ({0})'}" FontSize="14" FontWeight="Bold" Foreground="#AAAAAA" Margin="5,0,0,0" />
+                                    <TextBlock Text="{Binding Projects.Count, StringFormat=' ({0})'}" FontSize="14" FontWeight="Bold" Foreground="{StaticResource MutedForegroundBrush}" Margin="5,0,0,0" />
                                 </StackPanel>
                                 <ListBox x:Name="ProjectsListBox"
                                          ItemsSource="{Binding Projects}"
                                          SelectedItem="{Binding CurrentProject, Mode=TwoWay}"
                                          Height="240"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderThickness="0"
+                                         Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                          MouseDoubleClick="ProjectsList_MouseDoubleClick">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
@@ -252,7 +252,7 @@
                                         <DataTemplate>
                                             <StackPanel Margin="0,4" Background="Transparent">
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding AudioPath}" FontSize="11" Foreground="#AAAAAA" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding AudioPath}" FontSize="11" Foreground="{StaticResource MutedForegroundBrush}" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -279,11 +279,11 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Width="300" Margin="0,0,12,12" Padding="10" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="8">
+                                            <Border Width="300" Margin="0,0,12,12" Padding="10" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="8">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="#FFFFFF" />
-                                                    <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="#AAAAAA" FontSize="11" />
-                                                    <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryForegroundBrush}" />
+                                                    <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" />
+                                                    <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
                                                     <StackPanel Orientation="Horizontal">
                                                         <Button Content="Use Template" Height="28" Margin="0,0,8,0" Padding="12,0"
                                                             Style="{StaticResource PrimaryActionButtonStyle}"
@@ -326,7 +326,7 @@
                         <!-- Debug Info Panel (uncomment when debugging selection issues)
                         <StackPanel Margin="0,15,0,0">
                             <TextBlock Text="Debug Info" FontWeight="Bold" Margin="0,0,0,6" />
-                            <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" Padding="10">
+                            <Border Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" Padding="10">
                                 <StackPanel>
                                     <TextBlock TextWrapping="Wrap">
                                         <Run Text="Selected Project: " />
@@ -355,7 +355,7 @@
                     Column GridSplitters: VerticalAlignment=Stretch + HorizontalAlignment=Center
                     No custom template – lets WPF hit-test the full area reliably.
                 -->
-                <Grid Background="#1e1e1e" Margin="4,4,4,4">
+                <Grid Background="{StaticResource PrimaryBackgroundBrush}" Margin="4,4,4,4">
                     <Grid.Resources>
                         <conv:RoundedClipConverter x:Key="RoundedClipConverter"/>
                     </Grid.Resources>
@@ -376,7 +376,7 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Col 0: Elements / Media -->
-                        <Border Grid.Column="0" Background="#252526" CornerRadius="6">
+                        <Border Grid.Column="0" Background="{StaticResource SecondaryBackgroundBrush}" CornerRadius="6">
                             <Border.Clip>
                                 <MultiBinding Converter="{StaticResource RoundedClipConverter}">
                                     <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
@@ -393,7 +393,7 @@
                                       ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
 
                         <!-- Col 2: Preview / Canvas -->
-                        <Border Grid.Column="2" Background="#252526" CornerRadius="6" Padding="0,4,0,0">
+                        <Border Grid.Column="2" Background="{StaticResource SecondaryBackgroundBrush}" CornerRadius="6" Padding="0,4,0,0">
                             <Border.Clip>
                                 <MultiBinding Converter="{StaticResource RoundedClipConverter}">
                                     <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
@@ -410,7 +410,7 @@
                                       ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
 
                         <!-- Col 4: Properties -->
-                        <Border Grid.Column="4" Background="#252526" CornerRadius="6">
+                        <Border Grid.Column="4" Background="{StaticResource SecondaryBackgroundBrush}" CornerRadius="6">
                             <Border.Clip>
                                 <MultiBinding Converter="{StaticResource RoundedClipConverter}">
                                     <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
@@ -428,7 +428,7 @@
                                   ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"/>
 
                     <!-- ═══════════ Row 2 : Timeline ═══════════ -->
-                    <Border Grid.Row="2" Background="#252526" CornerRadius="6">
+                    <Border Grid.Row="2" Background="{StaticResource SecondaryBackgroundBrush}" CornerRadius="6">
                         <Border.Clip>
                             <MultiBinding Converter="{StaticResource RoundedClipConverter}">
                                 <Binding Path="ActualWidth" RelativeSource="{RelativeSource Self}"/>
@@ -444,7 +444,7 @@
                 <ScrollViewer>
                     <StackPanel x:Name="SettingsPanel" Margin="20">
                         <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" Foreground="#007ACC" />
-                        <TextBlock Text="Configure FFmpeg, application paths, and shared API keys." Margin="0,6,0,20" Foreground="#CCCCCC" />
+                        <TextBlock Text="Configure FFmpeg, application paths, and shared API keys." Margin="0,6,0,20" Foreground="{StaticResource SecondaryForegroundBrush}" />
 
                         <TextBlock Text="FFmpeg Path" Margin="0,0,0,6" />
                         <Grid Margin="0,0,0,10">
@@ -455,41 +455,41 @@
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="FFmpegPathTextBox" Grid.Column="0" Height="32" Padding="8"
                                      Text="{Binding FfmpegPath, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                     Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
                             <Button Grid.Column="1" Width="90" Height="32" Margin="10,0,0,0" Content="Browse"
-                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" Click="BrowseFFmpeg_Click" />
+                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" Click="BrowseFFmpeg_Click" />
                             <Button Grid.Column="2" Width="90" Height="32" Margin="10,0,0,0" Content="Validate"
-                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0" Click="ValidateFFmpeg_Click" />
+                                    Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" Click="ValidateFFmpeg_Click" />
                         </Grid>
 
-                        <TextBlock x:Name="FFmpegStatusText" Foreground="#CCCCCC" Margin="0,0,0,20" TextWrapping="Wrap" />
+                        <TextBlock x:Name="FFmpegStatusText" Foreground="{StaticResource SecondaryForegroundBrush}" Margin="0,0,0,20" TextWrapping="Wrap" />
 
                         <TextBlock Text="App Data Path" Margin="0,0,0,6" />
                         <TextBox x:Name="AppDataPathText" Height="32" Padding="8" IsReadOnly="True"
-                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                 Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
 
-                        <Border Margin="0,16,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                        <Border Margin="0,16,0,0" Padding="16" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
-                                <TextBlock Text="Updates And Build Info" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
-                                <TextBlock x:Name="InstalledVersionText" Margin="0,8,0,0" Foreground="#CCCCCC" />
+                                <TextBlock Text="Updates And Build Info" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryForegroundBrush}" />
+                                <TextBlock x:Name="InstalledVersionText" Margin="0,8,0,0" Foreground="{StaticResource SecondaryForegroundBrush}" />
                                 <TextBlock x:Name="InstallDirectoryText" Margin="0,4,0,0" Foreground="#BBBBBB" TextWrapping="Wrap" />
                                 <TextBlock x:Name="BundledFfmpegText" Margin="0,4,0,0" Foreground="#BBBBBB" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                                     <Button Width="150" Height="32"
                                             Content="Check For Updates"
                                             Background="#0E639C"
-                                            Foreground="#FFFFFF"
+                                            Foreground="{StaticResource PrimaryForegroundBrush}"
                                             BorderThickness="0"
                                             Click="CheckForUpdatesButton_Click" />
                                     <TextBlock x:Name="UpdateStatusText"
                                                Margin="12,8,0,0"
-                                               Foreground="#CCCCCC"
+                                               Foreground="{StaticResource SecondaryForegroundBrush}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,24,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                        <Border Margin="0,24,0,0" Padding="16" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="6">
                             <Border.Resources>
                                 <CollectionViewSource x:Key="GroupedModelsView" Source="{Binding GroupedModels}">
                                     <CollectionViewSource.GroupDescriptions>
@@ -498,14 +498,14 @@
                                 </CollectionViewSource>
                             </Border.Resources>
                             <StackPanel>
-                                <TextBlock Text="AI Analysis (YeScale)" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="AI Analysis (YeScale)" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryForegroundBrush}" />
                                 <TextBlock Text="Add API keys and select a model for AI-powered script analysis." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
 
                                 <!-- ═══ STEP 1: Add API Key ═══ -->
-                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
+                                <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,0,0,12">
                                     <StackPanel>
-                                        <TextBlock Text="Add API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" />
-                                        <TextBlock Text="Get your key at yescale.vip. Each key gives access to a group of models." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Text="Add API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource PrimaryForegroundBrush}" />
+                                        <TextBlock Text="Get your key at yescale.vip. Each key gives access to a group of models." Margin="0,0,0,8" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" TextWrapping="Wrap" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="130" />
@@ -517,21 +517,21 @@
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <!-- Labels row -->
-                                            <TextBlock Text="Name" Foreground="#888888" FontSize="10" Margin="4,0,0,2" />
-                                            <TextBlock Grid.Column="1" Text="API Key" Foreground="#888888" FontSize="10" Margin="10,0,0,2" />
+                                            <TextBlock Text="Name" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" Margin="4,0,0,2" />
+                                            <TextBlock Grid.Column="1" Text="API Key" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" Margin="10,0,0,2" />
                                             <!-- Inputs row -->
                                             <TextBox Grid.Row="1" Height="32" Padding="6,6"
                                                      Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"
-                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                     Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                      ToolTip="e.g. Primary, Backup-1" />
                                             <TextBox Grid.Row="1" Grid.Column="1" Height="32" Padding="6,6" Margin="6,0,0,0"
                                                      Text="{Binding NewProfileApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                                     Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                     Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                      ToolTip="Paste your YeScale API key" />
                                             <Button Grid.Row="1" Grid.Column="2" Height="32" Width="80" Margin="6,0,0,0"
                                                     Content="+ Add"
                                                     Command="{Binding AddProfileCommand}"
-                                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                    Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Add this API key" />
                                         </Grid>
                                     </StackPanel>
@@ -543,15 +543,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Your API Keys" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                    <TextBlock Text="Your API Keys" FontWeight="SemiBold" Foreground="{StaticResource PrimaryForegroundBrush}" VerticalAlignment="Center" />
                                     <Button Grid.Column="1" Height="24" Padding="10,0" FontSize="11"
                                             Content="Delete Selected"
                                             Command="{Binding RemoveProfileCommand}"
-                                            Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0"
+                                            Background="{StaticResource AccentRedBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                             ToolTip="Remove the selected key from the list" />
                                 </Grid>
                                 <ListBox Height="90"
-                                         Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                         Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                          ItemsSource="{Binding Profiles}"
                                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
                                     <ListBox.ItemTemplate>
@@ -562,22 +562,22 @@
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="60" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Foreground="#FFFFFF" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="1" Text="{Binding MaskedKey}" Foreground="#999999" Margin="12,0,0,0" VerticalAlignment="Center" />
-                                                <TextBlock Grid.Column="2" Text="●" Foreground="#4EC9B0" TextAlignment="Right" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryForegroundBrush}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding MaskedKey}" Foreground="{StaticResource MutedForegroundBrush}" Margin="12,0,0,0" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="●" Foreground="{StaticResource ValueDisplayBrush}" TextAlignment="Right" VerticalAlignment="Center" />
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
-                                <TextBlock Margin="0,4,0,0" Foreground="#666666" FontSize="10" FontStyle="Italic"
+                                <TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" FontStyle="Italic"
                                            Text="Models from all keys are merged. The first key is used as the primary key for API calls." TextWrapping="Wrap" />
 
                                 <!-- ═══ STEP 3: Select Model + Fallback (unified) ═══ -->
-                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0">
+                                <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,12,0,0">
                                     <StackPanel>
                                         <!-- Primary Model selection -->
-                                        <TextBlock Text="⭐ Primary Model" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
-                                        <TextBlock Text="Main model used for AI analysis. Pick from the list or type a model ID." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Text="⭐ Primary Model" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource PrimaryForegroundBrush}" FontSize="13" />
+                                        <TextBlock Text="Main model used for AI analysis. Pick from the list or type a model ID." Margin="0,0,0,8" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" TextWrapping="Wrap" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
@@ -589,35 +589,35 @@
                                                       ItemsSource="{Binding AvailableYesScaleModels}"
                                                       Text="{Binding YesScaleModel, UpdateSourceTrigger=PropertyChanged}"
                                                       SelectedItem="{Binding YesScaleModel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                                      Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
                                             <Button Grid.Column="1"
                                                     Width="90" Height="32" Margin="8,0,0,0"
                                                     Content="↻ Refresh"
                                                     Command="{Binding RefreshYesScaleModelsCommand}"
-                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Reload available models from all configured keys" />
                                         </Grid>
-                                        <TextBlock Margin="0,6,0,0" Foreground="#888888" FontSize="10"
+                                        <TextBlock Margin="0,6,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10"
                                                    Text="{Binding YesScaleModelStatus}" TextWrapping="Wrap" />
                                     </StackPanel>
                                 </Border>
 
                                 <!-- ═══ Grouped Model Browser (models grouped by API key) ═══ -->
-                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+                                <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="All Models by API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
-                                        <TextBlock Text="Click ☆ to add/remove a model from the fallback chain. Models are grouped by the API key that provides them." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Text="All Models by API Key" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource PrimaryForegroundBrush}" FontSize="13" />
+                                        <TextBlock Text="Click ☆ to add/remove a model from the fallback chain. Models are grouped by the API key that provides them." Margin="0,0,0,8" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" TextWrapping="Wrap" />
 
                                         <ListBox Height="200"
-                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                 Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                  ItemsSource="{Binding Source={StaticResource GroupedModelsView}}"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                             <ListBox.GroupStyle>
                                                 <GroupStyle>
                                                     <GroupStyle.HeaderTemplate>
                                                         <DataTemplate>
-                                                            <Border Background="#2D2D30" Padding="8,4" Margin="0,2,0,0">
-                                                                <TextBlock Text="{Binding Name}" Foreground="#4EC9B0" FontWeight="Bold" FontSize="12" />
+                                                            <Border Background="{StaticResource CardHeaderBackgroundBrush}" Padding="8,4" Margin="0,2,0,0">
+                                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource ValueDisplayBrush}" FontWeight="Bold" FontSize="12" />
                                                             </Border>
                                                         </DataTemplate>
                                                     </GroupStyle.HeaderTemplate>
@@ -649,8 +649,8 @@
                                                                 </Style>
                                                             </Button.Style>
                                                         </Button>
-                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="#FFFFFF" VerticalAlignment="Center" FontSize="12" />
-                                                        <TextBlock Grid.Column="2" Text="{Binding ProfileName}" Foreground="#666666" VerticalAlignment="Center" FontSize="10" Margin="8,0,4,0" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="{StaticResource PrimaryForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                                        <TextBlock Grid.Column="2" Text="{Binding ProfileName}" Foreground="{StaticResource MutedForegroundBrush}" VerticalAlignment="Center" FontSize="10" Margin="8,0,4,0" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -659,13 +659,13 @@
                                 </Border>
 
                                 <!-- ═══ Fallback Chain ═══ -->
-                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+                                <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
                                     <StackPanel>
-                                        <TextBlock Text="Fallback Chain" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="#FFFFFF" FontSize="13" />
-                                        <TextBlock Text="If the primary model fails, these are tried in order. Click ★ above or use the picker below to add." Margin="0,0,0,8" Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Text="Fallback Chain" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{StaticResource PrimaryForegroundBrush}" FontSize="13" />
+                                        <TextBlock Text="If the primary model fails, these are tried in order. Click ★ above or use the picker below to add." Margin="0,0,0,8" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" TextWrapping="Wrap" />
 
                                         <ListBox Height="90" Margin="0,0,0,8"
-                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                 Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                  ItemsSource="{Binding FallbackEntries}"
                                                  SelectedItem="{Binding SelectedFallbackEntry, Mode=TwoWay}"
                                                  AlternationCount="999">
@@ -677,11 +677,11 @@
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Foreground="#888888" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"
+                                                        <TextBlock Grid.Column="0" Foreground="{StaticResource MutedForegroundBrush}" VerticalAlignment="Center" FontSize="11" FontWeight="Bold"
                                                                    Text="{Binding Path=(ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}, StringFormat={}{0}.}" />
-                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="#FFFFFF" VerticalAlignment="Center" FontSize="12" />
-                                                        <Border Grid.Column="2" Background="#2D2D30" CornerRadius="3" Padding="6,2" Margin="8,0,4,0">
-                                                            <TextBlock Text="{Binding ProfileName}" Foreground="#4EC9B0" VerticalAlignment="Center" FontSize="10" />
+                                                        <TextBlock Grid.Column="1" Text="{Binding ModelId}" Foreground="{StaticResource PrimaryForegroundBrush}" VerticalAlignment="Center" FontSize="12" />
+                                                        <Border Grid.Column="2" Background="{StaticResource CardHeaderBackgroundBrush}" CornerRadius="3" Padding="6,2" Margin="8,0,4,0">
+                                                            <TextBlock Text="{Binding ProfileName}" Foreground="{StaticResource ValueDisplayBrush}" VerticalAlignment="Center" FontSize="10" />
                                                         </Border>
                                                     </Grid>
                                                 </DataTemplate>
@@ -689,7 +689,7 @@
                                         </ListBox>
 
                                         <!-- Fallback picker: profile → filtered model list → Add -->
-                                        <TextBlock Text="Add fallback manually:" Foreground="#888888" FontSize="11" Margin="0,0,0,4" />
+                                        <TextBlock Text="Add fallback manually:" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" Margin="0,0,0,4" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="140" />
@@ -701,25 +701,25 @@
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
                                             <!-- Labels -->
-                                            <TextBlock Text="API Key" Foreground="#666666" FontSize="10" Margin="2,0,0,2" />
-                                            <TextBlock Grid.Column="1" Text="Model (filtered)" Foreground="#666666" FontSize="10" Margin="8,0,0,2" />
+                                            <TextBlock Text="API Key" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" Margin="2,0,0,2" />
+                                            <TextBlock Grid.Column="1" Text="Model (filtered)" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" Margin="8,0,0,2" />
                                             <!-- Inputs -->
                                             <ComboBox Grid.Row="1" Height="28"
                                                       ItemsSource="{Binding Profiles}"
                                                       SelectedItem="{Binding SelectedFallbackProfile, Mode=TwoWay}"
                                                       DisplayMemberPath="Name"
-                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                      Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                       ToolTip="Select an API key — models will be filtered to only those this key supports" />
                                             <ComboBox Grid.Row="1" Grid.Column="1" Height="28" Margin="6,0,0,0"
                                                       IsEditable="True"
                                                       ItemsSource="{Binding FallbackAvailableModels}"
                                                       Text="{Binding SelectedFallbackModel, UpdateSourceTrigger=PropertyChanged}"
                                                       SelectedItem="{Binding SelectedFallbackModel, Mode=TwoWay}"
-                                                      Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1"
+                                                      Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                                                       ToolTip="Only models available with the selected API key are shown" />
                                             <Button Grid.Row="1" Grid.Column="2" Width="70" Height="28" Margin="6,0,0,0" Content="+ Add"
                                                     Command="{Binding AddFallbackEntryCommand}"
-                                                    Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                                    Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Add this model as a fallback" />
                                         </Grid>
 
@@ -727,27 +727,27 @@
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                                             <Button Width="70" Height="26" Content="Remove"
                                                     Command="{Binding RemoveFallbackEntryCommand}"
-                                                    Background="#C1365B" Foreground="#FFFFFF" BorderThickness="0" Margin="0,0,4,0" />
+                                                    Background="{StaticResource AccentRedBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" Margin="0,0,4,0" />
                                             <Button Width="32" Height="26" Content="↑"
                                                     Command="{Binding MoveFallbackEntryUpCommand}"
-                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" Margin="0,0,4,0" />
+                                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" FontWeight="Bold" Margin="0,0,4,0" />
                                             <Button Width="32" Height="26" Content="↓"
                                                     Command="{Binding MoveFallbackEntryDownCommand}"
-                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" FontWeight="Bold" />
+                                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" FontWeight="Bold" />
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
 
                                 <!-- ═══ Base URL (collapsed by default) ═══ -->
-                                <Expander IsExpanded="False" Margin="0,8,0,0" Foreground="#FFFFFF">
+                                <Expander IsExpanded="False" Margin="0,8,0,0" Foreground="{StaticResource PrimaryForegroundBrush}">
                                     <Expander.Header>
-                                        <TextBlock Text="Base URL (Advanced)" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="13" />
+                                        <TextBlock Text="Base URL (Advanced)" Foreground="{StaticResource SecondaryForegroundBrush}" FontWeight="SemiBold" FontSize="13" />
                                     </Expander.Header>
                                     <StackPanel Margin="0,6,0,0">
                                         <TextBox Height="32" Padding="8"
                                                  Text="{Binding YesScaleBaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                                                 Background="#252526" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
-                                        <TextBlock Margin="0,4,0,0" Foreground="#888888" FontSize="10" FontStyle="Italic">
+                                                 Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
+                                        <TextBlock Margin="0,4,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="10" FontStyle="Italic">
                                             Default: https://api.yescale.vip/v1
                                         </TextBlock>
                                     </StackPanel>
@@ -755,25 +755,25 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Margin="0,16,0,0" Padding="16" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6">
+                        <Border Margin="0,16,0,0" Padding="16" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="6">
                             <StackPanel>
-                                <TextBlock Text="Image Search APIs" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" />
+                                <TextBlock Text="Image Search APIs" FontSize="16" FontWeight="Bold" Foreground="{StaticResource PrimaryForegroundBrush}" />
                                 <TextBlock Text="These API keys are shared across all projects and used when searching stock images." Margin="0,6,0,14" Foreground="#BBBBBB" TextWrapping="Wrap" />
 
                                 <TextBlock Text="Pexels API Key" Margin="0,0,0,6" />
                                 <TextBox Height="32" Padding="8"
                                          Text="{Binding PexelsApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                         Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
 
                                 <TextBlock Text="Pixabay API Key" Margin="0,12,0,6" />
                                 <TextBox Height="32" Padding="8"
                                          Text="{Binding PixabayApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                         Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
 
                                 <TextBlock Text="Unsplash API Key" Margin="0,12,0,6" />
                                 <TextBox Height="32" Padding="8"
                                          Text="{Binding UnsplashApiKey, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#1E1E1E" Foreground="#FFFFFF" BorderBrush="#3E3E42" BorderThickness="1" />
+                                         Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
                             </StackPanel>
                         </Border>
 
@@ -790,12 +790,12 @@
                                 <Button Width="140" Height="36"
                                         Content="💾  Save Settings"
                                         Command="{Binding SaveSettingsCommand}"
-                                        Background="#007ACC" Foreground="#FFFFFF" BorderThickness="0"
+                                        Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                         FontWeight="SemiBold" FontSize="13" />
                                 <Button Width="160" Height="36" Margin="10,0,0,0"
                                         Content="↺  Reset AI Defaults"
                                         Command="{Binding ResetAIDefaultsCommand}"
-                                        Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                        Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                         FontSize="13"
                                         ToolTip="Xóa cấu hình AI hiện tại và khôi phục về mặc định từ appsettings.json (model, API keys, fallback chain)" />
                             </StackPanel>
@@ -817,24 +817,24 @@
                             </TextBlock>
 
                             <!-- Secondary actions: Export / Import -->
-                            <Expander Grid.Row="2" IsExpanded="False" Margin="0,12,0,0" Foreground="#FFFFFF">
+                            <Expander Grid.Row="2" IsExpanded="False" Margin="0,12,0,0" Foreground="{StaticResource PrimaryForegroundBrush}">
                                 <Expander.Header>
-                                    <TextBlock Text="Export / Import Settings" Foreground="#CCCCCC" FontWeight="SemiBold" FontSize="12" />
+                                    <TextBlock Text="Export / Import Settings" Foreground="{StaticResource SecondaryForegroundBrush}" FontWeight="SemiBold" FontSize="12" />
                                 </Expander.Header>
-                                <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Margin="0,6,0,0">
+                                <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Margin="0,6,0,0">
                                     <StackPanel>
-                                        <TextBlock Foreground="#AAAAAA" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
+                                        <TextBlock Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
                                                    Text="Export saves all settings (API keys, models, fallback chain) to a JSON file. Import overwrites ALL current settings with the file contents." />
                                         <StackPanel Orientation="Horizontal">
                                             <Button Width="120" Height="30"
                                                     Content="📤  Export"
                                                     Click="ExportSettings_Click"
-                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Save all settings to a JSON file for backup or sharing" />
                                             <Button Width="120" Height="30" Margin="10,0,0,0"
                                                     Content="📥  Import"
                                                     Click="ImportSettings_Click"
-                                                    Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Load settings from a JSON file — this will overwrite all current settings" />
                                         </StackPanel>
                                     </StackPanel>
@@ -844,9 +844,9 @@
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="Quản lý dung lượng" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
-                            <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
+                            <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4">
                                 <StackPanel>
-                                    <TextBlock Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
+                                    <TextBlock Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,10"
                                                Text="Ảnh AI tải về được lưu trong AppData theo từng dự án. Khi re-analyze hoặc xoá dự án, dữ liệu cũ có thể tồn đọng. Dọn dẹp định kỳ để giải phóng dung lượng." />
 
                                     <!-- Storage info row -->
@@ -856,22 +856,22 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
-                                            <TextBlock Foreground="#AAAAAA" FontSize="11">
+                                            <TextBlock Foreground="{StaticResource MutedForegroundBrush}" FontSize="11">
                                                 <Run Text="Project assets: " />
-                                                <Run Text="{Binding AssetsStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                                <Run Text="{Binding AssetsStorageText}" Foreground="{StaticResource PrimaryForegroundBrush}" FontWeight="SemiBold" />
                                             </TextBlock>
-                                            <TextBlock Foreground="#AAAAAA" FontSize="11" Margin="0,3,0,0">
+                                            <TextBlock Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" Margin="0,3,0,0">
                                                 <Run Text="Video thumbnails: " />
-                                                <Run Text="{Binding ThumbnailStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                                <Run Text="{Binding ThumbnailStorageText}" Foreground="{StaticResource PrimaryForegroundBrush}" FontWeight="SemiBold" />
                                             </TextBlock>
-                                            <TextBlock Foreground="#AAAAAA" FontSize="11" Margin="0,3,0,0">
+                                            <TextBlock Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" Margin="0,3,0,0">
                                                 <Run Text="Audio cache: " />
-                                                <Run Text="{Binding AudioCacheStorageText}" Foreground="#FFFFFF" FontWeight="SemiBold" />
+                                                <Run Text="{Binding AudioCacheStorageText}" Foreground="{StaticResource PrimaryForegroundBrush}" FontWeight="SemiBold" />
                                             </TextBlock>
                                         </StackPanel>
                                         <Button Grid.Column="1" Width="80" Height="26" Content="🔄 Refresh"
                                                 Command="{Binding RefreshStorageInfoCommand}"
-                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0" VerticalAlignment="Top"
+                                                Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" VerticalAlignment="Top"
                                                 ToolTip="Cập nhật lại thông tin dung lượng" />
                                     </Grid>
 
@@ -880,21 +880,21 @@
                                         <Button Width="160" Height="30" Margin="0,0,8,6"
                                                 Content="🗑  Dọn thumbnail"
                                                 Command="{Binding CleanupThumbnailsCommand}"
-                                                Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                                Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Xoá toàn bộ thumbnail video đã cache (sẽ tự tạo lại khi cần)" />
                                         <Button Width="160" Height="30" Margin="0,0,8,6"
                                                 Content="🗑  Dọn audio cache"
                                                 Command="{Binding CleanupAudioCacheCommand}"
-                                                Background="#5a3e3e" Foreground="#FFFFFF" BorderThickness="0"
+                                                Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Xoá file WAV cache của audio (sẽ tự tạo lại khi phát)" />
                                         <Button Width="160" Height="30" Margin="0,0,0,6"
                                                 Content="📂  Mở AppData"
                                                 Command="{Binding OpenAppDataFolderCommand}"
-                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Mở thư mục AppData\PodcastVideoEditor trong Explorer" />
                                     </WrapPanel>
 
-                                    <TextBlock Text="{Binding StorageStatusMessage}" Foreground="#4EC9B0" FontSize="11" Margin="0,6,0,0"
+                                    <TextBlock Text="{Binding StorageStatusMessage}" Foreground="{StaticResource ValueDisplayBrush}" FontSize="11" Margin="0,6,0,0"
                                                Visibility="{Binding StorageStatusMessage, Converter={StaticResource NullOrEmptyToCollapsedConverter}}"
                                                TextWrapping="Wrap" />
                                 </StackPanel>
@@ -903,18 +903,18 @@
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="Diagnostics" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
-                            <Border Padding="12" Background="#1a1a1a" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4">
+                            <Border Padding="12" Background="{StaticResource ThumbnailBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4">
                                 <StackPanel>
-                                    <TextBlock Foreground="#CCCCCC" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
+                                    <TextBlock Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8"
                                                Text="Log file ghi toàn bộ hoạt động của app, bao gồm timing từng bước AI (AI-PIPELINE, AI-HTTP). File ai-prompts-*.txt chứa đầy đủ prompt gửi đi và response nhận về từ AI. Sau khi chạy phân tích AI, mở thư mục Logs để xem chi tiết." />
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="LogPathText" Foreground="#AAAAAA" FontSize="11" VerticalAlignment="Center"
+                                        <TextBlock x:Name="LogPathText" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" VerticalAlignment="Center"
                                                    FontFamily="Consolas" Margin="0,0,10,0" />
                                         <Button Width="100" Height="26"
                                                 Content="📂  Mở Logs"
                                                 x:Name="OpenLogFolderBtn"
                                                 Click="OpenLogFolder_Click"
-                                                Background="#3E3E42" Foreground="#FFFFFF" BorderThickness="0"
+                                                Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Mở thư mục chứa log file trong Explorer" />
                                     </StackPanel>
                                 </StackPanel>
@@ -923,9 +923,9 @@
 
                         <StackPanel Margin="0,20,0,0">
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
-                            <TextBlock x:Name="AboutProductText" Foreground="#CCCCCC" />
-                            <TextBlock x:Name="AboutVersionText" Foreground="#AAAAAA" />
-                            <TextBlock Text="Built with .NET 8 WPF" Foreground="#AAAAAA" />
+                            <TextBlock x:Name="AboutProductText" Foreground="{StaticResource SecondaryForegroundBrush}" />
+                            <TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedForegroundBrush}" />
+                            <TextBlock Text="Built with .NET 8 WPF" Foreground="{StaticResource MutedForegroundBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

@@ -8,8 +8,8 @@
     MinWidth="720"
     MinHeight="560"
     WindowStartupLocation="CenterOwner"
-    Background="#1E1E1E"
-    Foreground="#FFFFFF"
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PrimaryForegroundBrush}"
     ShowInTaskbar="False"
     WindowStyle="SingleBorderWindow">
 
@@ -25,25 +25,25 @@
                    Text="Episode Wizard"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="#2EA6FF"
+                   Foreground="{StaticResource AccentLightBlueBrush}"
                    Margin="0,0,0,12"/>
 
         <UniformGrid Grid.Row="1" Rows="1" Columns="4" Margin="0,0,0,12">
-            <Border x:Name="Step1Badge" Margin="0,0,8,0" Padding="8" Background="#2EA6FF" CornerRadius="4">
+            <Border x:Name="Step1Badge" Margin="0,0,8,0" Padding="8" Background="{StaticResource AccentLightBlueBrush}" CornerRadius="4">
                 <TextBlock Text="1. Template" FontWeight="SemiBold"/>
             </Border>
-            <Border x:Name="Step2Badge" Margin="0,0,8,0" Padding="8" Background="#2D2D30" CornerRadius="4">
-                <TextBlock Text="2. Audio" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            <Border x:Name="Step2Badge" Margin="0,0,8,0" Padding="8" Background="{StaticResource CardHeaderBackgroundBrush}" CornerRadius="4">
+                <TextBlock Text="2. Audio" Foreground="{StaticResource SecondaryForegroundBrush}" FontWeight="SemiBold"/>
             </Border>
-            <Border x:Name="Step3Badge" Margin="0,0,8,0" Padding="8" Background="#2D2D30" CornerRadius="4">
-                <TextBlock Text="3. Script" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            <Border x:Name="Step3Badge" Margin="0,0,8,0" Padding="8" Background="{StaticResource CardHeaderBackgroundBrush}" CornerRadius="4">
+                <TextBlock Text="3. Script" Foreground="{StaticResource SecondaryForegroundBrush}" FontWeight="SemiBold"/>
             </Border>
-            <Border x:Name="Step4Badge" Padding="8" Background="#2D2D30" CornerRadius="4">
-                <TextBlock Text="4. Export" Foreground="#CCCCCC" FontWeight="SemiBold"/>
+            <Border x:Name="Step4Badge" Padding="8" Background="{StaticResource CardHeaderBackgroundBrush}" CornerRadius="4">
+                <TextBlock Text="4. Export" Foreground="{StaticResource SecondaryForegroundBrush}" FontWeight="SemiBold"/>
             </Border>
         </UniformGrid>
 
-        <Border Grid.Row="2" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="6" Padding="14">
+        <Border Grid.Row="2" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
             <Grid>
                 <Grid x:Name="Step1Panel">
                     <Grid.RowDefinitions>
@@ -59,36 +59,36 @@
                                Margin="0,0,0,12"/>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Project name" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <TextBlock Text="Project name" Width="140" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}"/>
                         <TextBox x:Name="ProjectNameTextBox"
                                  Width="420"
                                  Height="34"
                                  Padding="10,6"
-                                 Background="#1E1E1E"
-                                 BorderBrush="#3E3E42"
+                                 Background="{StaticResource PrimaryBackgroundBrush}"
+                                 BorderBrush="{StaticResource AppCardBorderBrush}"
                                  BorderThickness="1"
-                                 Foreground="#FFFFFF"
+                                 Foreground="{StaticResource PrimaryForegroundBrush}"
                                  Text="Episode"/>
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Template" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <TextBlock Text="Template" Width="140" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}"/>
                         <ComboBox x:Name="TemplateComboBox"
                                   Width="420"
                                   Height="34"
-                                  Background="#1E1E1E"
-                                  BorderBrush="#3E3E42"
+                                  Background="{StaticResource PrimaryBackgroundBrush}"
+                                  BorderBrush="{StaticResource AppCardBorderBrush}"
                                   BorderThickness="1"
-                                  Foreground="#FFFFFF"
+                                  Foreground="{StaticResource PrimaryForegroundBrush}"
                                   DisplayMemberPath="DisplayName"
                                   SelectionChanged="TemplateComboBox_SelectionChanged"/>
                     </StackPanel>
 
-                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                    <Border Grid.Row="3" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10">
                         <StackPanel>
-                            <TextBlock x:Name="TemplateTitleText" FontSize="14" FontWeight="Bold" Foreground="#2EA6FF"/>
-                            <TextBlock x:Name="TemplateDescriptionText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="#DDDDDD"/>
-                            <TextBlock x:Name="TemplateAspectText" Margin="0,8,0,0" Foreground="#AAAAAA"/>
+                            <TextBlock x:Name="TemplateTitleText" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentLightBlueBrush}"/>
+                            <TextBlock x:Name="TemplateDescriptionText" Margin="0,8,0,0" TextWrapping="Wrap" Foreground="{StaticResource PanelForegroundBrush}"/>
+                            <TextBlock x:Name="TemplateAspectText" Margin="0,8,0,0" Foreground="{StaticResource MutedForegroundBrush}"/>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -107,36 +107,36 @@
                                Margin="0,0,0,12"/>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-                        <TextBlock Text="Audio file" Width="140" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+                        <TextBlock Text="Audio file" Width="140" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}"/>
                         <TextBox x:Name="AudioPathTextBox"
                                  Width="420"
                                  Height="34"
                                  Padding="10,6"
-                                 Background="#1E1E1E"
-                                 BorderBrush="#3E3E42"
+                                 Background="{StaticResource PrimaryBackgroundBrush}"
+                                 BorderBrush="{StaticResource AppCardBorderBrush}"
                                  BorderThickness="1"
-                                 Foreground="#FFFFFF"
+                                 Foreground="{StaticResource PrimaryForegroundBrush}"
                                  IsReadOnly="True"/>
                         <Button x:Name="BrowseAudioButton"
                                 Width="110"
                                 Height="34"
                                 Margin="8,0,0,0"
                                 Content="Browse"
-                                Background="#3E3E42"
+                                Background="{StaticResource AppCardBorderBrush}"
                                 BorderThickness="0"
                                 Click="BrowseAudioButton_Click"/>
                     </StackPanel>
 
                     <TextBlock Grid.Row="2"
                                Text="Supported formats: .mp3, .wav, .m4a, .aac, .flac, .ogg"
-                               Foreground="#AAAAAA"
+                               Foreground="{StaticResource MutedForegroundBrush}"
                                Margin="0,0,0,12"/>
 
-                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                    <Border Grid.Row="3" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10">
                         <TextBlock x:Name="AudioValidationText"
                                    Text="No audio selected."
                                    TextWrapping="Wrap"
-                                   Foreground="#E0C080"/>
+                                   Foreground="{StaticResource WarningForegroundBrush}"/>
                     </Border>
                 </Grid>
 
@@ -159,7 +159,7 @@
                                 Height="34"
                                 Margin="0,0,8,0"
                                 Content="Load .txt"
-                                Background="#3E3E42"
+                                Background="{StaticResource AppCardBorderBrush}"
                                 BorderThickness="0"
                                 Click="LoadScriptButton_Click"/>
                         <Button x:Name="ClearScriptButton"
@@ -167,7 +167,7 @@
                                 Height="34"
                                 Margin="0,0,8,0"
                                 Content="Clear Script"
-                                Background="#3E3E42"
+                                Background="{StaticResource AppCardBorderBrush}"
                                 BorderThickness="0"
                                 Click="ClearScriptButton_Click"/>
                         <CheckBox x:Name="UseAiCheckBox"
@@ -181,16 +181,16 @@
                              AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto"
                              TextWrapping="Wrap"
-                             Background="#1E1E1E"
-                             BorderBrush="#3E3E42"
+                             Background="{StaticResource PrimaryBackgroundBrush}"
+                             BorderBrush="{StaticResource AppCardBorderBrush}"
                              BorderThickness="1"
-                             Foreground="#FFFFFF"
+                             Foreground="{StaticResource PrimaryForegroundBrush}"
                              Padding="10"
                              ToolTip="Paste script with format: [start → end] text"/>
 
                     <TextBlock Grid.Row="3"
                                Margin="0,10,0,0"
-                               Foreground="#AAAAAA"
+                               Foreground="{StaticResource MutedForegroundBrush}"
                                Text="Leave script empty if you want audio-only export."/>
                 </Grid>
 
@@ -207,13 +207,13 @@
                                FontWeight="Bold"
                                Margin="0,0,0,12"/>
 
-                    <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,12">
+                    <Border Grid.Row="1" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,12">
                         <StackPanel>
-                            <TextBlock x:Name="SummaryProjectText" Foreground="#DDDDDD"/>
-                            <TextBlock x:Name="SummaryTemplateText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
-                            <TextBlock x:Name="SummaryAudioText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
-                            <TextBlock x:Name="SummaryScriptText" Margin="0,6,0,0" Foreground="#DDDDDD"/>
-                            <TextBlock x:Name="SummaryAspectText" Margin="0,6,0,0" Foreground="#AAAAAA"/>
+                            <TextBlock x:Name="SummaryProjectText" Foreground="{StaticResource PanelForegroundBrush}"/>
+                            <TextBlock x:Name="SummaryTemplateText" Margin="0,6,0,0" Foreground="{StaticResource PanelForegroundBrush}"/>
+                            <TextBlock x:Name="SummaryAudioText" Margin="0,6,0,0" Foreground="{StaticResource PanelForegroundBrush}"/>
+                            <TextBlock x:Name="SummaryScriptText" Margin="0,6,0,0" Foreground="{StaticResource PanelForegroundBrush}"/>
+                            <TextBlock x:Name="SummaryAspectText" Margin="0,6,0,0" Foreground="{StaticResource MutedForegroundBrush}"/>
                         </StackPanel>
                     </Border>
 
@@ -223,9 +223,9 @@
                               IsChecked="True"
                               Margin="0,0,0,12"/>
 
-                    <Border Grid.Row="3" Background="#1E1E1E" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="10">
+                    <Border Grid.Row="3" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="10">
                         <TextBlock Text="Finish will create project, import audio, apply script (if provided), and optionally open render dialog."
-                                   Foreground="#AAAAAA"
+                                   Foreground="{StaticResource MutedForegroundBrush}"
                                    TextWrapping="Wrap"/>
                     </Border>
                 </Grid>
@@ -242,7 +242,7 @@
 
             <TextBlock x:Name="ValidationTextBlock"
                        VerticalAlignment="Center"
-                       Foreground="#EAA67A"/>
+                       Foreground="{StaticResource WarningForegroundBrush}"/>
 
             <Button x:Name="BackButton"
                     Grid.Column="1"
@@ -250,7 +250,7 @@
                     Height="34"
                     Margin="0,0,8,0"
                     Content="Back"
-                    Background="#3E3E42"
+                    Background="{StaticResource AppCardBorderBrush}"
                     BorderThickness="0"
                     Click="BackButton_Click"/>
 
@@ -260,7 +260,7 @@
                     Height="34"
                     Margin="0,0,8,0"
                     Content="Next"
-                    Background="#007ACC"
+                    Background="{StaticResource AccentBlueBrush}"
                     BorderThickness="0"
                     Click="NextButton_Click"/>
 
@@ -269,7 +269,7 @@
                     Width="130"
                     Height="34"
                     Content="Create Project"
-                    Background="#28A745"
+                    Background="{StaticResource AccentGreenBrush}"
                     BorderThickness="0"
                     Click="FinishButton_Click"/>
         </Grid>

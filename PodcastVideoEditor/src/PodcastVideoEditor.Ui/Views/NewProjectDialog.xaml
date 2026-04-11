@@ -6,8 +6,8 @@
     Width="500"
     Height="280"
     WindowStartupLocation="CenterOwner"
-    Background="#1E1E1E"
-    Foreground="#FFFFFF"
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PrimaryForegroundBrush}"
     ShowInTaskbar="False"
     WindowStyle="SingleBorderWindow">
 
@@ -19,7 +19,7 @@
                 FontSize="18"
                 FontWeight="Bold"
                 Margin="0,0,0,20"
-                Foreground="#007ACC" />
+                Foreground="{StaticResource AccentBlueBrush}" />
 
             <!-- Project Name -->
             <TextBlock Text="Project Name:" Margin="0,0,0,5" />
@@ -27,9 +27,9 @@
                 x:Name="ProjectNameTextBox"
                 Height="35"
                 Padding="10"
-                Background="#252526"
-                Foreground="#FFFFFF"
-                BorderBrush="#3E3E42"
+                Background="{StaticResource SecondaryBackgroundBrush}"
+                Foreground="{StaticResource PrimaryForegroundBrush}"
+                BorderBrush="{StaticResource AppCardBorderBrush}"
                 BorderThickness="1"
                 Margin="0,0,0,15"
                 ToolTip="Enter a name for your project" />
@@ -51,9 +51,7 @@
                     Height="35"
                     Margin="0,0,10,0"
                     Content="Create"
-                    Background="#28A745"
-                    Foreground="#FFFFFF"
-                    BorderThickness="0"
+                    Style="{StaticResource SuccessActionButtonStyle}"
                     Click="CreateButton_Click"
                     Cursor="Hand" />
 
@@ -63,8 +61,8 @@
                     Width="100"
                     Height="35"
                     Content="Cancel"
-                    Background="#6C6C6C"
-                    Foreground="#FFFFFF"
+                    Background="{StaticResource NeutralButtonBrush}"
+                    Foreground="{StaticResource PrimaryForegroundBrush}"
                     BorderThickness="0"
                     Click="CancelButton_Click"
                     Cursor="Hand" />

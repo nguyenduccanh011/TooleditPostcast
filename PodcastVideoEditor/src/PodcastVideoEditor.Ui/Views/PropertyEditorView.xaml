@@ -16,178 +16,31 @@
                             ObjectType="{x:Type media:Fonts}"
                             MethodName="get_SystemFontFamilies"/>
 
-        <SolidColorBrush x:Key="FieldBackgroundBrush" Color="#1f2226"/>
-        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#545a62"/>
-        <SolidColorBrush x:Key="FieldBorderBrush" Color="#2f353d"/>
-        <SolidColorBrush x:Key="FieldFocusBrush" Color="#2f353d"/>
-        <SolidColorBrush x:Key="SegmentIdleBrush" Color="#1f2226"/>
-        <SolidColorBrush x:Key="SegmentHoverBrush" Color="#3f4349"/>
+        <!-- Unique interaction state brushes \u2014 no App.xaml equivalent -->
+        <SolidColorBrush x:Key="SegmentHoverBrush"  Color="#3f4349"/>
         <SolidColorBrush x:Key="SegmentActiveBrush" Color="#5b6068"/>
 
         <!-- Override default WPF selection colors in this panel to avoid bright blue/white artifacts -->
         <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#5b6068"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2a2e35"/>
-        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#2a2e35"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}"   Color="#2a2e35"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}"    Color="#2a2e35"/>
 
-        <Style x:Key="FlatTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="{StaticResource FieldBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="BorderBrush" Value="{StaticResource FieldBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Padding" Value="8,4"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Style.Triggers>
-                <Trigger Property="IsKeyboardFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource FieldFocusBrush}"/>
-                    <Setter Property="BorderThickness" Value="0"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <!-- FlatTextBoxStyle, FlatComboBoxStyle, FlatComboBoxItemStyle,
+             CompactSliderStyle live in App.xaml — referenced here by key.
+             Local implicit overrides so every ComboBox/TextBox/Slider in
+             this panel automatically picks them up without explicit Style=. -->
+        <Style TargetType="{x:Type TextBox}"     BasedOn="{StaticResource FlatTextBoxStyle}"/>
+        <Style TargetType="{x:Type ComboBox}"    BasedOn="{StaticResource FlatComboBoxStyle}"/>
+        <Style TargetType="{x:Type ComboBoxItem}" BasedOn="{StaticResource FlatComboBoxItemStyle}"/>
+        <Style TargetType="{x:Type Slider}"      BasedOn="{StaticResource CompactSliderStyle}"/>
 
-        <Style x:Key="FlatComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#f2f4f7"/>
-            <Setter Property="Background" Value="#2a2e35"/>
-            <Setter Property="Padding" Value="10,3"/>
-            <Setter Property="Margin" Value="2,1"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#4a5058"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#5b6068"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="FlatComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="#ffffff"/>
-            <Setter Property="BorderBrush" Value="{StaticResource FieldBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Padding" Value="8,1"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource FlatComboBoxItemStyle}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid SnapsToDevicePixels="True">
-                            <ToggleButton x:Name="DropdownToggle"
-                                          Focusable="False"
-                                          ClickMode="Press"
-                                          Background="{TemplateBinding Background}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="ClosedBorder" Background="{TemplateBinding Background}" CornerRadius="4">
-                                            <Grid>
-                                                <ContentPresenter Margin="8,0,22,0"
-                                                                  TextElement.Foreground="{TemplateBinding Foreground}"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Left"
-                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                  ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
-                                                <TextBlock Text="▼" FontSize="8" Foreground="#d9dee3"
-                                                           HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#5d636c"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#60666f"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-
-                            <Popup x:Name="PART_Popup"
-                                   Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Fade">
-                                <Border Background="#2a2e35"
-                                        BorderBrush="#3f4349"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Margin="0,4,0,0"
-                                        Padding="2"
-                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True" MaxHeight="300">
-                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource FieldFocusBrush}"/>
-                    <Setter Property="BorderThickness" Value="0"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="SliderThumbStyle" TargetType="Thumb">
-            <Setter Property="Width" Value="10"/>
-            <Setter Property="Height" Value="14"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Grid>
-                            <Border Background="#cad3db" CornerRadius="2" Width="10" Height="10" VerticalAlignment="Top"/>
-                            <Polygon Points="1,9 5,13 9,9" Fill="#cad3db" VerticalAlignment="Bottom"/>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="CompactSliderStyle" TargetType="Slider">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid Height="12" VerticalAlignment="Center">
-                            <Track x:Name="PART_Track">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="Slider.DecreaseLarge" Background="#6f96b3" BorderThickness="0" Height="2"/>
-                                </Track.DecreaseRepeatButton>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="Slider.IncreaseLarge" Background="#2a2e35" BorderThickness="0" Height="2"/>
-                                </Track.IncreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource SliderThumbStyle}"/>
-                                </Track.Thumb>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!-- SliderThumbStyle alias for local DataTemplates that reference it by this key -->
+        <Style x:Key="SliderThumbStyle" TargetType="{x:Type Thumb}" BasedOn="{StaticResource FlatSliderThumbStyle}"/>
 
         <Style x:Key="SegmentToggleButtonStyle" TargetType="ToggleButton">
             <Setter Property="Height" Value="26"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="{StaticResource SegmentIdleBrush}"/>
+            <Setter Property="Background" Value="{StaticResource PanelFieldBackgroundBrush}"/>
             <Setter Property="Foreground" Value="#e0e0e0"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
@@ -216,7 +69,7 @@
         <Style x:Key="SegmentListBoxItemStyle" TargetType="ListBoxItem">
             <Setter Property="Margin" Value="1,0,1,0"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Background" Value="{StaticResource SegmentIdleBrush}"/>
+            <Setter Property="Background" Value="{StaticResource PanelFieldBackgroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
@@ -315,7 +168,7 @@
                     </Grid.ColumnDefinitions>
                     <!-- Clickable color preview that opens color picker popup -->
                     <ToggleButton x:Name="ColorPickerToggle" Width="32" Height="26" Margin="0,0,6,0"
-                                  Background="Transparent" BorderBrush="{StaticResource FieldBorderBrush}" BorderThickness="1"
+                                  Background="Transparent" BorderBrush="{StaticResource PanelFieldBorderBrush}" BorderThickness="1"
                                   Cursor="Hand" ToolTip="Click to pick color">
                         <ToggleButton.Template>
                             <ControlTemplate TargetType="ToggleButton">
@@ -406,7 +259,7 @@
                          ItemsSource="{Binding EnumValues}"
                          SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          BorderThickness="0"
-                         Background="{StaticResource FieldBackgroundBrush}"
+                         Background="{StaticResource PanelFieldBackgroundBrush}"
                          Height="30"
                          Width="126"
                          HorizontalAlignment="Left"

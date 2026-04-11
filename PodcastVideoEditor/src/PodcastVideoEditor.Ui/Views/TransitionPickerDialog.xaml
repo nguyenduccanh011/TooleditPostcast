@@ -6,8 +6,8 @@
     Width="480"
     Height="340"
     WindowStartupLocation="CenterOwner"
-    Background="#1e1e1e"
-    Foreground="#e0e0e0"
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PanelForegroundBrush}"
     ShowInTaskbar="False"
     WindowStyle="SingleBorderWindow"
     ResizeMode="NoResize">
@@ -22,13 +22,13 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0" Text="Choose a transition for the selected segment"
-                   FontSize="13" Foreground="#90caf9" Margin="0,0,0,14"/>
+                   FontSize="13" Foreground="{StaticResource AccentLightBlueBrush}" Margin="0,0,0,14"/>
 
         <!-- Transition tiles (2x2 grid) -->
         <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,14">
             <!-- Fade -->
             <Border x:Name="FadeTile" Margin="4" CornerRadius="6" Padding="8"
-                    Background="#253040" BorderBrush="#37474f" BorderThickness="2"
+                    Background="{StaticResource TransitionTileBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="2"
                     Cursor="Hand" MouseLeftButtonUp="Tile_Click" Tag="fade">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Width="56" Height="36" CornerRadius="4" Background="#1a3a5c" Margin="0,0,0,6">
@@ -47,14 +47,14 @@
                             </Rectangle>
                         </Canvas>
                     </Border>
-                    <TextBlock Text="Fade" FontSize="11" Foreground="#90caf9"
+                    <TextBlock Text="Fade" FontSize="11" Foreground="{StaticResource AccentLightBlueBrush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
             <!-- Wipe -->
             <Border x:Name="WipeTile" Margin="4" CornerRadius="6" Padding="8"
-                    Background="#253040" BorderBrush="#37474f" BorderThickness="2"
+                    Background="{StaticResource TransitionTileBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="2"
                     Cursor="Hand" MouseLeftButtonUp="Tile_Click" Tag="wipe">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Width="56" Height="36" CornerRadius="4" Background="#1a3a5c" Margin="0,0,0,6">
@@ -64,14 +64,14 @@
                             <Rectangle Canvas.Left="27" Canvas.Top="0" Width="2" Height="36" Fill="White" Opacity="0.8"/>
                         </Canvas>
                     </Border>
-                    <TextBlock Text="Wipe" FontSize="11" Foreground="#a5d6a7"
+                    <TextBlock Text="Wipe" FontSize="11" Foreground="{StaticResource ValueDisplayBrush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
             <!-- Zoom -->
             <Border x:Name="ZoomTile" Margin="4" CornerRadius="6" Padding="8"
-                    Background="#253040" BorderBrush="#37474f" BorderThickness="2"
+                    Background="{StaticResource TransitionTileBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="2"
                     Cursor="Hand" MouseLeftButtonUp="Tile_Click" Tag="zoom">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Width="56" Height="36" CornerRadius="4" Background="#3a1a5c" Margin="0,0,0,6">
@@ -80,14 +80,14 @@
                             <Ellipse Canvas.Left="22" Canvas.Top="10" Width="12" Height="12" Fill="#ce93d8"/>
                         </Canvas>
                     </Border>
-                    <TextBlock Text="Zoom" FontSize="11" Foreground="#ce93d8"
+                    <TextBlock Text="Zoom" FontSize="11" Foreground="{StaticResource AccentPurpleBrush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
             <!-- Dissolve -->
             <Border x:Name="DissolveTile" Margin="4" CornerRadius="6" Padding="8"
-                    Background="#253040" BorderBrush="#37474f" BorderThickness="2"
+                    Background="{StaticResource TransitionTileBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="2"
                     Cursor="Hand" MouseLeftButtonUp="Tile_Click" Tag="dissolve">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <Border Width="56" Height="36" CornerRadius="4" Background="#1a3a5c" Margin="0,0,0,6">
@@ -103,7 +103,7 @@
                             </Rectangle>
                         </Canvas>
                     </Border>
-                    <TextBlock Text="Dissolve" FontSize="11" Foreground="#ffcc80"
+                    <TextBlock Text="Dissolve" FontSize="11" Foreground="{StaticResource WarningForegroundBrush}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
@@ -111,23 +111,23 @@
 
         <!-- Duration -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,14">
-            <TextBlock Text="Duration (s):" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="#9e9e9e"/>
+            <TextBlock Text="Duration (s):" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource MutedForegroundBrush}"/>
             <TextBox x:Name="DurationTextBox" Width="60" Height="28"
-                     Background="#252526" Foreground="#e0e0e0"
+                     Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}"
                      BorderBrush="#5c6bc0" VerticalContentAlignment="Center" Padding="6,0"
                      ToolTip="Transition duration in seconds (e.g. 0.5)"/>
-            <TextBlock Text="Selected:" VerticalAlignment="Center" Margin="20,0,8,0" Foreground="#9e9e9e"/>
+            <TextBlock Text="Selected:" VerticalAlignment="Center" Margin="20,0,8,0" Foreground="{StaticResource MutedForegroundBrush}"/>
             <TextBlock x:Name="SelectedLabel" Text="(none)" VerticalAlignment="Center"
-                       Foreground="#42a5f5" FontWeight="Bold"/>
+                       Foreground="{StaticResource AccentLightBlueBrush}" FontWeight="Bold"/>
         </StackPanel>
 
         <!-- OK / Cancel -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Apply" x:Name="OkButton" Width="80" Height="32" Margin="0,0,8,0"
-                    Background="#1565c0" Foreground="White" IsDefault="True"
+                    Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" IsDefault="True"
                     Click="OkButton_Click"/>
             <Button Content="Cancel" Width="80" Height="32"
-                    Background="#424242" Foreground="White" IsCancel="True"
+                    Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" IsCancel="True"
                     Click="CancelButton_Click"/>
         </StackPanel>
     </Grid>

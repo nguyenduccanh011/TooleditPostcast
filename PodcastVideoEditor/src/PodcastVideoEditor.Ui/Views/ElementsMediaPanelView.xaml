@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              Background="Transparent"
-             Foreground="#e0e0e0">
+             Foreground="{StaticResource PanelForegroundBrush}">
 
     <UserControl.Resources>
         <conv:FilePathToImageConverter x:Key="FilePathToImageConverter"/>
@@ -11,7 +11,7 @@
         <!-- Tab header style (CapCut-like compact) -->
         <Style x:Key="PanelTabItem" TargetType="TabItem">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#8a9aa8"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryMutedBrush}"/>
             <Setter Property="Padding" Value="10,6"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="Template">
@@ -23,11 +23,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#2d3a4a"/>
-                                <Setter Property="Foreground" Value="#64b5f6"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource TextPresetCardBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentLightBlueBrush}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#2a2d2e"/>
+                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource HintCardBackgroundBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -37,7 +37,7 @@
 
         <!-- Asset item template (list-style, used for Audio tab) -->
         <DataTemplate x:Key="AssetItemTemplate">
-            <Border Background="#2d2d2d" BorderBrush="#546e7a" BorderThickness="1" Padding="8" Margin="0,0,0,6"
+            <Border Background="{StaticResource CardHeaderBackgroundBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" Padding="8" Margin="0,0,0,6"
                     MouseMove="AssetItem_MouseMove" MouseLeftButtonDown="AssetItem_MouseLeftButtonDown"
                     Cursor="Hand" Tag="{Binding}">
                 <Grid>
@@ -46,8 +46,8 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#e0e0e0" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
-                    <TextBlock Grid.Row="1" Foreground="#78909c" FontSize="10" Margin="0,2,0,0">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource PanelForegroundBrush}" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                    <TextBlock Grid.Row="1" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0">
                         <Run Text="{Binding Type, Mode=OneWay}"/>
                         <Run Text=" · Kéo thả vào timeline"/>
                     </TextBlock>
@@ -55,7 +55,7 @@
                         <Button Content="Thêm vào timeline"
                                 Command="{Binding DataContext.TimelineViewModel.AddSegmentWithAssetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 CommandParameter="{Binding}"
-                                Background="#43a047" Foreground="White" Padding="8,4" FontSize="11" Cursor="Hand"/>
+                                Style="{StaticResource SuccessActionButtonStyle}" Padding="8,4" FontSize="11" Height="Auto"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -63,7 +63,7 @@
 
         <!-- Thumbnail card template for Media tab -->
         <DataTemplate x:Key="MediaThumbnailTemplate">
-            <Border Width="110" Background="#2d2d2d" BorderBrush="#546e7a" BorderThickness="1"
+            <Border Width="110" Background="{StaticResource CardHeaderBackgroundBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
                     Margin="0,0,6,6" CornerRadius="4"
                     MouseMove="AssetItem_MouseMove" MouseLeftButtonDown="AssetItem_MouseLeftButtonDown"
                     Cursor="Hand" Tag="{Binding}">
@@ -74,13 +74,13 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <!-- Thumbnail preview -->
-                    <Border Background="#1a1a1a" CornerRadius="4,4,0,0" ClipToBounds="True">
+                    <Border Background="{StaticResource ThumbnailBackgroundBrush}" CornerRadius="4,4,0,0" ClipToBounds="True">
                         <Grid>
                             <Image Source="{Binding FilePath, Converter={StaticResource FilePathToImageConverter}}"
                                    Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant"/>
                             <!-- Fallback icon for non-image assets -->
                             <TextBlock Text="🎬" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="#546e7a" FontFamily="Segoe UI Emoji">
+                                       Foreground="{StaticResource MutedBorderBrush}" FontFamily="Segoe UI Emoji">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -97,10 +97,10 @@
                     </Border>
                     <!-- Asset name -->
                     <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
-                               Foreground="#e0e0e0" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource PanelForegroundBrush}" TextTrimming="CharacterEllipsis"
                                Margin="4,4,4,0" ToolTip="{Binding Name}"/>
                     <!-- Type + duration -->
-                    <TextBlock Grid.Row="2" Foreground="#78909c" FontSize="9" Margin="4,1,4,4">
+                    <TextBlock Grid.Row="2" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="9" Margin="4,1,4,4">
                         <Run Text="{Binding Type, Mode=OneWay}"/>
                     </TextBlock>
                 </Grid>
@@ -115,7 +115,7 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <TextBlock Text="Elements / Media" FontSize="14" FontWeight="Bold" Foreground="#64b5f6" Margin="8,8,8,4"/>
+        <TextBlock Text="Elements / Media" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentLightBlueBrush}" Margin="8,8,8,4"/>
 
         <!-- Tab-based panel (CapCut-style: Media | Audio | Text | Script) -->
         <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0"
@@ -133,10 +133,10 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Hình ảnh / Video" Foreground="#b0bec5" FontSize="11" VerticalAlignment="Center"/>
+                            <TextBlock Text="Hình ảnh / Video" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" VerticalAlignment="Center"/>
                             <Button Grid.Column="1" Content="Import Media"
                                     Click="ImportMediaButton_Click"
-                                    Background="#007acc" Foreground="White" Padding="10,4" FontSize="11" Cursor="Hand"/>
+                                    Style="{StaticResource PrimaryActionButtonStyle}" Padding="10,4" FontSize="11" Height="Auto"/>
                         </Grid>
                         <ItemsControl x:Name="MediaAssetsList"
                                       ItemsSource="{Binding ProjectViewModel.CurrentProject.Assets}"
@@ -149,7 +149,7 @@
                             <!-- Filtered in code-behind to Image/Video only -->
                         </ItemsControl>
                         <TextBlock x:Name="NoMediaText" Text="Chưa có media. Nhấn Import Media để thêm ảnh hoặc video."
-                                   Foreground="#546e7a" FontStyle="Italic" Margin="0,8,0,0"
+                                   Foreground="{StaticResource MutedBorderBrush}" FontStyle="Italic" Margin="0,8,0,0"
                                    Visibility="Collapsed"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -159,14 +159,14 @@
             <TabItem Header="Audio">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
-                        <TextBlock Text="Audio clips" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <TextBlock Text="Audio clips" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" Margin="0,0,0,6"/>
                         <ItemsControl x:Name="AudioAssetsList"
                                       ItemsSource="{Binding ProjectViewModel.AudioAssets}"
                                       ItemTemplate="{StaticResource AssetItemTemplate}">
                         </ItemsControl>
                         <Button Content="Import Audio"
                                 Click="ImportAudioButton_Click"
-                                Background="#007acc" Foreground="White" Padding="10,6" Margin="0,8,0,0"
+                                Style="{StaticResource PrimaryActionButtonStyle}" Padding="10,6" Margin="0,8,0,0" Height="Auto"
                                 HorizontalAlignment="Left"/>
                     </StackPanel>
                 </ScrollViewer>
@@ -177,59 +177,59 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
                         <TextBlock Text="Kéo thả vào timeline hoặc nhấn để thêm tại playhead"
-                                   Foreground="#546e7a" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                   Foreground="{StaticResource MutedBorderBrush}" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
 
-                        <TextBlock Text="Text Presets" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <TextBlock Text="Text Presets" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" Margin="0,0,0,6"/>
 
                         <!-- Draggable: Title -->
-                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                        <Border Background="{StaticResource TextPresetCardBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" CornerRadius="4"
                                 Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
                                 Tag="Title"
                                 MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
                                 MouseMove="ElementItem_MouseMove"
                                 MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
                             <StackPanel>
-                                <TextBlock Text="Aa Title" FontSize="16" FontWeight="Bold" Foreground="#64b5f6"/>
-                                <TextBlock Text="Tiêu đề lớn, đậm" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="Aa Title" FontSize="16" FontWeight="Bold" Foreground="{StaticResource AccentLightBlueBrush}"/>
+                                <TextBlock Text="Tiêu đề lớn, đậm" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Draggable: Subtitle -->
-                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                        <Border Background="{StaticResource TextPresetCardBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" CornerRadius="4"
                                 Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
                                 Tag="Subtitle"
                                 MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
                                 MouseMove="ElementItem_MouseMove"
                                 MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
                             <StackPanel>
-                                <TextBlock Text="Aa Subtitle" FontSize="13" FontWeight="SemiBold" Foreground="#b0bec5"/>
-                                <TextBlock Text="Phụ đề, chữ vừa" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="Aa Subtitle" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource PropertyLabelBrush}"/>
+                                <TextBlock Text="Phụ đề, chữ vừa" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Draggable: Lower Third -->
-                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                        <Border Background="{StaticResource TextPresetCardBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" CornerRadius="4"
                                 Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
                                 Tag="LowerThird"
                                 MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
                                 MouseMove="ElementItem_MouseMove"
                                 MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
                             <StackPanel>
-                                <TextBlock Text="▬ Lower Third" FontSize="12" Foreground="#81c784"/>
-                                <TextBlock Text="Thanh chữ phía dưới" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="▬ Lower Third" FontSize="12" Foreground="{StaticResource ValueDisplayBrush}"/>
+                                <TextBlock Text="Thanh chữ phía dưới" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Draggable: Body Text -->
-                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                        <Border Background="{StaticResource TextPresetCardBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" CornerRadius="4"
                                 Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
                                 Tag="Caption"
                                 MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
                                 MouseMove="ElementItem_MouseMove"
                                 MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
                             <StackPanel>
-                                <TextBlock Text="Aa Body Text" FontSize="12" Foreground="#e0e0e0"/>
-                                <TextBlock Text="Nội dung, caption" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="Aa Body Text" FontSize="12" Foreground="{StaticResource PanelForegroundBrush}"/>
+                                <TextBlock Text="Nội dung, caption" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -241,20 +241,20 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
                         <TextBlock Text="Kéo thả vào timeline hoặc nhấn để thêm tại playhead"
-                                   Foreground="#546e7a" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                   Foreground="{StaticResource MutedBorderBrush}" FontSize="10" FontStyle="Italic" Margin="0,0,0,8" TextWrapping="Wrap"/>
 
-                        <TextBlock Text="Audio Effects" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,6"/>
+                        <TextBlock Text="Audio Effects" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" Margin="0,0,0,6"/>
 
                         <!-- Draggable: Visualizer -->
-                        <Border Background="#2d3a4a" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="4"
+                        <Border Background="{StaticResource TextPresetCardBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1" CornerRadius="4"
                                 Padding="10,8" Margin="0,0,0,6" Cursor="Hand"
                                 Tag="Visualizer"
                                 MouseLeftButtonDown="ElementItem_MouseLeftButtonDown"
                                 MouseMove="ElementItem_MouseMove"
                                 MouseLeftButtonUp="ElementItem_MouseLeftButtonUp">
                             <StackPanel>
-                                <TextBlock Text="🎵 Audio Visualizer" FontSize="13" FontWeight="SemiBold" Foreground="#ce93d8"/>
-                                <TextBlock Text="Spectrum, bars, waveform" Foreground="#78909c" FontSize="10" Margin="0,2,0,0"/>
+                                <TextBlock Text="🎵 Audio Visualizer" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AccentPurpleBrush}"/>
+                                <TextBlock Text="Spectrum, bars, waveform" Foreground="{StaticResource SecondaryMutedBrush}" FontSize="10" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -280,18 +280,18 @@
                         <ComboBox x:Name="LibraryCategoryFilter"
                                   ItemsSource="{Binding LibraryViewModel.Categories}"
                                   SelectedItem="{Binding LibraryViewModel.SelectedCategory}"
-                                  Background="#2d2d2d" Foreground="#e0e0e0"
+                                  Background="{StaticResource CardHeaderBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}"
                                   MinWidth="90" Margin="0,0,6,0" FontSize="11"/>
                         <TextBox Grid.Column="1"
                                  Text="{Binding LibraryViewModel.SearchText, UpdateSourceTrigger=PropertyChanged, Delay=300}"
-                                 Background="#1e1e1e" Foreground="#e0e0e0"
-                                 BorderBrush="#546e7a" BorderThickness="1"
+                                 Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}"
+                                 BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
                                  Padding="6,4" FontSize="11"
                                  Tag="🔍 Search library..."/>
                     </Grid>
 
                     <!-- Section label -->
-                    <TextBlock Grid.Row="1" Foreground="#b0bec5" FontSize="11" Margin="0,0,0,4">
+                    <TextBlock Grid.Row="1" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" Margin="0,0,0,4">
                         <Run Text="Library assets ("/>
                         <Run Text="{Binding LibraryViewModel.Assets.Count, Mode=OneWay}"/>
                         <Run Text=")"/>
@@ -308,7 +308,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="110" Background="#2d2d2d" BorderBrush="#546e7a" BorderThickness="1"
+                                    <Border Width="110" Background="{StaticResource CardHeaderBackgroundBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
                                             Margin="0,0,6,6" CornerRadius="4" Cursor="Hand"
                                             Tag="{Binding}"
                                             MouseLeftButtonDown="LibraryAssetItem_MouseLeftButtonDown"
@@ -321,18 +321,18 @@
                                                 <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
                                             <!-- Thumbnail -->
-                                            <Border Background="#1a1a1a" CornerRadius="4,4,0,0" ClipToBounds="True">
+                                            <Border Background="{StaticResource ThumbnailBackgroundBrush}" CornerRadius="4,4,0,0" ClipToBounds="True">
                                                 <Image Source="{Binding FilePath, Converter={StaticResource FilePathToImageConverter}}"
                                                        Stretch="UniformToFill" RenderOptions.BitmapScalingMode="Fant"/>
                                             </Border>
                                             <!-- Name -->
                                             <TextBlock Grid.Row="1" Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
-                                                       Foreground="#e0e0e0" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{StaticResource PanelForegroundBrush}" TextTrimming="CharacterEllipsis"
                                                        Margin="4,4,4,0" ToolTip="{Binding Name}"/>
                                             <!-- Category + built-in badge -->
                                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,1,4,4">
-                                                <TextBlock Foreground="#78909c" FontSize="9" Text="{Binding Category}"/>
-                                                <TextBlock Foreground="#64b5f6" FontSize="9" Margin="4,0,0,0"
+                                                <TextBlock Foreground="{StaticResource SecondaryMutedBrush}" FontSize="9" Text="{Binding Category}"/>
+                                                <TextBlock Foreground="{StaticResource AccentLightBlueBrush}" FontSize="9" Margin="4,0,0,0"
                                                            Text="built-in">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
@@ -362,14 +362,14 @@
                             </Grid.ColumnDefinitions>
                             <Button Content="+ Import"
                                     Click="ImportLibraryButton_Click"
-                                    Background="#007acc" Foreground="White" Padding="10,4" FontSize="11" Cursor="Hand"/>
+                                    Style="{StaticResource PrimaryActionButtonStyle}" Padding="10,4" FontSize="11" Height="Auto"/>
                             <ComboBox x:Name="ImportCategoryCombo" Grid.Column="1"
                                       ItemsSource="{Binding LibraryViewModel.Categories}"
                                       SelectedIndex="0"
-                                      Background="#2d2d2d" Foreground="#e0e0e0"
+                                      Background="{StaticResource CardHeaderBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}"
                                       MinWidth="90" Margin="6,0,0,0" FontSize="11"/>
                         </Grid>
-                        <TextBlock Text="{Binding LibraryViewModel.StatusMessage}" Foreground="#78909c"
+                        <TextBlock Text="{Binding LibraryViewModel.StatusMessage}" Foreground="{StaticResource SecondaryMutedBrush}"
                                    FontSize="10" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Grid>
@@ -379,11 +379,11 @@
             <TabItem Header="Script">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="8,8,8,0">
-                        <TextBlock Text="Script (dán định dạng [start → end] text)" Foreground="#b0bec5" FontSize="11"
+                        <TextBlock Text="Script (dán định dạng [start → end] text)" Foreground="{StaticResource PropertyLabelBrush}" FontSize="11"
                                    TextWrapping="Wrap" Margin="0,0,0,6"/>
                         <TextBox Text="{Binding TimelineViewModel.ScriptPasteText, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="#1e1e1e" Foreground="#e0e0e0" Padding="8,6"
-                                 BorderBrush="#546e7a" BorderThickness="1"
+                                 Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}" Padding="8,6"
+                                 BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
                                  TextWrapping="Wrap" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto"
                                  VerticalContentAlignment="Top"
                                  ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
@@ -391,28 +391,28 @@
                             <Hyperlink NavigateUri="https://colab.research.google.com/drive/1dG_23gf-bMgmElPHaqUafGGUfeDo6eNJ#scrollTo=iaPfKnjMr3Lf" 
                                        RequestNavigate="Hyperlink_RequestNavigate"
                                        TextDecorations="Underline"
-                                       Foreground="#64b5f6">
+                                       Foreground="{StaticResource AccentLightBlueBrush}">
                                 📝 Tạo script (Google Colab)
                             </Hyperlink>
                         </TextBlock>
                         <Button Content="Áp dụng script" Command="{Binding TimelineViewModel.ApplyScriptCommand}"
                                 HorizontalAlignment="Left" Margin="0,8,0,0"
-                                Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32"/>
+                                Background="{StaticResource AccentGreenBrush}" Foreground="White" Padding="12,8" MinHeight="32"/>
                         <WrapPanel Margin="0,6,0,0">
                             <Button Content="📂 Tải file script" Command="{Binding TimelineViewModel.LoadScriptFileCommand}"
-                                    Background="#1565c0" Foreground="White" Padding="12,8" MinHeight="32"
+                                    Background="{StaticResource AccentBlueBrush}" Foreground="White" Padding="12,8" MinHeight="32"
                                     ToolTip="Tải file .txt định dạng [start → end] text và tự động chạy phân tích AI"
                                     Margin="0,0,6,0"/>
                             <Button Content="✦ Phân tích AI" Command="{Binding TimelineViewModel.AnalyzeWithAICommand}"
-                                    Background="#7b1fa2" Foreground="White" Padding="12,8" MinHeight="32"
+                                    Background="{StaticResource AccentPurpleBrush}" Foreground="White" Padding="12,8" MinHeight="32"
                                     ToolTip="Normalize script → tách đoạn + keywords → tìm 60 ảnh/đoạn → AI chọn ảnh tốt nhất"/>
                         </WrapPanel>
                         <CheckBox Content="Tự động xóa khoảng trống"
                                   IsChecked="{Binding TimelineViewModel.AutoCloseGaps}"
-                                  Foreground="#b0bec5" FontSize="11" Margin="0,8,0,0"
+                                  Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" Margin="0,8,0,0"
                                   ToolTip="Tự động mở rộng EndTime mỗi segment để liền mạch với segment kế tiếp (không có khung đen giữa các cảnh)"/>
                         <TextBlock Text="{Binding TimelineViewModel.AIAnalysisStatus}"
-                                   Foreground="#b0bec5" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="{StaticResource PropertyLabelBrush}" FontSize="11" TextWrapping="Wrap"
                                    Margin="0,4,0,0"
                                    Visibility="{Binding TimelineViewModel.AIAnalysisStatus, Converter={StaticResource NullOrEmptyToCollapsedConverter}}"/>
                     </StackPanel>

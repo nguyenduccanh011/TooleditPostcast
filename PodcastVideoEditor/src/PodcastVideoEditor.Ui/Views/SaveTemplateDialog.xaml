@@ -6,8 +6,8 @@
     Width="520"
     Height="320"
     WindowStartupLocation="CenterOwner"
-    Background="#1E1E1E"
-    Foreground="#FFFFFF"
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PrimaryForegroundBrush}"
     ShowInTaskbar="False"
     WindowStyle="SingleBorderWindow">
 
@@ -25,7 +25,7 @@
             FontSize="18"
             FontWeight="Bold"
             Margin="0,0,0,16"
-            Foreground="#2EA6FF" />
+            Foreground="{StaticResource AccentLightBlueBrush}" />
 
         <TextBlock Grid.Row="1" Text="Template name" Margin="0,0,0,6" />
         <TextBox
@@ -33,9 +33,9 @@
             x:Name="TemplateNameTextBox"
             Height="34"
             Padding="10,6"
-            Background="#252526"
-            Foreground="#FFFFFF"
-            BorderBrush="#3E3E42"
+            Background="{StaticResource SecondaryBackgroundBrush}"
+            Foreground="{StaticResource PrimaryForegroundBrush}"
+            BorderBrush="{StaticResource AppCardBorderBrush}"
             BorderThickness="1"
             Margin="0,0,0,12" />
 
@@ -48,9 +48,9 @@
                 AcceptsReturn="True"
                 TextWrapping="Wrap"
                 VerticalScrollBarVisibility="Auto"
-                Background="#252526"
-                Foreground="#FFFFFF"
-                BorderBrush="#3E3E42"
+                Background="{StaticResource SecondaryBackgroundBrush}"
+                Foreground="{StaticResource PrimaryForegroundBrush}"
+                BorderBrush="{StaticResource AppCardBorderBrush}"
                 BorderThickness="1" />
         </StackPanel>
 
@@ -61,7 +61,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="ValidationText" VerticalAlignment="Center" Foreground="#EAA67A" />
+            <TextBlock x:Name="ValidationText" VerticalAlignment="Center" Foreground="{StaticResource WarningForegroundBrush}" />
 
             <Button
                 Grid.Column="1"
@@ -69,7 +69,7 @@
                 Height="34"
                 Margin="0,0,8,0"
                 Content="Cancel"
-                Background="#6C6C6C"
+                Background="{StaticResource NeutralButtonBrush}"
                 BorderThickness="0"
                 Click="CancelButton_Click" />
 
@@ -78,7 +78,7 @@
                 Width="120"
                 Height="34"
                 Content="Save Template"
-                Background="#28A745"
+                Background="{StaticResource AccentGreenBrush}"
                 BorderThickness="0"
                 Click="SaveButton_Click" />
         </Grid>

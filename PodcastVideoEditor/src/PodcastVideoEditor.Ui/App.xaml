@@ -34,6 +34,26 @@
         <SolidColorBrush x:Key="AccentGreenBrush" Color="#28A745"/>
         <SolidColorBrush x:Key="AccentRedBrush" Color="#D13438"/>
 
+        <!-- Extended design tokens (phase 2) -->
+        <SolidColorBrush x:Key="PanelForegroundBrush" Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="ValueDisplayBrush" Color="#81C784"/>
+        <SolidColorBrush x:Key="MutedBorderBrush" Color="#546E7A"/>
+        <SolidColorBrush x:Key="AccentLightBlueBrush" Color="#64B5F6"/>
+        <SolidColorBrush x:Key="SeparatorBrush" Color="#37474F"/>
+        <SolidColorBrush x:Key="CardHeaderBackgroundBrush" Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="HintCardBackgroundBrush" Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="HintTextBrush" Color="#7A8A96"/>
+        <SolidColorBrush x:Key="PropertyLabelBrush" Color="#B0BEC5"/>
+        <SolidColorBrush x:Key="PopupBackgroundBrush" Color="#252530"/>
+        <SolidColorBrush x:Key="MutedForegroundBrush" Color="#A0A0A0"/>
+        <SolidColorBrush x:Key="SecondaryMutedBrush" Color="#78909C"/>
+        <SolidColorBrush x:Key="TextPresetCardBrush" Color="#2D3A4A"/>
+        <SolidColorBrush x:Key="TransitionTileBackgroundBrush" Color="#253040"/>
+        <SolidColorBrush x:Key="ThumbnailBackgroundBrush" Color="#1A1A1A"/>
+        <SolidColorBrush x:Key="AccentPurpleBrush" Color="#CE93D8"/>
+        <SolidColorBrush x:Key="WarningForegroundBrush" Color="#EAA67A"/>
+        <SolidColorBrush x:Key="NeutralButtonBrush" Color="#6C6C6C"/>
+
         <!-- Semantic action buttons (phase 1 rollout) -->
         <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
@@ -60,7 +80,7 @@
         </Style>
 
         <Style x:Key="NeutralActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="#3E3E42"/>
+            <Setter Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="12,6"/>
@@ -77,7 +97,7 @@
 
         <!-- Shared property-panel styles -->
         <Style x:Key="PropertyPanelHeaderBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#2d2d2d"/>
+            <Setter Property="Background" Value="{StaticResource CardHeaderBackgroundBrush}"/>
             <Setter Property="Padding" Value="10,8"/>
             <Setter Property="MinHeight" Value="44"/>
         </Style>
@@ -85,26 +105,284 @@
         <Style x:Key="PropertyPanelHeaderTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#64b5f6"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentLightBlueBrush}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="PropertyLabelTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#b0bec5"/>
+            <Setter Property="Foreground" Value="{StaticResource PropertyLabelBrush}"/>
             <Setter Property="FontWeight" Value="Bold"/>
         </Style>
 
         <Style x:Key="PropertyHintCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#2a2a2a"/>
+            <Setter Property="Background" Value="{StaticResource HintCardBackgroundBrush}"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="10,8"/>
         </Style>
 
         <Style x:Key="PropertyHintTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#7a8a96"/>
+            <Setter Property="Foreground" Value="{StaticResource HintTextBrush}"/>
             <Setter Property="FontStyle" Value="Italic"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="FontSize" Value="10"/>
+        </Style>
+
+        <!-- Property value display (green monospace for numeric values) -->
+        <Style x:Key="PropertyValueTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource ValueDisplayBrush}"/>
+            <Setter Property="FontFamily" Value="Courier New"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <!-- Property panel separator -->
+        <Style x:Key="PropertySeparatorStyle" TargetType="Separator">
+            <Setter Property="Background" Value="{StaticResource SeparatorBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <!-- Property section header (emoji-friendly) -->
+        <Style x:Key="PropertySectionHeaderTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PropertyLabelTextStyle}">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="FontFamily" Value="Segoe UI Emoji"/>
+        </Style>
+
+        <!-- No-selection hint text -->
+        <Style x:Key="NoSelectionTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource HintTextBrush}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="15,15,15,0"/>
+        </Style>
+
+        <!-- Popup border (color picker, etc.) -->
+        <Style x:Key="PropertyPopupBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PopupBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource MutedBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="2"/>
+        </Style>
+
+        <!-- Property sub-label (slider labels, smaller descriptors) -->
+        <Style x:Key="PropertySubLabelTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource PropertyLabelBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <!-- Muted inline hint (small notes below controls) -->
+        <Style x:Key="MutedHintTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedBorderBrush}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Compact inline property label (for 2-column row layout matching PropertyEditorView) -->
+        <Style x:Key="CompactPropertyLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource PropertyLabelBrush}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════
+             Shared flat/compact styles — property panels
+             Extracted from PropertyEditorView so SegmentEditorPanel
+             and TrackEditorPanel can match exactly the same look.
+             PropertyEditorView references these via StaticResource.
+             ═══════════════════════════════════════════════════════ -->
+        <SolidColorBrush x:Key="PanelFieldBackgroundBrush"  Color="#1f2226"/>
+        <SolidColorBrush x:Key="PanelDropdownBackgroundBrush" Color="#545a62"/>
+        <SolidColorBrush x:Key="PanelFieldBorderBrush"      Color="#2f353d"/>
+
+        <!-- Flat TextBox — dark field, no visible border -->
+        <Style x:Key="FlatTextBoxStyle" TargetType="{x:Type TextBox}">
+            <Setter Property="Background"             Value="{StaticResource PanelFieldBackgroundBrush}"/>
+            <Setter Property="Foreground"             Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderBrush"            Value="{StaticResource PanelFieldBorderBrush}"/>
+            <Setter Property="BorderThickness"        Value="0"/>
+            <Setter Property="FocusVisualStyle"       Value="{x:Null}"/>
+            <Setter Property="Padding"                Value="8,4"/>
+            <Setter Property="FontSize"               Value="10"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush"             Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="SelectionBrush"         Value="#5b6068"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Padding="{TemplateBinding Padding}"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource PanelFieldBorderBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Flat ComboBoxItem -->
+        <Style x:Key="FlatComboBoxItemStyle" TargetType="{x:Type ComboBoxItem}">
+            <Setter Property="Foreground"  Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="Background"  Value="#2a2e35"/>
+            <Setter Property="Padding"     Value="10,3"/>
+            <Setter Property="Margin"      Value="2,1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#4a5058"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#5b6068"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Flat ComboBox — grey pill, no border, flat ▼ arrow -->
+        <Style x:Key="FlatComboBoxStyle" TargetType="{x:Type ComboBox}">
+            <Setter Property="Background"          Value="{StaticResource PanelDropdownBackgroundBrush}"/>
+            <Setter Property="Foreground"          Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderBrush"         Value="{StaticResource PanelFieldBorderBrush}"/>
+            <Setter Property="BorderThickness"     Value="0"/>
+            <Setter Property="FocusVisualStyle"    Value="{x:Null}"/>
+            <Setter Property="Padding"             Value="8,1"/>
+            <Setter Property="Height"              Value="20"/>
+            <Setter Property="MinHeight"           Value="0"/>
+            <Setter Property="FontSize"            Value="10"/>
+            <Setter Property="ItemContainerStyle"  Value="{StaticResource FlatComboBoxItemStyle}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBox}">
+                        <Grid SnapsToDevicePixels="True">
+                            <ToggleButton x:Name="DropdownToggle"
+                                          Focusable="False" ClickMode="Press"
+                                          Background="{TemplateBinding Background}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                        <Border x:Name="ClosedBorder" Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <Grid>
+                                                <ContentPresenter Margin="8,0,22,0"
+                                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                                                <TextBlock Text="▼" FontSize="8" Foreground="#d9dee3"
+                                                           HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#5d636c"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#60666f"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="#2a2e35"
+                                        BorderBrush="#3f4349"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,4,0,0"
+                                        Padding="2"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True" MaxHeight="300">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource PanelFieldBorderBrush}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Compact Slider thumb (small rounded square + pointer) -->
+        <Style x:Key="FlatSliderThumbStyle" TargetType="{x:Type Thumb}">
+            <Setter Property="Width"  Value="10"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Thumb}">
+                        <Grid>
+                            <Border Background="#cad3db" CornerRadius="2" Width="10" Height="10" VerticalAlignment="Top"/>
+                            <Polygon Points="1,9 5,13 9,9" Fill="#cad3db" VerticalAlignment="Bottom"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Compact Slider — thin 2px track, blue fill, small thumb -->
+        <Style x:Key="CompactSliderStyle" TargetType="{x:Type Slider}">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Slider}">
+                        <Grid Height="14" VerticalAlignment="Center">
+                            <Track x:Name="PART_Track" VerticalAlignment="Center">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Background="#6f96b3" BorderThickness="0" Height="2"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Background="#2a2e35" BorderThickness="0" Height="2"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource FlatSliderThumbStyle}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!--
@@ -324,9 +602,9 @@
              TextBox — rounded corners, dark theme, focus accent border
              ──────────────────────────────────────────────────────── -->
         <Style TargetType="{x:Type TextBox}">
-            <Setter Property="Background"      Value="#252526"/>
-            <Setter Property="Foreground"      Value="#CCCCCC"/>
-            <Setter Property="BorderBrush"     Value="#3E3E42"/>
+            <Setter Property="Background"      Value="{StaticResource SecondaryBackgroundBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource SecondaryForegroundBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CaretBrush"      Value="#FFFFFF"/>
             <Setter Property="SelectionBrush"  Value="#094771"/>
@@ -488,7 +766,7 @@
         <!-- ComboBoxItem inside the dark popup -->
         <Style TargetType="{x:Type ComboBoxItem}">
             <Setter Property="Background"              Value="Transparent"/>
-            <Setter Property="Foreground"              Value="#CCCCCC"/>
+            <Setter Property="Foreground"              Value="{StaticResource SecondaryForegroundBrush}"/>
             <Setter Property="Padding"                 Value="10,6"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="SnapsToDevicePixels"     Value="True"/>
@@ -523,9 +801,9 @@
 
         <!-- ComboBox — full dark template, dropdown popup Background overridden -->
         <Style TargetType="{x:Type ComboBox}">
-            <Setter Property="Background"      Value="#252526"/>
-            <Setter Property="Foreground"      Value="#CCCCCC"/>
-            <Setter Property="BorderBrush"     Value="#3E3E42"/>
+            <Setter Property="Background"      Value="{StaticResource SecondaryBackgroundBrush}"/>
+            <Setter Property="Foreground"      Value="{StaticResource SecondaryForegroundBrush}"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="8,5"/>
             <Setter Property="FontSize"        Value="13"/>
@@ -590,8 +868,8 @@
                                    Placement="Bottom"
                                    PopupAnimation="{DynamicResource {x:Static SystemParameters.ComboBoxPopupAnimationKey}}">
                                 <Border x:Name="PopupBd"
-                                        Background="#252526"
-                                        BorderBrush="#3E3E42"
+                                        Background="{StaticResource SecondaryBackgroundBrush}"
+                                        BorderBrush="{StaticResource AppCardBorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="4"
                                         Padding="3"
@@ -810,7 +1088,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type RepeatButton}">
-                        <Border Background="#0E639C" CornerRadius="2" Height="4" Margin="0,0,-6,0"/>
+                        <Border Background="{StaticResource AccentBlueBrush}" CornerRadius="2" Height="4" Margin="0,0,-6,0"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -827,16 +1105,16 @@
                     <ControlTemplate TargetType="{x:Type Thumb}">
                         <Ellipse x:Name="ThumbEllipse"
                                  Width="14" Height="14"
-                                 Fill="#CCCCCC"
-                                 Stroke="#0E639C"
+                                 Fill="{StaticResource SecondaryForegroundBrush}"
+                                 Stroke="{StaticResource AccentBlueBrush}"
                                  StrokeThickness="0"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ThumbEllipse" Property="Fill" Value="#FFFFFF"/>
+                                <Setter TargetName="ThumbEllipse" Property="Fill" Value="{StaticResource PrimaryForegroundBrush}"/>
                                 <Setter TargetName="ThumbEllipse" Property="StrokeThickness" Value="2"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="ThumbEllipse" Property="Fill" Value="#0E639C"/>
+                                <Setter TargetName="ThumbEllipse" Property="Fill" Value="{StaticResource AccentBlueBrush}"/>
                                 <Setter TargetName="ThumbEllipse" Property="StrokeThickness" Value="0"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -847,8 +1125,8 @@
 
         <!-- Horizontal Slider -->
         <Style TargetType="{x:Type Slider}">
-            <Setter Property="Background" Value="#3E3E42"/>
-            <Setter Property="Foreground" Value="#0E639C"/>
+            <Setter Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
             <Setter Property="MinHeight" Value="20"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="OverridesDefaultStyle" Value="True"/>
@@ -858,7 +1136,7 @@
                         <Grid>
                             <!-- Background track -->
                             <Border Height="4" CornerRadius="2"
-                                    Background="#3E3E42"
+                                    Background="{StaticResource AppCardBorderBrush}"
                                     VerticalAlignment="Center"/>
                             <!-- Track with thumb -->
                             <Track x:Name="PART_Track" VerticalAlignment="Center">
@@ -892,7 +1170,7 @@
                             <ControlTemplate TargetType="{x:Type Slider}">
                                 <Grid>
                                     <Border Width="4" CornerRadius="2"
-                                            Background="#3E3E42"
+                                            Background="{StaticResource AppCardBorderBrush}"
                                             HorizontalAlignment="Center"/>
                                     <Track x:Name="PART_Track" HorizontalAlignment="Center"
                                            IsDirectionReversed="True">
@@ -925,7 +1203,7 @@
              CheckBox — dark box with blue checked state & checkmark
              ──────────────────────────────────────────────────────── -->
         <Style TargetType="{x:Type CheckBox}">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryForegroundBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -940,8 +1218,8 @@
                             <!-- The checkbox box -->
                             <Border x:Name="CheckBorder"
                                     Width="16" Height="16"
-                                    Background="#252526"
-                                    BorderBrush="#3E3E42"
+                                    Background="{StaticResource SecondaryBackgroundBrush}"
+                                    BorderBrush="{StaticResource AppCardBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="3"
                                     VerticalAlignment="Center">
@@ -1000,7 +1278,7 @@
              RadioButton — dark circle with blue selected dot
              ──────────────────────────────────────────────────────── -->
         <Style TargetType="{x:Type RadioButton}">
-            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryForegroundBrush}"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -1015,8 +1293,8 @@
                             <!-- Outer circle -->
                             <Border x:Name="RadioBorder"
                                     Width="16" Height="16"
-                                    Background="#252526"
-                                    BorderBrush="#3E3E42"
+                                    Background="{StaticResource SecondaryBackgroundBrush}"
+                                    BorderBrush="{StaticResource AppCardBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8"
                                     VerticalAlignment="Center">

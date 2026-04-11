@@ -6,8 +6,8 @@
     Width="480"
     Height="320"
     WindowStartupLocation="CenterOwner"
-    Background="#1e1e1e"
-    Foreground="#e0e0e0"
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PanelForegroundBrush}"
     ResizeMode="NoResize"
     ShowInTaskbar="False"
     WindowStyle="SingleBorderWindow">
@@ -25,12 +25,12 @@
         <TextBlock Grid.Row="0"
                    Text="✦ Đang phân tích AI…"
                    FontSize="16" FontWeight="SemiBold"
-                   Foreground="#ce93d8" Margin="0,0,0,16"/>
+                   Foreground="{StaticResource AccentPurpleBrush}" Margin="0,0,0,16"/>
 
         <!-- Step label -->
         <TextBlock Grid.Row="1"
                    Text="{Binding StepMessage}"
-                   FontSize="13" Foreground="#e0e0e0"
+                   FontSize="13" Foreground="{StaticResource PanelForegroundBrush}"
                    TextWrapping="Wrap" Margin="0,0,0,10"/>
 
         <!-- Progress bar -->
@@ -38,7 +38,7 @@
                      Value="{Binding ProgressPercent}"
                      Minimum="0" Maximum="100"
                      Height="12" VerticalAlignment="Top"
-                     Foreground="#ab47bc" Background="#37474f"
+                     Foreground="{StaticResource AccentPurpleBrush}" Background="{StaticResource SeparatorBrush}"
                      BorderThickness="0" Margin="0,0,0,12"/>
 
         <!-- Error detail (shows only on error) -->
@@ -48,7 +48,7 @@
                       Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}"
                       Margin="0,0,0,12">
             <TextBlock Text="{Binding ErrorDetail}"
-                       Foreground="#ef5350" FontSize="11"
+                       Foreground="{StaticResource AccentRedBrush}" FontSize="11"
                        TextWrapping="Wrap"/>
         </ScrollViewer>
 
@@ -57,7 +57,7 @@
                 Content="Huỷ"
                 Command="{Binding CancelCommand}"
                 HorizontalAlignment="Right"
-                Background="#37474f" Foreground="#e0e0e0"
+                Background="{StaticResource SeparatorBrush}" Foreground="{StaticResource PanelForegroundBrush}"
                 Padding="20,8" MinHeight="32"/>
     </Grid>
 </Window>

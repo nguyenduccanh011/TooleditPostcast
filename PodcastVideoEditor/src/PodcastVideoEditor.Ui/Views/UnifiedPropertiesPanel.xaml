@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
              Background="Transparent"
-             Foreground="#e0e0e0"
+             Foreground="{StaticResource PanelForegroundBrush}"
              MinWidth="220">
 
     <Grid>
@@ -15,10 +15,7 @@
         <TextBlock x:Name="NoSelectionText"
                    Grid.Row="0"
                    Text="Chọn segment trên timeline hoặc element trên preview để chỉnh thuộc tính"
-                   Foreground="#7a8a96"
-                   FontStyle="Italic"
-                   TextWrapping="Wrap"
-                   Margin="15,15,15,0"
+                   Style="{StaticResource NoSelectionTextStyle}"
                    VerticalAlignment="Top"
                    Visibility="Visible"/>
 

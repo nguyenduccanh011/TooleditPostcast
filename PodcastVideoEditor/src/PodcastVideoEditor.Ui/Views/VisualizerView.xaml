@@ -6,7 +6,7 @@
              xmlns:skia="clr-namespace:SkiaSharp.Views.WPF;assembly=SkiaSharp.Views.WPF"
              mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="800"
-             Background="#1e1e1e" Foreground="White"
+             Background="{StaticResource PrimaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"
              Loaded="OnVisualizerLoaded">
 
     <Grid>
@@ -17,39 +17,39 @@
         </Grid.RowDefinitions>
 
         <!-- Settings Toolbar -->
-        <ToolBar Grid.Row="0" Background="#2d2d2d" ToolBarTray.IsLocked="True" Padding="5">
-            <Label Content="Style:" Foreground="White"/>
+        <ToolBar Grid.Row="0" Background="{StaticResource CardHeaderBackgroundBrush}" ToolBarTray.IsLocked="True" Padding="5">
+            <Label Content="Style:" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             <ComboBox ItemsSource="{Binding AvailableStyles}" 
                       SelectedItem="{Binding SelectedStyle}"
-                      Width="100" Background="#3e3e3e" Foreground="White"/>
+                      Width="100" Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             
             <Separator/>
-            <Label Content="Palette:" Foreground="White"/>
+            <Label Content="Palette:" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             <ComboBox ItemsSource="{Binding AvailablePalettes}" 
                       SelectedItem="{Binding SelectedPalette}"
-                      Width="100" Background="#3e3e3e" Foreground="White"/>
+                      Width="100" Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             
             <Separator/>
-            <Label Content="Bands:" Foreground="White"/>
+            <Label Content="Bands:" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             <ComboBox ItemsSource="{Binding AvailableBandCounts}" 
                       SelectedItem="{Binding SelectedBandCount}"
-                      Width="80" Background="#3e3e3e" Foreground="White"/>
+                      Width="80" Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             
             <Separator/>
-            <Label Content="Status:" Foreground="White"/>
+            <Label Content="Status:" Foreground="{StaticResource PrimaryForegroundBrush}"/>
             <TextBlock Text="{Binding StatusMessage}" 
-                       VerticalAlignment="Center" Foreground="#00AA00" Margin="5,0"/>
+                       VerticalAlignment="Center" Foreground="{StaticResource ValueDisplayBrush}" Margin="5,0"/>
         </ToolBar>
 
         <!-- Visualizer Canvas -->
-        <Border Grid.Row="1" Background="#2d2d2d" BorderBrush="#404040" BorderThickness="1" MinHeight="220">
+        <Border Grid.Row="1" Background="{StaticResource CardHeaderBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" MinHeight="220">
             <skia:SKElement x:Name="VisualizerCanvas"
                             MinHeight="200"
                             PaintSurface="OnPaintSurface"/>
         </Border>
 
         <!-- Info Bar -->
-        <StatusBar Grid.Row="2" Background="#2d2d2d" Foreground="#808080" Padding="5">
+        <StatusBar Grid.Row="2" Background="{StaticResource CardHeaderBackgroundBrush}" Foreground="{StaticResource MutedForegroundBrush}" Padding="5">
             <StatusBarItem>
                 <TextBlock Text="{Binding VisualizerWidth, StringFormat='Width: {0}px'}"/>
             </StatusBarItem>

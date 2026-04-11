@@ -8,13 +8,13 @@
     WindowStartupLocation="CenterOwner"
     WindowStyle="ToolWindow"
     ResizeMode="NoResize"
-    Background="#1E1E1E"
-    Foreground="#FFFFFF">
+    Background="{StaticResource PrimaryBackgroundBrush}"
+    Foreground="{StaticResource PrimaryForegroundBrush}">
 
     <Window.Resources>
         <!-- Action button (Start Render) -->
         <Style x:Key="ActionBtn" TargetType="Button">
-            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
@@ -54,7 +54,7 @@
 
         <!-- Danger button (Cancel) -->
         <Style x:Key="DangerBtn" TargetType="Button">
-            <Setter Property="Background" Value="#C0392B"/>
+            <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
@@ -159,11 +159,11 @@
 
         <!-- Title -->
         <TextBlock Grid.Row="0" Text="Render Video" FontSize="18" FontWeight="Bold"
-                   Margin="0,0,0,16" Foreground="#007ACC"/>
+                   Margin="0,0,0,16" Foreground="{StaticResource AccentBlueBrush}"/>
 
         <!-- Resolution / Quality / Scale -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBlock Text="Resolution:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+            <TextBlock Text="Resolution:" Margin="0,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
             <Button x:Name="ResolutionButton" Content="{Binding SelectedResolution}"
                     Style="{StaticResource DropBtn}" Click="DropdownButton_Click">
                 <Button.ContextMenu>
@@ -175,7 +175,7 @@
                 </Button.ContextMenu>
             </Button>
 
-            <TextBlock Text="Quality:" Margin="16,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+            <TextBlock Text="Quality:" Margin="16,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
             <Button x:Name="QualityButton" Content="{Binding SelectedQuality}"
                     Style="{StaticResource DropBtn}" Click="DropdownButton_Click">
                 <Button.ContextMenu>
@@ -187,7 +187,7 @@
                 </Button.ContextMenu>
             </Button>
 
-            <TextBlock Text="Scale:" Margin="16,0,8,0" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12"/>
+            <TextBlock Text="Scale:" Margin="16,0,8,0" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
             <Button x:Name="ScaleModeButton" Content="{Binding SelectedScaleMode}"
                     Style="{StaticResource DropBtn}" Click="DropdownButton_Click">
                 <Button.ContextMenu>
@@ -207,10 +207,10 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="Output:" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="0" Text="Output:" VerticalAlignment="Center" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12" Margin="0,0,8,0"/>
             <TextBox Grid.Column="1" Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}"
                      Height="26" VerticalContentAlignment="Center"
-                     Background="#252526" Foreground="#CCCCCC" BorderBrush="#3E3E42" BorderThickness="1"
+                     Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource SecondaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                      FontSize="11" Padding="4,0"/>
             <Button Grid.Column="2" Content="Browse…" Command="{Binding BrowseOutputFolderCommand}"
                     Style="{StaticResource DropBtn}" Margin="6,0,0,0" Padding="8,4" Height="26"/>
@@ -218,17 +218,17 @@
 
         <!-- Progress Bar -->
         <StackPanel Grid.Row="3" Margin="0,0,0,12">
-            <TextBlock Text="Progress:" Margin="0,0,0,4" Foreground="#CCCCCC" FontSize="12"/>
+            <TextBlock Text="Progress:" Margin="0,0,0,4" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="12"/>
             <ProgressBar Height="20" Maximum="100"
                          Value="{Binding RenderProgress}"
-                         Background="#252526" Foreground="#28A745"/>
+                         Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource AccentGreenBrush}"/>
         </StackPanel>
 
         <!-- Status Message -->
-        <Border Grid.Row="4" Padding="8" Background="#252526" BorderBrush="#3E3E42" BorderThickness="1"
+        <Border Grid.Row="4" Padding="8" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1"
                 CornerRadius="3" Margin="0,0,0,12" MinHeight="40">
             <TextBox Text="{Binding StatusMessage}" TextWrapping="Wrap"
-                     Foreground="#FFFFFF" Background="Transparent" BorderThickness="0"
+                     Foreground="{StaticResource PrimaryForegroundBrush}" Background="Transparent" BorderThickness="0"
                      IsReadOnly="True" VerticalScrollBarVisibility="Auto" MaxHeight="80"/>
         </Border>
 
@@ -236,7 +236,7 @@
         <Border Grid.Row="5" Background="#3A1010" BorderBrush="#C0392B" BorderThickness="1"
                 CornerRadius="3" Padding="8,4" VerticalAlignment="Top"
                 Visibility="{Binding HasError, Converter={StaticResource BoolToVisibilityConverter}}">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="#FF6B6B"
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource AccentRedBrush}"
                        FontSize="12" TextWrapping="Wrap"/>
         </Border>
 
