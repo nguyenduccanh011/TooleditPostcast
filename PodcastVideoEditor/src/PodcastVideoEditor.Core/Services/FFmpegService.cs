@@ -661,6 +661,13 @@ public static class FFmpegService
         // Rename temp file to final Unicode path if needed
         if (needsRename && File.Exists(resultPath))
         {
+            // Sanitize filename portion to strip characters illegal on Windows (: ? * < > | " etc.)
+            var dir = Path.GetDirectoryName(finalOutputPath) ?? Path.GetTempPath();
+            var rawName = Path.GetFileName(finalOutputPath);
+            var invalid = Path.GetInvalidFileNameChars();
+            var safeName = new string(rawName.Select(c => invalid.Contains(c) ? '_' : c).ToArray());
+            finalOutputPath = Path.Combine(dir, safeName);
+
             File.Move(resultPath, finalOutputPath, overwrite: true);
             Log.Information("Renamed temp render output to final path: {FinalPath}", finalOutputPath);
             resultPath = finalOutputPath;

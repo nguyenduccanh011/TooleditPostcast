@@ -361,7 +361,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     AudioSegments  = timelineAudioSegments,
                     OutputPath = System.IO.Path.Combine(
                         OutputFolder,
-                        $"{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4"),
+                        SanitizeFileName($"{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4")),
                     ResolutionWidth = width,
                     ResolutionHeight = height,
                     AspectRatio = SelectedAspectRatio,
@@ -660,6 +660,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             FFmpegUpdateService.CompatBinaryReady -= OnCompatBinaryReady;
             _renderCancellationTokenSource?.Dispose();
+        }
+
+        private static string SanitizeFileName(string fileName)
+        {
+            var invalid = System.IO.Path.GetInvalidFileNameChars();
+            var sb = new System.Text.StringBuilder(fileName.Length);
+            foreach (var c in fileName)
+                sb.Append(invalid.Contains(c) ? '_' : c);
+            return sb.ToString();
         }
     }
 }
