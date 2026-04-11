@@ -274,33 +274,51 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Properties.Clear();
             PropertyGroups.Clear();
 
-            var groupDict = new Dictionary<string, PropertyGroupViewModel>();
+            var fields = new List<PropertyField>();
 
             foreach (var desc in descriptors)
             {
                 var field = CreatePropertyField(element, desc);
-                if (field != null)
+                if (field == null)
+                    continue;
+
+                // Group and order are fully driven by [PropertyMetadata] attribute.
+                // VisibilityToggle is also read from attribute.
+                if (string.IsNullOrEmpty(field.Group))
+                    field.Group = "General";
+
+                if (desc.Metadata?.VisibilityToggle != null)
+                    field.VisibilityToggle = desc.Metadata.VisibilityToggle;
+
+                field.PropertyChanged += OnPropertyFieldValueChanged;
+                fields.Add(field);
+            }
+
+            // Add compact B/I/U row for text overlays while preserving backing fields
+            // for undo, propagation, and external sync.
+            if (element is TextOverlayElement)
+                AddFormattingCompositeField(fields, element);
+
+            AddTransformCompositeField(fields, element);
+
+            foreach (var field in fields)
+                Properties.Add(field);
+
+            var groupDict = new Dictionary<string, PropertyGroupViewModel>();
+
+            foreach (var field in fields)
+            {
+                if (field.ExcludeFromGrouping)
+                    continue;
+
+                // Build group
+                if (!groupDict.TryGetValue(field.Group, out var group))
                 {
-                    // Group and order are fully driven by [PropertyMetadata] attribute.
-                    // VisibilityToggle is also read from attribute.
-                    if (string.IsNullOrEmpty(field.Group))
-                        field.Group = "General";
-
-                    if (desc.Metadata?.VisibilityToggle != null)
-                        field.VisibilityToggle = desc.Metadata.VisibilityToggle;
-
-                    field.PropertyChanged += OnPropertyFieldValueChanged;
-                    Properties.Add(field);
-
-                    // Build group
-                    if (!groupDict.TryGetValue(field.Group, out var group))
-                    {
-                        var (order, expanded) = GroupOrder.TryGetValue(field.Group, out var go) ? go : (99, true);
-                        group = new PropertyGroupViewModel { Name = field.Group, SortOrder = order, IsExpanded = expanded };
-                        groupDict[field.Group] = group;
-                    }
-                    group.Fields.Add(field);
+                    var (order, expanded) = GroupOrder.TryGetValue(field.Group, out var go) ? go : (99, true);
+                    group = new PropertyGroupViewModel { Name = field.Group, SortOrder = order, IsExpanded = expanded };
+                    groupDict[field.Group] = group;
                 }
+                group.Fields.Add(field);
             }
 
             // Sort fields within each group, then add groups in order
@@ -315,6 +333,65 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             // Set initial visibility for toggle-dependent fields
             UpdateToggleVisibility(element);
+        }
+
+        private static void AddFormattingCompositeField(List<PropertyField> fields, CanvasElement element)
+        {
+            var boldField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(TextOverlayElement.IsBold));
+            var italicField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(TextOverlayElement.IsItalic));
+            var underlineField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(TextOverlayElement.IsUnderline));
+
+            if (boldField == null || italicField == null || underlineField == null)
+                return;
+
+            boldField.ExcludeFromGrouping = true;
+            italicField.ExcludeFromGrouping = true;
+            underlineField.ExcludeFromGrouping = true;
+
+            var formattingField = new PropertyField
+            {
+                Name = "Pattern",
+                FieldType = PropertyFieldType.FormattingRow,
+                Group = boldField.Group,
+                SortOrder = Math.Min(boldField.SortOrder, Math.Min(italicField.SortOrder, underlineField.SortOrder)),
+                SourceElement = element,
+                CompositeFields = new[] { boldField, italicField, underlineField }
+            };
+
+            fields.Add(formattingField);
+        }
+
+        private static void AddTransformCompositeField(List<PropertyField> fields, CanvasElement element)
+        {
+            var xField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(CanvasElement.X));
+            var yField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(CanvasElement.Y));
+            var widthField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(CanvasElement.Width));
+            var heightField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(CanvasElement.Height));
+            var rotationField = fields.FirstOrDefault(f => f.PropertyInfo?.Name == nameof(CanvasElement.Rotation));
+
+            if (xField == null || yField == null || widthField == null || heightField == null || rotationField == null)
+                return;
+
+            xField.ExcludeFromGrouping = true;
+            yField.ExcludeFromGrouping = true;
+            widthField.ExcludeFromGrouping = true;
+            heightField.ExcludeFromGrouping = true;
+            rotationField.ExcludeFromGrouping = true;
+
+            var transformField = new PropertyField
+            {
+                Name = "Transform",
+                FieldType = PropertyFieldType.TransformRow,
+                Group = xField.Group,
+                SortOrder = Math.Min(xField.SortOrder,
+                            Math.Min(yField.SortOrder,
+                            Math.Min(widthField.SortOrder,
+                            Math.Min(heightField.SortOrder, rotationField.SortOrder)))),
+                SourceElement = element,
+                CompositeFields = new[] { xField, yField, widthField, heightField, rotationField }
+            };
+
+            fields.Add(transformField);
         }
 
         private static List<CachedPropertyDescriptor> GetCachedDescriptors(Type type)
@@ -419,7 +496,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
             else if (propType.IsEnum)
             {
-                field.FieldType = PropertyFieldType.Enum;
+                if (element is TextOverlayElement && prop.Name == nameof(TextOverlayElement.Alignment))
+                    field.FieldType = PropertyFieldType.AlignmentRow;
+                else
+                    field.FieldType = PropertyFieldType.Enum;
                 field.EnumValues = Enum.GetValues(propType).Cast<object>().ToList();
             }
             else if (propType == typeof(string))
@@ -428,6 +508,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     field.FieldType = PropertyFieldType.Color;
                 else if (meta?.IsTextArea == true)
                     field.FieldType = PropertyFieldType.TextArea;
+                else if (element is TextOverlayElement && prop.Name == nameof(TextOverlayElement.FontFamily))
+                    field.FieldType = PropertyFieldType.FontFamily;
                 else
                     field.FieldType = PropertyFieldType.String;
             }

@@ -685,6 +685,7 @@ namespace PodcastVideoEditor.Core.Models
         /// Set by the canvas layout engine: true when content is taller than the fixed Height.
         /// Not persisted; recalculated each layout cycle.
         /// </summary>
+        [EditorHidden]
         public bool IsOverflowing
         {
             get => _isOverflowing;

@@ -76,6 +76,16 @@ namespace PodcastVideoEditor.Core.Models
         public IReadOnlyList<object>? EnumValues { get; set; }
 
         /// <summary>
+        /// For composite controls (e.g. text formatting row), points to child fields.
+        /// </summary>
+        public IReadOnlyList<PropertyField>? CompositeFields { get; set; }
+
+        /// <summary>
+        /// When true, field participates in state sync but is not rendered in grouped UI.
+        /// </summary>
+        public bool ExcludeFromGrouping { get; set; }
+
+        /// <summary>
         /// Group name for section headers (e.g. "Appearance", "Audio Response").
         /// Null or empty means ungrouped. Alias for Group.
         /// </summary>
@@ -125,6 +135,18 @@ namespace PodcastVideoEditor.Core.Models
 
         /// <summary>Enum dropdown.</summary>
         Enum,
+
+        /// <summary>Font family dropdown with font preview.</summary>
+        FontFamily,
+
+        /// <summary>Horizontal icon selector for text alignment.</summary>
+        AlignmentRow,
+
+        /// <summary>Horizontal row of text formatting toggles (B/I/U).</summary>
+        FormattingRow,
+
+        /// <summary>Single compact row for X/Y/Width/Height/Rotation.</summary>
+        TransformRow,
 
         /// <summary>Boolean checkbox.</summary>
         Bool,

@@ -4,6 +4,7 @@
              xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
+             xmlns:media="clr-namespace:System.Windows.Media;assembly=PresentationCore"
              xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
              Background="Transparent"
              Foreground="#e0e0e0"
@@ -11,86 +12,310 @@
 
     <UserControl.Resources>
         <DropShadowEffect x:Key="PopupDropShadow" ShadowDepth="4" BlurRadius="12" Color="Black" Opacity="0.5"/>
+        <ObjectDataProvider x:Key="SystemFontFamiliesProvider"
+                            ObjectType="{x:Type media:Fonts}"
+                            MethodName="get_SystemFontFamilies"/>
+
+        <SolidColorBrush x:Key="FieldBackgroundBrush" Color="#1f2226"/>
+        <SolidColorBrush x:Key="DropdownBackgroundBrush" Color="#545a62"/>
+        <SolidColorBrush x:Key="FieldBorderBrush" Color="#2f353d"/>
+        <SolidColorBrush x:Key="FieldFocusBrush" Color="#2f353d"/>
+        <SolidColorBrush x:Key="SegmentIdleBrush" Color="#1f2226"/>
+        <SolidColorBrush x:Key="SegmentHoverBrush" Color="#3f4349"/>
+        <SolidColorBrush x:Key="SegmentActiveBrush" Color="#5b6068"/>
+
+        <!-- Override default WPF selection colors in this panel to avoid bright blue/white artifacts -->
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#5b6068"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#2a2e35"/>
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#2a2e35"/>
+
+        <Style x:Key="FlatTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource FieldBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="{StaticResource FieldBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource FieldFocusBrush}"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FlatComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#f2f4f7"/>
+            <Setter Property="Background" Value="#2a2e35"/>
+            <Setter Property="Padding" Value="10,3"/>
+            <Setter Property="Margin" Value="2,1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#4a5058"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#5b6068"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FlatComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource DropdownBackgroundBrush}"/>
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="BorderBrush" Value="{StaticResource FieldBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Padding" Value="8,1"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource FlatComboBoxItemStyle}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid SnapsToDevicePixels="True">
+                            <ToggleButton x:Name="DropdownToggle"
+                                          Focusable="False"
+                                          ClickMode="Press"
+                                          Background="{TemplateBinding Background}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="ClosedBorder" Background="{TemplateBinding Background}" CornerRadius="4">
+                                            <Grid>
+                                                <ContentPresenter Margin="8,0,22,0"
+                                                                  TextElement.Foreground="{TemplateBinding Foreground}"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                                  ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"/>
+                                                <TextBlock Text="▼" FontSize="8" Foreground="#d9dee3"
+                                                           HorizontalAlignment="Right" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#5d636c"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="ClosedBorder" Property="Background" Value="#60666f"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="#2a2e35"
+                                        BorderBrush="#3f4349"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,4,0,0"
+                                        Padding="2"
+                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" CanContentScroll="True" MaxHeight="300">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource FieldFocusBrush}"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SliderThumbStyle" TargetType="Thumb">
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Grid>
+                            <Border Background="#cad3db" CornerRadius="2" Width="10" Height="10" VerticalAlignment="Top"/>
+                            <Polygon Points="1,9 5,13 9,9" Fill="#cad3db" VerticalAlignment="Bottom"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CompactSliderStyle" TargetType="Slider">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="12" VerticalAlignment="Center">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Background="#6f96b3" BorderThickness="0" Height="2"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Background="#2a2e35" BorderThickness="0" Height="2"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SliderThumbStyle}"/>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="{StaticResource SegmentIdleBrush}"/>
+            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SegmentHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SegmentActiveBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SegmentListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="1,0,1,0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="{StaticResource SegmentIdleBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SegmentHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SegmentActiveBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- String -->
         <DataTemplate x:Key="PropertyFieldStringTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <TextBox Grid.Row="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                         BorderBrush="#546e7a" BorderThickness="1"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
         </DataTemplate>
 
         <!-- TextArea -->
         <DataTemplate x:Key="PropertyFieldTextAreaTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <TextBox Grid.Row="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                         BorderBrush="#546e7a" BorderThickness="1"
-                         TextWrapping="Wrap" AcceptsReturn="True" Height="60"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource FlatTextBoxStyle}"
+                         TextWrapping="Wrap" AcceptsReturn="True" Height="52" VerticalContentAlignment="Top"
                          VerticalScrollBarVisibility="Auto"/>
             </Grid>
         </DataTemplate>
 
         <!-- Int -->
         <DataTemplate x:Key="PropertyFieldIntTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <TextBox Grid.Row="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                         BorderBrush="#546e7a" BorderThickness="1"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
         </DataTemplate>
 
         <!-- Float -->
         <DataTemplate x:Key="PropertyFieldFloatTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <TextBox Grid.Row="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                         BorderBrush="#546e7a" BorderThickness="1"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
+                         Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
         </DataTemplate>
 
         <!-- Color (hex string + preview + popup picker) -->
         <DataTemplate x:Key="PropertyFieldColorTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <!-- Clickable color preview that opens color picker popup -->
                     <ToggleButton x:Name="ColorPickerToggle" Width="32" Height="26" Margin="0,0,6,0"
-                                  Background="Transparent" BorderBrush="#546e7a" BorderThickness="1"
+                                  Background="Transparent" BorderBrush="{StaticResource FieldBorderBrush}" BorderThickness="1"
                                   Cursor="Hand" ToolTip="Click to pick color">
                         <ToggleButton.Template>
                             <ControlTemplate TargetType="ToggleButton">
@@ -124,58 +349,196 @@
                     </Popup>
                     <!-- Hex input kept for power users -->
                     <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                             Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                             BorderBrush="#546e7a" BorderThickness="1" FontFamily="Consolas" FontSize="12"/>
+                             Style="{StaticResource FlatTextBoxStyle}" FontFamily="Consolas" FontSize="12"/>
                 </Grid>
             </Grid>
         </DataTemplate>
 
         <!-- Enum -->
         <DataTemplate x:Key="PropertyFieldEnumTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                <ComboBox Grid.Row="1" ItemsSource="{Binding EnumValues}"
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding EnumValues}"
                           SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                          Background="#2d2d2d" Foreground="#e0e0e0" Padding="8,5"
-                          BorderBrush="#546e7a" BorderThickness="1"/>
+                          Style="{StaticResource FlatComboBoxStyle}"/>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Font family -->
+        <DataTemplate x:Key="PropertyFieldFontFamilyTemplate">
+            <Grid Margin="0,0,0,5"
+                  Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding Source={StaticResource SystemFontFamiliesProvider}}"
+                          SelectedValuePath="Source"
+                          SelectedValue="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                          IsTextSearchEnabled="True"
+                          Style="{StaticResource FlatComboBoxStyle}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Source}" FontFamily="{Binding}" Foreground="#ffffff"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Alignment as icon row -->
+        <DataTemplate x:Key="PropertyFieldAlignmentRowTemplate">
+            <Grid Margin="0,0,0,5"
+                  Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <ListBox Grid.Column="1"
+                         ItemsSource="{Binding EnumValues}"
+                         SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                         BorderThickness="0"
+                         Background="{StaticResource FieldBackgroundBrush}"
+                         Height="30"
+                         Width="126"
+                         HorizontalAlignment="Left"
+                         HorizontalContentAlignment="Center"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Rows="1" Columns="3"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <StaticResource ResourceKey="SegmentListBoxItemStyle"/>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel x:Name="AlignBars" Width="16" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Border x:Name="Bar1" Height="2" Width="14" Background="#f0f3f6" CornerRadius="1" Margin="0,0,0,2" HorizontalAlignment="Left"/>
+                                <Border x:Name="Bar2" Height="2" Width="10" Background="#f0f3f6" CornerRadius="1" Margin="0,0,0,2" HorizontalAlignment="Left"/>
+                                <Border x:Name="Bar3" Height="2" Width="12" Background="#f0f3f6" CornerRadius="1" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding}" Value="Center">
+                                    <Setter TargetName="Bar1" Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter TargetName="Bar2" Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter TargetName="Bar3" Property="HorizontalAlignment" Value="Center"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding}" Value="Right">
+                                    <Setter TargetName="Bar1" Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter TargetName="Bar2" Property="HorizontalAlignment" Value="Right"/>
+                                    <Setter TargetName="Bar3" Property="HorizontalAlignment" Value="Right"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Formatting row (Bold / Italic / Underline) -->
+        <DataTemplate x:Key="PropertyFieldFormattingRowTemplate">
+            <Grid Margin="0,0,0,5"
+                  Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
+                    <ToggleButton Width="28" Height="28" Margin="0,0,8,0"
+                                  IsChecked="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Style="{StaticResource SegmentToggleButtonStyle}"
+                                  FontWeight="Bold" Content="B" ToolTip="Bold"/>
+                    <ToggleButton Width="28" Height="28" Margin="0,0,8,0"
+                                  IsChecked="{Binding CompositeFields[1].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  Style="{StaticResource SegmentToggleButtonStyle}"
+                                  FontStyle="Italic" Content="I" ToolTip="Italic"/>
+                    <ToggleButton Width="28" Height="28"
+                        IsChecked="{Binding CompositeFields[2].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        Style="{StaticResource SegmentToggleButtonStyle}" Content="U" ToolTip="Underline">
+                        <ToggleButton.ContentTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="U" TextDecorations="Underline" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </DataTemplate>
+                        </ToggleButton.ContentTemplate>
+                    </ToggleButton>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Transform row (X/Y/W/H/R) -->
+        <DataTemplate x:Key="PropertyFieldTransformRowTemplate">
+            <Grid Margin="0,0,0,5"
+                  Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
+                    <TextBlock Text="X" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
+                    <TextBlock Text="Y" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[1].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
+                    <TextBlock Text="W" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[2].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
+                    <TextBlock Text="H" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[3].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
+                    <TextBlock Text="R" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Width="48" Text="{Binding CompositeFields[4].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
+                </StackPanel>
             </Grid>
         </DataTemplate>
 
         <!-- Bool -->
         <DataTemplate x:Key="PropertyFieldBoolTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <CheckBox Content="{Binding Name}" IsChecked="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                          Foreground="#b0bec5" FontWeight="SemiBold"/>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <CheckBox Grid.Column="1" IsChecked="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                          HorizontalAlignment="Left" VerticalAlignment="Center"/>
             </Grid>
         </DataTemplate>
 
         <!-- Slider -->
         <DataTemplate x:Key="PropertyFieldSliderTemplate">
-            <Grid Margin="0,0,0,8"
+            <Grid Margin="0,0,0,5"
                   Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                    <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat='{}{0:0.##}'}" Foreground="#81c784"
-                               FontFamily="Courier New" FontSize="12" Margin="8,0,0,4"/>
+                    <Slider Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
+                            Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                            IsMoveToPointEnabled="True" Height="12" VerticalAlignment="Center"
+                            IsSnapToTickEnabled="True" TickFrequency="1" SmallChange="1" LargeChange="1"
+                            Style="{StaticResource CompactSliderStyle}" Margin="0,0,6,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
+                             Foreground="#ffffff" FontFamily="Consolas" FontSize="12"
+                             MinWidth="52" Height="22" HorizontalContentAlignment="Right"
+                             Style="{StaticResource FlatTextBoxStyle}" Padding="4,1"/>
                 </Grid>
-                <Slider Grid.Row="1" Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
-                        Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                        IsMoveToPointEnabled="True" Height="22"
-                        Background="#37474f" Foreground="#64b5f6"/>
             </Grid>
         </DataTemplate>
 
@@ -186,17 +549,13 @@
             FloatTemplate="{StaticResource PropertyFieldFloatTemplate}"
             ColorTemplate="{StaticResource PropertyFieldColorTemplate}"
             EnumTemplate="{StaticResource PropertyFieldEnumTemplate}"
+            FontFamilyTemplate="{StaticResource PropertyFieldFontFamilyTemplate}"
+            AlignmentRowTemplate="{StaticResource PropertyFieldAlignmentRowTemplate}"
+            FormattingRowTemplate="{StaticResource PropertyFieldFormattingRowTemplate}"
+            TransformRowTemplate="{StaticResource PropertyFieldTransformRowTemplate}"
             BoolTemplate="{StaticResource PropertyFieldBoolTemplate}"
             SliderTemplate="{StaticResource PropertyFieldSliderTemplate}"/>
 
-        <!-- Expander style for dark theme groups -->
-        <Style x:Key="GroupExpanderStyle" TargetType="Expander">
-            <Setter Property="Foreground" Value="#e0e0e0"/>
-            <Setter Property="BorderBrush" Value="#333333"/>
-            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="8">
@@ -237,20 +596,14 @@
                    Foreground="#7a8a96" FontStyle="Italic"
                    Visibility="{Binding SelectedElement, Converter={StaticResource NullToVisibilityConverter}}"/>
 
-        <!-- Grouped properties (collapsible Expander groups) -->
+        <!-- Grouped properties (headers hidden for compact layout) -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                      Visibility="{Binding SelectedElement, Converter={StaticResource ObjectToVisibilityConverter}}">
             <ItemsControl ItemsSource="{Binding PropertyGroups}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Expander IsExpanded="{Binding IsExpanded}" Style="{StaticResource GroupExpanderStyle}">
-                            <Expander.Header>
-                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12"
-                                           Foreground="#90caf9" Margin="0,2"/>
-                            </Expander.Header>
-                            <ItemsControl ItemsSource="{Binding Fields}" Margin="4,4,0,4"
-                                          ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}"/>
-                        </Expander>
+                        <ItemsControl ItemsSource="{Binding Fields}" Margin="0,0,0,2"
+                                      ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}"/>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

@@ -15,6 +15,10 @@ namespace PodcastVideoEditor.Ui.Views
         public DataTemplate? FloatTemplate { get; set; }
         public DataTemplate? ColorTemplate { get; set; }
         public DataTemplate? EnumTemplate { get; set; }
+        public DataTemplate? FontFamilyTemplate { get; set; }
+        public DataTemplate? AlignmentRowTemplate { get; set; }
+        public DataTemplate? FormattingRowTemplate { get; set; }
+        public DataTemplate? TransformRowTemplate { get; set; }
         public DataTemplate? BoolTemplate { get; set; }
         public DataTemplate? SliderTemplate { get; set; }
 
@@ -31,6 +35,10 @@ namespace PodcastVideoEditor.Ui.Views
                 PropertyFieldType.Float => FloatTemplate,
                 PropertyFieldType.Color => ColorTemplate,
                 PropertyFieldType.Enum => EnumTemplate,
+                PropertyFieldType.FontFamily => FontFamilyTemplate,
+                PropertyFieldType.AlignmentRow => AlignmentRowTemplate,
+                PropertyFieldType.FormattingRow => FormattingRowTemplate,
+                PropertyFieldType.TransformRow => TransformRowTemplate,
                 PropertyFieldType.Bool => BoolTemplate,
                 PropertyFieldType.Slider => SliderTemplate,
                 _ => StringTemplate
