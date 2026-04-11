@@ -18,9 +18,9 @@
         </Grid.RowDefinitions>
 
         <!-- Header Bar (matching TimelineView status bar height) -->
-        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
+        <Border Grid.Row="0" Style="{StaticResource PropertyPanelHeaderBorderStyle}">
             <TextBlock Text="Segment Properties" 
-                      FontSize="14" FontWeight="Bold" Foreground="#64b5f6" VerticalAlignment="Center"/>
+                       Style="{StaticResource PropertyPanelHeaderTextStyle}"/>
         </Border>
 
         <!-- No Selection Message -->
@@ -36,7 +36,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" x:Name="PropertiesPanel">
             <StackPanel Margin="15,10,15,10">
                 <!-- Start / End time (read-only) -->
-                <TextBlock Text="Start / End time:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Start / End time:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -57,7 +57,7 @@
                 </Grid>
 
                 <!-- Description -->
-                <TextBlock Text="Description:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Description:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <TextBox Text="{Binding SelectedSegment.Text, UpdateSourceTrigger=PropertyChanged}"
                         Background="#2d2d2d" Foreground="#e0e0e0"
                         Padding="8,5" BorderThickness="1" BorderBrush="#546e7a"
@@ -76,20 +76,20 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="Background media:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBlock Text="Background media:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                     <TextBlock x:Name="BackgroundPathText" Text="No asset selected"
                                Foreground="#81c784" FontFamily="Courier New"
                                TextTrimming="CharacterEllipsis" MaxWidth="220"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="Choose file" Click="ChooseBackgroundButton_Click"
-                               Background="#007acc" Foreground="White" Padding="10,6" MinHeight="30" Margin="0,0,8,0"/>
+                               Style="{StaticResource PrimaryActionButtonStyle}" Padding="10,6" MinHeight="30" Margin="0,0,8,0"/>
                         <Button Content="Clear" Click="ClearBackgroundButton_Click"
-                               Background="#6d4c41" Foreground="White" Padding="10,6" MinHeight="30"/>
+                               Style="{StaticResource NeutralActionButtonStyle}" Padding="10,6" MinHeight="30"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Transition Type -->
-                <TextBlock Text="Transition:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Transition:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <ComboBox SelectedItem="{Binding SelectedSegment.TransitionType, UpdateSourceTrigger=PropertyChanged}"
                          Background="#2d2d2d" Foreground="#e0e0e0"
                          BorderBrush="#546e7a" BorderThickness="1" Padding="8,5" Margin="0,0,0,15">
@@ -101,7 +101,7 @@
                 </ComboBox>
 
                 <!-- Transition Duration -->
-                <TextBlock Text="Transition Duration:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Transition Duration:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -118,7 +118,7 @@
                 </Grid>
 
                 <!-- Volume -->
-                <TextBlock Text="Volume:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Volume:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -142,7 +142,7 @@
                 </Grid>
 
                 <!-- Fade In -->
-                <TextBlock Text="Fade In:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Fade In:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -161,7 +161,7 @@
                 </Grid>
 
                 <!-- Fade Out -->
-                <TextBlock Text="Fade Out:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Fade Out:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <Grid Margin="0,0,0,15">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -191,7 +191,7 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="Source Offset:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBlock Text="Source Offset:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -202,10 +202,10 @@
                                Minimum="0.0" Maximum="300.0"
                                SmallChange="0.1" LargeChange="1.0"
                                IsMoveToPointEnabled="True"
-                               Height="20" Background="#37474f" Foreground="#ff9800" Margin="0,0,10,0"/>
+                               Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
                         <TextBlock Grid.Column="1"
                                   Text="{Binding SelectedSegment.SourceStartOffset, Converter={StaticResource TransitionDurationConverter}}"
-                                  Foreground="#ff9800" FontFamily="Courier New" FontWeight="Bold"
+                                  Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
                                   TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
                     <TextBlock Text="Offset into source audio file (seconds). Adjusted automatically when left-trimming."
@@ -257,9 +257,9 @@
                                 Minimum="0.0" Maximum="1.0"
                                 SmallChange="0.05" LargeChange="0.1"
                                 IsMoveToPointEnabled="True"
-                                Height="20" Background="#37474f" Foreground="#ff9800" Margin="0,0,10,0"/>
+                            Height="20" Background="#37474f" Foreground="#64b5f6" Margin="0,0,10,0"/>
                         <TextBlock Grid.Column="1"
-                                   Foreground="#ff9800" FontFamily="Courier New" FontWeight="Bold"
+                               Foreground="#81c784" FontFamily="Courier New" FontWeight="Bold"
                                    TextAlignment="Right" VerticalAlignment="Center">
                             <TextBlock.Text>
                                 <MultiBinding StringFormat="{}{0:P0}">
@@ -269,9 +269,9 @@
                         </TextBlock>
                     </Grid>
 
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8">
+                    <Border Style="{StaticResource PropertyHintCardStyle}">
                         <TextBlock Text="Chọn None để dùng hiệu ứng tự động từ Track (nếu Track bật auto-motion). Chọn preset cụ thể để ghi đè."
-                                   Foreground="#546e7a" FontSize="10" TextWrapping="Wrap"/>
+                                   Style="{StaticResource PropertyHintTextStyle}" FontStyle="Normal" Foreground="#546e7a"/>
                     </Border>
                 </StackPanel>
 
@@ -333,20 +333,20 @@
                         </Popup>
                     </StackPanel>
 
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8">
+                    <Border Style="{StaticResource PropertyHintCardStyle}">
                         <TextBlock Text="Bật để ghi đè overlay của Track cho riêng segment này. Tắt = dùng cài đặt track."
-                                   Foreground="#546e7a" FontSize="10" TextWrapping="Wrap"/>
+                                   Style="{StaticResource PropertyHintTextStyle}" FontStyle="Normal" Foreground="#546e7a"/>
                     </Border>
                 </StackPanel>
 
                 <!-- Action Buttons -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Split (Ctrl+B)" Command="{Binding SplitSelectedSegmentAtPlayheadCommand}"
-                           Background="#007acc" Foreground="White" Padding="10,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+                          Style="{StaticResource PrimaryActionButtonStyle}" Padding="10,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
                     <Button Content="Duplicate" Command="{Binding DuplicateSelectedSegmentCommand}"
-                           Background="#43a047" Foreground="White" Padding="12,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+                          Style="{StaticResource SuccessActionButtonStyle}" Padding="12,8" MinHeight="32" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
                     <Button Content="Delete" Command="{Binding DeleteSelectedSegmentCommand}"
-                           Background="#e53935" Foreground="White" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>
+                          Style="{StaticResource DangerActionButtonStyle}" Padding="12,8" MinHeight="32" VerticalContentAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

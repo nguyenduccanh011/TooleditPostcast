@@ -12,9 +12,9 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Background="#2d2d2d" Padding="10,8" MinHeight="44">
+        <Border Grid.Row="0" Style="{StaticResource PropertyPanelHeaderBorderStyle}">
             <TextBlock Text="Track Properties"
-                       FontSize="14" FontWeight="Bold" Foreground="#81c784" VerticalAlignment="Center"/>
+                       Style="{StaticResource PropertyPanelHeaderTextStyle}"/>
         </Border>
 
         <!-- No selection -->
@@ -35,23 +35,21 @@
             <StackPanel Margin="15,12,15,12">
 
                 <!-- Track name (read-only display) -->
-                <TextBlock Text="Tên track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Tên track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <TextBlock x:Name="TrackNameText"
                            Foreground="#81c784"
                            FontFamily="Courier New"
                            Margin="0,0,0,15"/>
 
                 <!-- Track type (read-only) -->
-                <TextBlock Text="Loại track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Loại track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <TextBlock x:Name="TrackTypeText"
                            Foreground="#64b5f6"
                            FontFamily="Courier New"
                            Margin="0,0,0,15"/>
 
-                <TextBlock Text="Vai trò track:" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Vai trò track:" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <ComboBox x:Name="TrackRoleCombo"
-                          Background="#2a2a2a" Foreground="#e0e0e0"
-                          BorderBrush="#546e7a" BorderThickness="1"
                           Padding="8,5" Margin="0,0,0,8"
                           SelectionChanged="TrackRoleCombo_SelectionChanged">
                     <ComboBoxItem Content="Không chỉ định" Tag="unspecified" IsSelected="True"/>
@@ -60,10 +58,8 @@
                     <ComboBoxItem Content="Visualizer" Tag="visualizer"/>
                 </ComboBox>
 
-                <TextBlock Text="Chế độ thời lượng (Span):" Foreground="#b0bec5" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="Chế độ thời lượng (Span):" Style="{StaticResource PropertyLabelTextStyle}" Margin="0,0,0,5"/>
                 <ComboBox x:Name="TrackSpanCombo"
-                          Background="#2a2a2a" Foreground="#e0e0e0"
-                          BorderBrush="#546e7a" BorderThickness="1"
                           Padding="8,5" Margin="0,0,0,8"
                           SelectionChanged="TrackSpanCombo_SelectionChanged">
                     <ComboBoxItem Content="Segment Bound" Tag="segment_bound" IsSelected="True"/>
@@ -72,20 +68,17 @@
                     <ComboBoxItem Content="Manual" Tag="manual"/>
                 </ComboBox>
 
-                <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
                     <TextBlock x:Name="TrackPolicyHintText"
                                Text="Role quyết định track dùng để làm gì. Span quyết định track có tự kéo dài theo project hay giữ nguyên thời lượng mẫu."
-                               Foreground="#7a8a96"
-                               FontStyle="Italic"
-                               TextWrapping="Wrap"
-                               FontSize="11"/>
+                               Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                 </Border>
 
                 <!-- Separator — only show image layout for visual tracks -->
                 <StackPanel x:Name="ImageLayoutSection" Visibility="Collapsed">
                     <Separator Background="#37474f" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="📐  Layout ảnh:" Foreground="#b0bec5" FontWeight="Bold"
+                    <TextBlock Text="📐  Layout ảnh:" Style="{StaticResource PropertyLabelTextStyle}"
                                Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
 
                     <!-- Radio buttons for common presets -->
@@ -108,18 +101,16 @@
                                  Checked="RadioPreset_Checked" Tag="Widescreen_Center"/>
 
                     <!-- Visual preview hint -->
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
                         <TextBlock x:Name="PresetHintText"
-                                   Foreground="#7a8a96"
-                                   FontStyle="Italic"
-                                   TextWrapping="Wrap"
+                                   Style="{StaticResource PropertyHintTextStyle}"
                                    FontSize="11"/>
                     </Border>
 
                     <!-- Auto-motion (Ken Burns) -->
                     <Separator Background="#37474f" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="🎬  Hiệu ứng chuyển động (Ken Burns):" Foreground="#b0bec5" FontWeight="Bold"
+                    <TextBlock Text="🎬  Hiệu ứng chuyển động (Ken Burns):" Style="{StaticResource PropertyLabelTextStyle}"
                                Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
 
                     <CheckBox x:Name="AutoMotionCheckBox"
@@ -138,19 +129,17 @@
                                 ValueChanged="MotionIntensitySlider_ValueChanged"/>
                     </StackPanel>
 
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,12">
                         <TextBlock x:Name="MotionHintText"
                                    Text="Khi bật, mỗi ảnh tĩnh sẽ tự động có hiệu ứng zoom/pan ngẫu nhiên. Hiệu ứng cố định theo segment (render lại cho kết quả giống nhau)."
-                                   Foreground="#7a8a96"
-                                   FontStyle="Italic"
-                                   TextWrapping="Wrap"
+                                   Style="{StaticResource PropertyHintTextStyle}"
                                    FontSize="11"/>
                     </Border>
 
                     <!-- Color Overlay (darken / tint) -->
                     <Separator Background="#37474f" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="🎨  Lớp phủ màu (Overlay):" Foreground="#b0bec5" FontWeight="Bold"
+                    <TextBlock Text="🎨  Lớp phủ màu (Overlay):" Style="{StaticResource PropertyLabelTextStyle}"
                                Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
 
                     <TextBlock Foreground="#b0bec5" Margin="0,0,0,4" FontSize="12">
@@ -185,23 +174,19 @@
                         </Border>
                     </Popup>
 
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,8,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,8,0,12">
                         <TextBlock Text="Lớp phủ màu áp dụng cho toàn bộ segment trong track. Segment có thể ghi đè riêng trong Segment Properties."
-                                   Foreground="#7a8a96"
-                                   FontStyle="Italic"
-                                   TextWrapping="Wrap"
+                                   Style="{StaticResource PropertyHintTextStyle}"
                                    FontSize="11"/>
                     </Border>
 
                     <!-- Scale Mode (batch apply to all segments) -->
                     <Separator Background="#37474f" Margin="0,0,0,12"/>
 
-                    <TextBlock Text="🖼  Chế độ co giãn ảnh (Scale Mode):" Foreground="#b0bec5" FontWeight="Bold"
+                    <TextBlock Text="🖼  Chế độ co giãn ảnh (Scale Mode):" Style="{StaticResource PropertyLabelTextStyle}"
                                Margin="0,0,0,8" FontFamily="Segoe UI Emoji"/>
 
                     <ComboBox x:Name="ScaleModeCombo"
-                              Background="#2a2a2a" Foreground="#e0e0e0"
-                              BorderBrush="#546e7a" BorderThickness="1"
                               Padding="8,5" Margin="0,0,0,8"
                               SelectionChanged="ScaleModeCombo_SelectionChanged">
                         <ComboBoxItem Content="Fill  (lấp đầy, có thể crop)" Tag="Fill" IsSelected="True"/>
@@ -211,16 +196,13 @@
 
                     <Button x:Name="ApplyScaleModeBtn"
                             Content="Áp dụng cho toàn bộ segment"
-                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Style="{StaticResource PrimaryActionButtonStyle}"
                             Padding="10,6" Cursor="Hand" HorizontalAlignment="Left"
                             Click="ApplyScaleModeBtn_Click"/>
 
-                    <Border Background="#2a2a2a" CornerRadius="4" Padding="10,8" Margin="0,8,0,12">
+                    <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,8,0,12">
                         <TextBlock Text="Chọn chế độ co giãn rồi nhấn nút để áp dụng cho tất cả ảnh trong track này."
-                                   Foreground="#7a8a96"
-                                   FontStyle="Italic"
-                                   TextWrapping="Wrap"
-                                   FontSize="11"/>
+                                   Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                     </Border>
                 </StackPanel>
 
@@ -228,12 +210,12 @@
                 <Separator Background="#37474f" Margin="0,0,0,12"/>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <Button x:Name="LockBtn" Width="100" Padding="8,5" Margin="0,0,8,0"
-                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Style="{StaticResource NeutralActionButtonStyle}"
                             Cursor="Hand" Click="LockBtn_Click">
                         <TextBlock x:Name="LockBtnText" Text="🔓 Mở khóa" FontFamily="Segoe UI Emoji"/>
                     </Button>
                     <Button x:Name="VisibilityBtn" Width="100" Padding="8,5"
-                            Background="#455a64" Foreground="White" BorderThickness="0"
+                            Style="{StaticResource NeutralActionButtonStyle}"
                             Cursor="Hand" Click="VisibilityBtn_Click">
                         <TextBlock x:Name="VisBtnText" Text="👁 Hiện" FontFamily="Segoe UI Emoji"/>
                     </Button>

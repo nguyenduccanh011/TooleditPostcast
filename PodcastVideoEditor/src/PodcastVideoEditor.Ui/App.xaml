@@ -24,6 +24,89 @@
         <converters:FontLineHeightConverter x:Key="FontLineHeightConverter"/>
         <converters:TextElementHeightConverter x:Key="TextElementHeightConverter"/>
 
+        <!-- Shared design tokens (phase 1) -->
+        <SolidColorBrush x:Key="PrimaryBackgroundBrush" Color="#1E1E1E"/>
+        <SolidColorBrush x:Key="SecondaryBackgroundBrush" Color="#252526"/>
+        <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="SecondaryForegroundBrush" Color="#CCCCCC"/>
+        <SolidColorBrush x:Key="AppCardBorderBrush" Color="#3E3E42"/>
+        <SolidColorBrush x:Key="AccentBlueBrush" Color="#007ACC"/>
+        <SolidColorBrush x:Key="AccentGreenBrush" Color="#28A745"/>
+        <SolidColorBrush x:Key="AccentRedBrush" Color="#D13438"/>
+
+        <!-- Semantic action buttons (phase 1 rollout) -->
+        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="30"/>
+        </Style>
+
+        <Style x:Key="SuccessActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="30"/>
+        </Style>
+
+        <Style x:Key="DangerActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="30"/>
+        </Style>
+
+        <Style x:Key="NeutralActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="#3E3E42"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="30"/>
+        </Style>
+
+        <Style x:Key="CardContainerStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SecondaryBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10"/>
+        </Style>
+
+        <!-- Shared property-panel styles -->
+        <Style x:Key="PropertyPanelHeaderBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#2d2d2d"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="MinHeight" Value="44"/>
+        </Style>
+
+        <Style x:Key="PropertyPanelHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#64b5f6"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="PropertyLabelTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#b0bec5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="PropertyHintCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#2a2a2a"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+
+        <Style x:Key="PropertyHintTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#7a8a96"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="FontSize" Value="10"/>
+        </Style>
+
         <!--
         ══════════════════════════════════════════════════════════════
           DARK THEME — VS Code–inspired palette
