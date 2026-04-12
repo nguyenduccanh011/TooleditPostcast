@@ -54,38 +54,7 @@
         <SolidColorBrush x:Key="WarningForegroundBrush" Color="#EAA67A"/>
         <SolidColorBrush x:Key="NeutralButtonBrush" Color="#6C6C6C"/>
 
-        <!-- Semantic action buttons (phase 1 rollout) -->
-        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Height" Value="30"/>
-        </Style>
-
-        <Style x:Key="SuccessActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Height" Value="30"/>
-        </Style>
-
-        <Style x:Key="DangerActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Height" Value="30"/>
-        </Style>
-
-        <Style x:Key="NeutralActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Height" Value="30"/>
-        </Style>
+        <!-- Semantic action buttons: defined BELOW global Button style to avoid StaticResource forward-reference -->
 
         <Style x:Key="CardContainerStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SecondaryBackgroundBrush}"/>
@@ -562,8 +531,9 @@
             <Setter Property="Foreground"      Value="#CCCCCC"/>
             <Setter Property="BorderBrush"     Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding"         Value="12,6"/>
-            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Padding"         Value="6,2"/>
+            <Setter Property="Height"          Value="24"/>
+            <Setter Property="FontSize"        Value="12"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="SnapsToDevicePixels"        Value="True"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
@@ -596,6 +566,31 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <!-- Semantic action buttons (defined here — after the implicit Button style — to avoid StaticResource forward-reference) -->
+        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style x:Key="SuccessActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style x:Key="DangerActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style x:Key="NeutralActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
         </Style>
 
         <!-- ────────────────────────────────────────────────────────

@@ -211,19 +211,19 @@
                         <TextBlock Text="Create a new project or open a recent one." Margin="0,6,0,20" Foreground="{StaticResource SecondaryForegroundBrush}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                            <Button Content="New Project" Width="130" Height="36" Margin="0,0,10,0"
+                            <Button Content="New Project" Width="130" Margin="0,0,10,0"
                                 Style="{StaticResource SuccessActionButtonStyle}"
                                     Click="NewProjectButton_Click" />
-                            <Button Content="From Template" Width="130" Height="36" Margin="0,0,10,0"
+                            <Button Content="From Template" Width="130" Margin="0,0,10,0"
                             Style="{StaticResource PrimaryActionButtonStyle}"
                                 Click="NewProjectFromTemplateButton_Click" />
-                            <Button Content="Open Selected" Width="130" Height="36" Margin="0,0,10,0"
+                            <Button Content="Open Selected" Width="130" Margin="0,0,10,0"
                                 Style="{StaticResource PrimaryActionButtonStyle}"
                                     Click="OpenSelectedMenu_Click" />
-                            <Button Content="Delete Selected" Width="130" Height="36" Margin="0,0,10,0"
+                            <Button Content="Delete Selected" Width="130" Margin="0,0,10,0"
                                 Style="{StaticResource DangerActionButtonStyle}"
                                     Command="{Binding DeleteProjectCommand}" CommandParameter="{Binding CurrentProject}" />
-                            <Button Content="Refresh" Width="100" Height="36"
+                            <Button Content="Refresh" Width="100"
                                 Style="{StaticResource NeutralActionButtonStyle}"
                                     Command="{Binding LoadProjectsCommand}" />
                         </StackPanel>
@@ -265,8 +265,6 @@
                                 <TextBlock Text="Template Quick Start" FontWeight="Bold" VerticalAlignment="Center" />
                                 <Button DockPanel.Dock="Right"
                                         Content="Import Template"
-                                        Height="28"
-                                        Padding="12,0"
                                         Style="{StaticResource NeutralActionButtonStyle}"
                                         Click="ImportTemplatePackageMenu_Click" />
                             </DockPanel>
@@ -285,10 +283,10 @@
                                                     <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" />
                                                     <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Button Content="Use Template" Height="28" Margin="0,0,8,0" Padding="12,0"
+                                                        <Button Content="Use Template" Margin="0,0,8,0"
                                                             Style="{StaticResource PrimaryActionButtonStyle}"
                                                                 Click="HomeTemplateQuickCreateButton_Click" />
-                                                        <Button Content="Export" Height="28" Padding="12,0"
+                                                        <Button Content="Export"
                                                                 Click="HomeTemplateExportButton_Click">
                                                             <Button.Style>
                                                                 <Style TargetType="Button" BasedOn="{StaticResource NeutralActionButtonStyle}">
@@ -301,7 +299,7 @@
                                                                 </Style>
                                                             </Button.Style>
                                                         </Button>
-                                                        <Button Content="Delete" Height="28" Margin="8,0,0,0" Padding="12,0"
+                                                        <Button Content="Delete" Margin="8,0,0,0"
                                                                 Click="HomeTemplateDeleteButton_Click">
                                                             <Button.Style>
                                                                 <Style TargetType="Button" BasedOn="{StaticResource DangerActionButtonStyle}">
