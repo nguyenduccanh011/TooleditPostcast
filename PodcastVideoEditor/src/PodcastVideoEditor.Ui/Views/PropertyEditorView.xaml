@@ -385,9 +385,12 @@
                     <Slider Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
                             Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                             IsMoveToPointEnabled="True" Height="12" VerticalAlignment="Center"
-                            IsSnapToTickEnabled="True" TickFrequency="1" SmallChange="1" LargeChange="1"
+                            IsSnapToTickEnabled="True"
+                            TickFrequency="{Binding SliderStep}"
+                            SmallChange="{Binding SliderStep}"
+                            LargeChange="{Binding SliderLargeChange}"
                             Style="{StaticResource CompactSliderStyle}" Margin="0,0,6,0"/>
-                    <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
+                        <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.###}}"
                              Foreground="#ffffff" FontFamily="Consolas" FontSize="12"
                              MinWidth="52" Height="22" HorizontalContentAlignment="Right"
                              Style="{StaticResource FlatTextBoxStyle}" Padding="4,1"/>

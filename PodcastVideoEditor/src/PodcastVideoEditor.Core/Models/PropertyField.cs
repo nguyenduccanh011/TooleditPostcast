@@ -71,6 +71,16 @@ namespace PodcastVideoEditor.Core.Models
         public double? MaxValue { get; set; }
 
         /// <summary>
+        /// Slider step/tick frequency. Defaults to 1 for whole-number fields.
+        /// </summary>
+        public double SliderStep { get; set; } = 1.0;
+
+        /// <summary>
+        /// Slider large-change step used for page-up/page-down style adjustments.
+        /// </summary>
+        public double SliderLargeChange { get; set; } = 1.0;
+
+        /// <summary>
         /// For enum types: list of valid enum values.
         /// </summary>
         public IReadOnlyList<object>? EnumValues { get; set; }

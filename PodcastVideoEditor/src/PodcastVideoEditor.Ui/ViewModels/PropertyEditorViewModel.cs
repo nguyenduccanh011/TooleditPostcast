@@ -175,7 +175,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 var prop = field.PropertyInfo;
                 var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
                 object? oldValue = prop.GetValue(field.SourceElement);
-                object? converted = ConvertValue(newValue, targetType);
+                object? normalizedValue = NormalizeSliderInput(field, newValue);
+                object? converted = ConvertValue(normalizedValue, targetType);
 
                 // Skip if the value didn't actually change
                 if (Equals(oldValue, converted))
@@ -235,6 +236,79 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 Serilog.Log.Warning(ex, "Failed to set property {Name}", field.Name);
             }
+        }
+
+        private static object? NormalizeSliderInput(PropertyField field, object? value)
+        {
+            if (field.FieldType != PropertyFieldType.Slider || value == null)
+                return value;
+
+            if (!TryConvertToDouble(value, out var numeric))
+                return value;
+
+            var step = field.SliderStep > 0 ? field.SliderStep : 0;
+            if (step > 0)
+            {
+                if (field.MinValue.HasValue)
+                    numeric = field.MinValue.Value + Math.Round((numeric - field.MinValue.Value) / step) * step;
+                else
+                    numeric = Math.Round(numeric / step) * step;
+            }
+
+            if (field.MinValue.HasValue)
+                numeric = Math.Max(field.MinValue.Value, numeric);
+            if (field.MaxValue.HasValue)
+                numeric = Math.Min(field.MaxValue.Value, numeric);
+
+            // Stabilize floating-point noise from slider math (e.g. 0.95000000005).
+            var decimals = GetStepDecimalPlaces(step);
+            numeric = Math.Round(numeric, decimals, MidpointRounding.AwayFromZero);
+            return numeric;
+        }
+
+        private static bool TryConvertToDouble(object value, out double numeric)
+        {
+            if (value is double d)
+            {
+                numeric = d;
+                return true;
+            }
+
+            if (value is float f)
+            {
+                numeric = f;
+                return true;
+            }
+
+            if (value is IConvertible conv)
+            {
+                try
+                {
+                    numeric = conv.ToDouble(CultureInfo.InvariantCulture);
+                    return true;
+                }
+                catch
+                {
+                    // Fall through to parse branch.
+                }
+            }
+
+            var text = value.ToString();
+            return double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out numeric)
+                || double.TryParse(text, NumberStyles.Any, CultureInfo.CurrentCulture, out numeric);
+        }
+
+        private static int GetStepDecimalPlaces(double step)
+        {
+            if (step <= 0)
+                return 4;
+
+            var text = step.ToString("0.################", CultureInfo.InvariantCulture);
+            var dotIndex = text.IndexOf('.');
+            if (dotIndex < 0)
+                return 0;
+
+            return Math.Max(0, text.Length - dotIndex - 1);
         }
 
         /// <summary>
@@ -470,6 +544,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     field.MinValue = meta.MinValue;
                     field.MaxValue = meta.MaxValue;
+                    field.SliderStep = 1.0;
+                    field.SliderLargeChange = 1.0;
                     field.FieldType = PropertyFieldType.Slider;
                 }
             }
@@ -481,6 +557,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     field.MinValue = meta.MinValue;
                     field.MaxValue = meta.MaxValue;
+                    ConfigureDecimalSlider(field, meta.MinValue, meta.MaxValue);
                     field.FieldType = PropertyFieldType.Slider;
                 }
             }
@@ -491,6 +568,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 {
                     field.MinValue = meta.MinValue;
                     field.MaxValue = meta.MaxValue;
+                    ConfigureDecimalSlider(field, meta.MinValue, meta.MaxValue);
                     field.FieldType = PropertyFieldType.Slider;
                 }
             }
@@ -519,6 +597,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
 
             return field;
+        }
+
+        private static void ConfigureDecimalSlider(PropertyField field, double min, double max)
+        {
+            var range = Math.Abs(max - min);
+
+            if (range <= 1.0)
+                field.SliderStep = 0.01;
+            else if (range <= 10.0)
+                field.SliderStep = 0.1;
+            else
+                field.SliderStep = 1.0;
+
+            field.SliderLargeChange = field.SliderStep * 10.0;
         }
 
         private static string FormatPropertyName(string name)
