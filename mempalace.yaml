@@ -1,0 +1,25 @@
+wing: tooledit
+rooms:
+- name: podcastvideoeditor
+  description: Files from PodcastVideoEditor/
+  keywords:
+  - podcastvideoeditor
+  - podcastvideoeditor
+- name: design
+  description: Files from assets/
+  keywords:
+  - design
+  - assets
+- name: documentation
+  description: Files from docs/
+  keywords:
+  - documentation
+  - docs
+- name: scripts
+  description: Files from scripts/
+  keywords:
+  - scripts
+  - scripts
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []
