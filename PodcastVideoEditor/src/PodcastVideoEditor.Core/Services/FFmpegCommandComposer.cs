@@ -46,36 +46,47 @@ public static class FFmpegCommandComposer
         GpuFilterBackend.Cuda => (
             "-init_hw_device cuda=gpudev -filter_hw_device gpudev",
             "gpudev",
-            "hwupload_cuda",
+            "format=yuv420p,hwupload_cuda",
             $"scale_cuda={width}:{height}",
             "overlay_cuda"),
+        // QSV on Windows requires explicit D3D11VA child device binding.
+        // Without it, -init_hw_device qsv=gpudev may fail on systems with
+        // multiple display adapters (common with Intel iGPU + virtual/RDP adapter).
+        // QSV surfaces use NV12, so hwupload must receive nv12 input (not yuv420p).
         GpuFilterBackend.Qsv => (
-            "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "-init_hw_device d3d11va=d3d -init_hw_device qsv=gpudev@d3d -filter_hw_device gpudev"
+                : "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
             "gpudev",
-            "hwupload=extra_hw_frames=64",
+            "format=nv12,hwupload=extra_hw_frames=64",
             $"scale_qsv=w={width}:h={height}",
             "overlay_qsv"),
         GpuFilterBackend.Vulkan => (
             "-init_hw_device vulkan=gpudev -filter_hw_device gpudev",
             "gpudev",
-            "hwupload",
+            "format=yuv420p,hwupload",
             $"scale_vulkan=w={width}:h={height}",
             "overlay_vulkan"),
         GpuFilterBackend.OpenCL => (
             "-init_hw_device opencl=gpudev -filter_hw_device gpudev",
             "gpudev",
-            "hwupload",
+            "format=yuv420p,hwupload",
             $"scale_opencl=w={width}:h={height}",
             "overlay_opencl"),
         _ => ("", "", "", "", "")
     };
 
+    /// <summary>
+    /// Returns the full format-conversion + hwupload filter chain for the detected GPU backend.
+    /// QSV requires NV12 input (not yuv420p) because Intel QSV surfaces use NV12 natively.
+    /// Callers should NOT prepend their own format= filter — this method handles it.
+    /// </summary>
     internal static string GpuHwuploadFilter() => _gpuFilterBackend switch
     {
-        GpuFilterBackend.Cuda => "hwupload_cuda",
-        GpuFilterBackend.Qsv => "hwupload=extra_hw_frames=64",
-        GpuFilterBackend.Vulkan => "hwupload",
-        GpuFilterBackend.OpenCL => "hwupload",
+        GpuFilterBackend.Cuda => "format=yuv420p,hwupload_cuda",
+        GpuFilterBackend.Qsv => "format=nv12,hwupload=extra_hw_frames=64",
+        GpuFilterBackend.Vulkan => "format=yuv420p,hwupload",
+        GpuFilterBackend.OpenCL => "format=yuv420p,hwupload",
         _ => ""
     };
 
@@ -103,13 +114,12 @@ public static class FFmpegCommandComposer
 
         /// <summary>True when compositing (scale + overlay) runs on GPU.</summary>
         /// <summary>
-        /// True when GPU compositing (scale + overlay) is ACTUALLY used during rendering.
-        /// Currently always false because overlay_cuda/overlay_qsv do not support
-        /// timeline 'enable' expressions required for segment timing.
-        /// The detected FilterBackend is still probed and stored so it can be
-        /// re-enabled in the future when FFmpeg adds timeline support.
+        /// True when GPU scale is used during rendering.
+        /// GPU scale (scale_qsv/scale_vulkan/scale_cuda) offloads image/video scaling
+        /// to the GPU. Overlay remains on CPU for non-CUDA backends because
+        /// overlay_qsv/overlay_vulkan do not support timeline 'enable' expressions.
         /// </summary>
-        public bool IsGpuFiltering => false; // FilterBackend != GpuFilterBackend.None — re-enable when useCudaOverlay is enabled
+        public bool IsGpuFiltering => FilterBackend != GpuFilterBackend.None;
 
         private string EncoderLabel => H264Encoder switch
         {
@@ -119,12 +129,18 @@ public static class FFmpegCommandComposer
             _ => H264Encoder
         };
 
+        private string FilterLabel => FilterBackend switch
+        {
+            GpuFilterBackend.Cuda => "CUDA scale+overlay",
+            _ => $"{FilterBackend} scale"
+        };
+
         /// <summary>Human-readable status line shown in the render panel.</summary>
         public string StatusText => (IsGpuEncoding, IsGpuFiltering) switch
         {
-            (true,  true)  => $"GPU full pipeline ({EncoderLabel} + {FilterBackend}): decode + composite + encode ✔",
+            (true,  true)  => $"GPU {EncoderLabel} encode + {FilterLabel} ✔",
             (true,  false) => $"GPU encode ({EncoderLabel}) + auto decode — CPU composite",
-            (false, true)  => $"GPU composite ({FilterBackend}) + CPU encode",
+            (false, true)  => $"GPU {FilterLabel} + CPU encode",
             _              => "CPU encode + composite — no GPU acceleration detected",
         };
 
@@ -253,23 +269,22 @@ public static class FFmpegCommandComposer
         var gpuBackend = DetectedGpuBackend;
 
         // ── GPU compositing policy ─────────────────────────────────────
-        // overlay_cuda does not support the 'enable' timeline option in current
-        // FFmpeg builds, so segment start/end timing is unreliable with it.
-        // When overlay runs on CPU, CUDA filter init wastes VRAM (causes
-        // CUDA_ERROR_OUT_OF_MEMORY on consumer GPUs) and GPU scale + hwdownload
-        // is slower than CPU scale due to PCIe round-trip overhead.
+        // GPU overlay (overlay_cuda) requires timeline 'enable' expressions which
+        // only overlay_cuda supports among GPU overlay filters.
+        // overlay_qsv / overlay_vulkan / overlay_opencl do NOT support 'enable'.
         //
-        // Strategy: GPU decode (auto) + GPU encode (nvenc) + CPU composite (default).
-        // GPU overlay can be enabled for simple timelines or chunked renders via
-        // config.UseGpuOverlay=true, but segment timing may be unreliable.
+        // Strategy for NVIDIA: GPU overlay + GPU scale + GPU encode (full pipeline).
+        // Strategy for Intel/AMD/Vulkan: GPU scale + CPU overlay + GPU encode.
+        // Overlay always on CPU for non-CUDA backends (enable expressions required).
         var useCudaOverlay = config.UseGpuOverlay && gpuBackend == GpuFilterBackend.Cuda;
+        // GPU scale works with any detected backend (QSV, Vulkan, OpenCL, CUDA).
+        // scale_qsv/scale_vulkan + hwdownload + CPU overlay is a valid pipeline
+        // that offloads scaling to GPU while keeping overlay timeline-compatible.
+        var useGpuScale = gpuBackend != GpuFilterBackend.None;
         if (useCudaOverlay)
             Log.Debug("GPU overlay enabled for compositing (requires simple timeline without enable expressions)");
-        // GPU decode is independent of filter backend. D3D11VA works on virtually
-        // ALL Windows 10+ GPUs (NVIDIA/AMD/Intel, even integrated). Using -hwaccel
-        // auto lets FFmpeg try d3d11va → dxva2 → software, ensuring the best
-        // decode path on every machine without hard failures.
-        var useGpuDecode = true;
+        else if (useGpuScale)
+            Log.Debug("GPU scale enabled ({Backend}), overlay on CPU (timeline 'enable' not supported by non-CUDA overlay)", gpuBackend);
 
         var visualSegments = (config.VisualSegments ?? [])
             .Where(s => !string.IsNullOrWhiteSpace(s.SourcePath) &&
@@ -310,10 +325,10 @@ public static class FFmpegCommandComposer
         var args = new StringBuilder();
 
         // ── GPU hardware device init ──
-        // Only needed when GPU compositing (overlay_cuda) is active.
-        // When useCudaOverlay=false, d3d11va decode + nvenc encode work without
-        // a CUDA filter context, avoiding VRAM exhaustion.
-        if (useGpuDecode && useCudaOverlay)
+        // Needed when any GPU filter (scale or overlay) is active.
+        // For CUDA overlay: provides CUDA context for scale_cuda + overlay_cuda.
+        // For QSV/Vulkan/OpenCL scale: provides device context for hwupload + gpu_scale + hwdownload.
+        if (useGpuScale)
         {
             var (initHwDevice, _, _, _, _) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
             if (!string.IsNullOrEmpty(initHwDevice))
@@ -433,15 +448,14 @@ public static class FFmpegCommandComposer
         // ── filter_complex
         var filter = new StringBuilder();
         var (_, _, gpuHwupload, gpuScale, gpuOverlay) = GetGpuFilterArgs(config.ResolutionWidth, config.ResolutionHeight);
-        var hasGpuFilters = useCudaOverlay && gpuBackend != GpuFilterBackend.None;
 
         // Log GPU pipeline diagnostics
         var isGpuEncoder = videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("qsv",   StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("amf",   StringComparison.OrdinalIgnoreCase);
-        if (hasGpuFilters && cudaZeroCopy)
+        if (useCudaOverlay && cudaZeroCopy)
             Log.Debug("GPU: CUDA full-GPU pipeline (scale_cuda + overlay_cuda), encoder {Encoder}", videoCodec);
-        else if (hasGpuFilters)
+        else if (useGpuScale)
             Log.Debug("GPU: {Backend} for scale + CPU overlay, encoder {Encoder}", gpuBackend, videoCodec);
         else if (isGpuEncoder)
             Log.Debug("GPU: encode ({Encoder}) + auto decode, CPU composite", videoCodec);
@@ -526,7 +540,7 @@ public static class FFmpegCommandComposer
                     }
                     segOnGpu[i] = true;
                 }
-                else if (hasGpuFilters && !needsAlpha)
+                else if (useGpuScale && !needsAlpha)
                 {
                     // GPU scale but download to CPU (has fade or non-CUDA backend).
                     var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
@@ -538,7 +552,7 @@ public static class FFmpegCommandComposer
                     if (cudaZeroCopy)
                         filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                     else
-                        filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                        filter.Append($"{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
@@ -591,7 +605,7 @@ public static class FFmpegCommandComposer
                     filter.Append($"format=yuv420p,hwupload_cuda,{gpuScaleExact},setsar=1[{scaledLabel}];");
                     segOnGpu[i] = true;
                 }
-                else if (hasGpuFilters && !needsAlpha)
+                else if (useGpuScale && !needsAlpha)
                 {
                     // GPU scale but download to CPU (non-CUDA backend or has fade).
                     var (scaleW, scaleH) = seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue
@@ -599,7 +613,7 @@ public static class FFmpegCommandComposer
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
                     filter.Append($"[{sourceRef}]trim=duration={duration},setpts=PTS-STARTPTS,");
-                    filter.Append($"format=yuv420p,{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
+                    filter.Append($"{GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                 }
                 else
                 {
@@ -1826,18 +1840,20 @@ public static class FFmpegCommandComposer
     /// <summary>
     /// Run a 1-frame smoke test to verify the GPU backend actually initialises.
     /// Some systems enumerate CUDA/QSV filters but the driver doesn't work.
+    /// For QSV on Windows: uses explicit D3D11VA child device and NV12 pixel format.
     /// </summary>
     private static bool ValidateGpuBackend(string ffmpegPath, string backend)
     {
+        // QSV may need multiple init strategies — try them in order.
+        if (backend == "qsv")
+            return ValidateQsvBackend(ffmpegPath);
+
         try
         {
             // Build a minimal pipeline: generate 1 frame → format on CPU → hwupload → GPU scale → hwdownload → format → null output.
-            // Must use format=yuv420p before hwupload (CUDA/QSV require known CPU pixel format)
-            // and format=yuv420p after hwdownload (overlay needs CPU yuv420p, not hw surface).
             var (hwArg, scaleFilter) = backend switch
             {
                 "cuda"   => ("-init_hw_device cuda=gpudev -filter_hw_device gpudev",   "format=yuv420p,hwupload_cuda,scale_cuda=256:256,hwdownload,format=yuv420p"),
-                "qsv"    => ("-init_hw_device qsv=gpudev -filter_hw_device gpudev",    "format=yuv420p,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=256,hwdownload,format=yuv420p"),
                 "vulkan" => ("-init_hw_device vulkan=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_vulkan=w=256:h=256,hwdownload,format=yuv420p"),
                 "opencl" => ("-init_hw_device opencl=gpudev -filter_hw_device gpudev", "format=yuv420p,hwupload,scale_opencl=w=256:h=256,hwdownload,format=yuv420p"),
                 _ => ("", "")
@@ -1845,6 +1861,55 @@ public static class FFmpegCommandComposer
 
             if (string.IsNullOrEmpty(hwArg)) return false;
 
+            return RunGpuValidationTest(ffmpegPath, backend, hwArg, scaleFilter);
+        }
+        catch (Exception ex)
+        {
+            Log.Information(ex, "GPU backend '{Backend}' validation threw", backend);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// QSV-specific validation with multiple init strategies.
+    /// Intel QSV filter pipeline on Windows requires D3D11VA for surface allocation.
+    /// Strategy 1: explicit D3D11VA child device (most compatible).
+    /// Strategy 2: child_device_type parameter (alternative).
+    /// Strategy 3: direct init (legacy, works on some older setups).
+    /// QSV surfaces require NV12 pixel format (not yuv420p).
+    /// </summary>
+    private static bool ValidateQsvBackend(string ffmpegPath)
+    {
+        const string qsvFilter = "format=nv12,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=256,hwdownload,format=yuv420p";
+
+        // Only use D3D11VA strategies on Windows
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // Strategy 1: explicit D3D11VA child device → QSV parent
+            // This is the most robust approach for systems with multiple display adapters.
+            if (RunGpuValidationTest(ffmpegPath, "qsv(d3d11va-child)",
+                    "-init_hw_device d3d11va=d3d -init_hw_device qsv=gpudev@d3d -filter_hw_device gpudev",
+                    qsvFilter))
+                return true;
+
+            // Strategy 2: child_device_type parameter
+            if (RunGpuValidationTest(ffmpegPath, "qsv(child_device_type)",
+                    "-init_hw_device qsv=gpudev,child_device_type=d3d11va -filter_hw_device gpudev",
+                    qsvFilter))
+                return true;
+        }
+
+        // Strategy 3: direct QSV init (works on some systems, especially Linux/VAAPI)
+        return RunGpuValidationTest(ffmpegPath, "qsv(direct)",
+            "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
+            qsvFilter);
+    }
+
+    /// <summary>Execute a 1-frame GPU filter validation test and return success/failure.</summary>
+    private static bool RunGpuValidationTest(string ffmpegPath, string label, string hwArg, string scaleFilter)
+    {
+        try
+        {
             var validatePsi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
@@ -1866,17 +1931,17 @@ public static class FFmpegCommandComposer
 
             if (proc.ExitCode == 0)
             {
-                Log.Debug("GPU backend '{Backend}' validation passed", backend);
+                Log.Information("GPU backend '{Label}' validation passed", label);
                 return true;
             }
 
-            Log.Debug("GPU backend '{Backend}' validation failed (exit={Code}): {Err}",
-                backend, proc.ExitCode, stderr.Length > 200 ? stderr[..200] : stderr);
+            Log.Information("GPU backend '{Label}' validation failed (exit={Code}): {Err}",
+                label, proc.ExitCode, stderr.Length > 300 ? stderr[..300] : stderr);
             return false;
         }
         catch (Exception ex)
         {
-            Log.Debug(ex, "GPU backend '{Backend}' validation threw", backend);
+            Log.Information(ex, "GPU backend '{Label}' validation threw", label);
             return false;
         }
     }

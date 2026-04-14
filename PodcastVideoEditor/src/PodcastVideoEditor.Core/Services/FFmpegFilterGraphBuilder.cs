@@ -210,7 +210,7 @@ public static class FFmpegFilterGraphBuilder
                 if (cudaZeroCopy)
                     filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
                 else
-                    filter.Append($"format=yuv420p,{FFmpegCommandComposer.GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
+                    filter.Append($"{FFmpegCommandComposer.GpuHwuploadFilter()},{gpuScaleExact},hwdownload,format=yuv420p,setsar=1");
             }
             else if (seg.IsVideo)
             {

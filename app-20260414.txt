@@ -1,0 +1,895 @@
+[2026-04-14 13:41:16.311 +07:00] [INF] Application started - AppDataPath: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-14 13:41:16.338 +07:00] [INF] === Application Startup ===
+[2026-04-14 13:41:16.357 +07:00] [INF] GPU Rendering: Hardware, Tier: 2
+[2026-04-14 13:41:16.357 +07:00] [INF] App Data Path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-14 13:41:17.835 +07:00] [INF] Database migration applied successfully
+[2026-04-14 13:41:18.062 +07:00] [INF] Library database initialized at Data Source=C:\Users\admin\AppData\Roaming\PodcastVideoEditor\library.db
+[2026-04-14 13:41:18.583 +07:00] [INF] AudioService initialized with 50ms latency, 3 buffers
+[2026-04-14 13:41:18.659 +07:00] [INF] VisualizerService initialized with 32 bands, style: "Bars"
+[2026-04-14 13:41:18.666 +07:00] [INF] VisualizerViewModel initialized
+[2026-04-14 13:41:18.704 +07:00] [INF] AudioPlayerViewModel initialized
+[2026-04-14 13:41:18.861 +07:00] [INF] MainWindow constructor starting
+[2026-04-14 13:41:19.383 +07:00] [INF] MainWindow initialized
+[2026-04-14 13:41:19.918 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 13:41:19.918 +07:00] [INF] Projects loaded: 10
+[2026-04-14 13:41:20.605 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 13:41:20.787 +07:00] [INF] FFmpeg initialized from bundled tools: C:\Users\admin\AppData\Local\Programs\PodcastVideoEditor\tools\ffmpeg\ffmpeg.exe
+[2026-04-14 13:41:24.842 +07:00] [INF] HEVC GPU encoder 'hevc_qsv' validated successfully.
+[2026-04-14 13:41:24.843 +07:00] [INF] Preferred encoders: H264=h264_qsv, HEVC=hevc_qsv
+[2026-04-14 13:41:25.147 +07:00] [INF] GPU filter backend: QSV (Intel) listed but validation failed (driver issue?)
+[2026-04-14 13:41:26.350 +07:00] [INF] GPU filter backend: Vulkan (cross-vendor) — scale_vulkan + overlay_vulkan
+[2026-04-14 13:41:31.313 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 13:41:31.313 +07:00] [INF] Projects loaded: 10
+[2026-04-14 14:31:28.437 +07:00] [INF] Project selected: DOANH NGHIỆP PHÁ SẢN CAO KỶ LỤC TẠI NHẬT & ĐỨC – DẤU HIỆU SUY THOÁI MỚI
+[2026-04-14 14:31:28.494 +07:00] [INF] Auto-created TextOverlayElement for text segment 3d4fed14-1628-46c1-94f1-b101ca61bc83
+[2026-04-14 14:31:28.591 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 14:31:28.591 +07:00] [INF] Projects loaded: 10
+[2026-04-14 14:31:28.613 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 14:31:28.698 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 14:31:28.698 +07:00] [INF] Projects loaded: 10
+[2026-04-14 15:55:35.994 +07:00] [INF] Project selected: asd
+[2026-04-14 15:55:35.995 +07:00] [INF] Projects loaded: 11
+[2026-04-14 15:55:36.011 +07:00] [INF] Tracks loaded: 2
+[2026-04-14 15:55:36.011 +07:00] [INF] Projects loaded: 11
+[2026-04-14 15:55:36.027 +07:00] [INF] Project created: asd
+[2026-04-14 15:55:36.028 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 15:55:36.029 +07:00] [INF] VisualizerService config updated
+[2026-04-14 15:55:36.041 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 15:55:36.041 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 15:55:36.120 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 15:59:47.312 +07:00] [INF] Project updated: f1c4834f-1a00-4dc9-b66c-f67af05cc78a
+[2026-04-14 15:59:47.338 +07:00] [INF] Replaced elements for project f1c4834f-1a00-4dc9-b66c-f67af05cc78a: 0 elements
+[2026-04-14 15:59:47.341 +07:00] [INF] Canvas elements saved: 0 for project f1c4834f-1a00-4dc9-b66c-f67af05cc78a
+[2026-04-14 15:59:47.341 +07:00] [INF] Project saved: f1c4834f-1a00-4dc9-b66c-f67af05cc78a
+[2026-04-14 15:59:47.400 +07:00] [INF] Project selected: asd
+[2026-04-14 15:59:47.401 +07:00] [INF] Tracks loaded: 2
+[2026-04-14 15:59:47.401 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 15:59:47.401 +07:00] [INF] Projects loaded: 10
+[2026-04-14 15:59:47.430 +07:00] [INF] Visualizer stopped
+[2026-04-14 15:59:47.430 +07:00] [INF] VisualizerViewModel rendering stopped
+[2026-04-14 16:03:23.140 +07:00] [INF] TemplateUseStart: templateId=8d8748bf-f0e5-497e-b835-ec973b5a2779 projectName=1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ... hasAudio=true
+[2026-04-14 16:03:23.245 +07:00] [INF] TemplateUseSnapshot: templateId=8d8748bf-f0e5-497e-b835-ec973b5a2779 tracks=7 segments=34 elements=34
+[2026-04-14 16:03:23.321 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:03:23.325 +07:00] [INF] TemplateUseTrackSnapshot: type=effect roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:03:23.325 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:03:23.376 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: c1255c00-99bc-47f7-98d1-15be38c10a6a (sieutinhieu-logo_e68d64bff7114a449a4e3b7b03de98b7_2118576b0e364b799873813b55e3f566_48ced9e9b02f4433b74b243c17f5402c_07c13dc1d63549489880fe5e9603485a_79e230d918364ce7b2283a64985b123c_887c7832870745b4924b038e67a8b2f8.png)
+[2026-04-14 16:03:23.377 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:03:23.381 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 232c9d6d-47f5-4f30-bb83-29d95e51d573 (player-icon_05798dff8901454b98640cff2d53c975_7f3c02d230fc44c9b0533b72e7253ddc_eb550cbdece246bdb013db61b584813d_b0841948b20d42a390d9ef626945d5ca_fe253d2ce6784b048925ece3f3fb9b03_3cb370b2522b41b182db0e705ddc344c.png)
+[2026-04-14 16:03:23.381 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=ai_content role=ai_content spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-14 16:03:23.381 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=unspecified role=unspecified spanRaw=segment_bound span=segment_bound segmentCount=30
+[2026-04-14 16:03:23.381 +07:00] [INF] TemplateUseTrackSnapshot: type=audio roleRaw=unspecified role=unspecified spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-14 16:03:23.514 +07:00] [INF] TemplateUsePersisted: projectId=6266296b-f079-4d0d-ac32-7741fbd2b29f tracks=7 segments=34 elements=34 importedMedia=2
+[2026-04-14 16:03:24.396 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: e86b4d77-1795-429f-a260-c4bbf9177fae (1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a)
+[2026-04-14 16:03:24.407 +07:00] [INF] Primary audio attached to project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:24.407 +07:00] [INF] TemplateUseAudioAttached: projectId=6266296b-f079-4d0d-ac32-7741fbd2b29f audioPath=C:\Users\admin\Desktop\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a
+[2026-04-14 16:03:24.506 +07:00] [INF] Stretched 4 dynamic overlay track(s) to 86.216s for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:24.506 +07:00] [INF] TemplateUseStretchApplied: projectId=6266296b-f079-4d0d-ac32-7741fbd2b29f changedTracks=4
+[2026-04-14 16:03:24.506 +07:00] [INF] TemplateUseComplete: templateId=8d8748bf-f0e5-497e-b835-ec973b5a2779 projectId=6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:24.512 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:03:24.513 +07:00] [INF] Auto-created TextOverlayElement for text segment 9bcacd1e-6189-4490-865e-5773e6ea638c
+[2026-04-14 16:03:24.513 +07:00] [INF] Projects loaded: 11
+[2026-04-14 16:03:24.542 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:03:24.542 +07:00] [INF] Projects loaded: 11
+[2026-04-14 16:03:24.580 +07:00] [INF] LoadElementsFromProject: loaded 34 elements (2 image, 31 text) from DB
+[2026-04-14 16:03:24.582 +07:00] [INF] VisualizerService config updated
+[2026-04-14 16:03:24.583 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 16:03:24.583 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 16:03:24.583 +07:00] [INF] Canvas elements loaded: 34 from project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:24.583 +07:00] [INF] Project created from template: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ... (8d8748bf-f0e5-497e-b835-ec973b5a2779)
+[2026-04-14 16:03:24.713 +07:00] [INF] [AI-PIPELINE] ▶ START — project=6266296b-f079-4d0d-ac32-7741fbd2b29f transcriptLines=34 audioDuration=91.2s
+[2026-04-14 16:03:24.716 +07:00] [INF] [AI-HEALTH] Starting health check for 4 models...
+[2026-04-14 16:03:25.246 +07:00] [INF] Pre-decode: M4A converted to WAV in 660 ms: C:\Users\admin\AppData\Local\Temp\PodcastVideoEditor\AudioCache\audio-cache-41f9be6a28398190a69c66f3f84899355b2c8bc3c8e9137b929c1c09d0b8000e.wav
+[2026-04-14 16:03:25.751 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-nothinking ✔ HTTP 200 in 1.0s (530 chars)
+[2026-04-14 16:03:25.792 +07:00] [INF] [AI-HEALTH] ✔ gemini-2.5-flash-lite-nothinking — healthy
+[2026-04-14 16:03:26.356 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-thinking ✔ HTTP 200 in 1.6s (612 chars)
+[2026-04-14 16:03:26.356 +07:00] [INF] [AI-HEALTH] ✔ gemini-2.5-flash-lite-thinking — healthy
+[2026-04-14 16:03:26.358 +07:00] [WRN] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✗ HTTP 503 in 1.6s — {"error":{"code":"","message":"Model gpt-4.1-nano-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414160325190148559EN2n3tN1)","param":"","type":"yescale_api_error"}}
+[2026-04-14 16:03:26.360 +07:00] [WRN] [AI-HEALTH] Model gpt-4.1-nano-2025-04-14 marked dead — will skip for 5m
+[2026-04-14 16:03:26.360 +07:00] [WRN] [AI-HEALTH] ✘ gpt-4.1-nano-2025-04-14 — YesScale API returned 503: {"error":{"code":"","message":"Model gpt-4.1-nano-2025-04-14 is temporari
+[2026-04-14 16:03:26.749 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:26.791 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 34 elements
+[2026-04-14 16:03:26.791 +07:00] [INF] Canvas elements saved: 34 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:26.791 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:27.072 +07:00] [INF] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✔ HTTP 200 in 2.3s (571 chars)
+[2026-04-14 16:03:27.072 +07:00] [INF] [AI-HEALTH] ✔ gpt-4.1-mini-2025-04-14 — healthy
+[2026-04-14 16:03:27.074 +07:00] [INF] [AI-HEALTH] Health check complete: 3/4 models healthy
+[2026-04-14 16:03:27.078 +07:00] [INF] [AI-ANALYZE] model=gemini-2.5-flash-lite-nothinking chunks=1 inputSegments=34
+[2026-04-14 16:03:27.092 +07:00] [INF] [AI-ANALYZE] chunk 1/1 → sending (689 tokens, timeout=93s)
+[2026-04-14 16:03:29.153 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:29.175 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 34 elements
+[2026-04-14 16:03:29.175 +07:00] [INF] Canvas elements saved: 34 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:29.175 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:30.885 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-thinking ✔ HTTP 200 in 3.8s (3931 chars)
+[2026-04-14 16:03:30.889 +07:00] [INF] [AI-ANALYZE] chunk 1/1 ✔ — 3083 chars in 3.8s
+[2026-04-14 16:03:30.926 +07:00] [INF] [AI-SPLIT] segment 62.2→86.1 (23.8s) split into 1 sub-segments
+[2026-04-14 16:03:30.927 +07:00] [INF] AI returned 8 scenes (post-processed from 7) from 34 transcript lines
+[2026-04-14 16:03:30.928 +07:00] [INF] [AI-PIPELINE] ✔ Step1/AnalyzeScript — scenes=8 fromLines=34 elapsed=3.9s
+[2026-04-14 16:03:30.934 +07:00] [INF] [AI-IMG] fetch candidates: 8 segments × 3 providers
+[2026-04-14 16:03:32.211 +07:00] [INF] [AI-IMG] fetch done in 1.3s — 114 candidates (80 unique), 0 segments with no candidates
+[2026-04-14 16:03:32.218 +07:00] [INF] [AI-IMGSEL] selecting images for 8 segments
+[2026-04-14 16:03:34.236 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:34.252 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 34 elements
+[2026-04-14 16:03:34.252 +07:00] [INF] Canvas elements saved: 34 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:34.252 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:34.445 +07:00] [WRN] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✗ HTTP 503 in 2.2s — {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414160332516287812k56EVOV7)","param":"","type":"yescale_api_error"}}
+[2026-04-14 16:03:34.447 +07:00] [WRN] AI call failed (attempt 1/3), retrying in 2s
+PodcastVideoEditor.Core.Services.AI.ApiException: YesScale API returned 503: {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414160332516287812k56EVOV7)","param":"","type":"yescale_api_error"}}
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.CallChatAsync(String systemPrompt, String userPrompt, String model, Double temperature, Int32 maxTokens, Int32 timeoutSeconds, String apiKeyOverride, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 878
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.FetchWithRetryAsync(Func`1 action, Int32 maxRetries, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 917
+[2026-04-14 16:03:39.229 +07:00] [INF] [AI-HEDGE] Primary slow after 7s — hedging with gemini-2.5-flash-lite-nothinking
+[2026-04-14 16:03:39.237 +07:00] [WRN] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✗ HTTP 503 in 2.7s — {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414160336832602971FPpaRS0O)","param":"","type":"yescale_api_error"}}
+[2026-04-14 16:03:39.237 +07:00] [WRN] AI call failed (attempt 2/3), retrying in 4s
+PodcastVideoEditor.Core.Services.AI.ApiException: YesScale API returned 503: {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414160336832602971FPpaRS0O)","param":"","type":"yescale_api_error"}}
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.CallChatAsync(String systemPrompt, String userPrompt, String model, Double temperature, Int32 maxTokens, Int32 timeoutSeconds, String apiKeyOverride, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 878
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.FetchWithRetryAsync(Func`1 action, Int32 maxRetries, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 917
+[2026-04-14 16:03:41.105 +07:00] [WRN] [AI-HTTP] gemini-2.5-flash-lite-nothinking ✗ HTTP 503 in 1.9s — {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 20260414160339532395147rCUjpDih)","param":"","type":"yescale_api_
+[2026-04-14 16:03:41.105 +07:00] [WRN] AI call failed (attempt 1/3), retrying in 2s
+PodcastVideoEditor.Core.Services.AI.ApiException: YesScale API returned 503: {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 20260414160339532395147rCUjpDih)","param":"","type":"yescale_api_error"}}
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.CallChatAsync(String systemPrompt, String userPrompt, String model, Double temperature, Int32 maxTokens, Int32 timeoutSeconds, String apiKeyOverride, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 878
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.FetchWithRetryAsync(Func`1 action, Int32 maxRetries, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 917
+[2026-04-14 16:03:44.947 +07:00] [WRN] [AI-HTTP] gemini-2.5-flash-lite-nothinking ✗ HTTP 503 in 1.8s — {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 202604141603433595125354zB6jgdR)","param":"","type":"yescale_api_
+[2026-04-14 16:03:44.948 +07:00] [WRN] AI call failed (attempt 2/3), retrying in 4s
+PodcastVideoEditor.Core.Services.AI.ApiException: YesScale API returned 503: {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 202604141603433595125354zB6jgdR)","param":"","type":"yescale_api_error"}}
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.CallChatAsync(String systemPrompt, String userPrompt, String model, Double temperature, Int32 maxTokens, Int32 timeoutSeconds, String apiKeyOverride, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 878
+   at PodcastVideoEditor.Core.Services.AI.YesScaleProvider.FetchWithRetryAsync(Func`1 action, Int32 maxRetries, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\YesScaleProvider.cs:line 917
+[2026-04-14 16:03:50.933 +07:00] [WRN] [AI-HTTP] gemini-2.5-flash-lite-nothinking ✗ HTTP 503 in 2.0s — {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 20260414160349196182106yuJmhX0y)","param":"","type":"yescale_api_
+[2026-04-14 16:03:51.444 +07:00] [INF] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✔ HTTP 200 in 8.2s (1657 chars)
+[2026-04-14 16:03:51.490 +07:00] [INF] [AI-IMGSEL] ✔ got 8/8 selections in 19.2s
+[2026-04-14 16:03:51.493 +07:00] [INF] [AI-IMG] initial selection in 19.3s — 8/8 segments selected
+[2026-04-14 16:03:51.509 +07:00] [INF] [AI-PIPELINE] ✔ Step2/ImageSelect — selected=8/8 elapsed=20.6s
+[2026-04-14 16:03:51.575 +07:00] [WRN] Failed to download/prepare image pixabay:1863880
+System.Net.Http.HttpRequestException: Response status code does not indicate success: 403 (Forbidden).
+   at System.Net.Http.HttpResponseMessage.EnsureSuccessStatusCode()
+   at PodcastVideoEditor.Core.Services.ImageAssetIngestService.DownloadAndPrepareAsync(String url, String logicalName, CancellationToken cancellationToken) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\ImageAssetIngestService.cs:line 35
+   at PodcastVideoEditor.Core.Services.AI.AIAnalysisOrchestrator.DownloadAndPrepareAsync(String candidateId, String url, CancellationToken ct) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\AI\AIAnalysisOrchestrator.cs:line 218
+[2026-04-14 16:03:53.118 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 6b2d94d2-87de-4abc-b582-6758e2a19086 (pve_unsplash_tFecc1boKYc_23cdf040a3cb424092528ee2130d6a04.jpg)
+[2026-04-14 16:03:53.122 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: ff37c583-0db7-4514-b2a2-c59318ed8bbe (pve_pexels_7887802_bb35b29c3c8f41a1849fd75853180452.jpg)
+[2026-04-14 16:03:53.127 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: cadeef7c-5ecc-4f4b-a358-a3b929cea07a (pve_pexels_6120177_001b37c46fca4b94825c26c9d0afc6a6.jpg)
+[2026-04-14 16:03:53.130 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 8eef3f9b-d7f8-4280-84da-f5f185138a66 (pve_pexels_8919504_677f4ebb5d844e779a877d99575bef8f.jpg)
+[2026-04-14 16:03:53.133 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 01f26369-db3b-429c-9cf4-a48b179ab2aa (pve_pexels_15970026_8760fb342e684490be8b89487f924ef1.jpg)
+[2026-04-14 16:03:53.137 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 3ed1840c-dbbc-4d20-8e11-cd964f0b03c3 (pve_pexels_36003978_d3bf82b5e86e413cb39e1a5a1a6e7d9d.jpg)
+[2026-04-14 16:03:53.142 +07:00] [INF] Asset added to project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 50d255a6-dc02-4cc9-98f3-4cd831ac6fb0 (pve_unsplash_SLIFI67jv5k_0ab1b2dcea884020b615456eccf1855a.jpg)
+[2026-04-14 16:03:53.144 +07:00] [INF] [AI-PIPELINE] ✔ Step3/DownloadImages — downloaded=7/8 elapsed=1.6s
+[2026-04-14 16:03:53.146 +07:00] [INF] [AI-PIPELINE] ■ DONE — segments=34 images=7 total=28.4s  (analyze=3.9s  imageSelect=20.6s  download=1.6s)
+[2026-04-14 16:03:53.200 +07:00] [INF] Replaced segments for track 0c4c03a9-8711-4410-af50-7118309c27ca: 34 segments
+[2026-04-14 16:03:53.208 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:03:53.209 +07:00] [INF] Auto-created TextOverlayElement for text segment 10e29055-02cc-4476-8cc2-1756fa642f58
+[2026-04-14 16:03:53.209 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:03:53.240 +07:00] [INF] Found existing AI content track acaee043-2943-4c00-a45e-00ecdcd97b9d for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:53.241 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:03:53.241 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:03:53.248 +07:00] [INF] Replaced segments for track acaee043-2943-4c00-a45e-00ecdcd97b9d: 8 segments
+[2026-04-14 16:03:53.254 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:03:53.255 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:03:53.434 +07:00] [WRN] StretchOverlaySkip: projectId=6266296b-f079-4d0d-ac32-7741fbd2b29f trackId=0c4c03a9-8711-4410-af50-7118309c27ca role=unspecified span=project_duration segmentCount=34
+[2026-04-14 16:03:53.605 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:03:53.609 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:03:53.610 +07:00] [INF] Auto-created TextOverlayElement for text segment ffc17afb-0c91-4203-aca0-10e01a1d3441
+[2026-04-14 16:03:53.611 +07:00] [INF] Auto-created TextOverlayElement for text segment 042ff26c-5e4d-4768-b5c0-bd32552ada90
+[2026-04-14 16:03:53.611 +07:00] [INF] Auto-created TextOverlayElement for text segment 15cc6707-7f1e-4008-bc76-199517e029b9
+[2026-04-14 16:03:53.612 +07:00] [INF] Auto-created TextOverlayElement for text segment 5d154d3a-e91f-4b74-a764-62f4cbd4b282
+[2026-04-14 16:03:53.612 +07:00] [INF] Auto-created TextOverlayElement for text segment a0e683e1-c147-4fff-9c3d-eb16a76a3ad1
+[2026-04-14 16:03:53.613 +07:00] [INF] Auto-created TextOverlayElement for text segment 548971b9-8204-47f0-af15-d4b56f567885
+[2026-04-14 16:03:53.613 +07:00] [INF] Auto-created TextOverlayElement for text segment ba7cc624-ce9f-4363-88a7-6d6b32483a03
+[2026-04-14 16:03:53.614 +07:00] [INF] Auto-created TextOverlayElement for text segment 27ee2a90-605d-4bcf-80d9-7fd5f24e5f07
+[2026-04-14 16:03:53.615 +07:00] [INF] Auto-created TextOverlayElement for text segment 3808f942-095d-4491-8ab9-3dfc85dacc7a
+[2026-04-14 16:03:53.616 +07:00] [INF] Auto-created TextOverlayElement for text segment f048d6c8-c6ba-4950-b483-d1f23103a390
+[2026-04-14 16:03:53.617 +07:00] [INF] Auto-created TextOverlayElement for text segment 09ad29ea-c34c-4b40-a01b-889630338970
+[2026-04-14 16:03:53.618 +07:00] [INF] Auto-created TextOverlayElement for text segment ce105d7b-40a1-4a10-8672-df5a0ba950c3
+[2026-04-14 16:03:53.619 +07:00] [INF] Auto-created TextOverlayElement for text segment e57f91c7-2e8e-4a9e-aed5-0f8c4b590cd3
+[2026-04-14 16:03:53.620 +07:00] [INF] Auto-created TextOverlayElement for text segment 115821c0-5fb8-4814-9610-45b7cdcf5826
+[2026-04-14 16:03:53.620 +07:00] [INF] Auto-created TextOverlayElement for text segment d61eda02-d392-46b9-a158-f02bf9a3cc5e
+[2026-04-14 16:03:53.621 +07:00] [INF] Auto-created TextOverlayElement for text segment b83b111f-cbb9-4599-8c71-3db30224b5d0
+[2026-04-14 16:03:53.622 +07:00] [INF] Auto-created TextOverlayElement for text segment dd26f2c5-50a9-416c-bfa8-16d52b61dfaf
+[2026-04-14 16:03:53.622 +07:00] [INF] Auto-created TextOverlayElement for text segment c119ae61-2201-4192-80e0-14895fa80790
+[2026-04-14 16:03:53.623 +07:00] [INF] Auto-created TextOverlayElement for text segment cfc4d89d-5918-4822-b413-3387e497e6ac
+[2026-04-14 16:03:53.623 +07:00] [INF] Auto-created TextOverlayElement for text segment 6d97d167-95a3-499f-8f52-2d9cb3dfff6c
+[2026-04-14 16:03:53.624 +07:00] [INF] Auto-created TextOverlayElement for text segment faa670fc-bd8e-4d4e-bbef-a3c1c41d82d9
+[2026-04-14 16:03:53.624 +07:00] [INF] Auto-created TextOverlayElement for text segment 23a13e6c-230d-472f-b072-83b3357f3f5e
+[2026-04-14 16:03:53.625 +07:00] [INF] Auto-created TextOverlayElement for text segment d9df100d-c173-43b0-87c1-7340f6be1d2b
+[2026-04-14 16:03:53.626 +07:00] [INF] Auto-created TextOverlayElement for text segment f1671bf3-01f3-4dde-8e9c-4d774d38e325
+[2026-04-14 16:03:53.626 +07:00] [INF] Auto-created TextOverlayElement for text segment 3fe1f6de-55e5-4271-9f7e-3c871a4cfefa
+[2026-04-14 16:03:53.627 +07:00] [INF] Auto-created TextOverlayElement for text segment 1553760b-38eb-4604-b58f-bf2a385e9999
+[2026-04-14 16:03:53.627 +07:00] [INF] Auto-created TextOverlayElement for text segment 3335102b-2bb4-476b-8ed7-b57158457581
+[2026-04-14 16:03:53.628 +07:00] [INF] Auto-created TextOverlayElement for text segment 7a7b522f-e283-4988-987b-86e330bb7d3c
+[2026-04-14 16:03:53.628 +07:00] [INF] Auto-created TextOverlayElement for text segment e20ed81d-e78d-4cd3-b709-8eb7d4c0b443
+[2026-04-14 16:03:53.629 +07:00] [INF] Auto-created TextOverlayElement for text segment a5ff50c1-6dd9-41f2-9753-de3a50331425
+[2026-04-14 16:03:53.630 +07:00] [INF] Auto-created TextOverlayElement for text segment ef61e332-0962-49e5-a79a-8f85ff2489b0
+[2026-04-14 16:03:53.631 +07:00] [INF] Auto-created TextOverlayElement for text segment f1a7ca21-99ea-4ea0-89eb-136902bcf492
+[2026-04-14 16:03:53.632 +07:00] [INF] Auto-created TextOverlayElement for text segment c3b5523c-600a-4c9d-8fd2-ae055b709705
+[2026-04-14 16:03:53.632 +07:00] [INF] Canvas elements synced after script apply: 33 new, 1 removed, 1 already existed
+[2026-04-14 16:03:53.737 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:53.785 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:03:53.785 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:53.785 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:53.785 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 16:03:56.657 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 16:03:56.874 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:56.942 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:03:56.942 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:03:56.942 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:11.810 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:11.820 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:11.821 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:11.821 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:16.206 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:16.227 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:16.227 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:16.227 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:16.306 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:16.307 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:16.624 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:04:16.624 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:04:16.679 +07:00] [INF] Visualizer stopped
+[2026-04-14 16:04:16.679 +07:00] [INF] VisualizerViewModel rendering stopped
+[2026-04-14 16:04:27.946 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:27.948 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:28.209 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:28.209 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:28.265 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:04:28.265 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:04:29.096 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:29.097 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:29.296 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:29.297 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:29.355 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:04:29.355 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:04:30.585 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:30.586 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:30.704 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:30.704 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:30.750 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:04:30.750 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:04:32.547 +07:00] [INF] ThumbnailPreGen: Stopped
+[2026-04-14 16:04:32.548 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:32.548 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:04:32.592 +07:00] [INF] LoadElementsFromProject: loaded 67 elements (2 image, 64 text) from DB
+[2026-04-14 16:04:32.592 +07:00] [INF] VisualizerService config updated
+[2026-04-14 16:04:32.593 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 16:04:32.593 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 16:04:32.593 +07:00] [INF] Canvas elements loaded: 67 from project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:32.593 +07:00] [INF] Project opened: 6266296b-f079-4d0d-ac32-7741fbd2b29f - 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:32.598 +07:00] [INF] ThumbnailPreGen: Queued 0 thumbnails for project 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:04:32.600 +07:00] [INF] ThumbnailPreGen: Completed processing queue
+[2026-04-14 16:04:32.601 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 16:04:33.567 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 16:04:38.460 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:38.472 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:38.472 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:38.472 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:43.394 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:43.415 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:43.415 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:43.415 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:51.343 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:51.377 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:51.377 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:51.377 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:56.023 +07:00] [INF] Project updated: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:56.051 +07:00] [INF] Replaced elements for project 6266296b-f079-4d0d-ac32-7741fbd2b29f: 67 elements
+[2026-04-14 16:04:56.051 +07:00] [INF] Canvas elements saved: 67 for project 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:56.052 +07:00] [INF] Project saved: 6266296b-f079-4d0d-ac32-7741fbd2b29f
+[2026-04-14 16:04:56.099 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:04:56.099 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:04:56.117 +07:00] [INF] Visualizer stopped
+[2026-04-14 16:04:56.117 +07:00] [INF] VisualizerViewModel rendering stopped
+[2026-04-14 16:05:03.898 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:05:03.938 +07:00] [INF] Auto-created TextOverlayElement for text segment f4298e53-e4b4-4df0-9bd3-0f4f04ce16bb
+[2026-04-14 16:05:03.988 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:05:03.988 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:05:03.992 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:05:03.992 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:05:04.005 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:05:04.067 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:05:04.067 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:05:04.865 +07:00] [INF] ThumbnailPreGen: Stopped
+[2026-04-14 16:05:04.866 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:05:04.866 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:05:04.885 +07:00] [INF] LoadElementsFromProject: loaded 43 elements (11 image, 31 text) from DB
+[2026-04-14 16:05:04.885 +07:00] [INF] VisualizerService config updated
+[2026-04-14 16:05:04.886 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 16:05:04.886 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 16:05:04.887 +07:00] [INF] Canvas elements loaded: 43 from project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:04.887 +07:00] [INF] Project opened: e86fbbb3-97f1-4807-9b4e-c57658ae27a7 - Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:05:04.887 +07:00] [INF] ThumbnailPreGen: Queued 0 thumbnails for project Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:05:04.887 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 16:05:04.890 +07:00] [INF] ThumbnailPreGen: Completed processing queue
+[2026-04-14 16:05:06.093 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 16:05:14.223 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:14.237 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:05:14.237 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:14.237 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:17.826 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:17.839 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:05:17.839 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:17.839 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:23.262 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:23.273 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:05:23.274 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:23.274 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:25.335 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:25.346 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:05:25.346 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:25.346 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:33.801 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:33.825 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:05:33.825 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:33.825 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:56.039 +07:00] [INF] TemplateSaveLoadStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:05:56.088 +07:00] [INF] TemplateSaveLoadComplete: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 found=true
+[2026-04-14 16:05:56.088 +07:00] [INF] TemplateSaveStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 name=Đại Thanh Lọc Bất Động Sản 2026 tracks=7 segments=44 elements=43 aiTracks=1 aiSegments=9
+[2026-04-14 16:05:56.092 +07:00] [INF] TemplateSnapshotBuildStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 tracks=7 assets=13 elements=43
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=fa710040-60c9-462a-9b7e-e281c7fee654 type=text role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=56362dff-07d0-49d3-9161-9ebcede4b642 type=effect role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=179062c5-14b3-4e27-adbb-2beb997b1c90 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=e154bffa-7935-4846-aa9a-ed5cedc01430 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=ad6d45b5-8683-4d01-b060-2903590aa2bf type=visual role=ai_content span=segment_bound segmentCount=0
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=36fff590-fe31-40bf-b14f-554cc8b4f7f1 type=text role=script_text span=project_duration segmentCount=0
+[2026-04-14 16:05:56.094 +07:00] [INF] TemplateSnapshotTrack: trackId=16a5137f-1aac-4f1f-a5fc-ae0e71cb5c54 type=audio role=unspecified span=segment_bound segmentCount=0
+[2026-04-14 16:05:56.096 +07:00] [INF] TemplateSaveSnapshot: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 tracks=7 segments=4 elements=4 aiTracks=1 aiSegments=0
+[2026-04-14 16:05:56.263 +07:00] [INF] Exported template package C:\Users\admin\AppData\Local\Temp\pve-template-3b3145f2b7434bfdacf7c0802ca85635.pvtemplate with 2 asset(s)
+[2026-04-14 16:05:56.320 +07:00] [ERR] Failed to save template from project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+System.IO.IOException: The filename, directory name, or volume label syntax is incorrect. : 'C:\Users\admin\AppData\Roaming\PodcastVideoEditor\templates\a0137477-63f2-40f1-b22a-65538aea643c\assets\player-icon_05798dff8901454b98640cff2d53c975_7f3c02d230fc44c9b0533b72e7253ddc_eb550cbdece246bdb013db61b584813d_b0841948b20d42a390d9ef626945d5ca_fe253d2ce6784b048925ece3f3fb9b03_3cb370b2522b41b182db0e705ddc344c_9868d11559cf4e6eba78cb7947c806a6_90c4fd5a171b49548b2b87a332b83715.png'.
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.File.Create(String path)
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 159
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 161
+   at PodcastVideoEditor.Ui.MainWindow.SaveCurrentAsTemplateMenu_Click(Object sender, RoutedEventArgs e) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Ui\MainWindow.xaml.cs:line 675
+   at PodcastVideoEditor.Ui.MainWindow.SaveCurrentAsTemplateMenu_Click(Object sender, RoutedEventArgs e) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Ui\MainWindow.xaml.cs:line 683
+[2026-04-14 16:06:23.984 +07:00] [INF] TemplateExportLoadStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateExportLoadComplete: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 found=true
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotBuildStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 tracks=7 assets=13 elements=43
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=fa710040-60c9-462a-9b7e-e281c7fee654 type=text role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=56362dff-07d0-49d3-9161-9ebcede4b642 type=effect role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=179062c5-14b3-4e27-adbb-2beb997b1c90 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=e154bffa-7935-4846-aa9a-ed5cedc01430 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=ad6d45b5-8683-4d01-b060-2903590aa2bf type=visual role=ai_content span=segment_bound segmentCount=0
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=36fff590-fe31-40bf-b14f-554cc8b4f7f1 type=text role=script_text span=project_duration segmentCount=0
+[2026-04-14 16:06:23.993 +07:00] [INF] TemplateSnapshotTrack: trackId=16a5137f-1aac-4f1f-a5fc-ae0e71cb5c54 type=audio role=unspecified span=segment_bound segmentCount=0
+[2026-04-14 16:06:24.115 +07:00] [INF] Exported template package C:\Users\admin\Desktop\Tin Nhanh Chứng Khoán update.pvtemplate with 2 asset(s)
+[2026-04-14 16:06:38.794 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:06:38.804 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:06:38.804 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:06:38.804 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:06:38.873 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:06:38.873 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:06:38.917 +07:00] [INF] Visualizer stopped
+[2026-04-14 16:06:38.917 +07:00] [INF] VisualizerViewModel rendering stopped
+[2026-04-14 16:06:43.183 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:06:43.203 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:06:43.281 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:06:43.281 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:06:43.285 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:06:43.285 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:06:47.785 +07:00] [ERR] Failed to import template package C:\Users\admin\Desktop\Tin Nhanh Chứng Khoán update.pvtemplate
+System.IO.IOException: The filename, directory name, or volume label syntax is incorrect. : 'C:\Users\admin\AppData\Roaming\PodcastVideoEditor\templates\7e0ba626-5ec1-4eee-a165-c945c08a7408\assets\player-icon_05798dff8901454b98640cff2d53c975_7f3c02d230fc44c9b0533b72e7253ddc_eb550cbdece246bdb013db61b584813d_b0841948b20d42a390d9ef626945d5ca_fe253d2ce6784b048925ece3f3fb9b03_3cb370b2522b41b182db0e705ddc344c_9868d11559cf4e6eba78cb7947c806a6_ab121ba655d0441d9d8ae00879ee2fd3.png'.
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.File.Create(String path)
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 159
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 161
+   at PodcastVideoEditor.Ui.MainWindow.ImportTemplatePackageAsync() in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Ui\MainWindow.xaml.cs:line 838
+[2026-04-14 16:12:44.093 +07:00] [ERR] Failed to import template package C:\Users\admin\Desktop\Tin Nhanh Chứng Khoán update.pvtemplate
+System.IO.IOException: The filename, directory name, or volume label syntax is incorrect. : 'C:\Users\admin\AppData\Roaming\PodcastVideoEditor\templates\f9658a00-adde-4278-b0cd-743d797afc25\assets\player-icon_05798dff8901454b98640cff2d53c975_7f3c02d230fc44c9b0533b72e7253ddc_eb550cbdece246bdb013db61b584813d_b0841948b20d42a390d9ef626945d5ca_fe253d2ce6784b048925ece3f3fb9b03_3cb370b2522b41b182db0e705ddc344c_9868d11559cf4e6eba78cb7947c806a6_ab121ba655d0441d9d8ae00879ee2fd3.png'.
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.CreateFile(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options)
+   at Microsoft.Win32.SafeHandles.SafeFileHandle.Open(String fullPath, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.OSFileStreamStrategy..ctor(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.Strategies.FileStreamHelpers.ChooseStrategyCore(String path, FileMode mode, FileAccess access, FileShare share, FileOptions options, Int64 preallocationSize, Nullable`1 unixCreateMode)
+   at System.IO.File.Create(String path)
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 159
+   at PodcastVideoEditor.Core.Services.TemplatePackageService.ImportTemplatePackageAsync(String packagePath) in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Core\Services\TemplatePackageService.cs:line 161
+   at PodcastVideoEditor.Ui.MainWindow.ImportTemplatePackageAsync() in D:\a\TooleditPostcast\TooleditPostcast\PodcastVideoEditor\src\PodcastVideoEditor.Ui\MainWindow.xaml.cs:line 838
+[2026-04-14 16:12:49.082 +07:00] [INF] Project selected: DOANH NGHIỆP PHÁ SẢN CAO KỶ LỤC TẠI NHẬT & ĐỨC – DẤU HIỆU SUY THOÁI MỚI
+[2026-04-14 16:12:49.083 +07:00] [INF] Auto-created TextOverlayElement for text segment 3d4fed14-1628-46c1-94f1-b101ca61bc83
+[2026-04-14 16:12:49.085 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:49.209 +07:00] [INF] Project selected: DOANH NGHIỆP PHÁ SẢN CAO KỶ LỤC TẠI NHẬT & ĐỨC – DẤU HIỆU SUY THOÁI MỚI
+[2026-04-14 16:12:49.210 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:49.213 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:12:49.213 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:12:50.807 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:50.809 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:51.068 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:51.068 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:51.116 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:12:51.116 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:12:51.869 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:12:51.870 +07:00] [INF] Auto-created TextOverlayElement for text segment 10e29055-02cc-4476-8cc2-1756fa642f58
+[2026-04-14 16:12:51.870 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:51.981 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:12:51.982 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:51.983 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:12:51.983 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:12:53.316 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.317 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:53.452 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.452 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:53.504 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:12:53.504 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:12:53.560 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.560 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:53.758 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.759 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:53.815 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:12:53.815 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:12:53.859 +07:00] [INF] ThumbnailPreGen: Stopped
+[2026-04-14 16:12:53.859 +07:00] [INF] Project selected: Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.859 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:12:53.931 +07:00] [INF] LoadElementsFromProject: loaded 43 elements (11 image, 31 text) from DB
+[2026-04-14 16:12:53.932 +07:00] [INF] VisualizerService config updated
+[2026-04-14 16:12:53.932 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 16:12:53.933 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 16:12:53.933 +07:00] [INF] Canvas elements loaded: 43 from project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:12:53.933 +07:00] [INF] Project opened: e86fbbb3-97f1-4807-9b4e-c57658ae27a7 - Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.933 +07:00] [INF] ThumbnailPreGen: Queued 0 thumbnails for project Đại Thanh Lọc Bất Động Sản 2026
+[2026-04-14 16:12:53.933 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 16:12:53.933 +07:00] [INF] ThumbnailPreGen: Completed processing queue
+[2026-04-14 16:12:54.882 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 16:13:03.704 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:13:04.476 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:13:06.539 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:06.550 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 41 elements
+[2026-04-14 16:13:06.550 +07:00] [INF] Canvas elements saved: 41 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:06.550 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:12.872 +07:00] [INF] Auto-created ImageElement for visual segment a64470b2-10cc-42a7-bc62-5fd5985ee11e
+[2026-04-14 16:13:12.875 +07:00] [INF] Segment dropped: asset 85e37ff8-ef94-4827-9057-20ffa76c7187 at 1.15s on track e154bffa-7935-4846-aa9a-ed5cedc01430
+[2026-04-14 16:13:13.747 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:13:15.822 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:15.879 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 41 elements
+[2026-04-14 16:13:15.879 +07:00] [INF] Canvas elements saved: 41 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:15.879 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:20.420 +07:00] [INF] Asset added to project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: b6470e15-c5f7-432c-88d1-c58dfc2abf69 (sieutinhieu-logo.png)
+[2026-04-14 16:13:20.420 +07:00] [INF] Asset added to current project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: b6470e15-c5f7-432c-88d1-c58dfc2abf69
+[2026-04-14 16:13:20.443 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:20.453 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 41 elements
+[2026-04-14 16:13:20.453 +07:00] [INF] Canvas elements saved: 41 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:20.453 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:20.471 +07:00] [INF] Auto-created ImageElement for visual segment cf2a5312-b74c-4ab7-a34a-bfbe2b560a90
+[2026-04-14 16:13:20.477 +07:00] [INF] Segment dropped: asset b6470e15-c5f7-432c-88d1-c58dfc2abf69 at 1.37s on track e154bffa-7935-4846-aa9a-ed5cedc01430
+[2026-04-14 16:13:22.607 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:22.632 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:22.632 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:22.632 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:24.745 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:24.770 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:24.770 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:24.770 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:28.167 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:28.188 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:28.188 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:28.188 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:35.684 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:35.718 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:35.718 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:35.718 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:41.726 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:41.764 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:41.764 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:41.764 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:46.972 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:47.014 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:47.015 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:47.015 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:57.390 +07:00] [INF] Asset added to project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 8305c19c-4a36-4522-8234-2e348d6da0f8 (player-icon.png)
+[2026-04-14 16:13:57.390 +07:00] [INF] Asset added to current project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 8305c19c-4a36-4522-8234-2e348d6da0f8
+[2026-04-14 16:13:57.404 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:57.423 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 42 elements
+[2026-04-14 16:13:57.423 +07:00] [INF] Canvas elements saved: 42 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:57.423 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:57.458 +07:00] [INF] Auto-created ImageElement for visual segment ed2fd8fd-62b0-4337-8775-622bcc341d9a
+[2026-04-14 16:13:57.460 +07:00] [INF] Segment dropped: asset 8305c19c-4a36-4522-8234-2e348d6da0f8 at 3.15s on track 179062c5-14b3-4e27-adbb-2beb997b1c90
+[2026-04-14 16:13:59.490 +07:00] [INF] AudioService: initialized silent mixer for segment-only playback
+[2026-04-14 16:13:59.492 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-14 16:13:59.524 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:59.532 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:13:59.532 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:13:59.532 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:00.328 +07:00] [INF] Playback paused at 0.7962471s
+[2026-04-14 16:14:00.823 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-14 16:14:01.554 +07:00] [INF] Playback paused at 1.5215567s
+[2026-04-14 16:14:04.278 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:04.300 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:04.300 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:04.300 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:11.238 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:11.271 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:11.271 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:11.271 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:14.630 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:14.656 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:14.656 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:14.656 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:19.605 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:19.624 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:19.624 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:19.624 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:24.706 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:24.726 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:24.726 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:24.726 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:31.672 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:31.700 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:31.700 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:31.700 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:34.980 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:35.001 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:35.001 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:35.001 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:40.785 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:40.827 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:40.827 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:40.827 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:46.645 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:46.694 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:46.694 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:46.694 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:48.780 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:48.807 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:48.807 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:48.807 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:54.820 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:54.845 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:14:54.845 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:54.845 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:14:56.447 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-14 16:15:03.088 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:03.108 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:15:03.108 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:03.108 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:06.721 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:06.743 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:15:06.743 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:06.743 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:12.239 +07:00] [INF] Playback paused at 17.3121027s
+[2026-04-14 16:15:19.877 +07:00] [INF] TemplateSaveLoadStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:19.897 +07:00] [INF] TemplateSaveLoadComplete: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 found=true
+[2026-04-14 16:15:19.897 +07:00] [INF] TemplateSaveStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 name=Đại Thanh Lọc Bất Động Sản 2026 tracks=7 segments=44 elements=43 aiTracks=1 aiSegments=9
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotBuildStart: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 tracks=7 assets=15 elements=43
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=fa710040-60c9-462a-9b7e-e281c7fee654 type=text role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=56362dff-07d0-49d3-9161-9ebcede4b642 type=effect role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=179062c5-14b3-4e27-adbb-2beb997b1c90 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=e154bffa-7935-4846-aa9a-ed5cedc01430 type=visual role=unspecified span=project_duration segmentCount=1
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=ad6d45b5-8683-4d01-b060-2903590aa2bf type=visual role=ai_content span=segment_bound segmentCount=0
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=36fff590-fe31-40bf-b14f-554cc8b4f7f1 type=text role=script_text span=project_duration segmentCount=0
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSnapshotTrack: trackId=16a5137f-1aac-4f1f-a5fc-ae0e71cb5c54 type=audio role=unspecified span=segment_bound segmentCount=0
+[2026-04-14 16:15:19.898 +07:00] [INF] TemplateSaveSnapshot: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 tracks=7 segments=4 elements=4 aiTracks=1 aiSegments=0
+[2026-04-14 16:15:19.965 +07:00] [INF] Exported template package C:\Users\admin\AppData\Local\Temp\pve-template-79da886915d44bd38a4601e5f5667f2d.pvtemplate with 2 asset(s)
+[2026-04-14 16:15:20.005 +07:00] [INF] Imported template package C:\Users\admin\AppData\Local\Temp\pve-template-79da886915d44bd38a4601e5f5667f2d.pvtemplate as template 0c93158c-4374-4baf-8bf6-864493f0a58c
+[2026-04-14 16:15:20.029 +07:00] [INF] TemplateSaveComplete: project=e86fbbb3-97f1-4807-9b4e-c57658ae27a7 templateName=Đại Thanh Lọc Bất Động Sản 2026 Template
+[2026-04-14 16:15:26.651 +07:00] [INF] Project updated: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:26.662 +07:00] [INF] Replaced elements for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7: 43 elements
+[2026-04-14 16:15:26.662 +07:00] [INF] Canvas elements saved: 43 for project e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:26.662 +07:00] [INF] Project saved: e86fbbb3-97f1-4807-9b4e-c57658ae27a7
+[2026-04-14 16:15:26.751 +07:00] [INF] Loaded 10 project(s)
+[2026-04-14 16:15:26.751 +07:00] [INF] Projects loaded: 10
+[2026-04-14 16:15:26.783 +07:00] [INF] Visualizer stopped
+[2026-04-14 16:15:26.783 +07:00] [INF] VisualizerViewModel rendering stopped
+[2026-04-14 16:16:56.437 +07:00] [INF] TemplateUseStart: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c projectName=1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ... hasAudio=true
+[2026-04-14 16:16:56.555 +07:00] [INF] TemplateUseSnapshot: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c tracks=7 segments=4 elements=4
+[2026-04-14 16:16:56.596 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:16:56.596 +07:00] [INF] TemplateUseTrackSnapshot: type=effect roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:16:56.596 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:16:56.599 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 50d223e0-452b-4bb0-9034-7dfec49a1946 (player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca.png)
+[2026-04-14 16:16:56.599 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-14 16:16:56.602 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 7e16587c-7625-4a06-bd96-9ad22992afde (sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5.png)
+[2026-04-14 16:16:56.602 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=ai_content role=ai_content spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-14 16:16:56.602 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=script_text role=script_text spanRaw=project_duration span=project_duration segmentCount=0
+[2026-04-14 16:16:56.602 +07:00] [INF] TemplateUseTrackSnapshot: type=audio roleRaw=unspecified role=unspecified spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-14 16:16:56.611 +07:00] [INF] TemplateUsePersisted: projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9 tracks=7 segments=4 elements=4 importedMedia=2
+[2026-04-14 16:16:57.136 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: d34999ab-c73c-495d-a5bb-75fe1e15b546 (1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a)
+[2026-04-14 16:16:57.138 +07:00] [INF] Primary audio attached to project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:16:57.138 +07:00] [INF] TemplateUseAudioAttached: projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9 audioPath=C:\Users\admin\Desktop\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a
+[2026-04-14 16:16:57.199 +07:00] [WRN] StretchOverlaySkip: projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9 trackId=07c37b89-6a51-4476-a81c-7282948cffcf role=script_text span=project_duration segmentCount=0
+[2026-04-14 16:16:57.201 +07:00] [INF] Stretched 4 dynamic overlay track(s) to 86.216s for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:16:57.201 +07:00] [INF] TemplateUseStretchApplied: projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9 changedTracks=4
+[2026-04-14 16:16:57.201 +07:00] [INF] TemplateUseComplete: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:16:57.204 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:16:57.217 +07:00] [INF] Projects loaded: 11
+[2026-04-14 16:16:57.232 +07:00] [INF] Projects loaded: 11
+[2026-04-14 16:16:57.244 +07:00] [INF] Auto-created TextOverlayElement for text segment c9bfab60-a879-4741-b494-fbf05d4ea707
+[2026-04-14 16:16:57.245 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:16:57.245 +07:00] [INF] Projects loaded: 11
+[2026-04-14 16:16:57.265 +07:00] [INF] LoadElementsFromProject: loaded 4 elements (2 image, 1 text) from DB
+[2026-04-14 16:16:57.265 +07:00] [INF] VisualizerService config updated
+[2026-04-14 16:16:57.266 +07:00] [INF] Visualizer started (800x300)
+[2026-04-14 16:16:57.266 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-14 16:16:57.266 +07:00] [INF] Canvas elements loaded: 4 from project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:16:57.266 +07:00] [INF] Project created from template: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ... (0c93158c-4374-4baf-8bf6-864493f0a58c)
+[2026-04-14 16:16:57.267 +07:00] [INF] Pre-decode: M4A cache already exists: C:\Users\admin\AppData\Local\Temp\PodcastVideoEditor\AudioCache\audio-cache-41f9be6a28398190a69c66f3f84899355b2c8bc3c8e9137b929c1c09d0b8000e.wav
+[2026-04-14 16:16:57.322 +07:00] [INF] [AI-PIPELINE] ▶ START — project=b6da757f-b81a-46fc-8afa-ddba0d2787a9 transcriptLines=34 audioDuration=91.2s
+[2026-04-14 16:16:57.322 +07:00] [INF] [AI-HEALTH] Starting health check for 4 models...
+[2026-04-14 16:16:58.900 +07:00] [WRN] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✗ HTTP 503 in 1.6s — {"error":{"code":"","message":"Model gpt-4.1-nano-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414161657755634710LM9e4unb)","param":"","type":"yescale_api_error"}}
+[2026-04-14 16:16:58.901 +07:00] [WRN] [AI-HEALTH] Model gpt-4.1-nano-2025-04-14 marked dead — will skip for 5m
+[2026-04-14 16:16:58.901 +07:00] [WRN] [AI-HEALTH] ✘ gpt-4.1-nano-2025-04-14 — YesScale API returned 503: {"error":{"code":"","message":"Model gpt-4.1-nano-2025-04-14 is temporari
+[2026-04-14 16:16:58.971 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-thinking ✔ HTTP 200 in 1.6s (612 chars)
+[2026-04-14 16:16:58.972 +07:00] [INF] [AI-HEALTH] ✔ gemini-2.5-flash-lite-thinking — healthy
+[2026-04-14 16:16:59.051 +07:00] [WRN] [AI-HTTP] gemini-2.5-flash-lite-nothinking ✗ HTTP 503 in 1.7s — {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is temporarily unavailable. Please try again later. (request id: 20260414161657737941587NUjq4zfj)","param":"","type":"yescale_api_
+[2026-04-14 16:16:59.052 +07:00] [WRN] [AI-HEALTH] Model gemini-2.5-flash-lite-nothinking marked dead — will skip for 5m
+[2026-04-14 16:16:59.052 +07:00] [WRN] [AI-HEALTH] ✘ gemini-2.5-flash-lite-nothinking — YesScale API returned 503: {"error":{"code":"","message":"Model gemini-2.5-flash-lite-nothinking is 
+[2026-04-14 16:16:59.328 +07:00] [WRN] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✗ HTTP 503 in 2.0s — {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporarily unavailable. Please try again later. (request id: 20260414161657735169451AW9XCxK0)","param":"","type":"yescale_api_error"}}
+[2026-04-14 16:16:59.329 +07:00] [WRN] [AI-HEALTH] Model gpt-4.1-mini-2025-04-14 marked dead — will skip for 5m
+[2026-04-14 16:16:59.329 +07:00] [WRN] [AI-HEALTH] ✘ gpt-4.1-mini-2025-04-14 — YesScale API returned 503: {"error":{"code":"","message":"Model gpt-4.1-mini-2025-04-14 is temporari
+[2026-04-14 16:16:59.329 +07:00] [INF] [AI-HEALTH] Health check complete: 1/4 models healthy
+[2026-04-14 16:16:59.330 +07:00] [INF] [AI-ANALYZE] model=gemini-2.5-flash-lite-nothinking chunks=1 inputSegments=34
+[2026-04-14 16:16:59.330 +07:00] [INF] [AI-ANALYZE] chunk 1/1 → sending (690 tokens, timeout=93s)
+[2026-04-14 16:17:01.388 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:01.394 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 4 elements
+[2026-04-14 16:17:01.394 +07:00] [INF] Canvas elements saved: 4 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:01.394 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:06.585 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-thinking ✔ HTTP 200 in 7.3s (4484 chars)
+[2026-04-14 16:17:06.586 +07:00] [INF] [AI-ANALYZE] chunk 1/1 ✔ — 3571 chars in 7.3s
+[2026-04-14 16:17:06.588 +07:00] [INF] AI returned 9 scenes (post-processed from 9) from 34 transcript lines
+[2026-04-14 16:17:06.589 +07:00] [INF] [AI-PIPELINE] ✔ Step1/AnalyzeScript — scenes=9 fromLines=34 elapsed=7.3s
+[2026-04-14 16:17:06.589 +07:00] [INF] [AI-IMG] fetch candidates: 9 segments × 3 providers
+[2026-04-14 16:17:08.512 +07:00] [INF] [AI-IMG] fetch done in 1.9s — 113 candidates (81 unique), 0 segments with no candidates
+[2026-04-14 16:17:08.513 +07:00] [INF] [AI-IMGSEL] selecting images for 9 segments
+[2026-04-14 16:17:10.584 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:10.612 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 4 elements
+[2026-04-14 16:17:10.612 +07:00] [INF] Canvas elements saved: 4 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:10.612 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:11.202 +07:00] [INF] [AI-HTTP] gemini-2.5-flash-lite-thinking ✔ HTTP 200 in 2.7s (1685 chars)
+[2026-04-14 16:17:11.203 +07:00] [INF] [AI-IMGSEL] ✔ got 9/9 selections in 2.7s
+[2026-04-14 16:17:11.203 +07:00] [INF] [AI-IMG] initial selection in 2.7s — 9/9 segments selected
+[2026-04-14 16:17:11.205 +07:00] [INF] [AI-PIPELINE] ✔ Step2/ImageSelect — selected=9/9 elapsed=4.6s
+[2026-04-14 16:17:11.958 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 2741abcc-84bf-45dd-9c1f-6dcdbbd359d2 (pve_pexels_30268012_ddb98c5df02047249add3d44a76e756c.jpg)
+[2026-04-14 16:17:11.965 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 4e3b60f7-3bbe-426b-a7ad-5a1b9c7a4f46 (pve_pexels_102152_ca0afadfe5624db286abb80d2c83b131.jpg)
+[2026-04-14 16:17:11.971 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 5b947d53-d0ed-4d27-8188-ec7f51d89bb6 (pve_pexels_7567445_09513b6b5d9f43dd9c2a863897711771.jpg)
+[2026-04-14 16:17:11.979 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: ce05da1e-3d18-4af5-8fdf-93d6e28be5b8 (pve_pexels_6120169_0f596f43bf3e415a8b1cbdf9971b6295.jpg)
+[2026-04-14 16:17:11.985 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 086916c0-382c-4a8d-b84f-913311dee40b (pve_pexels_6120204_59cc0aebb9d9462a877006a76ddcc10d.jpg)
+[2026-04-14 16:17:11.993 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: e37b66a0-7704-4917-900e-334c1e7bfbe1 (pve_pexels_35638638_c5af101677904b28ae10ab99b67ee9fa.jpg)
+[2026-04-14 16:17:12.000 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 3d15bfe1-1526-4b63-8a13-32536a37b615 (pve_pexels_4674424_0037e029dbea4613b403a0c3ed30746f.jpg)
+[2026-04-14 16:17:12.007 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: d710251d-5ffc-4827-ac58-3960b7aae7b4 (pve_pexels_36003978_d1235c0497af4169bd925a522e7fb125.jpg)
+[2026-04-14 16:17:12.013 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: e69fc3bf-3a22-4eb6-9e92-d8e3c5a2fa6f (pve_pexels_7172774_44cc47879bf347e38f610f9d273d90c5.jpg)
+[2026-04-14 16:17:12.015 +07:00] [INF] [AI-PIPELINE] ✔ Step3/DownloadImages — downloaded=9/9 elapsed=0.8s
+[2026-04-14 16:17:12.016 +07:00] [INF] [AI-PIPELINE] ■ DONE — segments=34 images=9 total=14.7s  (analyze=7.3s  imageSelect=4.6s  download=0.8s)
+[2026-04-14 16:17:12.032 +07:00] [INF] Replaced segments for track 07c37b89-6a51-4476-a81c-7282948cffcf: 34 segments
+[2026-04-14 16:17:12.040 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:17:12.041 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:17:12.065 +07:00] [INF] Found existing AI content track 8c6ede30-22e2-4031-9512-978c452e0f43 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:12.065 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:17:12.066 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:17:12.076 +07:00] [INF] Replaced segments for track 8c6ede30-22e2-4031-9512-978c452e0f43: 9 segments
+[2026-04-14 16:17:12.084 +07:00] [INF] Project selected: 1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ...
+[2026-04-14 16:17:12.086 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:17:12.268 +07:00] [WRN] StretchOverlaySkip: projectId=b6da757f-b81a-46fc-8afa-ddba0d2787a9 trackId=07c37b89-6a51-4476-a81c-7282948cffcf role=script_text span=project_duration segmentCount=34
+[2026-04-14 16:17:12.271 +07:00] [INF] Tracks loaded: 7
+[2026-04-14 16:17:12.271 +07:00] [INF] Auto-created TextOverlayElement for text segment 632d2029-a77a-477a-9628-d06998a22038
+[2026-04-14 16:17:12.271 +07:00] [INF] Auto-created TextOverlayElement for text segment abcac4b7-d0b8-4e27-ae8a-745f39a3a5cc
+[2026-04-14 16:17:12.272 +07:00] [INF] Auto-created TextOverlayElement for text segment 5caf9276-b5de-41da-8a1c-37bf60bda3d2
+[2026-04-14 16:17:12.272 +07:00] [INF] Auto-created TextOverlayElement for text segment 33d164a5-9532-4295-af1f-bbcdccf76e02
+[2026-04-14 16:17:12.272 +07:00] [INF] Auto-created TextOverlayElement for text segment 36e0f27d-5f7d-4d99-b437-adbaf842e3f1
+[2026-04-14 16:17:12.272 +07:00] [INF] Auto-created TextOverlayElement for text segment 73b99662-0b73-42ee-bfc1-f84b2fd03617
+[2026-04-14 16:17:12.272 +07:00] [INF] Auto-created TextOverlayElement for text segment 28062b4a-5742-4ed7-bf82-05143f9d51d9
+[2026-04-14 16:17:12.273 +07:00] [INF] Auto-created TextOverlayElement for text segment c0de5eef-78a4-4f70-965e-2ff97eb8678b
+[2026-04-14 16:17:12.273 +07:00] [INF] Auto-created TextOverlayElement for text segment 6e9e8efb-2d7d-44b4-b5e7-60ef110152b2
+[2026-04-14 16:17:12.274 +07:00] [INF] Auto-created TextOverlayElement for text segment 0c3f9f21-9318-4bc4-a05a-6e376fa4b389
+[2026-04-14 16:17:12.274 +07:00] [INF] Auto-created TextOverlayElement for text segment af939e3a-9b2d-46ef-ab13-e7c6dbb33480
+[2026-04-14 16:17:12.274 +07:00] [INF] Auto-created TextOverlayElement for text segment 5c394938-d8b6-4f32-a553-7a509eb920a9
+[2026-04-14 16:17:12.275 +07:00] [INF] Auto-created TextOverlayElement for text segment 24b9473e-dc81-4574-971f-7fbbda9e6e8b
+[2026-04-14 16:17:12.276 +07:00] [INF] Auto-created TextOverlayElement for text segment 0b11cc3b-a7f0-4d03-9221-4e0e35511406
+[2026-04-14 16:17:12.277 +07:00] [INF] Auto-created TextOverlayElement for text segment 0647da8a-4251-44f4-b23e-c5e13a85add5
+[2026-04-14 16:17:12.277 +07:00] [INF] Auto-created TextOverlayElement for text segment 2d639065-4fd1-4701-affb-ddfcb6be50bd
+[2026-04-14 16:17:12.278 +07:00] [INF] Auto-created TextOverlayElement for text segment a4d88cc5-a245-41f1-b020-f851526813ae
+[2026-04-14 16:17:12.278 +07:00] [INF] Auto-created TextOverlayElement for text segment ad93a2e3-5fa9-4c92-ac00-ba47f097b523
+[2026-04-14 16:17:12.278 +07:00] [INF] Auto-created TextOverlayElement for text segment 6474c1f8-3871-4b14-9e57-c9146053accd
+[2026-04-14 16:17:12.279 +07:00] [INF] Auto-created TextOverlayElement for text segment d5a8c6e3-b7dd-477d-b376-a08dc19538e0
+[2026-04-14 16:17:12.279 +07:00] [INF] Auto-created TextOverlayElement for text segment 2e580b84-c9a0-4348-b218-dfb4d6215d90
+[2026-04-14 16:17:12.279 +07:00] [INF] Auto-created TextOverlayElement for text segment a26163ad-c31f-4991-9de3-2f8b33e7a4b3
+[2026-04-14 16:17:12.280 +07:00] [INF] Auto-created TextOverlayElement for text segment 85412606-fe51-4fd6-84b2-4c3937dd8313
+[2026-04-14 16:17:12.280 +07:00] [INF] Auto-created TextOverlayElement for text segment df8c7792-5159-4059-9ebb-83a9ef7108db
+[2026-04-14 16:17:12.280 +07:00] [INF] Auto-created TextOverlayElement for text segment 9f451061-d964-42a5-993c-159d6d71a90e
+[2026-04-14 16:17:12.281 +07:00] [INF] Auto-created TextOverlayElement for text segment a4c14d89-40e0-4def-85e6-0941dc668ae8
+[2026-04-14 16:17:12.281 +07:00] [INF] Auto-created TextOverlayElement for text segment f148bad1-aba3-47cd-b054-25e1daa35360
+[2026-04-14 16:17:12.281 +07:00] [INF] Auto-created TextOverlayElement for text segment d8d71917-35ed-459d-a11e-dad248331842
+[2026-04-14 16:17:12.282 +07:00] [INF] Auto-created TextOverlayElement for text segment c0aa7cbc-bb87-4f51-9b21-3ab407fd64e2
+[2026-04-14 16:17:12.282 +07:00] [INF] Auto-created TextOverlayElement for text segment 2f4fda09-28f5-48b7-9fe9-a775e31fde5d
+[2026-04-14 16:17:12.283 +07:00] [INF] Auto-created TextOverlayElement for text segment e60b7e0c-493f-460b-b7dd-2a6c5bdcedf8
+[2026-04-14 16:17:12.283 +07:00] [INF] Auto-created TextOverlayElement for text segment 135edc29-509f-48f4-acf8-963dad8c6d53
+[2026-04-14 16:17:12.283 +07:00] [INF] Auto-created TextOverlayElement for text segment 8644ef7f-3400-4d69-bf66-2cbed5c3dd0e
+[2026-04-14 16:17:12.284 +07:00] [INF] Auto-created TextOverlayElement for text segment 3b062759-8da6-49aa-8ad9-d44e7d4ab324
+[2026-04-14 16:17:12.284 +07:00] [INF] Canvas elements synced after script apply: 34 new, 0 removed, 0 already existed
+[2026-04-14 16:17:12.350 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:12.363 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 38 elements
+[2026-04-14 16:17:12.363 +07:00] [INF] Canvas elements saved: 38 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:12.363 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:12.363 +07:00] [INF] Playback stopped
+[2026-04-14 16:17:12.365 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-14 16:17:13.704 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-14 16:17:13.769 +07:00] [INF] Playback stopped (event)
+[2026-04-14 16:17:13.769 +07:00] [INF] Coordinator.OnPlaybackStopped: resetting playhead to 0 (state=Stopped)
+[2026-04-14 16:17:14.349 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:14.359 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 39 elements
+[2026-04-14 16:17:14.359 +07:00] [INF] Canvas elements saved: 39 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:14.359 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:18.919 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:18.942 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 39 elements
+[2026-04-14 16:17:18.942 +07:00] [INF] Canvas elements saved: 39 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:18.942 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:25.884 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:25.905 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 39 elements
+[2026-04-14 16:17:25.905 +07:00] [INF] Canvas elements saved: 39 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:25.905 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:34.296 +07:00] [INF] AudioService: initialized silent mixer for segment-only playback
+[2026-04-14 16:17:34.297 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-14 16:17:45.730 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:45.751 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 40 elements
+[2026-04-14 16:17:45.752 +07:00] [INF] Canvas elements saved: 40 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:45.752 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:17:50.439 +07:00] [INF] Playback paused at 16.1346197s
+[2026-04-14 16:19:50.233 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 38a39f4f-c693-4d34-b7e0-1ee1305a8198 (1.jpg)
+[2026-04-14 16:19:50.234 +07:00] [INF] Asset added to current project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 38a39f4f-c693-4d34-b7e0-1ee1305a8198
+[2026-04-14 16:19:50.260 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 2c6db5e5-6eed-4751-980f-64534ece1afd (2.png)
+[2026-04-14 16:19:50.260 +07:00] [INF] Asset added to current project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 2c6db5e5-6eed-4751-980f-64534ece1afd
+[2026-04-14 16:19:50.293 +07:00] [INF] Asset added to project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 8451e238-d43c-48b0-afad-591d92fcf6b7 (3.jpeg)
+[2026-04-14 16:19:50.293 +07:00] [INF] Asset added to current project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 8451e238-d43c-48b0-afad-591d92fcf6b7
+[2026-04-14 16:19:52.076 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:19:54.151 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:19:54.191 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 40 elements
+[2026-04-14 16:19:54.191 +07:00] [INF] Canvas elements saved: 40 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:19:54.191 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:19:55.027 +07:00] [INF] Auto-created ImageElement for visual segment 556e441c-e53a-471e-8002-a565cd996418
+[2026-04-14 16:19:55.029 +07:00] [INF] Segment dropped: asset 38a39f4f-c693-4d34-b7e0-1ee1305a8198 at 1.23s on track 8c6ede30-22e2-4031-9512-978c452e0f43
+[2026-04-14 16:20:00.016 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:00.034 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 41 elements
+[2026-04-14 16:20:00.034 +07:00] [INF] Canvas elements saved: 41 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:00.034 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:26.050 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:20:26.056 +07:00] [INF] Segment deleted from track 8c6ede30-22e2-4031-9512-978c452e0f43
+[2026-04-14 16:20:28.092 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:28.109 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 40 elements
+[2026-04-14 16:20:28.109 +07:00] [INF] Canvas elements saved: 40 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:28.109 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:29.018 +07:00] [INF] Track inserted: Visual 4 (visual) at Order 4
+[2026-04-14 16:20:29.024 +07:00] [INF] Auto-created ImageElement for visual segment d9b6a3e1-15a3-421a-ad42-40ffdee182d8
+[2026-04-14 16:20:29.062 +07:00] [INF] Segment auto-dropped: asset 8451e238-d43c-48b0-afad-591d92fcf6b7 at 7.78s on auto-created track 608f0670-351f-47a9-a4ba-561330ab5d13
+[2026-04-14 16:20:30.251 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:20:33.864 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:33.885 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 40 elements
+[2026-04-14 16:20:33.885 +07:00] [INF] Canvas elements saved: 40 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:33.885 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:34.085 +07:00] [INF] Track deleted: 608f0670-351f-47a9-a4ba-561330ab5d13
+[2026-04-14 16:20:34.085 +07:00] [INF] Track 608f0670-351f-47a9-a4ba-561330ab5d13 deleted from database
+[2026-04-14 16:20:34.085 +07:00] [INF] Track removed: Visual 4 (visual)
+[2026-04-14 16:20:35.865 +07:00] [INF] Auto-created ImageElement for visual segment 3a227d08-9d99-4b0c-9803-e71f3c51f771
+[2026-04-14 16:20:35.869 +07:00] [INF] Segment dropped: asset 8451e238-d43c-48b0-afad-591d92fcf6b7 at 9s on track 8c6ede30-22e2-4031-9512-978c452e0f43
+[2026-04-14 16:20:41.208 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:20:43.327 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:43.348 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 40 elements
+[2026-04-14 16:20:43.348 +07:00] [INF] Canvas elements saved: 40 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:43.349 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:46.860 +07:00] [INF] Auto-created ImageElement for visual segment 2b42cdd3-4750-4774-96b4-9a75ba5cf066
+[2026-04-14 16:20:46.861 +07:00] [INF] Segment dropped: asset 2c6db5e5-6eed-4751-980f-64534ece1afd at 14.99s on track 8c6ede30-22e2-4031-9512-978c452e0f43
+[2026-04-14 16:20:48.909 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:48.930 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 41 elements
+[2026-04-14 16:20:48.930 +07:00] [INF] Canvas elements saved: 41 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:48.930 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:49.755 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-14 16:20:53.264 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:53.279 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 41 elements
+[2026-04-14 16:20:53.279 +07:00] [INF] Canvas elements saved: 41 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:53.279 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:57.693 +07:00] [INF] Project updated: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:57.735 +07:00] [INF] Replaced elements for project b6da757f-b81a-46fc-8afa-ddba0d2787a9: 41 elements
+[2026-04-14 16:20:57.735 +07:00] [INF] Canvas elements saved: 41 for project b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:20:57.735 +07:00] [INF] Project saved: b6da757f-b81a-46fc-8afa-ddba0d2787a9
+[2026-04-14 16:21:00.045 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-14 16:21:14.238 +07:00] [INF] Playback paused at 32.5000720349312s
+[2026-04-14 16:21:17.918 +07:00] [INF] RenderSnapshot: 42 elements (35 text), 35 text segments
+[2026-04-14 16:21:17.931 +07:00] [INF] BuildTimelineVisualSegments: overlays 9/11, fadeTransitions 11/11 (invalidFade=0)
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=556e441c-e53a-471e-8002-a565cd996418 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=0.000-6.920 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=3a227d08-9d99-4b0c-9803-e71f3c51f771 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=6.920-14.440 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=52d7ce15-9565-436a-bc43-a8f714b6f071 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=14.440-22.260 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=066ad0f2-ee5d-426a-a124-7692de02b4b2 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=22.260-33.880 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=b23e4276-58d2-4ae1-a1bd-dde68a24f5bc track=8c6ede30-22e2-4031-9512-978c452e0f43 t=33.880-40.940 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=aa702cfa-c338-46d1-9d9e-885c3af45bfa track=8c6ede30-22e2-4031-9512-978c452e0f43 t=40.940-48.080 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=8a0968d0-444b-4566-90f4-0a8b64612c84 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=48.080-62.220 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=8a064a20-094b-4a21-9c30-8899bb5b7dd5 track=8c6ede30-22e2-4031-9512-978c452e0f43 t=62.220-76.860 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=96dac0f2-d689-4a07-804c-dac9a728815d track=8c6ede30-22e2-4031-9512-978c452e0f43 t=76.860-86.060 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=a55c8fc0-7b2e-4c60-a217-77ac48030ba1 track=c8d40d13-3d44-46b3-862d-5f5e76b45ca6 t=0.000-86.216 overlay=off transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.931 +07:00] [INF] Render visual diagnostic: seg=aba71c1c-75c7-44c6-a9c1-9fff32f41900 track=9f200793-003e-48d9-a988-deab6df432fe t=0.000-86.216 overlay=off transition=fade:0.500 fadeValid=True
+[2026-04-14 16:21:17.941 +07:00] [INF] BuildRasterizedTextSegments: 2 text tracks, 35 total segments, 42 snapshot elements
+[2026-04-14 16:21:17.951 +07:00] [INF] ResolveProjectAudioPath: legacy AudioPath='C:\Users\admin\Desktop\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a', Tracks=7, Assets=15
+[2026-04-14 16:21:17.951 +07:00] [INF] ResolveProjectAudioPath: found 1 visible audio tracks
+[2026-04-14 16:21:17.953 +07:00] [INF] ResolveProjectAudioPath: resolved from audio segment asset: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._fe9b7a5db7d84f0e90967ea9cebb1647.m4a
+[2026-04-14 16:21:17.953 +07:00] [INF] BuildVisualizerSegments: resolved audioFilePath='C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._fe9b7a5db7d84f0e90967ea9cebb1647.m4a', exists=true
+[2026-04-14 16:21:17.957 +07:00] [INF] Baking VisualizerElement c4649804-433e-4a39-8119-ed3c13aff061 ("Bars") [0.00–86.22s]
+[2026-04-14 16:21:17.964 +07:00] [INF] OfflineVisualizerBaker: baking element c4649804-433e-4a39-8119-ed3c13aff061 ("Bars"/"Custom"/64b) to 600x400@30fps  duration=86.22s  →  C:\Users\admin\AppData\Local\Temp\pve\vb\viz_c4649804-433e-4a39-8119-ed3c13aff061_2026041416211796.mov
+[2026-04-14 16:21:18.517 +07:00] [INF] Text rasterization: 35 segments rasterized successfully
+[2026-04-14 16:21:32.612 +07:00] [INF] OfflineVisualizerBaker: bake completed → C:\Users\admin\AppData\Local\Temp\pve\vb\viz_c4649804-433e-4a39-8119-ed3c13aff061_2026041416211796.mov
+[2026-04-14 16:21:32.617 +07:00] [INF] Render segments built: 11 visual, 35 rasterized text, 1 audio, 1 visualizer, 42 snapshot elements
+[2026-04-14 16:21:32.617 +07:00] [INF] ResolveProjectAudioPath: legacy AudioPath='C:\Users\admin\Desktop\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ....m4a', Tracks=7, Assets=15
+[2026-04-14 16:21:32.617 +07:00] [INF] ResolveProjectAudioPath: found 1 visible audio tracks
+[2026-04-14 16:21:32.617 +07:00] [INF] ResolveProjectAudioPath: resolved from audio segment asset: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._fe9b7a5db7d84f0e90967ea9cebb1647.m4a
+[2026-04-14 16:21:32.618 +07:00] [INF] Render audio dedupe: primary audio C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._fe9b7a5db7d84f0e90967ea9cebb1647.m4a already represented by timeline audio segments; primary transport input disabled
+[2026-04-14 16:21:32.621 +07:00] [INF] Output path contains non-ASCII characters; using temp path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-2b40699786844674927e3a7e8e8629b5.mp4
+[2026-04-14 16:21:32.639 +07:00] [INF] Chunked render gate: visuals=47, timeline=86.22s, peakConcurrency=6 => chunked
+[2026-04-14 16:21:32.639 +07:00] [INF] Chunked render enabled: using adaptive chunk pipeline for this timeline.
+[2026-04-14 16:21:32.660 +07:00] [INF] Chunk frame-grid normalization: boundary 26.2157s -> 26.2000s at 30fps
+[2026-04-14 16:21:32.661 +07:00] [INF] Chunk frame-grid normalization: boundary 46.2157s -> 46.2000s at 30fps
+[2026-04-14 16:21:32.661 +07:00] [INF] Chunk frame-grid normalization: boundary 76.2157s -> 76.2000s at 30fps
+[2026-04-14 16:21:32.661 +07:00] [INF] Chunked render: splitting 47 visual segments into 4 chunks (adaptive window=90.0s, min window=16.0s, target visuals/chunk=20; effect densities: zoom=19.1 %, visualizer=0.0 %, peakConcurrency=6, avgConcurrency=6.00)
+[2026-04-14 16:21:32.661 +07:00] [INF] Chunked render planning completed in 14ms
+[2026-04-14 16:21:32.661 +07:00] [INF] Parallel chunk rendering: degree=1 (8 logical cores)
+[2026-04-14 16:21:32.677 +07:00] [INF] Rendering chunk 1/4: window 0.00s..26.20s, visuals=17, audios=1, signature=29DE14F8F38F, media=img:16,vid:1,alpha:1,motion:4,fade:3,uniqueVisualSources:17,uniqueAudioSources:1
+[2026-04-14 16:21:32.729 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (6.920s) — using overlay pipeline
+[2026-04-14 16:21:32.767 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.171, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-14 16:21:32.769 +07:00] [INF] ComposerStageTiming: normalize=2ms, stageInputs=16ms, buildCommand=70ms, total=88ms
+[2026-04-14 16:21:32.769 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_000.mp4
+[2026-04-14 16:21:32.769 +07:00] [INF] FFmpeg command: ffmpeg -f lavfi -i "color=c=black:s=1080x1920:r=30:d=28" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0002.jpeg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0004.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0015.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\i0016.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\v0017.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-a8f3caae72d249f6b28b0b3b6827e61b\bgm0018.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_000-b5542bd889c0499c9092f41a0b9aad65.txt" -map "[v16]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 26.200 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_000.mp4"
+[2026-04-14 16:21:32.769 +07:00] [INF] Render segments: 17 visual, 0 text, 1 audio
+[2026-04-14 16:21:32.770 +07:00] [INF] RenderStageTiming: buildCommand=88ms, prepareOutputDir=0ms
+[2026-04-14 16:21:32.779 +07:00] [INF] FFmpeg command line length: 2433 chars
+[2026-04-14 16:21:32.794 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 10348)
+[2026-04-14 16:21:36.375 +07:00] [INF] First frame received 3.1s after FFmpeg init
+[2026-04-14 16:23:58.955 +07:00] [INF] FFmpeg finished: exit=0, elapsed=145.67s, target=26.20s, realtime=x0.18
+[2026-04-14 16:23:58.959 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_000.mp4 (4690807 bytes)
+[2026-04-14 16:23:58.959 +07:00] [INF] RenderStageTiming: ffmpegExecute=146188ms, totalRender=146278ms
+[2026-04-14 16:23:58.961 +07:00] [INF] EffectRenderTiming Chunk 1: duration=26.20s, elapsed=146284ms, realtime=0.179x, effects=motion, visualCount=17, peakConcurrency=6, avgConcurrency=6.00, motionDensity=23.5 %
+[2026-04-14 16:23:58.961 +07:00] [INF] Chunk 1 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_000.mp4
+[2026-04-14 16:23:58.961 +07:00] [INF] Chunked render window 26.20s..46.20s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-14 16:23:58.962 +07:00] [INF] Rendering chunk 2/4: window 26.20s..46.20s, visuals=17, audios=1, signature=FB7ED2C402F7, media=img:16,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:17,uniqueAudioSources:1
+[2026-04-14 16:23:58.972 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (7.680s) — using overlay pipeline
+[2026-04-14 16:23:58.974 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.128, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-14 16:23:58.974 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=9ms, buildCommand=3ms, total=12ms
+[2026-04-14 16:23:58.974 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_001.mp4
+[2026-04-14 16:23:58.974 +07:00] [INF] FFmpeg command: ffmpeg -f lavfi -i "color=c=black:s=1080x1920:r=30:d=22" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0002.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0004.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0015.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\i0016.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\v0017.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-947b6a36675241c4b7cd80da101afa9c\bgm0018.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_001-70942e11e2ae4340977aaf2fc02c8760.txt" -map "[v16]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_001.mp4"
+[2026-04-14 16:23:58.974 +07:00] [INF] Render segments: 17 visual, 0 text, 1 audio
+[2026-04-14 16:23:58.975 +07:00] [INF] RenderStageTiming: buildCommand=12ms, prepareOutputDir=0ms
+[2026-04-14 16:23:58.975 +07:00] [INF] FFmpeg command line length: 2432 chars
+[2026-04-14 16:23:58.985 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 8844)
+[2026-04-14 16:24:02.432 +07:00] [INF] First frame received 3.1s after FFmpeg init
+[2026-04-14 16:25:28.674 +07:00] [INF] FFmpeg finished: exit=0, elapsed=89.36s, target=20.00s, realtime=x0.22
+[2026-04-14 16:25:28.675 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_001.mp4 (4599466 bytes)
+[2026-04-14 16:25:28.675 +07:00] [INF] RenderStageTiming: ffmpegExecute=89700ms, totalRender=89713ms
+[2026-04-14 16:25:28.675 +07:00] [INF] EffectRenderTiming Chunk 2: duration=20.00s, elapsed=89713ms, realtime=0.223x, effects=motion, visualCount=17, peakConcurrency=6, avgConcurrency=6.00, motionDensity=17.6 %
+[2026-04-14 16:25:28.675 +07:00] [INF] Chunk 2 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_001.mp4
+[2026-04-14 16:25:28.675 +07:00] [INF] Chunked render window 46.20s..76.20s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-14 16:25:28.675 +07:00] [INF] Rendering chunk 3/4: window 46.20s..76.20s, visuals=20, audios=1, signature=CD427ABB331F, media=img:19,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:20,uniqueAudioSources:1
+[2026-04-14 16:25:28.703 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (1.880s) — using overlay pipeline
+[2026-04-14 16:25:28.705 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.108, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-14 16:25:28.705 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=27ms, buildCommand=3ms, total=30ms
+[2026-04-14 16:25:28.705 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_002.mp4
+[2026-04-14 16:25:28.705 +07:00] [INF] FFmpeg command: ffmpeg -f lavfi -i "color=c=black:s=1080x1920:r=30:d=31" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0002.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0004.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0015.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0016.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0017.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0018.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\i0019.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\v0020.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-8b9544c83e6a498d8a0b399ffc65c10f\bgm0021.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_002-a07979ca2eb741a9abb76345d295e854.txt" -map "[v19]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 30.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_002.mp4"
+[2026-04-14 16:25:28.705 +07:00] [INF] Render segments: 20 visual, 0 text, 1 audio
+[2026-04-14 16:25:28.705 +07:00] [INF] RenderStageTiming: buildCommand=30ms, prepareOutputDir=0ms
+[2026-04-14 16:25:28.705 +07:00] [INF] FFmpeg command line length: 2723 chars
+[2026-04-14 16:25:28.713 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 19588)
+[2026-04-14 16:25:32.163 +07:00] [INF] First frame received 3.1s after FFmpeg init
+[2026-04-14 16:29:11.837 +07:00] [INF] FFmpeg finished: exit=0, elapsed=222.77s, target=30.00s, realtime=x0.13
+[2026-04-14 16:29:11.838 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_002.mp4 (5901686 bytes)
+[2026-04-14 16:29:11.838 +07:00] [INF] RenderStageTiming: ffmpegExecute=223132ms, totalRender=223162ms
+[2026-04-14 16:29:11.838 +07:00] [INF] EffectRenderTiming Chunk 3: duration=30.00s, elapsed=223163ms, realtime=0.134x, effects=motion, visualCount=20, peakConcurrency=6, avgConcurrency=6.00, motionDensity=15.0 %
+[2026-04-14 16:29:11.838 +07:00] [INF] Chunk 3 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_002.mp4
+[2026-04-14 16:29:11.839 +07:00] [INF] Chunked render window 76.20s..86.22s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-14 16:29:11.839 +07:00] [INF] Rendering chunk 4/4: window 76.20s..86.22s, visuals=11, audios=1, signature=3E5CF20B18C3, media=img:10,vid:1,alpha:1,motion:2,fade:1,uniqueVisualSources:11,uniqueAudioSources:1
+[2026-04-14 16:29:11.840 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (0.660s) — using overlay pipeline
+[2026-04-14 16:29:11.843 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.137, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-14 16:29:11.843 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=4ms, total=4ms
+[2026-04-14 16:29:11.844 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_003.mp4
+[2026-04-14 16:29:11.844 +07:00] [INF] FFmpeg command: ffmpeg -f lavfi -i "color=c=black:s=1080x1920:r=30:d=12" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\pve_pexels_36003978_d1235c0497af4169bd925a522e7fb125_26230d619ead4097bed87a4c734d0bdc.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\pve_pexels_7172774_44cc47879bf347e38f610f9d273d90c5_20505e6022cd49f18d6d89d094275174.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_23385ed67b074a75b85d5752952ce5c0.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_7ce2ccfcc14e4e169121992695a1e863.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t29.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t30.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t31.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t32.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t33.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri5bf12e\t34.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_c4649804-433e-4a39-8119-ed3c13aff061_2026041416211796.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\b6da757f-b81a-46fc-8afa-ddba0d2787a9\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._fe9b7a5db7d84f0e90967ea9cebb1647.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_003-d8ccea6b6c5842bb9f9065f0289577a6.txt" -map "[v10]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 10.016 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_003.mp4"
+[2026-04-14 16:29:11.844 +07:00] [INF] Render segments: 11 visual, 0 text, 1 audio
+[2026-04-14 16:29:11.844 +07:00] [INF] RenderStageTiming: buildCommand=4ms, prepareOutputDir=0ms
+[2026-04-14 16:29:11.844 +07:00] [INF] FFmpeg command line length: 2240 chars
+[2026-04-14 16:29:11.862 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 16028)
+[2026-04-14 16:29:16.778 +07:00] [INF] First frame received 4.6s after FFmpeg init
+[2026-04-14 16:30:09.594 +07:00] [INF] FFmpeg finished: exit=0, elapsed=57.46s, target=10.02s, realtime=x0.17
+[2026-04-14 16:30:09.595 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_003.mp4 (1378974 bytes)
+[2026-04-14 16:30:09.595 +07:00] [INF] RenderStageTiming: ffmpegExecute=57751ms, totalRender=57756ms
+[2026-04-14 16:30:09.595 +07:00] [INF] EffectRenderTiming Chunk 4: duration=10.02s, elapsed=57756ms, realtime=0.173x, effects=motion, visualCount=11, peakConcurrency=6, avgConcurrency=5.97, motionDensity=18.2 %
+[2026-04-14 16:30:09.595 +07:00] [INF] Chunk 4 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-3d7ea9b6ed3a4b1ba77e91190f912816\chunk_003.mp4
+[2026-04-14 16:30:09.604 +07:00] [INF] ParallelChunkEfficiency: degree=1, chunkCount=4, serialEquivalentMs=516916, wallMs=516941, speedup=1.00x, efficiency=100 %
+[2026-04-14 16:30:09.612 +07:00] [INF] FFmpeg concat: -f concat -safe 0 -i "C:\Users\admin\AppData\Local\Temp\pve\concat-6d92fde43fe0453ea1747ed86faac973.txt" -c copy -y "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-2b40699786844674927e3a7e8e8629b5.mp4"
+[2026-04-14 16:30:09.612 +07:00] [INF] FFmpeg command line length: 306 chars
+[2026-04-14 16:30:09.631 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 19180)
+[2026-04-14 16:30:10.035 +07:00] [INF] First frame received 0.2s after FFmpeg init
+[2026-04-14 16:30:10.039 +07:00] [INF] FFmpeg finished: exit=0, elapsed=0.21s, target=0.00s, realtime=x0.00
+[2026-04-14 16:30:10.040 +07:00] [INF] Concat completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-2b40699786844674927e3a7e8e8629b5.mp4 (16566664 bytes)
+[2026-04-14 16:30:10.041 +07:00] [INF] Chunked render completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-2b40699786844674927e3a7e8e8629b5.mp4 (4 chunks concatenated)
+[2026-04-14 16:30:10.041 +07:00] [INF] ChunkedRenderTiming: concat=437ms, total=517395ms
+[2026-04-14 16:30:10.041 +07:00] [INF] Render completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-2b40699786844674927e3a7e8e8629b5.mp4
+[2026-04-14 16:30:10.124 +07:00] [INF] Renamed temp render output to final path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._20260414_162132.mp4
+[2026-04-14 16:30:10.124 +07:00] [INF] Render successful: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\1.600 Tỷ Đổ Vào Cổ Phiếu Thép HAG NKG HSG ..._20260414_162132.mp4
