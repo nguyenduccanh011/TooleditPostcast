@@ -454,13 +454,13 @@ public static class FFmpegCommandComposer
                            videoCodec.Contains("qsv",   StringComparison.OrdinalIgnoreCase) ||
                            videoCodec.Contains("amf",   StringComparison.OrdinalIgnoreCase);
         if (useCudaOverlay && cudaZeroCopy)
-            Log.Debug("GPU: CUDA full-GPU pipeline (scale_cuda + overlay_cuda), encoder {Encoder}", videoCodec);
+            Log.Information("GPU PIPELINE: CUDA full-GPU (scale_cuda + overlay_cuda) + {Encoder}", videoCodec);
         else if (useGpuScale)
-            Log.Debug("GPU: {Backend} for scale + CPU overlay, encoder {Encoder}", gpuBackend, videoCodec);
+            Log.Information("GPU PIPELINE: {Backend} scale + CPU overlay + {Encoder}", gpuBackend, videoCodec);
         else if (isGpuEncoder)
-            Log.Debug("GPU: encode ({Encoder}) + auto decode, CPU composite", videoCodec);
+            Log.Information("GPU PIPELINE: {Encoder} encode + auto decode + CPU composite", videoCodec);
         else
-            Log.Debug("GPU: CPU-only pipeline (no GPU), encoder {Encoder}", videoCodec);
+            Log.Information("GPU PIPELINE: CPU-only (no GPU) + {Encoder}", videoCodec);
 
         // useCudaOverlay policy is declared above (before input declarations).
 
@@ -1773,6 +1773,8 @@ public static class FFmpegCommandComposer
     {
         try
         {
+            Log.Debug("GPU filter probe starting for vendor: {Vendor}", vendor);
+            
             var filterPsi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
@@ -1785,7 +1787,11 @@ public static class FFmpegCommandComposer
             };
 
             using var filterProc = Process.Start(filterPsi);
-            if (filterProc == null) return;
+            if (filterProc == null) 
+            { 
+                Log.Warning("Failed to start ffmpeg -filters process");
+                return; 
+            }
 
             var filterOutput = filterProc.StandardOutput.ReadToEnd();
             filterProc.WaitForExit(TimeSpan.FromSeconds(5));
@@ -1801,6 +1807,8 @@ public static class FFmpegCommandComposer
                 GpuVendor.Intel => ["qsv", "opencl", "vulkan", "cuda"],
                 _               => ["cuda", "qsv", "vulkan", "opencl"],  // NVIDIA or unknown
             };
+            
+            Log.Debug("GPU filter probe order for {Vendor}: [{Backends}]", vendor, string.Join(", ", backendOrder));
 
             foreach (var backend in backendOrder)
             {
@@ -1818,13 +1826,18 @@ public static class FFmpegCommandComposer
                 if (filterOutput.Contains(scaleName, StringComparison.OrdinalIgnoreCase) &&
                     filterOutput.Contains(overlayName, StringComparison.OrdinalIgnoreCase))
                 {
+                    Log.Debug("GPU filter probe: {Label} filters found in ffmpeg output (checking {Scale}, {Overlay})", label, scaleName, overlayName);
                     if (ValidateGpuBackend(ffmpegPath, backend))
                     {
                         _gpuFilterBackend = backendEnum;
-                        Log.Information("GPU filter backend: {Label} — {Scale} + {Overlay}", label, scaleName, overlayName);
+                        Log.Information("GPU filter backend SELECTED: {Label} — {Scale} + {Overlay}", label, scaleName, overlayName);
                         return;
                     }
-                    Log.Information("GPU filter backend: {Label} listed but validation failed (driver issue?)", label);
+                    Log.Information("GPU filter backend: {Label} filters found but validation FAILED — likely driver issue", label);
+                }
+                else
+                {
+                    Log.Debug("GPU filter probe: {Label} — filters not in output", label);
                 }
             }
 
@@ -1881,18 +1894,24 @@ public static class FFmpegCommandComposer
     private static bool ValidateQsvBackend(string ffmpegPath)
     {
         const string qsvFilter = "format=nv12,hwupload=extra_hw_frames=16,scale_qsv=w=256:h=256,hwdownload,format=yuv420p";
+        
+        Log.Debug("QSV backend validation: Starting {StrategyCount} strategies on {Os}",
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? 3 : 1,
+            RuntimeInformation.OSDescription);
 
         // Only use D3D11VA strategies on Windows
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             // Strategy 1: explicit D3D11VA child device → QSV parent
             // This is the most robust approach for systems with multiple display adapters.
+            Log.Debug("QSV Strategy 1/3: D3D11VA child device (most robust for multi-GPU systems)");
             if (RunGpuValidationTest(ffmpegPath, "qsv(d3d11va-child)",
                     "-init_hw_device d3d11va=d3d -init_hw_device qsv=gpudev@d3d -filter_hw_device gpudev",
                     qsvFilter))
                 return true;
 
             // Strategy 2: child_device_type parameter
+            Log.Debug("QSV Strategy 2/3: child_device_type parameter");
             if (RunGpuValidationTest(ffmpegPath, "qsv(child_device_type)",
                     "-init_hw_device qsv=gpudev,child_device_type=d3d11va -filter_hw_device gpudev",
                     qsvFilter))
@@ -1900,6 +1919,7 @@ public static class FFmpegCommandComposer
         }
 
         // Strategy 3: direct QSV init (works on some systems, especially Linux/VAAPI)
+        Log.Debug("QSV Strategy 3/3: Direct QSV init (legacy/Linux)");
         return RunGpuValidationTest(ffmpegPath, "qsv(direct)",
             "-init_hw_device qsv=gpudev -filter_hw_device gpudev",
             qsvFilter);
@@ -1910,12 +1930,16 @@ public static class FFmpegCommandComposer
     {
         try
         {
+            var ffmpegCommand = $"-hide_banner -loglevel error {hwArg} " +
+                                $"-f lavfi -i \"color=c=black:s=256x256:r=1:d=0.04\" " +
+                                $"-vf \"{scaleFilter}\" -frames:v 1 -f null -";
+            
+            Log.Debug("GPU validation test [{Label}]: {Command}", label, ffmpegCommand);
+            
             var validatePsi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-hide_banner -loglevel error {hwArg} " +
-                            $"-f lavfi -i \"color=c=black:s=256x256:r=1:d=0.04\" " +
-                            $"-vf \"{scaleFilter}\" -frames:v 1 -f null -",
+                Arguments = ffmpegCommand,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -1924,24 +1948,29 @@ public static class FFmpegCommandComposer
             };
 
             using var proc = Process.Start(validatePsi);
-            if (proc == null) return false;
+            if (proc == null) 
+            { 
+                Log.Warning("GPU validation test [{Label}]: Failed to start process", label);
+                return false; 
+            }
 
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit(TimeSpan.FromSeconds(10));
 
             if (proc.ExitCode == 0)
             {
-                Log.Information("GPU backend '{Label}' validation passed", label);
+                Log.Information("GPU backend [{Label}] validation PASSED", label);
                 return true;
             }
 
-            Log.Information("GPU backend '{Label}' validation failed (exit={Code}): {Err}",
-                label, proc.ExitCode, stderr.Length > 300 ? stderr[..300] : stderr);
+            var errMsg = stderr.Length > 500 ? stderr[..500] : stderr;
+            Log.Information("GPU backend [{Label}] validation FAILED: exit_code={Code} | stderr={Err}",
+                label, proc.ExitCode, errMsg);
             return false;
         }
         catch (Exception ex)
         {
-            Log.Information(ex, "GPU backend '{Label}' validation threw", label);
+            Log.Warning(ex, "GPU backend [{Label}] validation threw exception", label);
             return false;
         }
     }
