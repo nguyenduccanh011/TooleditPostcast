@@ -216,12 +216,11 @@ public class TemplatePackageService
             throw new FileNotFoundException($"Template asset not found: {sourcePath}", sourcePath);
 
         var fileName = Path.GetFileName(sourcePath);
-        var safeName = Path.GetFileNameWithoutExtension(fileName);
-        if (string.IsNullOrWhiteSpace(safeName))
-            safeName = "asset";
-
         var extension = Path.GetExtension(fileName);
-        var packageFileName = $"{safeName}_{Guid.NewGuid():N}{extension}";
+        // Use a pure GUID-based name to avoid Windows MAX_PATH (260) limit.
+        // Original filenames from image ingest can be 200+ characters; appending
+        // another GUID suffix pushes the full extraction path over the limit.
+        var packageFileName = $"{Guid.NewGuid():N}{extension}";
         var packagePath = CombinePackagePath(AssetFolderName, packageFileName);
 
         var entry = new TemplatePackageAssetEntry

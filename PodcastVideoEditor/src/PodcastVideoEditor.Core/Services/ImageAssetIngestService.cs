@@ -152,7 +152,10 @@ public sealed class ImageAssetIngestService
 
         var invalidChars = Path.GetInvalidFileNameChars();
         var chars = value.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray();
-        return new string(chars).Replace(':', '_').Replace('/', '_').Replace('\\', '_');
+        var sanitized = new string(chars).Replace(':', '_').Replace('/', '_').Replace('\\', '_');
+        // Truncate to avoid MAX_PATH issues when the token is embedded in longer paths.
+        const int MaxTokenLength = 64;
+        return sanitized.Length > MaxTokenLength ? sanitized[..MaxTokenLength] : sanitized;
     }
 
     private static void TryDeleteFile(string path)
