@@ -181,13 +181,9 @@ public partial class TrackEditorPanel : UserControl
             _ => "Vai trò chưa chỉ định: dùng cho text cố định hoặc alias title cũ."
         };
 
-        var spanText = NormalizeSpanMode(track.SpanMode) switch
-        {
-            TrackSpanModes.ProjectDuration => "Span: tự kéo dài đến cuối project.",
-            TrackSpanModes.TemplateDuration => "Span: giữ đúng thời lượng theo template.",
-            TrackSpanModes.Manual => "Span: manual, không auto-extend.",
-            _ => "Span: theo từng segment (nội dung động)."
-        };
+        var spanText = NormalizeSpanMode(track.SpanMode) == TrackSpanModes.ProjectDuration
+            ? "Span: project duration – track tự kéo dài đến cuối project (dùng cho logo, visualizer)."
+            : "Span: segment bound – mỗi segment tự quyết định thời gian riêng (mặc định, nội dung động).";
 
         return $"{roleText} {spanText}";
     }

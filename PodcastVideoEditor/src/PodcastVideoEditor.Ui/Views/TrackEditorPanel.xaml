@@ -83,18 +83,16 @@
                         <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Span:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <TextBlock Grid.Column="0" Text="Chế độ span:" Style="{StaticResource CompactPropertyLabelStyle}"/>
                     <ComboBox x:Name="TrackSpanCombo" Grid.Column="1" SelectionChanged="TrackSpanCombo_SelectionChanged">
-                        <ComboBoxItem Content="Segment Bound" Tag="segment_bound" IsSelected="True"/>
-                        <ComboBoxItem Content="Project Duration" Tag="project_duration"/>
-                        <ComboBoxItem Content="Template Duration" Tag="template_duration"/>
-                        <ComboBoxItem Content="Manual" Tag="manual"/>
+                        <ComboBoxItem Content="Segment bound – theo từng segment" Tag="segment_bound" IsSelected="True"/>
+                        <ComboBoxItem Content="Project duration – kéo dài toàn project" Tag="project_duration"/>
                     </ComboBox>
                 </Grid>
 
                 <Border Style="{StaticResource PropertyHintCardStyle}" Margin="0,0,0,10">
                     <TextBlock x:Name="TrackPolicyHintText"
-                               Text="Role quyết định track dùng để làm gì. Span quyết định track có tự kéo dài theo project hay giữ nguyên thời lượng mẫu."
+                               Text="Role quyết định track dùng để làm gì. Chế độ span quyết định track tự kéo dài đến cuối project hay giữ theo từng segment."
                                Style="{StaticResource PropertyHintTextStyle}" FontSize="11"/>
                 </Border>
 
