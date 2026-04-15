@@ -1286,12 +1286,14 @@ namespace PodcastVideoEditor.Core.Services
         }
 
         /// <summary>
-        /// Extend dynamic visual overlay tracks (logo/icon/watermark-like) so their single segment
-        /// always spans the current project duration.
-        /// A dynamic overlay track is identified heuristically as:
-        /// - visual track
-        /// - exactly one segment starting near 0
-        /// - and track is locked OR its name contains branding keywords (logo/icon/overlay/watermark/brand)
+        /// Extend tracks with <see cref="TrackSpanModes.ProjectDuration"/> span mode so their
+        /// segments cover the full project timeline.
+        /// <para>
+        /// Project end is computed from tracks that are NOT in project_duration mode to avoid
+        /// circular references. For tracks with a single segment, both start (→0) and end
+        /// (→projectEnd) are stretched. For multi-segment tracks, only the first segment's
+        /// start (→0) and the last segment's end (→projectEnd) are adjusted.
+        /// </para>
         /// </summary>
         public async Task<int> StretchDynamicVisualOverlaysAsync(string projectId)
         {
@@ -1308,15 +1310,24 @@ namespace PodcastVideoEditor.Core.Services
                 if (project == null || project.Tracks == null || project.Tracks.Count == 0)
                     return 0;
 
-                var allSegments = project.Tracks
-                    .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
-                    .Where(s => s.EndTime > 0)
-                    .ToList();
+                // Calculate target end from non-project_duration tracks only to avoid circular dependency.
+                var segmentEnd = ComputeNonStretchedProjectEnd(project.Tracks);
 
-                if (allSegments.Count == 0)
-                    return 0;
-
-                var targetEnd = allSegments.Max(s => s.EndTime);
+                // Also consider audio file duration
+                double audioEnd = 0;
+                if (!string.IsNullOrWhiteSpace(project.AudioPath) && File.Exists(project.AudioPath))
+                {
+                    try
+                    {
+                        using var reader = new NAudio.Wave.AudioFileReader(project.AudioPath);
+                        audioEnd = reader.TotalTime.TotalSeconds;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Could not read audio duration for stretch calculation");
+                    }
+                }
+                var targetEnd = Math.Max(segmentEnd, audioEnd);
                 if (targetEnd <= 0)
                     return 0;
 
@@ -1326,26 +1337,7 @@ namespace PodcastVideoEditor.Core.Services
                     if (!ShouldAutoStretchToProjectDuration(track))
                         continue;
 
-                    var trackSegmentCount = track.Segments?.Count ?? 0;
-                    if (trackSegmentCount != 1)
-                    {
-                        Log.Warning(
-                            "StretchOverlaySkip: projectId={ProjectId} trackId={TrackId} role={TrackRole} span={SpanMode} segmentCount={SegmentCount}",
-                            projectId,
-                            track.Id,
-                            track.TrackRole,
-                            track.SpanMode,
-                            trackSegmentCount);
-                        continue;
-                    }
-
-                    var seg = track.Segments!.Single();
-                    if (Math.Abs(seg.EndTime - targetEnd) <= 0.01)
-                        continue;
-
-                    seg.StartTime = 0;
-                    seg.EndTime = targetEnd;
-                    changed++;
+                    changed += ApplyProjectDurationStretch(track, targetEnd);
                 }
 
                 if (changed > 0)
@@ -1363,6 +1355,59 @@ namespace PodcastVideoEditor.Core.Services
                 Log.Error(ex, "Error stretching dynamic overlays for project {ProjectId}", projectId);
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Compute the project end time from tracks that are NOT in <see cref="TrackSpanModes.ProjectDuration"/> mode.
+        /// Uses explicit SpanMode check only (no legacy heuristic) so the filtering is consistent
+        /// with the stretching logic that also only checks SpanMode.
+        /// </summary>
+        public static double ComputeNonStretchedProjectEnd(IEnumerable<Track> tracks)
+        {
+            return tracks
+                .Where(t => !string.Equals(t.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                .Where(s => s.EndTime > 0)
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0)
+                .Max();
+        }
+
+        /// <summary>
+        /// Apply project_duration stretch to a single track's segments.
+        /// For 1 segment: start→0, end→targetEnd.
+        /// For N segments: first segment start→0, last segment end→targetEnd.
+        /// Returns the number of segments actually modified.
+        /// </summary>
+        public static int ApplyProjectDurationStretch(Track track, double targetEnd)
+        {
+            var segments = (track.Segments ?? Enumerable.Empty<Segment>())
+                .Where(s => s.EndTime > s.StartTime)
+                .OrderBy(s => s.StartTime)
+                .ToList();
+
+            if (segments.Count == 0 || targetEnd <= 0)
+                return 0;
+
+            int changed = 0;
+
+            // Stretch first segment's start to 0
+            var first = segments[0];
+            if (first.StartTime > 0.001)
+            {
+                first.StartTime = 0;
+                changed++;
+            }
+
+            // Stretch last segment's end to targetEnd
+            var last = segments[^1];
+            if (Math.Abs(last.EndTime - targetEnd) > 0.01)
+            {
+                last.EndTime = targetEnd;
+                changed++;
+            }
+
+            return changed > 0 ? 1 : 0; // Count as 1 track changed
         }
 
         private static bool IsDynamicOverlayTrack(Track track)
@@ -1394,12 +1439,33 @@ namespace PodcastVideoEditor.Core.Services
 
         private static bool ShouldAutoStretchToProjectDuration(Track track)
         {
-            // New policy path: explicit span mode from track metadata.
-            if (string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
-                return true;
+            // Single criterion: explicit span mode from track metadata.
+            // Legacy heuristic (IsDynamicOverlayTrack) is used only for auto-upgrade
+            // in MigrateLegacyDynamicOverlays, not for runtime stretch decisions.
+            return string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase);
+        }
 
-            // Legacy compatibility path.
-            return IsDynamicOverlayTrack(track);
+        /// <summary>
+        /// One-time migration: detect legacy dynamic overlay tracks (by name/lock heuristic)
+        /// and upgrade their SpanMode to <see cref="TrackSpanModes.ProjectDuration"/>.
+        /// Call during project load or template use for backward compatibility.
+        /// </summary>
+        public static int MigrateLegacyDynamicOverlays(IEnumerable<Track> tracks)
+        {
+            int migrated = 0;
+            foreach (var track in tracks)
+            {
+                if (string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                    continue; // Already correct
+                if (!IsDynamicOverlayTrack(track))
+                    continue;
+
+                track.SpanMode = TrackSpanModes.ProjectDuration;
+                migrated++;
+                Log.Information("MigrateLegacyDynamicOverlay: track '{Name}' ({Id}) upgraded to project_duration",
+                    track.Name, track.Id);
+            }
+            return migrated;
         }
 
         private static string NormalizeTrackRole(string? role, string? trackType)

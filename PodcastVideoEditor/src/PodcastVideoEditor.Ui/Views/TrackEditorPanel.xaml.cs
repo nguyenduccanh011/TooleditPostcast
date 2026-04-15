@@ -209,6 +209,7 @@ public partial class TrackEditorPanel : UserControl
 
         _viewModel.SelectedTrack.SpanMode = NormalizeSpanMode(span);
         TrackPolicyHintText.Text = BuildPolicyHint(_viewModel.SelectedTrack);
+        _viewModel.ApplyProjectDurationSpanMode();
         _viewModel.RequestProjectSave();
     }
 

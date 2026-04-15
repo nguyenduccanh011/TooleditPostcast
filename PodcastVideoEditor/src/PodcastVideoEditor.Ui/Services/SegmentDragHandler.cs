@@ -111,7 +111,12 @@ internal sealed class SegmentDragHandler : ISegmentDragHandler
         // A simple click fires DragStarted+DragCompleted without movement — skip to
         // avoid an unnecessary PPS recalculation that can cause a visible zoom jump.
         if (hadActualChange)
+        {
+            // Stretch project_duration tracks FIRST (adjusts their EndTime),
+            // then recalculate TotalDuration so timeline range reflects the final state.
+            _vm.ApplyProjectDurationSpanMode();
             _vm.RecalculateDurationFromSegments();
+        }
         return finalAction;
     }
 

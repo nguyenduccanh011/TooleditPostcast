@@ -231,6 +231,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 (System.Collections.ObjectModel.ObservableCollection<Segment>)track.Segments,
                 segment, InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
             StatusMessage = successMessage ?? "Segment added";
+            ApplyProjectDurationSpanMode();
             return true;
         }
 
@@ -581,6 +582,55 @@ namespace PodcastVideoEditor.Ui.ViewModels
             return Math.Max(30.0, Math.Max(trackMax, audioMax));
         }
 
+        // ── Project-duration span mode (real-time stretch) ───────────────────────
+
+        /// <summary>
+        /// Apply project_duration span mode stretching to all applicable tracks in memory.
+        /// Computes project end from non-project_duration tracks (+ audio length) to avoid
+        /// circular references, then stretches first/last segments of project_duration tracks.
+        /// Call after any segment timing change, add, delete, or span mode change.
+        /// </summary>
+        public void ApplyProjectDurationSpanMode()
+        {
+            if (Tracks == null || Tracks.Count == 0)
+                return;
+
+            // Compute target end from non-stretched tracks only (explicit SpanMode check only, no legacy heuristic)
+            double targetEnd = Tracks
+                .Where(t => !string.Equals(t.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                .Where(s => s.EndTime > 0)
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            // Also consider audio duration (cached from audio service, no file I/O)
+            double audioMax = _audioService.GetDuration();
+            targetEnd = Math.Max(targetEnd, audioMax);
+
+            if (targetEnd <= 0)
+                return;
+
+            int changed = 0;
+            foreach (var track in Tracks)
+            {
+                if (!string.Equals(track.SpanMode, TrackSpanModes.ProjectDuration, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                changed += ProjectService.ApplyProjectDurationStretch(track, targetEnd);
+            }
+
+            if (changed > 0)
+            {
+                InvalidateActiveSegmentsCache();
+                // Recalculate TotalDuration so timeline range shrinks/grows to match
+                RecalculateDurationFromSegments();
+                Log.Debug("ApplyProjectDurationSpanMode: stretched {Count} track(s) to {End:F2}s (segMax={SegMax:F2}, audioMax={AudioMax:F2})",
+                    changed, targetEnd,
+                    targetEnd - Math.Max(0, audioMax - targetEnd), audioMax);
+            }
+        }
+
         // ── Segment clear / delete / remove ─────────────────────────────────────
 
         /// <summary>
@@ -606,6 +656,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 int count = SelectedTrack.Segments.Count;
                 SelectedTrack.Segments.Clear();
                 SelectedSegment = null;
+                ApplyProjectDurationSpanMode();
                 StatusMessage = $"Cleared {count} segment(s) from {SelectedTrack.Name}";
                 Log.Information("Cleared all segments from track {TrackId}: {Count}", SelectedTrack.Id, count);
             }
@@ -653,6 +704,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     if (actions.Count > 0)
                         _undoRedo?.Record(new CompoundAction($"Delete {actions.Count} segment(s)", actions));
                     InvalidateActiveSegmentsCache();
+                    ApplyProjectDurationSpanMode();
                     StatusMessage = skipped > 0
                         ? $"{toDelete.Count} segment(s) deleted ({skipped} skipped — locked)"
                         : $"{toDelete.Count} segment(s) deleted";
@@ -680,6 +732,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 _undoRedo?.Record(new SegmentDeletedAction(
                     deletedTrackSegs, deletedSeg, deletedIndex,
                     InvalidateActiveSegmentsCache, seg => { if (seg != null) SelectSegment(seg); else { SelectedSegment = null; } }));
+                ApplyProjectDurationSpanMode();
                 StatusMessage = "Segment deleted";
                 Log.Information("Segment deleted from track {TrackId}", SelectedTrack.Id);
             }

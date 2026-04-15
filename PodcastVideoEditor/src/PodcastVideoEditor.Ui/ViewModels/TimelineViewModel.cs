@@ -271,6 +271,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
                 // Push PixelsPerSecond to all segments for binding-based layout
                 BroadcastPixelsPerSecond();
+
+                // Migrate legacy dynamic overlay tracks (logo/icon by name) to explicit SpanMode
+                var migrated = ProjectService.MigrateLegacyDynamicOverlays(Tracks);
+                if (migrated > 0)
+                    RequestProjectSave();
+
+                // Apply project_duration span mode stretching after load
+                ApplyProjectDurationSpanMode();
             }
             catch (Exception ex)
             {
