@@ -156,6 +156,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             RebuildSegmentSubscriptions();
 
+            // Invalidate the time-based segment cache so that the upcoming UpdateActivePreview
+            // call queries all currently-loaded tracks instead of hitting a stale cache entry.
+            // Without this, when LoadTracksFromProject adds tracks one-by-one, each Tracks.Add
+            // call fires this handler and GetActiveSegmentsAtTime(0) returns the stale result
+            // from the previous Add, causing preview elements to be missing until the user
+            // moves the playhead to a different position.
+            _timelineViewModel?.InvalidateActiveSegmentsCachePublic();
+
             UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
         }
 
