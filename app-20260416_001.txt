@@ -1,0 +1,886 @@
+[2026-04-16 13:22:07.206 +07:00] [INF] Application started - AppDataPath: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-16 13:22:07.233 +07:00] [INF] === Application Startup ===
+[2026-04-16 13:22:07.250 +07:00] [INF] GPU Rendering: Hardware, Tier: 2
+[2026-04-16 13:22:07.251 +07:00] [INF] App Data Path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-16 13:22:08.111 +07:00] [INF] Database migration applied successfully
+[2026-04-16 13:22:08.197 +07:00] [INF] Library database initialized at Data Source=C:\Users\admin\AppData\Roaming\PodcastVideoEditor\library.db
+[2026-04-16 13:22:08.458 +07:00] [INF] AudioService initialized with 50ms latency, 3 buffers
+[2026-04-16 13:22:08.471 +07:00] [INF] VisualizerService initialized with 32 bands, style: "Bars"
+[2026-04-16 13:22:08.476 +07:00] [INF] VisualizerViewModel initialized
+[2026-04-16 13:22:08.494 +07:00] [INF] AudioPlayerViewModel initialized
+[2026-04-16 13:22:08.534 +07:00] [INF] MainWindow constructor starting
+[2026-04-16 13:22:08.788 +07:00] [INF] MainWindow initialized
+[2026-04-16 13:22:09.077 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:09.077 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:09.117 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-16 13:22:09.187 +07:00] [INF] FFmpeg initialized from bundled tools: C:\Users\admin\AppData\Local\Programs\PodcastVideoEditor\tools\ffmpeg\ffmpeg.exe
+[2026-04-16 13:22:10.433 +07:00] [INF] HEVC GPU encoder 'hevc_qsv' validated successfully.
+[2026-04-16 13:22:10.434 +07:00] [INF] Preferred encoders: H264=h264_qsv, HEVC=hevc_qsv
+[2026-04-16 13:22:10.608 +07:00] [INF] GPU filter backend: QSV (Intel) listed but validation failed (driver issue?)
+[2026-04-16 13:22:10.907 +07:00] [INF] GPU filter backend: Vulkan (cross-vendor) — scale_vulkan + overlay_vulkan
+[2026-04-16 13:22:13.881 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:13.954 +07:00] [INF] Auto-created TextOverlayElement for text segment 121e489f-dbd6-443d-8c5a-16f561053a73
+[2026-04-16 13:22:14.012 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:14.012 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:14.035 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:14.096 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:14.096 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:14.703 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:14.704 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:14.766 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:14.768 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:14.769 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:14.769 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:16.160 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:16.161 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:16.233 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:16.235 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:16.235 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:16.235 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:16.566 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:16.567 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:16.661 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:22:16.662 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:22:16.663 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:16.663 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:22:18.079 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:19.016 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:19.143 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:19.551 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:22:19.551 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:24:55.122 +07:00] [INF] Project updated: 3e353c00-f92d-4010-8857-6b9d597d51d4
+[2026-04-16 13:24:55.211 +07:00] [INF] Replaced elements for project 3e353c00-f92d-4010-8857-6b9d597d51d4: 1 elements
+[2026-04-16 13:24:55.212 +07:00] [INF] Canvas elements saved: 1 for project 3e353c00-f92d-4010-8857-6b9d597d51d4
+[2026-04-16 13:24:55.212 +07:00] [INF] Project saved: 3e353c00-f92d-4010-8857-6b9d597d51d4
+[2026-04-16 13:24:55.216 +07:00] [INF] ThumbnailPreGen: Stopped
+[2026-04-16 13:24:55.218 +07:00] [INF] AudioService disposed
+[2026-04-16 13:24:55.230 +07:00] [INF] === Application Exit ===
+[2026-04-16 13:24:55.230 +07:00] [INF] AudioService disposed
+[2026-04-16 13:24:55.230 +07:00] [INF] AudioService disposed
+[2026-04-16 13:24:55.231 +07:00] [INF] Visualizer stopped
+[2026-04-16 13:24:55.234 +07:00] [INF] VisualizerService disposed
+[2026-04-16 13:24:55.234 +07:00] [INF] VisualizerViewModel disposed
+[2026-04-16 13:24:55.234 +07:00] [INF] AudioService disposed
+[2026-04-16 13:24:55.234 +07:00] [INF] AudioService disposed
+[2026-04-16 13:26:28.248 +07:00] [INF] Application started - AppDataPath: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-16 13:26:28.276 +07:00] [INF] === Application Startup ===
+[2026-04-16 13:26:28.294 +07:00] [INF] GPU Rendering: Hardware, Tier: 2
+[2026-04-16 13:26:28.295 +07:00] [INF] App Data Path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor
+[2026-04-16 13:26:29.656 +07:00] [INF] Database migration applied successfully
+[2026-04-16 13:26:29.761 +07:00] [INF] Library database initialized at Data Source=C:\Users\admin\AppData\Roaming\PodcastVideoEditor\library.db
+[2026-04-16 13:26:30.133 +07:00] [INF] AudioService initialized with 50ms latency, 3 buffers
+[2026-04-16 13:26:30.234 +07:00] [INF] VisualizerService initialized with 32 bands, style: "Bars"
+[2026-04-16 13:26:30.239 +07:00] [INF] VisualizerViewModel initialized
+[2026-04-16 13:26:30.295 +07:00] [INF] AudioPlayerViewModel initialized
+[2026-04-16 13:26:30.336 +07:00] [INF] MainWindow constructor starting
+[2026-04-16 13:26:30.670 +07:00] [INF] MainWindow initialized
+[2026-04-16 13:26:30.974 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:30.974 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:31.494 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-16 13:26:31.637 +07:00] [INF] FFmpeg initialized from bundled tools: C:\Users\admin\AppData\Local\Programs\PodcastVideoEditor\tools\ffmpeg\ffmpeg.exe
+[2026-04-16 13:26:32.769 +07:00] [INF] HEVC GPU encoder 'hevc_qsv' validated successfully.
+[2026-04-16 13:26:32.770 +07:00] [INF] Preferred encoders: H264=h264_qsv, HEVC=hevc_qsv
+[2026-04-16 13:26:32.931 +07:00] [INF] GPU backend [qsv(d3d11va-child)] validation FAILED: exit_code=-1313558101 | stderr=[AVHWFramesContext @ 000002003dbca6c0] Could not create the texture (80070057)
+[AVHWFramesContext @ 000002003dbc9ac0] Error initializing a child frames context
+[AVHWFramesContext @ 000002003dbc9ac0] Error creating an internal frame pool
+[Parsed_hwupload_1 @ 000002003dc99a00] Failed to configure output pad on Parsed_hwupload_1
+[vf#0:0 @ 000002003dcb4000] Error reinitializing filters!
+[vf#0:0 @ 000002003dcb4000] Task finished with error code: -1313558101 (Unknown error occurred)
+[vf#0:0 @ 00
+[2026-04-16 13:26:33.070 +07:00] [INF] GPU backend [qsv(child_device_type)] validation FAILED: exit_code=-1313558101 | stderr=[AVHWFramesContext @ 0000019c592a9200] Could not create the texture (80070057)
+[AVHWFramesContext @ 0000019c592a9140] Error initializing a child frames context
+[AVHWFramesContext @ 0000019c592a9140] Error creating an internal frame pool
+[Parsed_hwupload_1 @ 0000019c592b9280] Failed to configure output pad on Parsed_hwupload_1
+[vf#0:0 @ 0000019c592c2f40] Error reinitializing filters!
+[vf#0:0 @ 0000019c592c2f40] Task finished with error code: -1313558101 (Unknown error occurred)
+[vf#0:0 @ 00
+[2026-04-16 13:26:33.223 +07:00] [INF] GPU backend [qsv(direct)] validation FAILED: exit_code=-1313558101 | stderr=[AVHWFramesContext @ 00000215da190d80] Could not create the texture (80070057)
+[AVHWFramesContext @ 00000215da190c00] Error initializing a child frames context
+[AVHWFramesContext @ 00000215da190c00] Error creating an internal frame pool
+[Parsed_hwupload_1 @ 00000215da176240] Failed to configure output pad on Parsed_hwupload_1
+[vf#0:0 @ 00000215da165040] Error reinitializing filters!
+[vf#0:0 @ 00000215da165040] Task finished with error code: -1313558101 (Unknown error occurred)
+[vf#0:0 @ 00
+[2026-04-16 13:26:33.223 +07:00] [INF] GPU filter backend: QSV (Intel) filters found but validation FAILED — likely driver issue
+[2026-04-16 13:26:33.596 +07:00] [INF] GPU backend [vulkan] validation PASSED
+[2026-04-16 13:26:33.596 +07:00] [INF] GPU filter backend SELECTED: Vulkan (cross-vendor) — scale_vulkan + overlay_vulkan
+[2026-04-16 13:26:34.497 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:39.835 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:39.835 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:42.060 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:42.060 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:42.122 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:26:42.153 +07:00] [INF] Auto-created TextOverlayElement for text segment 121e489f-dbd6-443d-8c5a-16f561053a73
+[2026-04-16 13:26:42.186 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:42.186 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:42.206 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:26:42.235 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:42.235 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:42.493 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:26:42.493 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:26:42.540 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:26:42.540 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:26:42.541 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:42.541 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:26:44.746 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:26:44.747 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:26:44.800 +07:00] [INF] Project selected: 15-04 Cổ Phiếu Trụ Kéo Thị Trường
+[2026-04-16 13:26:44.800 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:26:44.800 +07:00] [INF] Loaded 10 project(s)
+[2026-04-16 13:26:44.800 +07:00] [INF] Projects loaded: 10
+[2026-04-16 13:28:20.389 +07:00] [INF] TemplateUseStart: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c projectName=IPO Điện Máy Xanh - Mở Khóa MWG hasAudio=true
+[2026-04-16 13:28:20.708 +07:00] [INF] TemplateUseSnapshot: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c tracks=7 segments=4 elements=4
+[2026-04-16 13:28:20.770 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-16 13:28:20.773 +07:00] [INF] TemplateUseTrackSnapshot: type=effect roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-16 13:28:20.773 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-16 13:28:20.806 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: a8a1e9ae-8bd9-47a7-ad11-325c9999f3c0 (player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca.png)
+[2026-04-16 13:28:20.807 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=unspecified role=unspecified spanRaw=project_duration span=project_duration segmentCount=1
+[2026-04-16 13:28:20.810 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 246084ec-6e82-4ce1-ba50-d21c0cd332d1 (sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5.png)
+[2026-04-16 13:28:20.810 +07:00] [INF] TemplateUseTrackSnapshot: type=visual roleRaw=ai_content role=ai_content spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-16 13:28:20.810 +07:00] [INF] TemplateUseTrackSnapshot: type=text roleRaw=script_text role=script_text spanRaw=project_duration span=project_duration segmentCount=0
+[2026-04-16 13:28:20.810 +07:00] [INF] TemplateUseTrackSnapshot: type=audio roleRaw=unspecified role=unspecified spanRaw=segment_bound span=segment_bound segmentCount=0
+[2026-04-16 13:28:20.896 +07:00] [INF] TemplateUsePersisted: projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e tracks=7 segments=4 elements=4 importedMedia=2
+[2026-04-16 13:28:21.655 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 650cc4c6-0839-41b0-9a3a-7c8403a290ba (IPO Điện Máy Xanh - Mở Khóa MWG.m4a)
+[2026-04-16 13:28:21.664 +07:00] [INF] Primary audio attached to project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:21.664 +07:00] [INF] TemplateUseAudioAttached: projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e audioPath=C:\Users\admin\Desktop\IPO Điện Máy Xanh - Mở Khóa MWG.m4a
+[2026-04-16 13:28:21.713 +07:00] [WRN] StretchOverlaySkip: projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e trackId=1fc98ee6-58bf-49a9-8189-24cb416ace35 role=script_text span=project_duration segmentCount=0
+[2026-04-16 13:28:21.717 +07:00] [INF] Stretched 4 dynamic overlay track(s) to 266.890s for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:21.717 +07:00] [INF] TemplateUseStretchApplied: projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e changedTracks=4
+[2026-04-16 13:28:21.717 +07:00] [INF] TemplateUseComplete: templateId=0c93158c-4374-4baf-8bf6-864493f0a58c projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:21.718 +07:00] [INF] Project selected: IPO Điện Máy Xanh - Mở Khóa MWG
+[2026-04-16 13:28:21.719 +07:00] [INF] Auto-created TextOverlayElement for text segment 9d1235f3-5c72-4de5-bae7-f95cabe9ac71
+[2026-04-16 13:28:21.719 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:28:21.719 +07:00] [INF] Projects loaded: 11
+[2026-04-16 13:28:21.738 +07:00] [INF] LoadElementsFromProject: loaded 4 elements (2 image, 1 text) from DB
+[2026-04-16 13:28:21.742 +07:00] [INF] VisualizerService config updated
+[2026-04-16 13:28:21.745 +07:00] [INF] Visualizer started (800x300)
+[2026-04-16 13:28:21.745 +07:00] [INF] VisualizerViewModel initialized (800x300)
+[2026-04-16 13:28:21.746 +07:00] [INF] Canvas elements loaded: 4 from project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:21.746 +07:00] [INF] Project created from template: IPO Điện Máy Xanh - Mở Khóa MWG (0c93158c-4374-4baf-8bf6-864493f0a58c)
+[2026-04-16 13:28:21.829 +07:00] [INF] [AI-PIPELINE] ▶ START — project=037e93a2-499e-4a5f-b690-a0a67c4b676e transcriptLines=108 audioDuration=271.9s
+[2026-04-16 13:28:21.831 +07:00] [INF] [AI-HEALTH] Starting health check for 4 models...
+[2026-04-16 13:28:22.696 +07:00] [INF] Pre-decode: M4A converted to WAV in 948 ms: C:\Users\admin\AppData\Local\Temp\PodcastVideoEditor\AudioCache\audio-cache-34bcc664aed565fd8e66add6c20dfe0bc16dc66ef5e2a43413757cc4a9ad7ff0.wav
+[2026-04-16 13:28:22.743 +07:00] [INF] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✔ HTTP 200 in 0.9s (593 chars)
+[2026-04-16 13:28:22.748 +07:00] [INF] [AI-HEALTH] ✔ gpt-4.1-mini-2025-04-14 — healthy
+[2026-04-16 13:28:23.446 +07:00] [INF] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✔ HTTP 200 in 1.6s (809 chars)
+[2026-04-16 13:28:23.447 +07:00] [INF] [AI-HEALTH] ✔ gpt-4.1-nano-2025-04-14 — healthy
+[2026-04-16 13:28:23.889 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:23.928 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4 elements
+[2026-04-16 13:28:23.928 +07:00] [INF] Canvas elements saved: 4 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:23.928 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:36.848 +07:00] [WRN] [AI-HEALTH] Model gemini-2.5-flash-lite-nothinking marked dead — will skip for 5m
+[2026-04-16 13:28:36.848 +07:00] [WRN] [AI-HEALTH] ✘ gemini-2.5-flash-lite-nothinking — The operation was canceled.
+[2026-04-16 13:28:36.857 +07:00] [WRN] [AI-HEALTH] Model gemini-2.5-flash-lite-thinking marked dead — will skip for 5m
+[2026-04-16 13:28:36.857 +07:00] [WRN] [AI-HEALTH] ✘ gemini-2.5-flash-lite-thinking — The operation was canceled.
+[2026-04-16 13:28:36.865 +07:00] [INF] [AI-HEALTH] Health check complete: 2/4 models healthy
+[2026-04-16 13:28:36.881 +07:00] [INF] [AI-ANALYZE] model=gemini-2.5-flash-lite-nothinking chunks=2 inputSegments=108
+[2026-04-16 13:28:36.918 +07:00] [INF] [AI-ANALYZE] chunk 1/2 → sending (1788 tokens, timeout=98s)
+[2026-04-16 13:28:36.943 +07:00] [INF] [AI-ANALYZE] chunk 2/2 → sending (390 tokens, timeout=91s)
+[2026-04-16 13:28:38.885 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:38.889 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4 elements
+[2026-04-16 13:28:38.889 +07:00] [INF] Canvas elements saved: 4 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:38.889 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:28:39.911 +07:00] [INF] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✔ HTTP 200 in 3.0s (2237 chars)
+[2026-04-16 13:28:39.916 +07:00] [INF] [AI-ANALYZE] chunk 2/2 ✔ — 1345 chars in 3.0s
+[2026-04-16 13:28:43.945 +07:00] [INF] [AI-HEDGE] Primary slow after 7s — hedging with gpt-4.1-nano-2025-04-14
+[2026-04-16 13:28:59.464 +07:00] [INF] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✔ HTTP 200 in 15.5s (7679 chars)
+[2026-04-16 13:28:59.465 +07:00] [INF] [AI-HEDGE] Hedge model gpt-4.1-nano-2025-04-14 beat primary gpt-4.1-mini-2025-04-14
+[2026-04-16 13:28:59.465 +07:00] [INF] [AI-ANALYZE] chunk 1/2 ✔ — 6701 chars in 22.6s
+[2026-04-16 13:28:59.500 +07:00] [INF] [AI-SPLIT] segment 193.7→225.5 (31.8s) split into 1 sub-segments
+[2026-04-16 13:28:59.503 +07:00] [INF] [AI-FILL] filled gap 55.6→58.4s (2.7s) with 1 segments
+[2026-04-16 13:28:59.503 +07:00] [INF] [AI-FILL] filled gap 112.1→114.3s (2.2s) with 1 segments
+[2026-04-16 13:28:59.503 +07:00] [INF] [AI-FILL] filled gap 264.0→266.3s (2.3s) with 1 segments
+[2026-04-16 13:28:59.503 +07:00] [INF] AI returned 28 scenes (post-processed from 23) from 108 transcript lines
+[2026-04-16 13:28:59.504 +07:00] [INF] [AI-PIPELINE] ✔ Step1/AnalyzeScript — scenes=28 fromLines=108 elapsed=22.6s
+[2026-04-16 13:28:59.513 +07:00] [INF] [AI-IMG] fetch candidates: 28 segments × 3 providers
+[2026-04-16 13:29:01.531 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:01.534 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4 elements
+[2026-04-16 13:29:01.534 +07:00] [INF] Canvas elements saved: 4 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:01.534 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:04.721 +07:00] [INF] [AI-IMG] fetch done in 5.2s — 351 candidates (231 unique), 0 segments with no candidates
+[2026-04-16 13:29:04.727 +07:00] [INF] [AI-IMGSEL] selecting images for 13 segments
+[2026-04-16 13:29:04.727 +07:00] [INF] [AI-IMGSEL] selecting images for 15 segments
+[2026-04-16 13:29:06.751 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:06.787 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4 elements
+[2026-04-16 13:29:06.787 +07:00] [INF] Canvas elements saved: 4 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:06.787 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:09.157 +07:00] [INF] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✔ HTTP 200 in 4.4s (2661 chars)
+[2026-04-16 13:29:09.164 +07:00] [INF] [AI-IMGSEL] ✔ got 13/13 selections in 4.4s
+[2026-04-16 13:29:11.733 +07:00] [INF] [AI-HEDGE] Primary slow after 7s — hedging with gpt-4.1-nano-2025-04-14
+[2026-04-16 13:29:15.986 +07:00] [INF] [AI-HTTP] gpt-4.1-nano-2025-04-14 ✔ HTTP 200 in 4.3s (2439 chars)
+[2026-04-16 13:29:15.986 +07:00] [INF] [AI-HEDGE] Hedge model gpt-4.1-nano-2025-04-14 beat primary gpt-4.1-mini-2025-04-14
+[2026-04-16 13:29:15.986 +07:00] [INF] [AI-IMGSEL] ✔ got 15/15 selections in 11.3s
+[2026-04-16 13:29:15.987 +07:00] [INF] [AI-IMG] initial selection in 11.3s — 28/28 segments selected
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 11 — replaced duplicate 'pexels:8919510' with 'pexels:9301833'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 12 — replaced duplicate 'pexels:8919510' with 'pexels:7876380'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 13 — replaced duplicate 'pexels:7947759' with 'pexels:5466250'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 21 — replaced duplicate 'pexels:31220025' with 'pexels:32830012'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 22 — replaced duplicate 'pexels:31220025' with 'pexels:31322486'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 23 — replaced duplicate 'pexels:35638638' with 'pexels:30572289'
+[2026-04-16 13:29:15.996 +07:00] [INF] [AI-IMG] dedup: segment 26 — replaced duplicate 'pexels:8919510' with 'pexels:8919515'
+[2026-04-16 13:29:15.997 +07:00] [INF] [AI-IMG] dedup: replaced 7 duplicate image(s)
+[2026-04-16 13:29:15.998 +07:00] [INF] [AI-PIPELINE] ✔ Step2/ImageSelect — selected=28/28 elapsed=16.5s
+[2026-04-16 13:29:16.344 +07:00] [INF] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✔ HTTP 200 in 11.6s (2846 chars)
+[2026-04-16 13:29:18.063 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:18.068 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4 elements
+[2026-04-16 13:29:18.068 +07:00] [INF] Canvas elements saved: 4 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:18.068 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:22.979 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: aa2dc629-586f-471d-bce2-6d13227f6412 (pve_pexels_29336324_5a0e09ed629744b4918d31fa6c45929e.jpg)
+[2026-04-16 13:29:22.982 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 73a32090-1968-44a0-abc4-d374455d5124 (pve_pexels_7172774_775e67942ee047e69cb4045d0dc637fc.jpg)
+[2026-04-16 13:29:23.001 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: da48ec26-505e-47e4-a9b1-329ebf1228a3 (pve_pexels_7109317_dc8f98eb657a4b9fa7c8cf88792baf8d.jpg)
+[2026-04-16 13:29:23.003 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: ce3c8ba5-8249-4377-8b69-911075e08b6d (pve_pexels_7567233_491877429faf4d8f847ea3dfdf566176.jpg)
+[2026-04-16 13:29:23.006 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: d525e7e7-ce6c-41e5-9c96-2515d945a844 (pve_pexels_7947759_0e64ed747b3145be9b94ae0264493d8a.jpg)
+[2026-04-16 13:29:23.008 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: bda7ebb8-8e0b-44e2-8e58-047b8ee074dd (pve_pexels_8919510_62696e0f7a374d9aa3ecae965ed13762.jpg)
+[2026-04-16 13:29:23.011 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: dd12bc27-8828-4d5c-ad3f-50a64a5aa6be (pve_pexels_7111579_a1450a605b6f4eb98e43b781eda1f993.jpg)
+[2026-04-16 13:29:23.013 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 94f8d4da-3196-4cd8-a7e8-7edb6fff07c2 (pve_pexels_7947700_fa1a61975ffa4b959f0e57ff663c96b3.jpg)
+[2026-04-16 13:29:23.016 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 8c27c616-26c3-4362-8300-7f70aaf98164 (pve_pexels_6266776_9614cb01212f477dbc37d4161dbedc7a.jpg)
+[2026-04-16 13:29:23.018 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: c09e3c7c-2dbf-4cd2-92dc-c0d9e383679b (pve_pexels_6120249_936d37396a1148da82f2e0b254544068.jpg)
+[2026-04-16 13:29:23.021 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: cb4afbc4-f453-439f-8e34-9f20d849b82d (pve_pexels_6120177_aac94a7aec284b61968b7b7a31219e52.jpg)
+[2026-04-16 13:29:23.023 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 877b257b-392e-473f-8944-a3cc86fa2a3a (pve_pexels_9301833_1faebc20c9254be4955cb2b5d3288014.jpg)
+[2026-04-16 13:29:23.025 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: d517c895-5249-4253-aa77-b9edf3b3a476 (pve_pexels_7876380_2005e270b95042f992abdfda26dcd4dd.jpg)
+[2026-04-16 13:29:23.028 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: c29aaabb-0e7d-4d1f-b13b-090c2278c2c5 (pve_pexels_5466250_70be5239fe9c47a2aa33398217e6bee9.jpg)
+[2026-04-16 13:29:23.030 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: d2db54d2-8f43-44d0-9767-06334b7fbccd (pve_pexels_35638638_611df8163191418ea127d781cd41f339.jpg)
+[2026-04-16 13:29:23.032 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: df9c46a8-c3d0-4e86-aae0-c730e9d19840 (pve_pexels_6956318_2ec5ea85f02b49a299a734bc7f185ccf.jpg)
+[2026-04-16 13:29:23.034 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 9e31328f-a9d3-4c2b-907b-b3bf2f684eb8 (pve_pexels_5947553_8983422b267b4fc18c981f3defcdec6b.jpg)
+[2026-04-16 13:29:23.037 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 25d82de0-c8f0-4552-98d1-255c7172be99 (pve_pexels_7948058_ab6fdd5205b24879bb8b0d51206b4175.jpg)
+[2026-04-16 13:29:23.039 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 70d459c5-7c2c-42cd-8223-5a03bf0e8a91 (pve_pexels_34700508_fe5463a202ac40afb55ad4a3c3893593.jpg)
+[2026-04-16 13:29:23.041 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 134c1530-015b-4eed-8cd4-62d10ced34f8 (pve_pexels_8470841_3d023bf0fa4e4a3fbf2f6afad236a3e5.jpg)
+[2026-04-16 13:29:23.043 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 13311b96-4e3c-4fc2-ac88-37c854accfad (pve_pexels_31220025_895fb0f82cc94ee6bf4094b135b7a320.jpg)
+[2026-04-16 13:29:23.045 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: db7127b5-2727-4318-b88a-91179ca78d51 (pve_pexels_32830012_3c71560c663e4790a1819301d35059d7.jpg)
+[2026-04-16 13:29:23.047 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: bbd671d1-712b-4c6c-ad06-4cfa60694e90 (pve_pexels_31322486_a3bf5afb80484a51ad5535edbea1cbea.jpg)
+[2026-04-16 13:29:23.050 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 8d18542e-46dd-425a-a080-ffcaa41a8f83 (pve_pexels_30572289_b0992e80abf44cdb8e36f81a613e09cb.jpg)
+[2026-04-16 13:29:23.052 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 0b95494e-bf42-4761-a7a7-f69051ede263 (pve_pexels_5942602_0651ae9bf19f482a9d6703e80b09d54f.jpg)
+[2026-04-16 13:29:23.054 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 335d5da1-f132-49b0-9286-b7cb42d8477a (pve_pexels_6120222_699d5384ca154e0db1d27aace560793b.jpg)
+[2026-04-16 13:29:23.057 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 7f12d276-4843-4a6b-8f52-baeba29a6d61 (pve_pexels_8919515_773030905da3490a8d844c33ea1bce74.jpg)
+[2026-04-16 13:29:23.059 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 2ea34f99-69b4-4f71-9cb8-20bba0da36eb (pve_pexels_7564189_2b70d762910342fe93f38a77ac7b3b01.jpg)
+[2026-04-16 13:29:23.061 +07:00] [INF] [AI-PIPELINE] ✔ Step3/DownloadImages — downloaded=28/28 elapsed=7.1s
+[2026-04-16 13:29:23.062 +07:00] [INF] [AI-PIPELINE] ■ DONE — segments=108 images=28 total=61.2s  (analyze=22.6s  imageSelect=16.5s  download=7.1s)
+[2026-04-16 13:29:23.100 +07:00] [INF] Replaced segments for track 1fc98ee6-58bf-49a9-8189-24cb416ace35: 108 segments
+[2026-04-16 13:29:23.103 +07:00] [INF] Project selected: IPO Điện Máy Xanh - Mở Khóa MWG
+[2026-04-16 13:29:23.104 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:29:23.116 +07:00] [INF] Found existing AI content track c7ff2272-6668-446d-9d46-7abcd52e3fca for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:23.116 +07:00] [INF] Project selected: IPO Điện Máy Xanh - Mở Khóa MWG
+[2026-04-16 13:29:23.116 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:29:23.125 +07:00] [INF] Replaced segments for track c7ff2272-6668-446d-9d46-7abcd52e3fca: 28 segments
+[2026-04-16 13:29:23.132 +07:00] [INF] Project selected: IPO Điện Máy Xanh - Mở Khóa MWG
+[2026-04-16 13:29:23.133 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:29:23.306 +07:00] [WRN] StretchOverlaySkip: projectId=037e93a2-499e-4a5f-b690-a0a67c4b676e trackId=1fc98ee6-58bf-49a9-8189-24cb416ace35 role=script_text span=project_duration segmentCount=108
+[2026-04-16 13:29:23.399 +07:00] [INF] Tracks loaded: 7
+[2026-04-16 13:29:23.402 +07:00] [INF] Auto-created TextOverlayElement for text segment b43f026b-b60f-43c0-8807-ab17427ee4e6
+[2026-04-16 13:29:23.402 +07:00] [INF] Auto-created TextOverlayElement for text segment 0785695b-b7e0-4230-a51d-33807459bfc1
+[2026-04-16 13:29:23.402 +07:00] [INF] Auto-created TextOverlayElement for text segment 6c049d4e-63a4-4271-badf-116ff4b3e57a
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment 5b718a71-ed3d-4395-8e04-5504e3552d4e
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment 07145399-6699-4226-83dc-0803ddffea1e
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment bbb5d3e5-cce7-4eff-9c0d-f65d2c4507e3
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment fa5944de-78ff-441d-b886-72fb3aca0522
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment f384b862-a049-4dba-b303-c16fd72fcc24
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment 78357aa1-c385-48d8-8095-cf688e24ea02
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment 8edacf65-0f52-4e87-955f-7581a862ae15
+[2026-04-16 13:29:23.403 +07:00] [INF] Auto-created TextOverlayElement for text segment d2f34800-dd9b-48af-b9bb-389f2ee88703
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 36764959-634e-49f9-a982-70e309670bef
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment f562e665-b310-429c-bfda-190c80683a6c
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment cbf7b511-075a-4600-b80a-fdaf52847890
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment fa56ed98-ad1e-4993-8ef4-7dd76dd94273
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 1e958754-1102-4474-95b2-c34751a7aa8e
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment c05718c9-c1a9-4952-81cf-20c8868781ae
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 4c7edd31-0469-4524-9833-0da634467833
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 9afc2f24-b789-4d7c-85c0-4a0fba221c18
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 43cb1d2c-4ead-4505-b018-58331926adfd
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 01e27256-c46b-40ed-815c-8d81b84a96ea
+[2026-04-16 13:29:23.404 +07:00] [INF] Auto-created TextOverlayElement for text segment 543321a0-0ee4-4789-b46c-0f94491fff85
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment a44f5b3c-d8ba-4fbf-ba92-5acda028272f
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment aa97d438-1ee1-4c75-b80a-60f964e41ba5
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 2d9a6b10-203e-48bc-a3b3-15a1f9eea3b2
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 7dcb7a61-5f17-4afb-9b22-4a164b91b032
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 79e61084-62ff-440e-8c27-35734b321ea1
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 603c6eb0-69ef-4604-9cb7-1f12a0a6fa61
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment b3113801-69a8-4ace-8a58-a850725fec22
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 96ea6bd3-0b5a-4051-936d-ed4e5f306ed7
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment 1d15a7ca-a6c2-4815-bc0a-0edf55948658
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment d6174ec4-5d54-40c3-9446-bc94a6bad08b
+[2026-04-16 13:29:23.405 +07:00] [INF] Auto-created TextOverlayElement for text segment b9a00d2a-3f60-414f-ab81-be5c75ee2ab4
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 101dc45f-1d7b-4b71-87c2-ce6b9f603891
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 39171e83-9ad8-4298-987f-ca81821131fa
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment f35b61e8-54ea-4d1c-9338-ae6c014d79e1
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 7a7e93e1-a96c-4658-920d-6c07bf99258e
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 983e27af-70ca-4297-afd4-a6d64f4d6e53
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment bdc07831-c28f-4134-94b0-59d23f584b2b
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment ca7ccca6-6497-47d2-a93f-315fee04fb14
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 211da579-66b9-491a-a11e-a3112703ca56
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment efd3a60d-e257-4dca-bac5-63d7c21b7380
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 921bddfd-7d1e-430a-8311-d9f2c400e061
+[2026-04-16 13:29:23.406 +07:00] [INF] Auto-created TextOverlayElement for text segment 6918005a-7ee5-40fe-8d83-7f8f6f67d933
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 2d74b8e7-9d83-4bc4-8b10-4f2185106f4e
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment ab62b68b-2969-4a13-88e4-1be559ea8fb2
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 097cb8b6-0bc0-4f49-a55c-eab605933734
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 11f66e96-22fb-4718-9aaa-8ee2f83f1155
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 29ba812c-0f97-45a8-a86f-d2dab99d8b2e
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 7e49c1bb-1c59-4660-9011-ea70b49eb183
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 6fc0a92a-a7ec-4796-8d04-ee7bd7bce0fd
+[2026-04-16 13:29:23.407 +07:00] [INF] Auto-created TextOverlayElement for text segment 78918cd7-bfa2-4133-802d-5dc7c9e153c3
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment 0b4f0539-02cb-4449-a4f5-9e83cfb34605
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment 38dad7fd-7425-4224-8406-ef2222941532
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment d0a4e98c-73e2-4c3a-8504-e3dc4039499c
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment f21b57fa-105f-45cf-8181-e4ff1e7b79bd
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment 8a6dd0a9-c107-4bef-9779-fb3c91c38b96
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment 773ac9d4-ff26-4a99-b410-4f5e2e97b3a0
+[2026-04-16 13:29:23.408 +07:00] [INF] Auto-created TextOverlayElement for text segment aa11a08e-1b08-43c7-8a27-16d6eb04e1e9
+[2026-04-16 13:29:23.409 +07:00] [INF] Auto-created TextOverlayElement for text segment 731d22ef-7a64-4eef-a3ee-08fa6529a34d
+[2026-04-16 13:29:23.409 +07:00] [INF] Auto-created TextOverlayElement for text segment b641cbd5-a756-4e64-bde2-83fa9645d6fd
+[2026-04-16 13:29:23.409 +07:00] [INF] Auto-created TextOverlayElement for text segment c557392d-fa64-4e60-9cb6-b2c36d2fab51
+[2026-04-16 13:29:23.409 +07:00] [INF] Auto-created TextOverlayElement for text segment 26cb2b45-4958-4ea3-88ae-2e57a2247b0d
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 3699e613-1046-4ee0-8c8b-48f59e84ef8b
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 4268268d-06cf-4ad1-82f6-a0f15dd4418d
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 23f22bc0-49e5-4d8a-8725-a56548931324
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment a6c7c3d1-6abc-48fd-b808-bdb487ca9dd6
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 09382512-0f9b-496b-a20b-27b90742f7c9
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment d4a26315-5764-48e6-9703-120912d08662
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment ae6bc353-b6c1-4881-8b7c-39f26a8515ae
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 8572cec8-2330-4ed3-a997-c0b7a92343a7
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment f92f4eef-7e83-4bb9-b6d3-7c50e8a002f1
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment 94c3745e-317b-4828-9479-b1443532c229
+[2026-04-16 13:29:23.410 +07:00] [INF] Auto-created TextOverlayElement for text segment b0a4808a-c1f2-4d85-ac80-82191ac05a70
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment eca9c4ac-45b1-4a34-a040-06a5e7069731
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment 31f4d835-13d2-4e86-ae46-9ec80e4f66d6
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment 15736305-5819-490b-86d3-27581d027e5e
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment 2a432ed4-e1da-4fa0-b195-ca1d95c6b20e
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment 08282328-1898-43e9-a696-b9992c4dc7cb
+[2026-04-16 13:29:23.411 +07:00] [INF] Auto-created TextOverlayElement for text segment 94859698-db4f-4bf0-9831-bc58fc9e8754
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment c819face-583f-40a4-bbdf-03f174dbcb58
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment 3e00c6ca-18fc-4786-99a5-24b607c12054
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment 34de08c4-1159-4084-8496-699149c78a80
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment fa72e084-4d7f-42f0-b140-e983612db357
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment cf299f6c-145c-4a2a-8d42-ef0b13597df5
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment a84d64ad-a1c7-44bb-965c-495ab4d4641d
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment 2721afe5-096c-4180-9cc7-8e2d729a53e0
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment 82cc6032-7e7f-4e09-ab36-2afef432dc53
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment e302933b-9324-4dd9-937b-8511e2c24d05
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment 7b62012c-5cd7-447b-8879-ff9e420d1db9
+[2026-04-16 13:29:23.412 +07:00] [INF] Auto-created TextOverlayElement for text segment c4b48099-e2dd-45fa-ae58-3f1c7267ce3a
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 52d2bb50-684b-4e10-962e-d1302be08382
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment f682d47c-f367-4416-870a-49aca9067d80
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 59f2f6db-6526-47fc-b60e-e93520e5d077
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 375f0662-ff6a-4eeb-bee7-16cfb2f05f7a
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 9c4bdaa6-b18d-4a31-aed3-57e2485553ce
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 21c2d56c-8a25-4f7c-b92c-6b1e6b3f5742
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 562f2815-9870-4fe6-be9f-4ce5c37eeeec
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment 7088afd0-2f7b-47dd-a974-59dbf0243aa4
+[2026-04-16 13:29:23.413 +07:00] [INF] Auto-created TextOverlayElement for text segment e70aa4ed-0477-444b-bff7-694e307fdc6a
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 643af820-febc-4c3a-bda9-d523d6616739
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment c8792fd1-8054-416b-9747-a9efd020661e
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 9bebeced-dfab-4583-903c-8ca871583d5b
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 625cf2e9-cfea-4668-b778-4835ac330f3e
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 9281726e-23d3-4385-83e5-c96963fb05f5
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 30226de8-123a-49f8-91ea-56f59d6d3a4c
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 7dab5b9b-6d68-4016-bfa6-352eccd81a1d
+[2026-04-16 13:29:23.414 +07:00] [INF] Auto-created TextOverlayElement for text segment 75b8d504-fc10-4e36-9675-67156f596569
+[2026-04-16 13:29:23.414 +07:00] [INF] Canvas elements synced after script apply: 108 new, 0 removed, 0 already existed
+[2026-04-16 13:29:23.471 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:23.501 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 112 elements
+[2026-04-16 13:29:23.501 +07:00] [INF] Canvas elements saved: 112 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:23.501 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:23.503 +07:00] [INF] AudioService: cleared loaded primary audio
+[2026-04-16 13:29:29.422 +07:00] [INF] SegmentEditorPanel loaded, ViewModel connected
+[2026-04-16 13:29:29.661 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:29.683 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 112 elements
+[2026-04-16 13:29:29.683 +07:00] [INF] Canvas elements saved: 112 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:29.683 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:29.966 +07:00] [INF] [AI-HTTP] gpt-4.1-mini-2025-04-14 ✔ HTTP 200 in 53.0s (12062 chars)
+[2026-04-16 13:29:43.542 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:43.588 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:29:43.588 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:43.588 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:49.282 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:49.298 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:29:49.298 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:49.298 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:55.836 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:55.858 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:29:55.858 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:55.858 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:57.362 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:57.392 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:29:57.392 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:29:57.392 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:02.746 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:02.757 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:30:02.757 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:02.757 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:05.907 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:30:07.636 +07:00] [INF] Auto-created ImageElement for visual segment e60ffdd8-94ea-476e-9ee8-9f9dfe4f9e5f
+[2026-04-16 13:30:08.780 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:30:10.862 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:10.875 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 112 elements
+[2026-04-16 13:30:10.875 +07:00] [INF] Canvas elements saved: 112 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:10.875 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:13.830 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4f5b6d8a-523a-4c1d-83c2-d0c0960769a3 (1.webp)
+[2026-04-16 13:30:13.830 +07:00] [INF] Asset added to current project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 4f5b6d8a-523a-4c1d-83c2-d0c0960769a3
+[2026-04-16 13:30:13.834 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 5a8191a3-ac74-4b3e-bfbf-5a38598c2223 (2.jpg)
+[2026-04-16 13:30:13.834 +07:00] [INF] Asset added to current project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 5a8191a3-ac74-4b3e-bfbf-5a38598c2223
+[2026-04-16 13:30:13.837 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: fe74d2a3-44bd-431d-97e8-bbec012dc7c9 (3.jpg)
+[2026-04-16 13:30:13.837 +07:00] [INF] Asset added to current project 037e93a2-499e-4a5f-b690-a0a67c4b676e: fe74d2a3-44bd-431d-97e8-bbec012dc7c9
+[2026-04-16 13:30:13.857 +07:00] [INF] Asset added to project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 6eedf38c-f8b3-47ca-9f9b-e4a4ea524d78 (4.jpg)
+[2026-04-16 13:30:13.858 +07:00] [INF] Asset added to current project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 6eedf38c-f8b3-47ca-9f9b-e4a4ea524d78
+[2026-04-16 13:30:19.395 +07:00] [INF] Auto-created ImageElement for visual segment 5b9225ff-726d-467d-9fdb-179c7aacaf71
+[2026-04-16 13:30:19.396 +07:00] [INF] Segment dropped: asset 4f5b6d8a-523a-4c1d-83c2-d0c0960769a3 at 1.87s on track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:30:23.045 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:23.058 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 113 elements
+[2026-04-16 13:30:23.058 +07:00] [INF] Canvas elements saved: 113 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:23.058 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:47.803 +07:00] [INF] Auto-created ImageElement for visual segment a7e40d2a-a4b7-474b-9d54-5b49f40794da
+[2026-04-16 13:30:47.807 +07:00] [INF] Segment dropped: asset 5a8191a3-ac74-4b3e-bfbf-5a38598c2223 at 6.22s on track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:30:50.712 +07:00] [INF] Auto-created ImageElement for visual segment 5c0f02bd-a7ea-4dc6-973a-5000032a6481
+[2026-04-16 13:30:50.716 +07:00] [INF] Segment dropped: asset 6eedf38c-f8b3-47ca-9f9b-e4a4ea524d78 at 11.92s on track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:30:53.303 +07:00] [INF] Track inserted: Visual 4 (visual) at Order 4
+[2026-04-16 13:30:53.306 +07:00] [INF] Auto-created ImageElement for visual segment ee2168f7-bc07-47e6-b1e2-fedd05bb3edc
+[2026-04-16 13:30:53.311 +07:00] [INF] Segment auto-dropped: asset fe74d2a3-44bd-431d-97e8-bbec012dc7c9 at 18.14s on auto-created track 411c4907-3af6-45f6-9964-7209c2c4ca52
+[2026-04-16 13:30:54.414 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:30:56.443 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:56.463 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 115 elements
+[2026-04-16 13:30:56.463 +07:00] [INF] Canvas elements saved: 115 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:56.463 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:57.396 +07:00] [INF] Track deleted: 411c4907-3af6-45f6-9964-7209c2c4ca52
+[2026-04-16 13:30:57.397 +07:00] [INF] Track 411c4907-3af6-45f6-9964-7209c2c4ca52 deleted from database
+[2026-04-16 13:30:57.397 +07:00] [INF] Track removed: Visual 4 (visual)
+[2026-04-16 13:30:59.427 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:59.448 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 115 elements
+[2026-04-16 13:30:59.448 +07:00] [INF] Canvas elements saved: 115 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:59.448 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:30:59.581 +07:00] [INF] Auto-created ImageElement for visual segment 125e694f-a259-426a-83d9-1f444af11946
+[2026-04-16 13:30:59.585 +07:00] [INF] Segment dropped: asset 6eedf38c-f8b3-47ca-9f9b-e4a4ea524d78 at 15.97s on track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:31:02.137 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:31:04.207 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:04.222 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 115 elements
+[2026-04-16 13:31:04.222 +07:00] [INF] Canvas elements saved: 115 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:04.222 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:04.280 +07:00] [INF] Auto-created ImageElement for visual segment 05e6610d-7f3e-46c0-8ff2-64ac44f84f5e
+[2026-04-16 13:31:04.281 +07:00] [INF] Segment dropped: asset fe74d2a3-44bd-431d-97e8-bbec012dc7c9 at 16.48s on track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:31:06.289 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:06.321 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:06.321 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:06.321 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:09.821 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:09.834 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 117 elements
+[2026-04-16 13:31:09.834 +07:00] [INF] Canvas elements saved: 117 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:09.834 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:12.658 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:12.680 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 117 elements
+[2026-04-16 13:31:12.680 +07:00] [INF] Canvas elements saved: 117 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:12.680 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:12.895 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:31:12.902 +07:00] [INF] Segment deleted from track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:31:14.991 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:15.003 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:15.003 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:15.003 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:19.166 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:19.198 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:19.198 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:19.198 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:20.773 +07:00] [INF] Auto-created ImageElement for visual segment 40bed815-218b-4d81-b13c-afd9db6250e8
+[2026-04-16 13:31:22.952 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:22.973 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 117 elements
+[2026-04-16 13:31:22.973 +07:00] [INF] Canvas elements saved: 117 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:22.973 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:24.755 +07:00] [INF] Removed 1 orphaned canvas element(s) for deleted segment(s)
+[2026-04-16 13:31:24.761 +07:00] [INF] Segment deleted from track c7ff2272-6668-446d-9d46-7abcd52e3fca
+[2026-04-16 13:31:26.798 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:26.808 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:26.808 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:26.808 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:28.901 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:28.923 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:28.923 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:28.923 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:31.012 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:31.035 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:31.035 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:31.035 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:37.783 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:37.796 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:37.796 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:37.796 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:41.593 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:41.607 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:41.607 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:41.607 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:45.615 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:45.646 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:45.646 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:45.646 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:48.711 +07:00] [INF] Project updated: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:48.721 +07:00] [INF] Replaced elements for project 037e93a2-499e-4a5f-b690-a0a67c4b676e: 116 elements
+[2026-04-16 13:31:48.721 +07:00] [INF] Canvas elements saved: 116 for project 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:48.721 +07:00] [INF] Project saved: 037e93a2-499e-4a5f-b690-a0a67c4b676e
+[2026-04-16 13:31:53.355 +07:00] [INF] AudioService: initialized silent mixer for segment-only playback
+[2026-04-16 13:31:53.356 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-16 13:32:00.494 +07:00] [INF] Playback paused at 36.02529468229467s
+[2026-04-16 13:32:03.549 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-16 13:32:09.360 +07:00] [INF] Playback paused at 41.831579882294676s
+[2026-04-16 13:32:10.999 +07:00] [INF] Playback started (segment-only / silent mode)
+[2026-04-16 13:32:14.139 +07:00] [INF] Playback paused at 44.96895528229467s
+[2026-04-16 13:32:19.376 +07:00] [INF] RenderSnapshot: 117 elements (109 text), 109 text segments
+[2026-04-16 13:32:19.384 +07:00] [INF] BuildTimelineVisualSegments: overlays 28/30, fadeTransitions 29/30 (invalidFade=1)
+[2026-04-16 13:32:19.384 +07:00] [WRN] BuildTimelineVisualSegments: 1 segment(s) use transition=fade but duration is invalid for clip length
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=5b9225ff-726d-467d-9fdb-179c7aacaf71 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=0.000-10.080 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=5c0f02bd-a7ea-4dc6-973a-5000032a6481 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=10.080-19.500 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=a7e40d2a-a4b7-474b-9d54-5b49f40794da track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=19.500-30.300 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=05e6610d-7f3e-46c0-8ff2-64ac44f84f5e track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=30.660-42.640 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=42e5e20d-d399-4ba1-8e8d-1dc2eae3d890 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=42.640-56.060 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=61ee373b-dbe7-42fd-b9fb-667d9b6ff3de track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=56.060-58.380 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=ecd41220-fae9-42a8-9d47-af61d504e6fc track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=58.380-64.060 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=2285513d-d5fb-43df-93bd-7828c416bb4e track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=64.060-76.740 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=c7321010-ed88-4d79-abf2-4ee76869db5e track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=76.740-84.460 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=1594cd10-697d-4197-9aef-d6b87d62fa66 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=84.460-96.620 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=7afa2d02-729b-4bc6-ad59-f8086311dff7 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=96.620-107.200 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=87554bae-9788-499c-8aee-8f7694979125 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=107.200-112.080 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=ce9f1963-bb8d-4ad6-8f61-25f2492f693e track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=112.080-114.300 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=12c9ac9a-f99e-44c1-a071-bf264d9a3550 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=114.300-125.000 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=569e84d4-2556-4b45-bc3e-63632795957f track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=125.000-130.860 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=053e1645-4634-42be-bf0e-87f15ae49bbd track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=130.860-138.280 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=0d066977-15cb-44c0-8d46-2ccea995fe3a track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=138.280-155.000 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=64163b77-5e3c-4c60-898e-69aedf69f3e9 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=155.000-169.780 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=d24756d1-6dd7-4155-a164-dacfe2af5b35 track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=169.780-184.100 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.384 +07:00] [INF] Render visual diagnostic: seg=e644b76f-5c71-4fbb-b94f-5bf4b41ece9a track=c7ff2272-6668-446d-9d46-7abcd52e3fca t=184.100-193.700 overlay=#000000@0.38 transition=fade:0.500 fadeValid=True
+[2026-04-16 13:32:19.390 +07:00] [INF] BuildRasterizedTextSegments: 2 text tracks, 109 total segments, 117 snapshot elements
+[2026-04-16 13:32:19.393 +07:00] [INF] ResolveProjectAudioPath: legacy AudioPath='C:\Users\admin\Desktop\IPO Điện Máy Xanh - Mở Khóa MWG.m4a', Tracks=7, Assets=35
+[2026-04-16 13:32:19.393 +07:00] [INF] ResolveProjectAudioPath: found 1 visible audio tracks
+[2026-04-16 13:32:19.394 +07:00] [INF] ResolveProjectAudioPath: resolved from audio segment asset: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a
+[2026-04-16 13:32:19.394 +07:00] [INF] BuildVisualizerSegments: resolved audioFilePath='C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a', exists=true
+[2026-04-16 13:32:19.395 +07:00] [INF] Baking VisualizerElement 12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464 ("Bars") [0.00–266.89s]
+[2026-04-16 13:32:19.456 +07:00] [INF] OfflineVisualizerBaker: baking element 12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464 ("Bars"/"Custom"/64b) to 600x400@30fps  duration=266.89s  →  C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov
+[2026-04-16 13:32:19.951 +07:00] [INF] Text rasterization: 109 segments rasterized successfully
+[2026-04-16 13:32:39.861 +07:00] [INF] OfflineVisualizerBaker: bake completed → C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov
+[2026-04-16 13:32:39.863 +07:00] [INF] Render segments built: 30 visual, 109 rasterized text, 1 audio, 1 visualizer, 117 snapshot elements
+[2026-04-16 13:32:39.863 +07:00] [INF] ResolveProjectAudioPath: legacy AudioPath='C:\Users\admin\Desktop\IPO Điện Máy Xanh - Mở Khóa MWG.m4a', Tracks=7, Assets=35
+[2026-04-16 13:32:39.863 +07:00] [INF] ResolveProjectAudioPath: found 1 visible audio tracks
+[2026-04-16 13:32:39.863 +07:00] [INF] ResolveProjectAudioPath: resolved from audio segment asset: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a
+[2026-04-16 13:32:39.864 +07:00] [INF] Render audio dedupe: primary audio C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a already represented by timeline audio segments; primary transport input disabled
+[2026-04-16 13:32:39.865 +07:00] [INF] Output path contains non-ASCII characters; using temp path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-fadf3d3149cd4c78a68f0a74fca50873.mp4
+[2026-04-16 13:32:39.872 +07:00] [INF] Chunked render gate: visuals=140, timeline=266.89s, peakConcurrency=7 => chunked
+[2026-04-16 13:32:39.872 +07:00] [INF] Chunked render enabled: using adaptive chunk pipeline for this timeline.
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunk frame-grid normalization: boundary 206.8902s -> 206.9000s at 30fps
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunk frame-grid normalization: boundary 226.8902s -> 226.9000s at 30fps
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunk frame-grid normalization: boundary 246.8902s -> 246.9000s at 30fps
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunk frame-grid normalization: boundary 258.8902s -> 258.9000s at 30fps
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunked render: splitting 140 visual segments into 17 chunks (adaptive window=90.0s, min window=12.0s, target visuals/chunk=16; effect densities: zoom=20.0 %, visualizer=0.0 %, peakConcurrency=7, avgConcurrency=6.01)
+[2026-04-16 13:32:39.880 +07:00] [INF] Chunked render planning completed in 6ms
+[2026-04-16 13:32:39.880 +07:00] [INF] Parallel chunk rendering: degree=1 (8 logical cores)
+[2026-04-16 13:32:39.886 +07:00] [INF] Rendering chunk 1/17: window 0.00s..20.00s, visuals=14, audios=1, signature=05BB48850C96, media=img:13,vid:1,alpha:1,motion:3,fade:2,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:32:39.898 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (10.080s) — using overlay pipeline
+[2026-04-16 13:32:39.901 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:32:39.927 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.158, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:32:39.927 +07:00] [INF] ComposerStageTiming: normalize=1ms, stageInputs=1ms, buildCommand=38ms, total=40ms
+[2026-04-16 13:32:39.928 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_000.mp4
+[2026-04-16 13:32:39.928 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\1_a31b61b6e4294349bea8c9c01b01a1a8.webp" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\4_ab4c7be0ee514539bab83e241d3527fc.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\2_0f15da5ccd3248e883846976ff5aa542.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t0.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t1.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t2.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t3.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t4.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t5.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t6.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_000-506b26a34550452a8fdaf56e7b372b72.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_000.mp4"
+[2026-04-16 13:32:39.928 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:32:39.928 +07:00] [INF] RenderStageTiming: buildCommand=40ms, prepareOutputDir=0ms
+[2026-04-16 13:32:39.930 +07:00] [INF] FFmpeg command line length: 2457 chars
+[2026-04-16 13:32:39.937 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 5356)
+[2026-04-16 13:32:41.707 +07:00] [INF] First frame received 1.5s after FFmpeg init
+[2026-04-16 13:33:10.468 +07:00] [INF] FFmpeg finished: exit=0, elapsed=30.30s, target=20.00s, realtime=x0.66
+[2026-04-16 13:33:10.472 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_000.mp4 (4454125 bytes)
+[2026-04-16 13:33:10.472 +07:00] [INF] RenderStageTiming: ffmpegExecute=30543ms, totalRender=30583ms
+[2026-04-16 13:33:10.474 +07:00] [INF] EffectRenderTiming Chunk 1: duration=20.00s, elapsed=30587ms, realtime=0.654x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=21.4 %
+[2026-04-16 13:33:10.474 +07:00] [INF] Chunk 1 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_000.mp4
+[2026-04-16 13:33:10.475 +07:00] [INF] Chunked render window 20.00s..40.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:33:10.475 +07:00] [INF] Rendering chunk 2/17: window 20.00s..40.00s, visuals=14, audios=1, signature=2EE6E38766D7, media=img:13,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:33:10.476 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (10.300s) — using overlay pipeline
+[2026-04-16 13:33:10.477 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:33:10.478 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.105, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:33:10.478 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=3ms, total=3ms
+[2026-04-16 13:33:10.478 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_001.mp4
+[2026-04-16 13:33:10.478 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\2_0f15da5ccd3248e883846976ff5aa542.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\3_b98087d2955d4602b992d7dedf4f97c8.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t6.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t7.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t8.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t9.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t10.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t11.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t12.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t13.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_001-54a765ac536243688a8de27b2840cecf.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_001.mp4"
+[2026-04-16 13:33:10.478 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:33:10.478 +07:00] [INF] RenderStageTiming: buildCommand=3ms, prepareOutputDir=0ms
+[2026-04-16 13:33:10.478 +07:00] [INF] FFmpeg command line length: 2381 chars
+[2026-04-16 13:33:10.490 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 10372)
+[2026-04-16 13:33:12.211 +07:00] [INF] First frame received 1.5s after FFmpeg init
+[2026-04-16 13:33:40.384 +07:00] [INF] FFmpeg finished: exit=0, elapsed=29.72s, target=20.00s, realtime=x0.67
+[2026-04-16 13:33:40.384 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_001.mp4 (4531539 bytes)
+[2026-04-16 13:33:40.384 +07:00] [INF] RenderStageTiming: ffmpegExecute=29906ms, totalRender=29909ms
+[2026-04-16 13:33:40.384 +07:00] [INF] EffectRenderTiming Chunk 2: duration=20.00s, elapsed=29909ms, realtime=0.669x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=5.98, motionDensity=14.3 %
+[2026-04-16 13:33:40.384 +07:00] [INF] Chunk 2 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_001.mp4
+[2026-04-16 13:33:40.384 +07:00] [INF] Chunked render window 40.00s..52.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:33:40.385 +07:00] [INF] Rendering chunk 3/17: window 40.00s..52.00s, visuals=13, audios=1, signature=298A3C791854, media=img:12,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:13,uniqueAudioSources:1
+[2026-04-16 13:33:40.386 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (2.640s) — using overlay pipeline
+[2026-04-16 13:33:40.387 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:33:40.388 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.114, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:33:40.388 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=3ms, total=3ms
+[2026-04-16 13:33:40.388 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_002.mp4
+[2026-04-16 13:33:40.389 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\3_b98087d2955d4602b992d7dedf4f97c8.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7947759_0e64ed747b3145be9b94ae0264493d8a_ec43ea5bffde4526b21ce13906be654d.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t13.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t14.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t15.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t16.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t17.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t18.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t19.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_002-53ea94b6cc4a42598ec7a1a06a54b295.txt" -map "[v12]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_002.mp4"
+[2026-04-16 13:33:40.389 +07:00] [INF] Render segments: 13 visual, 0 text, 1 audio
+[2026-04-16 13:33:40.389 +07:00] [INF] RenderStageTiming: buildCommand=3ms, prepareOutputDir=0ms
+[2026-04-16 13:33:40.389 +07:00] [INF] FFmpeg command line length: 2367 chars
+[2026-04-16 13:33:40.398 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 18816)
+[2026-04-16 13:33:42.103 +07:00] [INF] First frame received 1.5s after FFmpeg init
+[2026-04-16 13:34:03.615 +07:00] [INF] FFmpeg finished: exit=0, elapsed=23.06s, target=12.00s, realtime=x0.52
+[2026-04-16 13:34:03.615 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_002.mp4 (2327877 bytes)
+[2026-04-16 13:34:03.615 +07:00] [INF] RenderStageTiming: ffmpegExecute=23226ms, totalRender=23230ms
+[2026-04-16 13:34:03.615 +07:00] [INF] EffectRenderTiming Chunk 3: duration=12.00s, elapsed=23231ms, realtime=0.517x, effects=motion, visualCount=13, peakConcurrency=6, avgConcurrency=6.00, motionDensity=15.4 %
+[2026-04-16 13:34:03.615 +07:00] [INF] Chunk 3 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_002.mp4
+[2026-04-16 13:34:03.615 +07:00] [INF] Chunked render window 52.00s..64.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:34:03.616 +07:00] [INF] Rendering chunk 4/17: window 52.00s..64.00s, visuals=12, audios=1, signature=F85AD8E6D285, media=img:11,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:12,uniqueAudioSources:1
+[2026-04-16 13:34:03.616 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (4.060s) — using overlay pipeline
+[2026-04-16 13:34:03.617 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:34:03.618 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.187, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:34:03.618 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:34:03.618 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_003.mp4
+[2026-04-16 13:34:03.618 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7947759_0e64ed747b3145be9b94ae0264493d8a_ec43ea5bffde4526b21ce13906be654d.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_8919510_62696e0f7a374d9aa3ecae965ed13762_01c64881d08f438591fd5a253495bd10.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7111579_a1450a605b6f4eb98e43b781eda1f993_6a0017a756804557be04e3e2da516b3f.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t19.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t20.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t21.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t22.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t23.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_003-99155c6de3d74739a49cc9a7836062ef.txt" -map "[v11]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_003.mp4"
+[2026-04-16 13:34:03.618 +07:00] [INF] Render segments: 12 visual, 0 text, 1 audio
+[2026-04-16 13:34:03.618 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:34:03.618 +07:00] [INF] FFmpeg command line length: 2477 chars
+[2026-04-16 13:34:03.624 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 10120)
+[2026-04-16 13:34:05.327 +07:00] [INF] First frame received 1.5s after FFmpeg init
+[2026-04-16 13:34:27.983 +07:00] [INF] FFmpeg finished: exit=0, elapsed=24.20s, target=12.00s, realtime=x0.50
+[2026-04-16 13:34:27.983 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_003.mp4 (2310139 bytes)
+[2026-04-16 13:34:27.983 +07:00] [INF] RenderStageTiming: ffmpegExecute=24365ms, totalRender=24368ms
+[2026-04-16 13:34:27.983 +07:00] [INF] EffectRenderTiming Chunk 4: duration=12.00s, elapsed=24368ms, realtime=0.492x, effects=motion, visualCount=12, peakConcurrency=6, avgConcurrency=6.00, motionDensity=25.0 %
+[2026-04-16 13:34:27.983 +07:00] [INF] Chunk 4 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_003.mp4
+[2026-04-16 13:34:27.984 +07:00] [INF] Chunked render window 64.00s..76.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:34:27.984 +07:00] [INF] Rendering chunk 5/17: window 64.00s..76.00s, visuals=13, audios=1, signature=D4B69309A801, media=img:12,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:13,uniqueAudioSources:1
+[2026-04-16 13:34:27.984 +07:00] [INF] Concat pipeline: segments 1 and 2 overlap (12.000s) — using overlay pipeline
+[2026-04-16 13:34:27.985 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:34:27.986 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.114, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:34:27.986 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:34:27.986 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_004.mp4
+[2026-04-16 13:34:27.986 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7111579_a1450a605b6f4eb98e43b781eda1f993_6a0017a756804557be04e3e2da516b3f.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7947700_fa1a61975ffa4b959f0e57ff663c96b3_3b600d579c9347bbaa2c32c96200144b.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t23.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t24.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t25.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t26.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t27.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t28.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t29.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_004-883f1f1009d447d29423d6510b562f53.txt" -map "[v12]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_004.mp4"
+[2026-04-16 13:34:27.986 +07:00] [INF] Render segments: 13 visual, 0 text, 1 audio
+[2026-04-16 13:34:27.986 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:34:27.987 +07:00] [INF] FFmpeg command line length: 2417 chars
+[2026-04-16 13:34:27.995 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 1652)
+[2026-04-16 13:34:29.688 +07:00] [INF] First frame received 1.5s after FFmpeg init
+[2026-04-16 13:34:52.488 +07:00] [INF] FFmpeg finished: exit=0, elapsed=24.34s, target=12.00s, realtime=x0.49
+[2026-04-16 13:34:52.488 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_004.mp4 (2067962 bytes)
+[2026-04-16 13:34:52.488 +07:00] [INF] RenderStageTiming: ffmpegExecute=24502ms, totalRender=24505ms
+[2026-04-16 13:34:52.489 +07:00] [INF] EffectRenderTiming Chunk 5: duration=12.00s, elapsed=24505ms, realtime=0.490x, effects=motion, visualCount=13, peakConcurrency=6, avgConcurrency=6.00, motionDensity=15.4 %
+[2026-04-16 13:34:52.489 +07:00] [INF] Chunk 5 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_004.mp4
+[2026-04-16 13:34:52.489 +07:00] [INF] Chunked render window 76.00s..88.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:34:52.489 +07:00] [INF] Rendering chunk 6/17: window 76.00s..88.00s, visuals=14, audios=1, signature=0FB19EFEAC76, media=img:13,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:34:52.490 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (0.740s) — using overlay pipeline
+[2026-04-16 13:34:52.490 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:34:52.491 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.158, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:34:52.491 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:34:52.491 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_005.mp4
+[2026-04-16 13:34:52.491 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7947700_fa1a61975ffa4b959f0e57ff663c96b3_3b600d579c9347bbaa2c32c96200144b.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6266776_9614cb01212f477dbc37d4161dbedc7a_b76c8d32bd86463282f46c995dc92149.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6120249_936d37396a1148da82f2e0b254544068_853a3bc85b384bcd82b34c24436f7b73.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t29.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t30.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t31.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t32.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t33.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t34.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t35.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_005-cb39c1ceb89f4a7b8ee22744cbcb2a28.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_005.mp4"
+[2026-04-16 13:34:52.491 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:34:52.491 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:34:52.491 +07:00] [INF] FFmpeg command line length: 2613 chars
+[2026-04-16 13:34:52.498 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 16364)
+[2026-04-16 13:34:54.755 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:35:17.185 +07:00] [INF] FFmpeg finished: exit=0, elapsed=24.50s, target=12.00s, realtime=x0.49
+[2026-04-16 13:35:17.185 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_005.mp4 (2140791 bytes)
+[2026-04-16 13:35:17.185 +07:00] [INF] RenderStageTiming: ffmpegExecute=24694ms, totalRender=24696ms
+[2026-04-16 13:35:17.185 +07:00] [INF] EffectRenderTiming Chunk 6: duration=12.00s, elapsed=24697ms, realtime=0.486x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=21.4 %
+[2026-04-16 13:35:17.185 +07:00] [INF] Chunk 6 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_005.mp4
+[2026-04-16 13:35:17.186 +07:00] [INF] Chunked render window 88.00s..108.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:35:17.186 +07:00] [INF] Rendering chunk 7/17: window 88.00s..108.00s, visuals=16, audios=1, signature=43982053F95A, media=img:15,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:16,uniqueAudioSources:1
+[2026-04-16 13:35:17.230 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (8.620s) — using overlay pipeline
+[2026-04-16 13:35:17.230 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:35:17.231 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.137, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:35:17.231 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=43ms, buildCommand=3ms, total=45ms
+[2026-04-16 13:35:17.231 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_006.mp4
+[2026-04-16 13:35:17.231 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0002.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0004.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\i0015.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\v0016.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-b96ea94a01724a09a4019b580f5f67f0\bgm0017.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_006-153f07fbe21e42faad2d9cd86052c64f.txt" -map "[v15]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_006.mp4"
+[2026-04-16 13:35:17.231 +07:00] [INF] Render segments: 16 visual, 0 text, 1 audio
+[2026-04-16 13:35:17.232 +07:00] [INF] RenderStageTiming: buildCommand=45ms, prepareOutputDir=0ms
+[2026-04-16 13:35:17.232 +07:00] [INF] FFmpeg command line length: 2390 chars
+[2026-04-16 13:35:17.239 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 17440)
+[2026-04-16 13:35:19.538 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:35:57.938 +07:00] [INF] FFmpeg finished: exit=0, elapsed=40.47s, target=20.00s, realtime=x0.49
+[2026-04-16 13:35:57.938 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_006.mp4 (3921055 bytes)
+[2026-04-16 13:35:57.938 +07:00] [INF] RenderStageTiming: ffmpegExecute=40706ms, totalRender=40752ms
+[2026-04-16 13:35:57.938 +07:00] [INF] EffectRenderTiming Chunk 7: duration=20.00s, elapsed=40752ms, realtime=0.491x, effects=motion, visualCount=16, peakConcurrency=6, avgConcurrency=6.00, motionDensity=18.8 %
+[2026-04-16 13:35:57.938 +07:00] [INF] Chunk 7 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_006.mp4
+[2026-04-16 13:35:57.938 +07:00] [INF] Chunked render window 108.00s..120.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:35:57.938 +07:00] [INF] Rendering chunk 8/17: window 108.00s..120.00s, visuals=13, audios=1, signature=AD3FA93458C7, media=img:12,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:13,uniqueAudioSources:1
+[2026-04-16 13:35:57.939 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (4.080s) — using overlay pipeline
+[2026-04-16 13:35:57.940 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:35:57.941 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.171, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:35:57.941 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=3ms, total=3ms
+[2026-04-16 13:35:57.941 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_007.mp4
+[2026-04-16 13:35:57.941 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_9301833_1faebc20c9254be4955cb2b5d3288014_13982eeb49af4a2eabf00e865b5aeaee.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7876380_2005e270b95042f992abdfda26dcd4dd_e5cd8b36bbaf48c78f84fb883c7e1679.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_5466250_70be5239fe9c47a2aa33398217e6bee9_08daa5552ae14a668618d6ed89785fa5.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t43.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t44.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t45.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t46.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t47.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t48.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_007-77333cfec58e4f31ac71a7506d28eaf8.txt" -map "[v12]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_007.mp4"
+[2026-04-16 13:35:57.941 +07:00] [INF] Render segments: 13 visual, 0 text, 1 audio
+[2026-04-16 13:35:57.941 +07:00] [INF] RenderStageTiming: buildCommand=3ms, prepareOutputDir=0ms
+[2026-04-16 13:35:57.942 +07:00] [INF] FFmpeg command line length: 2545 chars
+[2026-04-16 13:35:57.949 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 18372)
+[2026-04-16 13:36:00.222 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:36:23.206 +07:00] [INF] FFmpeg finished: exit=0, elapsed=25.05s, target=12.00s, realtime=x0.48
+[2026-04-16 13:36:23.206 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_007.mp4 (2953889 bytes)
+[2026-04-16 13:36:23.206 +07:00] [INF] RenderStageTiming: ffmpegExecute=25265ms, totalRender=25268ms
+[2026-04-16 13:36:23.206 +07:00] [INF] EffectRenderTiming Chunk 8: duration=12.00s, elapsed=25268ms, realtime=0.475x, effects=motion, visualCount=13, peakConcurrency=6, avgConcurrency=6.00, motionDensity=23.1 %
+[2026-04-16 13:36:23.206 +07:00] [INF] Chunk 8 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_007.mp4
+[2026-04-16 13:36:23.207 +07:00] [INF] Chunked render window 120.00s..132.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:36:23.207 +07:00] [INF] Rendering chunk 9/17: window 120.00s..132.00s, visuals=14, audios=1, signature=45FA08664EA5, media=img:13,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:36:23.207 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (5.000s) — using overlay pipeline
+[2026-04-16 13:36:23.208 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:36:23.209 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.158, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:36:23.210 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=3ms, total=3ms
+[2026-04-16 13:36:23.210 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_008.mp4
+[2026-04-16 13:36:23.210 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_5466250_70be5239fe9c47a2aa33398217e6bee9_08daa5552ae14a668618d6ed89785fa5.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_35638638_611df8163191418ea127d781cd41f339_25b449149d9441ac8d80ad68a5ba7ddd.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6956318_2ec5ea85f02b49a299a734bc7f185ccf_da8321b461ea451b8a0a89ac6995f912.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t48.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t49.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t50.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t51.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t52.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t53.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t54.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_008-e9a456cb98a5456a89eef0097d2a74c8.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_008.mp4"
+[2026-04-16 13:36:23.210 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:36:23.210 +07:00] [INF] RenderStageTiming: buildCommand=3ms, prepareOutputDir=0ms
+[2026-04-16 13:36:23.210 +07:00] [INF] FFmpeg command line length: 2614 chars
+[2026-04-16 13:36:23.219 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 2864)
+[2026-04-16 13:36:26.028 +07:00] [INF] First frame received 2.6s after FFmpeg init
+[2026-04-16 13:36:49.896 +07:00] [INF] FFmpeg finished: exit=0, elapsed=26.43s, target=12.00s, realtime=x0.45
+[2026-04-16 13:36:49.896 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_008.mp4 (3146986 bytes)
+[2026-04-16 13:36:49.896 +07:00] [INF] RenderStageTiming: ffmpegExecute=26686ms, totalRender=26689ms
+[2026-04-16 13:36:49.896 +07:00] [INF] EffectRenderTiming Chunk 9: duration=12.00s, elapsed=26690ms, realtime=0.450x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=21.4 %
+[2026-04-16 13:36:49.896 +07:00] [INF] Chunk 9 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_008.mp4
+[2026-04-16 13:36:49.897 +07:00] [INF] Chunked render window 132.00s..152.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:36:49.897 +07:00] [INF] Rendering chunk 10/17: window 132.00s..152.00s, visuals=14, audios=1, signature=3F1D59B1697F, media=img:13,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:36:49.898 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (6.280s) — using overlay pipeline
+[2026-04-16 13:36:49.899 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:36:49.901 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.105, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:36:49.901 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=4ms, total=4ms
+[2026-04-16 13:36:49.901 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_009.mp4
+[2026-04-16 13:36:49.901 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6956318_2ec5ea85f02b49a299a734bc7f185ccf_da8321b461ea451b8a0a89ac6995f912.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_5947553_8983422b267b4fc18c981f3defcdec6b_e0c8972ac8934beaba0443e893b2d367.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t54.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t55.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t56.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t57.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t58.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t59.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t60.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t61.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_009-854b58eb602e47d98893736562f22399.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_009.mp4"
+[2026-04-16 13:36:49.901 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:36:49.901 +07:00] [INF] RenderStageTiming: buildCommand=4ms, prepareOutputDir=0ms
+[2026-04-16 13:36:49.901 +07:00] [INF] FFmpeg command line length: 2485 chars
+[2026-04-16 13:36:49.917 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 8628)
+[2026-04-16 13:36:52.210 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:37:36.263 +07:00] [INF] FFmpeg finished: exit=0, elapsed=46.11s, target=20.00s, realtime=x0.43
+[2026-04-16 13:37:36.263 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_009.mp4 (5344699 bytes)
+[2026-04-16 13:37:36.263 +07:00] [INF] RenderStageTiming: ffmpegExecute=46362ms, totalRender=46366ms
+[2026-04-16 13:37:36.263 +07:00] [INF] EffectRenderTiming Chunk 10: duration=20.00s, elapsed=46366ms, realtime=0.431x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=14.3 %
+[2026-04-16 13:37:36.263 +07:00] [INF] Chunk 10 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_009.mp4
+[2026-04-16 13:37:36.263 +07:00] [INF] Chunked render window 152.00s..172.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:37:36.263 +07:00] [INF] Rendering chunk 11/17: window 152.00s..172.00s, visuals=16, audios=1, signature=52C347B20BCC, media=img:15,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:16,uniqueAudioSources:1
+[2026-04-16 13:37:36.269 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (3.000s) — using overlay pipeline
+[2026-04-16 13:37:36.270 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:37:36.270 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.137, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:37:36.270 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=5ms, buildCommand=2ms, total=7ms
+[2026-04-16 13:37:36.270 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_010.mp4
+[2026-04-16 13:37:36.270 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0002.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0004.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\i0015.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\v0016.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-cccac9b34ee14b18894619c8dfaa09b6\bgm0017.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_010-98745023abe942c79632c64ee65184d0.txt" -map "[v15]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_010.mp4"
+[2026-04-16 13:37:36.270 +07:00] [INF] Render segments: 16 visual, 0 text, 1 audio
+[2026-04-16 13:37:36.270 +07:00] [INF] RenderStageTiming: buildCommand=7ms, prepareOutputDir=0ms
+[2026-04-16 13:37:36.270 +07:00] [INF] FFmpeg command line length: 2390 chars
+[2026-04-16 13:37:36.276 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 8172)
+[2026-04-16 13:37:38.528 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:38:19.561 +07:00] [INF] FFmpeg finished: exit=0, elapsed=43.10s, target=20.00s, realtime=x0.46
+[2026-04-16 13:38:19.561 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_010.mp4 (4637183 bytes)
+[2026-04-16 13:38:19.561 +07:00] [INF] RenderStageTiming: ffmpegExecute=43290ms, totalRender=43297ms
+[2026-04-16 13:38:19.561 +07:00] [INF] EffectRenderTiming Chunk 11: duration=20.00s, elapsed=43298ms, realtime=0.462x, effects=motion, visualCount=16, peakConcurrency=6, avgConcurrency=6.00, motionDensity=18.8 %
+[2026-04-16 13:38:19.561 +07:00] [INF] Chunk 11 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_010.mp4
+[2026-04-16 13:38:19.561 +07:00] [INF] Chunked render window 172.00s..192.00s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:38:19.561 +07:00] [INF] Chunked render window 172.00s..192.00s skipped 1 sub-frame visual segment(s) to avoid startup stalls.
+[2026-04-16 13:38:19.561 +07:00] [INF] Rendering chunk 12/17: window 172.00s..192.00s, visuals=14, audios=1, signature=E19C39D88968, media=img:13,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:38:19.562 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (12.100s) — using overlay pipeline
+[2026-04-16 13:38:19.563 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:38:19.578 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.105, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:38:19.579 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=17ms, total=17ms
+[2026-04-16 13:38:19.579 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_011.mp4
+[2026-04-16 13:38:19.579 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_34700508_fe5463a202ac40afb55ad4a3c3893593_24ee830c75e14ec180a64bff640e2eb6.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_8470841_3d023bf0fa4e4a3fbf2f6afad236a3e5_24ad19a9a5bb4cc3946e2089b8414149.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t70.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t71.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t72.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t73.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t74.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t75.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t76.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t77.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_011-24e26fa9e2004db28f2be42ed979a403.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_011.mp4"
+[2026-04-16 13:38:19.579 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:38:19.579 +07:00] [INF] RenderStageTiming: buildCommand=17ms, prepareOutputDir=0ms
+[2026-04-16 13:38:19.579 +07:00] [INF] FFmpeg command line length: 2486 chars
+[2026-04-16 13:38:19.585 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 2000)
+[2026-04-16 13:38:21.829 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:39:04.099 +07:00] [INF] FFmpeg finished: exit=0, elapsed=44.33s, target=20.00s, realtime=x0.45
+[2026-04-16 13:39:04.099 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_011.mp4 (3924459 bytes)
+[2026-04-16 13:39:04.099 +07:00] [INF] RenderStageTiming: ffmpegExecute=44520ms, totalRender=44538ms
+[2026-04-16 13:39:04.099 +07:00] [INF] EffectRenderTiming Chunk 12: duration=20.00s, elapsed=44538ms, realtime=0.449x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=14.3 %
+[2026-04-16 13:39:04.099 +07:00] [INF] Chunk 12 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_011.mp4
+[2026-04-16 13:39:04.099 +07:00] [INF] Chunked render window 192.00s..206.90s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:39:04.099 +07:00] [INF] Rendering chunk 13/17: window 192.00s..206.90s, visuals=14, audios=1, signature=7A1E314D223F, media=img:13,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:39:04.100 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (1.700s) — using overlay pipeline
+[2026-04-16 13:39:04.101 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:39:04.102 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.158, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:39:04.102 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:39:04.102 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_012.mp4
+[2026-04-16 13:39:04.102 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=16" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_8470841_3d023bf0fa4e4a3fbf2f6afad236a3e5_24ad19a9a5bb4cc3946e2089b8414149.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_31220025_895fb0f82cc94ee6bf4094b135b7a320_98354a455b634dad8bd34e5e50ad1db0.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_32830012_3c71560c663e4790a1819301d35059d7_5215d64f8c26471f9c3d00f035e2b602.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t77.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t78.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t79.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t80.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t81.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t82.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t83.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_012-4b7c787fedc04b90a52f3311ffcde340.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 14.900 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_012.mp4"
+[2026-04-16 13:39:04.102 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:39:04.102 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:39:04.102 +07:00] [INF] FFmpeg command line length: 2615 chars
+[2026-04-16 13:39:04.109 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 7632)
+[2026-04-16 13:39:06.365 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:39:36.665 +07:00] [INF] FFmpeg finished: exit=0, elapsed=32.36s, target=14.90s, realtime=x0.46
+[2026-04-16 13:39:36.665 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_012.mp4 (3314609 bytes)
+[2026-04-16 13:39:36.665 +07:00] [INF] RenderStageTiming: ffmpegExecute=32563ms, totalRender=32566ms
+[2026-04-16 13:39:36.665 +07:00] [INF] EffectRenderTiming Chunk 13: duration=14.90s, elapsed=32566ms, realtime=0.458x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=21.4 %
+[2026-04-16 13:39:36.665 +07:00] [INF] Chunk 13 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_012.mp4
+[2026-04-16 13:39:36.665 +07:00] [INF] Chunked render window 206.90s..226.90s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:39:36.665 +07:00] [INF] Rendering chunk 14/17: window 206.90s..226.90s, visuals=16, audios=1, signature=C1326E025891, media=img:15,vid:1,alpha:1,motion:3,fade:1,uniqueVisualSources:16,uniqueAudioSources:1
+[2026-04-16 13:39:36.672 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (11.780s) — using overlay pipeline
+[2026-04-16 13:39:36.672 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:39:36.673 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.137, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:39:36.673 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=6ms, buildCommand=2ms, total=7ms
+[2026-04-16 13:39:36.673 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_013.mp4
+[2026-04-16 13:39:36.673 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0001.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0002.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0003.jpg" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0004.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0005.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0006.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0007.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0008.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0009.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0010.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0011.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0012.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0013.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0014.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\i0015.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\v0016.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Local\Temp\pve\rs-56721797970647f59fd5bf756ef045ea\bgm0017.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_013-38cf24e2a9934fe6983de31da935ab4f.txt" -map "[v15]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_013.mp4"
+[2026-04-16 13:39:36.673 +07:00] [INF] Render segments: 16 visual, 0 text, 1 audio
+[2026-04-16 13:39:36.673 +07:00] [INF] RenderStageTiming: buildCommand=7ms, prepareOutputDir=0ms
+[2026-04-16 13:39:36.673 +07:00] [INF] FFmpeg command line length: 2390 chars
+[2026-04-16 13:39:36.680 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 9536)
+[2026-04-16 13:39:39.508 +07:00] [INF] First frame received 2.6s after FFmpeg init
+[2026-04-16 13:40:26.764 +07:00] [INF] FFmpeg finished: exit=0, elapsed=49.84s, target=20.00s, realtime=x0.40
+[2026-04-16 13:40:26.764 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_013.mp4 (5393223 bytes)
+[2026-04-16 13:40:26.764 +07:00] [INF] RenderStageTiming: ffmpegExecute=50091ms, totalRender=50098ms
+[2026-04-16 13:40:26.764 +07:00] [INF] EffectRenderTiming Chunk 14: duration=20.00s, elapsed=50098ms, realtime=0.399x, effects=motion, visualCount=16, peakConcurrency=7, avgConcurrency=6.10, motionDensity=18.8 %
+[2026-04-16 13:40:26.764 +07:00] [INF] Chunk 14 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_013.mp4
+[2026-04-16 13:40:26.764 +07:00] [INF] Chunked render window 226.90s..246.90s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:40:26.764 +07:00] [INF] Rendering chunk 15/17: window 226.90s..246.90s, visuals=14, audios=1, signature=ADF806AB358E, media=img:13,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:14,uniqueAudioSources:1
+[2026-04-16 13:40:26.765 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (11.000s) — using overlay pipeline
+[2026-04-16 13:40:26.766 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:40:26.767 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.105, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:40:26.767 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=3ms, total=3ms
+[2026-04-16 13:40:26.767 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_014.mp4
+[2026-04-16 13:40:26.767 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=21" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_30572289_b0992e80abf44cdb8e36f81a613e09cb_782070cbe4d249c7998131b490dea127.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_5942602_0651ae9bf19f482a9d6703e80b09d54f_a6ee33a95ffa486397635210614590b3.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t91.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t92.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t93.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t94.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t95.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t96.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t97.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t98.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_014-787288342e114b1cb38e8b03cd206b15.txt" -map "[v13]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 20.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_014.mp4"
+[2026-04-16 13:40:26.767 +07:00] [INF] Render segments: 14 visual, 0 text, 1 audio
+[2026-04-16 13:40:26.767 +07:00] [INF] RenderStageTiming: buildCommand=3ms, prepareOutputDir=0ms
+[2026-04-16 13:40:26.768 +07:00] [INF] FFmpeg command line length: 2486 chars
+[2026-04-16 13:40:26.776 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 9036)
+[2026-04-16 13:40:29.018 +07:00] [INF] First frame received 2.1s after FFmpeg init
+[2026-04-16 13:41:14.123 +07:00] [INF] FFmpeg finished: exit=0, elapsed=47.16s, target=20.00s, realtime=x0.42
+[2026-04-16 13:41:14.123 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_014.mp4 (3518214 bytes)
+[2026-04-16 13:41:14.123 +07:00] [INF] RenderStageTiming: ffmpegExecute=47356ms, totalRender=47359ms
+[2026-04-16 13:41:14.123 +07:00] [INF] EffectRenderTiming Chunk 15: duration=20.00s, elapsed=47359ms, realtime=0.422x, effects=motion, visualCount=14, peakConcurrency=6, avgConcurrency=6.00, motionDensity=14.3 %
+[2026-04-16 13:41:14.123 +07:00] [INF] Chunk 15 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_014.mp4
+[2026-04-16 13:41:14.123 +07:00] [INF] Chunked render window 246.90s..258.90s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:41:14.124 +07:00] [INF] Rendering chunk 16/17: window 246.90s..258.90s, visuals=12, audios=1, signature=B0293C05EC1A, media=img:11,vid:1,alpha:1,motion:2,fade:0,uniqueVisualSources:12,uniqueAudioSources:1
+[2026-04-16 13:41:14.124 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (10.600s) — using overlay pipeline
+[2026-04-16 13:41:14.125 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:41:14.126 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.125, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:41:14.126 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:41:14.126 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_015.mp4
+[2026-04-16 13:41:14.126 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=13" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_5942602_0651ae9bf19f482a9d6703e80b09d54f_a6ee33a95ffa486397635210614590b3.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6120222_699d5384ca154e0db1d27aace560793b_8b8fedb83b7143c89f3c97dbe13af1d0.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t98.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t99.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t100.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t101.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t102.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t103.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_015-da12e74150074121b1d244766a9dc950.txt" -map "[v11]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 12.000 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_015.mp4"
+[2026-04-16 13:41:14.126 +07:00] [INF] Render segments: 12 visual, 0 text, 1 audio
+[2026-04-16 13:41:14.126 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:41:14.126 +07:00] [INF] FFmpeg command line length: 2353 chars
+[2026-04-16 13:41:14.134 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 18848)
+[2026-04-16 13:41:16.895 +07:00] [INF] First frame received 2.6s after FFmpeg init
+[2026-04-16 13:41:47.062 +07:00] [INF] FFmpeg finished: exit=0, elapsed=32.74s, target=12.00s, realtime=x0.37
+[2026-04-16 13:41:47.062 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_015.mp4 (2250081 bytes)
+[2026-04-16 13:41:47.062 +07:00] [INF] RenderStageTiming: ffmpegExecute=32936ms, totalRender=32939ms
+[2026-04-16 13:41:47.062 +07:00] [INF] EffectRenderTiming Chunk 16: duration=12.00s, elapsed=32939ms, realtime=0.364x, effects=motion, visualCount=12, peakConcurrency=6, avgConcurrency=6.00, motionDensity=16.7 %
+[2026-04-16 13:41:47.062 +07:00] [INF] Chunk 16 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_015.mp4
+[2026-04-16 13:41:47.062 +07:00] [INF] Chunked render window 258.90s..266.89s clips 1 image motion segments at chunk start; motion continuity is preserved with reference offsets.
+[2026-04-16 13:41:47.063 +07:00] [INF] Rendering chunk 17/17: window 258.90s..266.89s, visuals=12, audios=1, signature=E84FCBD4C5F8, media=img:11,vid:1,alpha:1,motion:3,fade:2,uniqueVisualSources:12,uniqueAudioSources:1
+[2026-04-16 13:41:47.063 +07:00] [INF] Concat pipeline: segments 0 and 1 overlap (5.060s) — using overlay pipeline
+[2026-04-16 13:41:47.064 +07:00] [INF] GPU PIPELINE: "Vulkan" scale + CPU overlay + h264_qsv
+[2026-04-16 13:41:47.065 +07:00] [INF] EncoderBudget: codec=h264_qsv, crf=23->23, size=1080x1920@30, motionComplexity=0.187, b:v=4200k, maxrate=7140k, bufsize=12600k
+[2026-04-16 13:41:47.065 +07:00] [INF] ComposerStageTiming: normalize=0ms, stageInputs=0ms, buildCommand=2ms, total=2ms
+[2026-04-16 13:41:47.065 +07:00] [INF] Starting render: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_016.mp4
+[2026-04-16 13:41:47.065 +07:00] [INF] FFmpeg command: ffmpeg -init_hw_device vulkan=gpudev -filter_hw_device gpudev -f lavfi -i "color=c=black:s=1080x1920:r=30:d=9" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_6120222_699d5384ca154e0db1d27aace560793b_8b8fedb83b7143c89f3c97dbe13af1d0.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_8919515_773030905da3490a8d844c33ea1bce74_b09d2d1db04849c2a0fe18043f00ebe1.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\pve_pexels_7564189_2b70d762910342fe93f38a77ac7b3b01_dd463900ed5743ce84af93b35ec0dec8.jpg" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\sieutinhieu-logo_c4e02d4eb6d049d6aeb18933844f29bc_e7006ab1a163403280c2d43711bbcaf5_259db84622ff4ffcb1fd13c143d39a9a.png" -loop 1 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\player-icon_e2612d7d16f64e10975e64f337e4bd60_29bccdc3b9fd43eaaf1fcd20e1d991ca_d9e9037c3d874043a3c5515eadaa0290.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t108.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t103.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t104.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t105.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t106.png" -loop 1 -i "C:\Users\admin\AppData\Local\Temp\pve\ri646f6a\t107.png" -thread_queue_size 256 -hwaccel auto -i "C:\Users\admin\AppData\Local\Temp\pve\vb\viz_12a9c6fb-d9f0-4d35-b65f-65bb7fd8a464_2026041613321945.mov" -f lavfi -i "anullsrc=r=44100:cl=stereo" -thread_queue_size 128 -i "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\assets\037e93a2-499e-4a5f-b690-a0a67c4b676e\IPO Điện Máy Xanh - Mở Khóa MWG_ec13dfd717ac43cd8f1fedaa4461ffbb.m4a" -/filter_complex "C:\Users\admin\AppData\Local\Temp\pve\fc-chunk_016-7c83bc400feb44e496a054a49a00bb9a.txt" -map "[v11]" -map "[amixed]" -c:v h264_qsv -global_quality 23 -b:v 4200k -maxrate 7140k -bufsize 12600k -preset fast -pix_fmt yuv420p -r 30 -c:a aac -threads 6 -filter_threads 4 -filter_complex_threads 4 -movflags +faststart -max_muxing_queue_size 4096 -t 7.990 -y "C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_016.mp4"
+[2026-04-16 13:41:47.065 +07:00] [INF] Render segments: 12 visual, 0 text, 1 audio
+[2026-04-16 13:41:47.065 +07:00] [INF] RenderStageTiming: buildCommand=2ms, prepareOutputDir=0ms
+[2026-04-16 13:41:47.065 +07:00] [INF] FFmpeg command line length: 2480 chars
+[2026-04-16 13:41:47.072 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 7480)
+[2026-04-16 13:41:49.829 +07:00] [INF] First frame received 2.6s after FFmpeg init
+[2026-04-16 13:42:06.322 +07:00] [INF] FFmpeg finished: exit=0, elapsed=19.06s, target=7.99s, realtime=x0.42
+[2026-04-16 13:42:06.322 +07:00] [INF] Render completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_016.mp4 (1979515 bytes)
+[2026-04-16 13:42:06.322 +07:00] [INF] RenderStageTiming: ffmpegExecute=19257ms, totalRender=19259ms
+[2026-04-16 13:42:06.322 +07:00] [INF] EffectRenderTiming Chunk 17: duration=7.99s, elapsed=19259ms, realtime=0.415x, effects=motion, visualCount=12, peakConcurrency=6, avgConcurrency=5.97, motionDensity=25.0 %
+[2026-04-16 13:42:06.322 +07:00] [INF] Chunk 17 completed: C:\Users\admin\AppData\Local\Temp\pve\chunks-fa2eec777ccc4e6cbe94fdd4e5267ec8\chunk_016.mp4
+[2026-04-16 13:42:06.324 +07:00] [INF] ParallelChunkEfficiency: degree=1, chunkCount=17, serialEquivalentMs=566429, wallMs=566444, speedup=1.00x, efficiency=100 %
+[2026-04-16 13:42:06.326 +07:00] [INF] FFmpeg concat: -f concat -safe 0 -i "C:\Users\admin\AppData\Local\Temp\pve\concat-0d315fe6aeb7422a9286ee63ac9d2f56.txt" -c copy -y "C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-fadf3d3149cd4c78a68f0a74fca50873.mp4"
+[2026-04-16 13:42:06.326 +07:00] [INF] FFmpeg command line length: 306 chars
+[2026-04-16 13:42:06.333 +07:00] [INF] FFmpeg process: Normal priority, all scheduler-managed cores (PID 17196)
+[2026-04-16 13:42:06.917 +07:00] [INF] First frame received 0.5s after FFmpeg init
+[2026-04-16 13:42:06.920 +07:00] [INF] FFmpeg finished: exit=0, elapsed=0.48s, target=0.00s, realtime=x0.00
+[2026-04-16 13:42:06.921 +07:00] [INF] Concat completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-fadf3d3149cd4c78a68f0a74fca50873.mp4 (58193482 bytes)
+[2026-04-16 13:42:06.921 +07:00] [INF] Chunked render completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-fadf3d3149cd4c78a68f0a74fca50873.mp4 (17 chunks concatenated)
+[2026-04-16 13:42:06.921 +07:00] [INF] ChunkedRenderTiming: concat=597ms, total=567047ms
+[2026-04-16 13:42:06.922 +07:00] [INF] Render completed: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\pve-render-fadf3d3149cd4c78a68f0a74fca50873.mp4
+[2026-04-16 13:42:06.973 +07:00] [INF] Renamed temp render output to final path: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\IPO Điện Máy Xanh - Mở Khóa MWG_20260416_133239.mp4
+[2026-04-16 13:42:06.973 +07:00] [INF] Render successful: C:\Users\admin\AppData\Roaming\PodcastVideoEditor\Renders\IPO Điện Máy Xanh - Mở Khóa MWG_20260416_133239.mp4

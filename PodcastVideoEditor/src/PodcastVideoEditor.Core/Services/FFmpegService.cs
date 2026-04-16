@@ -848,7 +848,9 @@ public static class FFmpegService
         {
                 // Degree of parallelism: 2 on machines with ≥12 logical cores.
                 // Each parallel FFmpeg handles a separate zoompan/overlay graph on independent cores.
-                var parallelDegree = Environment.ProcessorCount >= 12 ? 2 : 1;
+                var parallelDegree = Environment.ProcessorCount >= 16 ? 3
+                                   : Environment.ProcessorCount >= 8  ? 2
+                                   : 1;
                 Log.Information("Parallel chunk rendering: degree={Degree} ({Cores} logical cores)", parallelDegree, Environment.ProcessorCount);
 
                 var completedCount = 0;
