@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace PodcastVideoEditor.Core.Services;
 
@@ -33,6 +34,10 @@ public static class OfflineVisualizerBaker
     private const double ColorTickActive   = 0.15;
     private const int    SilenceFrameThreshold  = 3;   // switch to demo after this many silent frames
     private const float  SilenceLevel           = 0.005f;
+    private static readonly HashSet<string> PredecodeAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".m4a", ".aac", ".mp4", ".mov"
+    };
 
     /// <summary>
     /// Bake a <see cref="VisualizerElement"/> to a transparent video file.
@@ -124,10 +129,17 @@ public static class OfflineVisualizerBaker
             element.Id, element.Style, element.ColorPalette, element.BandCount,
             outW, outH, fps, duration, outputPath);
 
+        string? preparedAudioPath = null;
         try
         {
+            preparedAudioPath = await PrepareAudioForNaudioAsync(
+                audioFilePath,
+                ffmpegPath,
+                ct);
+            var audioPathForBake = preparedAudioPath ?? audioFilePath;
+
             await BakeCoreAsync(
-                config, audioFilePath, startTime, endTime,
+                config, audioPathForBake, startTime, endTime,
                 outW, outH, fps, ffmpegPath, outputPath, progress, ct);
 
             if (!File.Exists(outputPath))
@@ -151,6 +163,63 @@ public static class OfflineVisualizerBaker
             TryDelete(outputPath);
             return null;
         }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(preparedAudioPath))
+                TryDelete(preparedAudioPath);
+        }
+    }
+
+    private static async Task<string?> PrepareAudioForNaudioAsync(
+        string audioFilePath,
+        string ffmpegPath,
+        CancellationToken ct)
+    {
+        var ext = Path.GetExtension(audioFilePath);
+        if (string.IsNullOrWhiteSpace(ext) || !PredecodeAudioExtensions.Contains(ext))
+            return null;
+
+        var tempDir = Path.Combine(Path.GetTempPath(), "pve", "vb_audio");
+        Directory.CreateDirectory(tempDir);
+        var tempWavPath = Path.Combine(
+            tempDir,
+            $"viz_audio_{Guid.NewGuid():N}.wav");
+
+        var ffmpegArgs =
+            $"-y -i \"{audioFilePath}\" -vn -acodec pcm_s16le -ar 44100 -ac 2 \"{tempWavPath}\"";
+
+        var psi = new ProcessStartInfo(ffmpegPath, ffmpegArgs)
+        {
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetDirectoryName(ffmpegPath) ?? ""
+        };
+
+        using var proc = Process.Start(psi);
+        if (proc == null)
+            throw new InvalidOperationException("Failed to start FFmpeg for audio predecode.");
+
+        var stderr = await proc.StandardError.ReadToEndAsync(ct);
+        await proc.WaitForExitAsync(ct);
+
+        if (proc.ExitCode != 0 || !File.Exists(tempWavPath))
+        {
+            TryDelete(tempWavPath);
+            Log.Warning(
+                "OfflineVisualizerBaker: audio predecode failed for {AudioPath} (exit={ExitCode}). Falling back to original source.",
+                audioFilePath,
+                proc.ExitCode);
+            if (!string.IsNullOrWhiteSpace(stderr))
+                Log.Debug("OfflineVisualizerBaker: audio predecode FFmpeg stderr:\n{Stderr}", stderr);
+            return null;
+        }
+
+        Log.Information(
+            "OfflineVisualizerBaker: audio predecoded for NAudio: {Source} -> {Decoded}",
+            audioFilePath,
+            tempWavPath);
+        return tempWavPath;
     }
 
     // ────────────────────────────────────────────────────────────────────────

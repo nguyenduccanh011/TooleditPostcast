@@ -1,0 +1,6 @@
+flask
+requests
+imageio
+psutil
+oss2
+json5

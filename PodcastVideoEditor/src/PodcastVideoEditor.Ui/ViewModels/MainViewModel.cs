@@ -19,6 +19,8 @@ public sealed class MainViewModel : IDisposable
     public SelectionSyncService SelectionSyncService { get; }
     public UndoRedoService UndoRedoService { get; }
 
+    public CapCutExportViewModel CapCutExportViewModel { get; }
+
     public MainViewModel(
         ProjectViewModel projectViewModel,
         RenderViewModel renderViewModel,
@@ -26,7 +28,8 @@ public sealed class MainViewModel : IDisposable
         AudioPlayerViewModel audioPlayerViewModel,
         VisualizerViewModel visualizerViewModel,
         TimelineViewModel timelineViewModel,
-        LibraryViewModel libraryViewModel)
+        LibraryViewModel libraryViewModel,
+        CapCutExportViewModel capCutExportViewModel)
     {
         ArgumentNullException.ThrowIfNull(canvasViewModel);
         ArgumentNullException.ThrowIfNull(audioPlayerViewModel);
@@ -39,6 +42,7 @@ public sealed class MainViewModel : IDisposable
         VisualizerViewModel = visualizerViewModel ?? throw new ArgumentNullException(nameof(visualizerViewModel));
         TimelineViewModel = timelineViewModel;
         LibraryViewModel = libraryViewModel ?? throw new ArgumentNullException(nameof(libraryViewModel));
+        CapCutExportViewModel = capCutExportViewModel ?? throw new ArgumentNullException(nameof(capCutExportViewModel));
 
         _audioPlayerViewModel = audioPlayerViewModel;
         _timelineViewModel = timelineViewModel;

@@ -45,23 +45,44 @@ internal sealed class TimelineAudioPreviewService
             RefreshAssetCache(currentProject);
 
             var activeSegments = _getActiveSegmentsAtTime(playheadSeconds);
+            var loadedPrimaryAudioPath = _audioService.CurrentAudioPath;
+            var activeAudioCandidates = activeSegments.Count(pair =>
+                string.Equals(pair.track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+            Log.Debug(
+                "AudioPreviewSync: t={Time:F3}s active={ActiveCount} audioCandidates={AudioCount} primary={PrimaryPath} currentSegment={CurrentSegmentId} force={ForceResync}",
+                playheadSeconds,
+                activeSegments.Count,
+                activeAudioCandidates,
+                loadedPrimaryAudioPath,
+                _audioService.CurrentSegmentId,
+                forceResync);
 
             // Collect ALL active audio segments across every audio track
             var audioSegments = new List<(Segment segment, string filePath)>();
-            var loadedPrimaryAudioPath = _audioService.CurrentAudioPath;
             foreach (var (track, segment) in activeSegments)
             {
-                if (!string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase)
-                    || string.IsNullOrEmpty(segment.BackgroundAssetId))
+                if (!string.Equals(track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase))
                     continue;
+
+                if (string.IsNullOrEmpty(segment.BackgroundAssetId))
+                {
+                    Log.Warning(
+                        "AudioPreviewSkip: segment={SegmentId} track={TrackId} at {Time:F3}s has no BackgroundAssetId",
+                        segment.Id,
+                        track.Id,
+                        playheadSeconds);
+                    continue;
+                }
 
                 var asset = TryGetAsset(segment.BackgroundAssetId);
 
                 if (asset == null || string.IsNullOrEmpty(asset.FilePath))
                 {
-                    Log.Debug(
-                        "Audio segment {SegmentId} has no asset (AssetId={AssetId})",
-                        segment.Id, segment.BackgroundAssetId);
+                    Log.Warning(
+                        "AudioPreviewSkip: segment={SegmentId} asset={AssetId} at {Time:F3}s has no asset or FilePath",
+                        segment.Id,
+                        segment.BackgroundAssetId,
+                        playheadSeconds);
                     continue;
                 }
 
@@ -71,9 +92,24 @@ internal sealed class TimelineAudioPreviewService
                 if (!string.IsNullOrWhiteSpace(loadedPrimaryAudioPath)
                     && string.Equals(Path.GetFullPath(asset.FilePath), Path.GetFullPath(loadedPrimaryAudioPath), StringComparison.OrdinalIgnoreCase))
                 {
+                    Log.Debug(
+                        "AudioPreviewSkip: segment={SegmentId} asset={AssetId} path={Path} skipped because same primary audio is loaded",
+                        segment.Id,
+                        asset.Id,
+                        asset.FilePath);
                     continue;
                 }
 
+                Log.Debug(
+                    "AudioPreviewCandidate: segment={SegmentId} track={TrackId} asset={AssetId} path={Path} start={Start:F3}s end={End:F3}s sourceOffset={SourceOffset:F3}s volume={Volume:F3}",
+                    segment.Id,
+                    track.Id,
+                    asset.Id,
+                    asset.FilePath,
+                    segment.StartTime,
+                    segment.EndTime,
+                    segment.SourceStartOffset,
+                    segment.Volume);
                 audioSegments.Add((segment, asset.FilePath));
             }
 
@@ -109,6 +145,13 @@ internal sealed class TimelineAudioPreviewService
             // Start / update every currently active audio segment
             foreach (var (segment, filePath) in audioSegments)
             {
+                Log.Debug(
+                    "AudioPreviewPlay: segment={SegmentId} path={Path} playhead={Playhead:F3}s segmentStart={Start:F3}s force={ForceResync}",
+                    segment.Id,
+                    filePath,
+                    playheadSeconds,
+                    segment.StartTime,
+                    forceResync);
                 _audioService.PlaySegmentAudio(
                     segment.Id,
                     filePath,

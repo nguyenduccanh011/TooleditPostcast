@@ -359,10 +359,12 @@ public partial class MainWindow : Window
             case 2: TabBtnSettings.IsChecked = true; break;
         }
 
-        // Show render button only on Editor tab
-        TitleBarRenderBtn.Visibility = newIndex == 1
+        // Show render + CapCut buttons only on Editor tab
+        var editorVis = newIndex == 1
             ? System.Windows.Visibility.Visible
             : System.Windows.Visibility.Collapsed;
+        TitleBarRenderBtn.Visibility = editorVis;
+        TitleBarCapCutBtn.Visibility = editorVis;
 
         if (!_initialLoadDone || _isTabSwitching)
         {
@@ -409,6 +411,22 @@ public partial class MainWindow : Window
         {
             Owner = this,
             DataContext = _mainViewModel.RenderViewModel,
+            Project = _projectViewModel.CurrentProject
+        };
+        dialog.ShowDialog();
+    }
+
+    private void OpenCapCutExportDialog_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        var vm = _mainViewModel.CapCutExportViewModel;
+        vm.Project = _projectViewModel.CurrentProject;
+        if (_projectViewModel.CurrentProject != null)
+            vm.DraftName = _projectViewModel.CurrentProject.Name ?? "PodcastExport";
+
+        var dialog = new Views.CapCutExportDialog
+        {
+            Owner = this,
+            DataContext = vm,
             Project = _projectViewModel.CurrentProject
         };
         dialog.ShowDialog();

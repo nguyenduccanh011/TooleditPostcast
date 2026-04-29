@@ -11,6 +11,7 @@ using PodcastVideoEditor.Ui.ViewModels;
 using System;
 using System.IO;
 using System.Net.Http;
+using Serilog;
 
 namespace PodcastVideoEditor.Ui;
 
@@ -101,6 +102,39 @@ public static class AppBootstrapper
 
     private static void RegisterViewModels(IServiceCollection services, string appDataPath)
     {
+        // CapCut export service + view model
+        services.AddSingleton<Services.CapCutExportService>(sp =>
+        {
+            var svc = new Services.CapCutExportService(sp.GetRequiredService<HttpClient>());
+            // Resolve capcut_api_standalone directory relative to install location
+            var installDir = AppContext.BaseDirectory;
+            var serverDir = Path.Combine(installDir, "capcut_api_standalone");
+            if (!Directory.Exists(serverDir))
+            {
+                // Fallback: look relative to project root (dev scenario)
+                var devDir = Path.Combine(installDir, "..", "..", "..", "..", "..", "capcut_api_standalone");
+                if (Directory.Exists(devDir))
+                    serverDir = Path.GetFullPath(devDir);
+            }
+            svc.ServerDirectory = serverDir;
+
+            // Auto-detect CapCut draft folder
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var capCutDraftDir = Path.Combine(localAppData, "CapCut", "User Data", "Projects", "com.lveditor.draft");
+            if (Directory.Exists(capCutDraftDir))
+            {
+                svc.CapCutDraftFolder = capCutDraftDir;
+                Log.Information("Auto-detected CapCut draft folder: {Dir}", capCutDraftDir);
+            }
+            else
+            {
+                Log.Warning("CapCut draft folder not found at {Dir}. Drafts will be saved locally only.", capCutDraftDir);
+            }
+
+            return svc;
+        });
+        services.AddSingleton<CapCutExportViewModel>();
+
         services.AddSingleton<RenderViewModel>();
         services.AddSingleton<VisualizerViewModel>();
         services.AddSingleton<CanvasViewModel>();
@@ -124,7 +158,8 @@ public static class AppBootstrapper
                 sp.GetRequiredService<AudioPlayerViewModel>(),
                 sp.GetRequiredService<VisualizerViewModel>(),
                 sp.GetRequiredService<TimelineViewModel>(),
-                sp.GetRequiredService<LibraryViewModel>());
+                sp.GetRequiredService<LibraryViewModel>(),
+                sp.GetRequiredService<CapCutExportViewModel>());
 
             var canvas = sp.GetRequiredService<CanvasViewModel>();
             var project = sp.GetRequiredService<ProjectViewModel>();

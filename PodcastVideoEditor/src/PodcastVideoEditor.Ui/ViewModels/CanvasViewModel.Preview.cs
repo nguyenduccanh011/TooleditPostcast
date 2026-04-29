@@ -449,6 +449,19 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             var active = _timelineViewModel.GetActiveSegmentsAtTime(playheadSeconds);
 
+            var activeAudioCount = active.Count(pair =>
+                string.Equals(pair.track.TrackType, TrackTypes.Audio, StringComparison.OrdinalIgnoreCase));
+            Log.Debug(
+                "PreviewActiveSegments: t={Time:F3}s active={ActiveCount} visual={VisualCount} text={TextCount} effect={EffectCount} audio={AudioCount} elements={ElementCount} visualizers={VisualizerCount}",
+                playheadSeconds,
+                active.Count,
+                active.Count(pair => string.Equals(pair.track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase)),
+                active.Count(pair => string.Equals(pair.track.TrackType, TrackTypes.Text, StringComparison.OrdinalIgnoreCase)),
+                active.Count(pair => string.Equals(pair.track.TrackType, TrackTypes.Effect, StringComparison.OrdinalIgnoreCase)),
+                activeAudioCount,
+                Elements.Count,
+                Elements.Count(e => e is VisualizerElement));
+
             // --- Classify active segments by track type ---
             // GetActiveSegmentsAtTime already filters by Track.IsVisible and sorts by Track.Order (0=front)
             var visualPairs = new List<(Track track, Segment segment)>();
@@ -780,7 +793,24 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (existing != null)
             {
                 if (existing is VisualizerElement ve)
+                {
                     ve.ZIndex = ComputeZIndexForTrack(track);
+                    Log.Debug(
+                        "VisualizerElementActive: segment={SegmentId} track={TrackId} z={ZIndex} visible={IsVisible} size={Width}x{Height}",
+                        segment.Id,
+                        track.Id,
+                        ve.ZIndex,
+                        ve.IsVisible,
+                        ve.Width,
+                        ve.Height);
+                }
+                else
+                {
+                    Log.Warning(
+                        "VisualizerElementBlocked: effect segment {SegmentId} is linked to non-visualizer element {ElementType}",
+                        segment.Id,
+                        existing.Type);
+                }
                 return;
             }
 
@@ -799,7 +829,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
             Elements.Add(element);
             SyncVisualizerFromElement(element);
             EnsureVisualizerTimer();
-            Serilog.Log.Debug("Auto-created VisualizerElement for effect segment {SegId}", segment.Id);
+            Log.Information(
+                "VisualizerElementCreated: segment={SegmentId} track={TrackId} start={Start:F3}s end={End:F3}s z={ZIndex} size={Width}x{Height}",
+                segment.Id,
+                track.Id,
+                segment.StartTime,
+                segment.EndTime,
+                element.ZIndex,
+                element.Width,
+                element.Height);
         }
 
         private void SetActiveVisualLayout(string? preset)

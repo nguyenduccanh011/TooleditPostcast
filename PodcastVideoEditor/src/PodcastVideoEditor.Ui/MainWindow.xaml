@@ -6,7 +6,7 @@
         xmlns:views="clr-namespace:PodcastVideoEditor.Ui.Views"
         xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
         Title="Podcast Video Editor" Height="820" MinHeight="680" Width="1100"
-        Icon="Assets/PodcastVideoEditor.ico"
+        Icon="pack://application:,,,/Assets/PodcastVideoEditor.ico"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         Background="{StaticResource PrimaryBackgroundBrush}"
@@ -177,13 +177,20 @@
                              Style="{StaticResource TitleBarTab}"/>
             </StackPanel>
 
-            <!-- Render button (visible only on Editor tab) -->
-            <Button x:Name="TitleBarRenderBtn" Grid.Column="3"
-                    Content="▶ Render" Background="{StaticResource AccentBlueBrush}" Foreground="White"
-                    FontSize="12" Padding="14,5" Height="26" Margin="0,0,8,0"
-                    WindowChrome.IsHitTestVisibleInChrome="True"
-                    Visibility="Collapsed"
-                    Click="OpenRenderDialog_Click"/>
+            <!-- Render + CapCut buttons (visible only on Editor tab) -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0"
+                        WindowChrome.IsHitTestVisibleInChrome="True">
+                <Button x:Name="TitleBarRenderBtn"
+                        Content="▶ Render" Background="{StaticResource AccentBlueBrush}" Foreground="White"
+                        FontSize="12" Padding="14,5" Height="26" Margin="0,0,4,0"
+                        Visibility="Collapsed"
+                        Click="OpenRenderDialog_Click"/>
+                <Button x:Name="TitleBarCapCutBtn"
+                        Content="📦 CapCut" Background="#FF7C3AED" Foreground="White"
+                        FontSize="12" Padding="14,5" Height="26"
+                        Visibility="Collapsed"
+                        Click="OpenCapCutExportDialog_Click"/>
+            </StackPanel>
 
             <!-- Window control buttons -->
             <StackPanel Grid.Column="4" Orientation="Horizontal">

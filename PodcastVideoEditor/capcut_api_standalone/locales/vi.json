@@ -1,0 +1,20 @@
+{
+  "capcut_modules_unavailable": "Không thể tải các module CapCut.",
+  "unknown_tool": "Công cụ không tồn tại: {tool_name}",
+  "text_styles_conversion_error": "Lỗi chuyển đổi text_styles: {error}",
+  "tool_execution_error": "Lỗi khi thực thi công cụ: {error}",
+  "request_handling_error": "Lỗi xử lý yêu cầu: {error}",
+  "method_not_found": "Không tìm thấy phương thức",
+  "starting_server": "Đang khởi động CapCut API MCP Server (bản đầy đủ)...",
+  "available_tools": "Số công cụ khả dụng: {count}",
+  "feature_summary": "Tính năng: video, audio, hình ảnh, văn bản, subtitle, effect, sticker, keyframe",
+  "waiting_connections": "Đang chờ kết nối từ client...",
+  "eof_received": "Nhận EOF, dừng server",
+  "eof_exception": "Gặp EOF, dừng server",
+  "server_error": "Lỗi server: {error}",
+  "server_stopped_by_user": "Server đã được dừng bởi người dùng",
+  "fatal_server_error": "Lỗi nghiêm trọng của server: {error}",
+  "invalid_text_range": "Khoảng văn bản không hợp lệ: [{start}, {end}), độ dài văn bản: {length}",
+  "create_draft_failed": "Tạo draft thất bại: {error}",
+  "save_draft_failed": "Lưu draft thất bại: {error}"
+}

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\PodcastVideoEditor.Core\PodcastVideoEditor.Core.csproj" />
@@ -14,6 +14,12 @@
     </Content>
     <Content Include="..\..\library\**\*" Exclude="..\..\library\README.md">
       <Link>library\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+    <!-- CapCut API standalone Python server -->
+    <Content Include="..\..\capcut_api_standalone\**\*" Exclude="..\..\capcut_api_standalone\**\__pycache__\**;..\..\capcut_api_standalone\**\*.pyc">
+      <Link>capcut_api_standalone\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>

@@ -1,0 +1,20 @@
+{
+  "capcut_modules_unavailable": "CapCut modules are not available.",
+  "unknown_tool": "Unknown tool: {tool_name}",
+  "text_styles_conversion_error": "Error converting text_styles: {error}",
+  "tool_execution_error": "Tool execution error: {error}",
+  "request_handling_error": "Request handling error: {error}",
+  "method_not_found": "Method not found",
+  "starting_server": "Starting CapCut API MCP Server (Complete Version)...",
+  "available_tools": "Available tools: {count} tools loaded",
+  "feature_summary": "Features: video, audio, image, text, subtitle, effect, sticker, keyframe",
+  "waiting_connections": "Waiting for client connections...",
+  "eof_received": "EOF received, shutting down",
+  "eof_exception": "EOF exception, shutting down",
+  "server_error": "Server error: {error}",
+  "server_stopped_by_user": "Server stopped by user",
+  "fatal_server_error": "Fatal server error: {error}",
+  "invalid_text_range": "Invalid text range: [{start}, {end}), text length: {length}",
+  "create_draft_failed": "Failed to create draft: {error}",
+  "save_draft_failed": "Failed to save draft: {error}"
+}
