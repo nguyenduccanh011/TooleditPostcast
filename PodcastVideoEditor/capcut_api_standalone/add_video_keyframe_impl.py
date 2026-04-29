@@ -13,7 +13,8 @@ def add_video_keyframe_impl(
     value: str = "1.0",
     property_types: Optional[List[str]] = None,
     times: Optional[List[float]] = None,
-    values: Optional[List[str]] = None
+    values: Optional[List[str]] = None,
+    target_start: Optional[float] = None
 ) -> Dict[str, str]:
     """
     Add keyframes to the specified segment
@@ -40,8 +41,9 @@ def add_video_keyframe_impl(
         - saturation/contrast/brightness: "+0.5" means increase by 0.5, "-0.5" means decrease by 0.5
         - volume: "80%" means 80% of original volume
     :param property_types: Batch mode: List of keyframe property types, e.g. ["alpha", "position_x", "rotation"]
-    :param times: Batch mode: List of keyframe time points (seconds), e.g. [0.0, 1.0, 2.0]
+    :param times: Batch mode: List of local keyframe time points in the segment (seconds), e.g. [0.0, 1.0, 2.0]
     :param values: Batch mode: List of keyframe values, e.g. ["1.0", "0.5", "45deg"]
+    :param target_start: Segment start time on the CapCut timeline. When provided, times are interpreted as local segment times.
     Note: property_types, times, values must be provided together and have equal lengths. If these parameters are provided, single keyframe parameters will be ignored
     :return: Updated draft information
     """
@@ -90,11 +92,23 @@ def add_video_keyframe_impl(
                 "value": value
             }]
         
+        # When target_start is given, resolve the segment once via exact start match.
+        # This bypasses pending_keyframes range-matching, which is ambiguous at segment boundaries.
+        target_segment = None
+        if target_start is not None:
+            target_start_us = int(round(target_start * 1_000_000))
+            target_segment = next(
+                (s for s in segments if s.target_timerange.start == target_start_us),
+                None
+            )
+            if target_segment is None:
+                raise Exception(f"No segment with target_start={target_start}s in track {track_name}")
+
         # Process each keyframe
         added_count = 0
         for i, kf in enumerate(keyframes_to_process):
             try:
-                _add_single_keyframe(track, kf["property_type"], kf["time"], kf["value"])
+                _add_single_keyframe(track, kf["property_type"], kf["time"], kf["value"], target_segment)
                 added_count += 1
             except Exception as e:
                 raise Exception(f"Failed to add keyframe #{i+1} (property_type={kf['property_type']}, time={kf['time']}, value={kf['value']}): {str(e)}")
@@ -116,7 +130,7 @@ def add_video_keyframe_impl(
         raise Exception(f"Failed to add keyframe: {str(e)}")
 
 
-def _add_single_keyframe(track, property_type: str, time: float, value: str):
+def _add_single_keyframe(track, property_type: str, time: float, value: str, target_segment=None):
     """
     Internal function to add a single keyframe
     """
@@ -165,5 +179,9 @@ def _add_single_keyframe(track, property_type: str, time: float, value: str):
     except ValueError:
         raise Exception(f"Invalid value format: {value}")
     
-    # If track object is provided, use the track's add_pending_keyframe method
-    track.add_pending_keyframe(property_type, time, value)
+    if target_segment is not None:
+        # Direct, unambiguous binding: caller already identified the segment.
+        target_segment.add_keyframe(property_enum, int(round(time * 1_000_000)), float_value)
+    else:
+        # Legacy path: defer to track and let save_draft resolve the segment by time range.
+        track.add_pending_keyframe(property_type, time, value)

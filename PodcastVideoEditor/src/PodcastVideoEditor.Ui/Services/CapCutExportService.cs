@@ -308,6 +308,24 @@ public sealed class CapCutExportService : IDisposable
             color
         }, ct);
 
+    public Task<JsonDocument?> AddVideoKeyframesBatchAsync(
+        string draftId,
+        string trackName,
+        System.Collections.Generic.IReadOnlyList<string> propertyTypes,
+        System.Collections.Generic.IReadOnlyList<double> times,
+        System.Collections.Generic.IReadOnlyList<string> values,
+        double targetStart,
+        CancellationToken ct = default)
+        => PostJsonAsync("/add_video_keyframe", new
+        {
+            draft_id = draftId,
+            track_name = trackName,
+            property_types = propertyTypes,
+            times,
+            values,
+            target_start = targetStart
+        }, ct);
+
     public Task<JsonDocument?> SaveDraftAsync(string draftId, CancellationToken ct = default)
         => PostJsonAsync("/save_draft", new { draft_id = draftId, draft_folder = CapCutDraftFolder }, ct);
 

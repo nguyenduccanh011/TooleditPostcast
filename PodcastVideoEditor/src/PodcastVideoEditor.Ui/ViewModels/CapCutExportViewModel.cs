@@ -352,6 +352,29 @@ public partial class CapCutExportViewModel : ObservableObject, IDisposable
                                     relativeIndex: trackRelativeIndex,
                                     ct: ct);
                                 EnsureApiSuccess(addImageResult, $"add_image failed for track '{trackKey}', segment {seg.Id}");
+
+                                var motionPreset = ResolveEffectiveMotionPreset(track, seg);
+                                if (motionPreset != MotionPresets.None)
+                                {
+                                    var motionIntensity = ResolveEffectiveMotionIntensity(track, seg);
+                                    var batch = CapCutMotionKeyframeMapper.Build(
+                                        motionPreset,
+                                        motionIntensity,
+                                        targetDuration,
+                                        vSx, vSy, vTx, vTy);
+                                    if (batch is not null)
+                                    {
+                                        var keyframeResult = await _exportService.AddVideoKeyframesBatchAsync(
+                                            draftId,
+                                            trackKey,
+                                            batch.PropertyTypes,
+                                            batch.Times,
+                                            batch.Values,
+                                            targetStart,
+                                            ct);
+                                        EnsureApiSuccess(keyframeResult, $"add_video_keyframe failed for track '{trackKey}', segment {seg.Id}");
+                                    }
+                                }
                             }
                             break;
 
@@ -1096,6 +1119,19 @@ public partial class CapCutExportViewModel : ObservableObject, IDisposable
             : 0;
 
         return (fixedWidthRatio, fixedHeightRatio);
+    }
+
+    private static string ResolveEffectiveMotionPreset(Track track, Segment seg)
+    {
+        var preset = string.IsNullOrWhiteSpace(seg.MotionPreset) ? MotionPresets.None : seg.MotionPreset;
+        if (preset == MotionPresets.None && track.AutoMotionEnabled)
+            preset = MotionPresets.GetRandomPreset(seg.Id);
+        return preset;
+    }
+
+    private static double ResolveEffectiveMotionIntensity(Track track, Segment seg)
+    {
+        return seg.MotionIntensity ?? track.MotionIntensity;
     }
 
     private static string GetTrackExportKey(Track track)

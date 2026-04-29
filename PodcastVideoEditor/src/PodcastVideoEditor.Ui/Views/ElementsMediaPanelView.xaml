@@ -388,7 +388,7 @@
                                  VerticalContentAlignment="Top"
                                  ToolTip="Ví dụ: [0.00 → 6.04]  Chào mừng đến với podcast..."/>
                         <TextBlock Margin="0,6,0,0" FontSize="10">
-                            <Hyperlink NavigateUri="https://colab.research.google.com/drive/1dG_23gf-bMgmElPHaqUafGGUfeDo6eNJ#scrollTo=iaPfKnjMr3Lf" 
+                            <Hyperlink NavigateUri="https://colab.research.google.com/drive/1APU5ZUaur-R8CDoQYELvivolCWHc2B1V?usp=sharing" 
                                        RequestNavigate="Hyperlink_RequestNavigate"
                                        TextDecorations="Underline"
                                        Foreground="{StaticResource AccentLightBlueBrush}">

@@ -642,8 +642,9 @@ def add_video_keyframe():
     
     # Batch keyframe parameters (new)
     property_types = data.get('property_types')  # Property type list
-    times = data.get('times')  # Time list
+    times = data.get('times')  # Local time list within the target segment
     values = data.get('values')  # Value list
+    target_start = data.get('target_start')  # Segment start on timeline; makes times segment-local
 
     result = {
         "success": False,
@@ -661,7 +662,8 @@ def add_video_keyframe():
             value=value,
             property_types=property_types,
             times=times,
-            values=values
+            values=values,
+            target_start=target_start
         )
         
         result["success"] = True
