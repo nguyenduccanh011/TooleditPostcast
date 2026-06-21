@@ -99,6 +99,15 @@ public partial class Segment : ObservableObject
     private double sourceStartOffset;
 
     /// <summary>
+    /// Playback speed multiplier for this clip (1.0 = normal). &gt; 1 plays faster, &lt; 1 slower.
+    /// CapCut-style: changing speed rescales the segment's timeline duration — the source content
+    /// consumed = (EndTime - StartTime) × Speed. Applies to video/audio segments; still images
+    /// ignore it. Default 1.0 leaves the render path unchanged (zero regression).
+    /// </summary>
+    [ObservableProperty]
+    private double speed = 1.0;
+
+    /// <summary>
     /// Ken Burns motion effect preset for this image segment.
     /// Valid values defined in <see cref="MotionPresets"/>.
     /// "None" = static (default). Other values: ZoomIn, ZoomOut, PanLeft, PanRight, etc.
@@ -220,6 +229,7 @@ public partial class Segment : ObservableObject
         FadeInDuration     = FadeInDuration,
         FadeOutDuration    = FadeOutDuration,
         SourceStartOffset  = SourceStartOffset,
+        Speed              = Speed,
         TransitionType     = TransitionType,
         TransitionDuration = TransitionDuration,
         MotionPreset       = MotionPreset,

@@ -99,6 +99,13 @@ public class RenderConfig
     /// </summary>
     public bool DisableEmbeddedTimelineSources { get; set; } = false;
 
+    /// <summary>
+    /// Number of FFmpeg render processes expected to run concurrently for this render
+    /// (1 = monolithic, N = parallel chunk workers). Used to divide the per-process thread
+    /// budget so N concurrent workers do not oversubscribe the CPU. Runtime-only; default 1.
+    /// </summary>
+    public int ParallelRenderWorkers { get; set; } = 1;
+
 
     /// <summary>
     /// Get CRF value based on quality setting.
@@ -221,6 +228,12 @@ public class RenderVisualSegment
     /// on top of the image with the given opacity.
     /// </summary>
     public double OverlayOpacity { get; set; }
+
+    /// <summary>
+    /// Layer opacity in [0,1]. 1.0 = fully opaque. Used by the GPU compositor (e.g. for
+    /// semi-transparent logo/image overlays); the FFmpeg path treats opacity via other means.
+    /// </summary>
+    public double Opacity { get; set; } = 1.0;
 
     /// <summary>
     /// Duration of the segment in seconds (EndTime - StartTime).

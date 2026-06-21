@@ -5,7 +5,7 @@
              xmlns:conv="clr-namespace:PodcastVideoEditor.Ui.Converters"
              xmlns:controls="clr-namespace:PodcastVideoEditor.Ui.Controls"
              Background="Transparent"
-             Foreground="#e0e0e0"
+             Foreground="{StaticResource PanelForegroundBrush}"
              Focusable="True">
     <UserControl.InputBindings>
         <KeyBinding Key="Delete" Command="{Binding DeleteSelectedSegmentCommand}"/>
@@ -39,7 +39,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
-                        <Border Background="#2d3a4a"/>
+                        <Border Background="{StaticResource TextPresetCardBrush}"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -124,7 +124,7 @@
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: Ruler header with zoom slider -->
-                    <Border Grid.Row="0" Height="40" Background="#252526" BorderBrush="#37474f" BorderThickness="0,0,1,0">
+                    <Border Grid.Row="0" Height="40" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,0,1,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
@@ -156,7 +156,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
-                                    Background="#3d3d3d" BorderBrush="#37474f" BorderThickness="0,0,1,0"
+                                    Background="#3d3d3d" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,0,1,0"
                                     PreviewMouseLeftButtonDown="TrackHeader_Click"
                                     PreviewMouseMove="TrackHeader_MouseMove"
                                     AllowDrop="True"
@@ -179,7 +179,7 @@
                                                    ToolTip="Drag to reorder track"
                                                    FontSize="11"
                                                    FontWeight="Bold"
-                                                   Foreground="#b0bec5"
+                                                   Foreground="{StaticResource PropertyLabelBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,4,0"
                                                    Cursor="SizeAll"/>
@@ -187,7 +187,7 @@
                                         <TextBlock Text="{Binding TrackType, Converter={StaticResource TrackTypeToIconConverter}}"
                                                    ToolTip="{Binding Name}"
                                                    FontFamily="Segoe UI Emoji" FontSize="11" FontWeight="Bold"
-                                                   Foreground="#81c784"
+                                                   Foreground="{StaticResource ValueDisplayBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,3,0"
                                                    Width="14" TextAlignment="Center"/>
                                         <!-- Lock toggle -->
@@ -233,7 +233,7 @@
                     </ItemsControl>
 
                     <!-- Row 2: Track management -->
-                    <Border Grid.Row="2" Height="26" Background="#2a2a2a" BorderBrush="#37474f" BorderThickness="0,1,1,0">
+                    <Border Grid.Row="2" Height="26" Background="{StaticResource HintCardBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,1,1,0">
                         <StackPanel Orientation="Horizontal" Margin="2,0">
                             <Button Content="+" Click="AddTrack_Click" ToolTip="Add track"
                                     Width="20" Height="20" FontSize="12" FontWeight="Bold"
@@ -261,12 +261,12 @@
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Ruler -->
-                        <Border Grid.Row="0" Background="#252526" Height="40"
+                        <Border Grid.Row="0" Background="{StaticResource SecondaryBackgroundBrush}" Height="40"
                                 MouseDown="RulerBorder_MouseDown"
                                 MouseMove="RulerBorder_MouseMove"
                                 MouseUp="RulerBorder_MouseUp"
                                 Cursor="Hand"
-                                BorderBrush="#37474f" BorderThickness="0">
+                                BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0">
                             <controls:TimelineRulerControl x:Name="RulerControl"
                                                            HorizontalAlignment="Left"
                                                            Height="40"
@@ -289,8 +289,8 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                         <Border Height="{Binding TrackType, Converter={StaticResource TrackHeightConverter}}"
-                                            Background="#2d2d2d" BorderBrush="#37474f" BorderThickness="0">
-                                        <Canvas Background="#2d2d2d" 
+                                            Background="{StaticResource CardHeaderBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0">
+                                        <Canvas Background="{StaticResource CardHeaderBackgroundBrush}" 
                                                ClipToBounds="True"
                                                Width="{Binding DataContext.TimelineWidth, RelativeSource={RelativeSource AncestorType=UserControl}, FallbackValue=800}"
                                                MouseDown="TimelineCanvas_MouseDown"
@@ -382,7 +382,7 @@
                                                                         </Border.Background>
                                                                         <Grid>
                                                                             <!-- Layer 0: "Video" placeholder text (behind thumbnails so thumbnails draw on top) -->
-                                                                            <TextBlock Text="Video" Foreground="#64b5f6" FontSize="9" VerticalAlignment="Center" HorizontalAlignment="Center" Panel.ZIndex="0">
+                                                                            <TextBlock Text="Video" Foreground="{StaticResource AccentLightBlueBrush}" FontSize="9" VerticalAlignment="Center" HorizontalAlignment="Center" Panel.ZIndex="0">
                                                                                 <TextBlock.Visibility>
                                                                                     <MultiBinding Converter="{StaticResource SegmentVideoPlaceholderVisibilityConverter}">
                                                                                         <Binding Path="BackgroundAssetId"/>
@@ -422,7 +422,7 @@
                                                                                                 CacheMode="BitmapCache"
                                                                                                 RenderOptions.CachingHint="Cache">
                                                                                             <Image Stretch="UniformToFill" 
-                                                                                                   RenderOptions.BitmapScalingMode="Fant"
+                                                                                                   RenderOptions.BitmapScalingMode="LowQuality"
                                                                                                    RenderOptions.EdgeMode="Aliased">
                                                                                                 <Image.Source>
                                                                                                     <MultiBinding Converter="{StaticResource VideoFrameAtTimeConverter}">
@@ -439,7 +439,7 @@
                                                                             </ItemsControl>
                                                                             <!-- Single thumbnail (image or video first frame when strip empty); hidden when segment has asset -->
                                                                             <Image Stretch="UniformToFill" 
-                                                                                   RenderOptions.BitmapScalingMode="HighQuality" 
+                                                                                   RenderOptions.BitmapScalingMode="LowQuality" 
                                                                                    RenderOptions.CachingHint="Cache"
                                                                                    CacheMode="BitmapCache"
                                                                                    HorizontalAlignment="Left" Width="44" Margin="2,0" Panel.ZIndex="2">
@@ -578,7 +578,7 @@
                                     CornerRadius="3"
                                     Opacity="0.7">
                                 <TextBlock x:Name="DropGhostLabel"
-                                           Foreground="#B0BEC5"
+                                           Foreground="{StaticResource PropertyLabelBrush}"
                                            FontSize="10"
                                            VerticalAlignment="Center"
                                            HorizontalAlignment="Center"

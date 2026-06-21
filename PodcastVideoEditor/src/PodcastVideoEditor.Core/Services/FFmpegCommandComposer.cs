@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace PodcastVideoEditor.Core.Services;
 
@@ -176,6 +177,8 @@ public static class FFmpegCommandComposer
             _preferredHevcEncoder = null;
             _gpuFilterBackend = GpuFilterBackend.None;
             _gpuFilterProbed = false;
+            try { var p = GetEncoderCachePath(); if (File.Exists(p)) File.Delete(p); }
+            catch (Exception ex) { Log.Debug(ex, "Could not delete encoder probe disk cache on invalidate"); }
         }
         Log.Information("FFmpegCommandComposer: Encoder/filter cache invalidated – will re-probe on next use.");
     }
@@ -1305,12 +1308,15 @@ public static class FFmpegCommandComposer
     {
         var logicalCores = Environment.ProcessorCount;
 
-        // When chunked rendering runs in parallel (2 FFmpeg workers), avoid core oversubscription
-        // by shrinking per-process thread budgets.
-        if (config.DisableEmbeddedTimelineSources && logicalCores >= 12)
+        // When N chunk renders run concurrently, divide the core budget across them so the
+        // total thread count stays near the physical core count instead of N×(cores-2),
+        // which thrashes the scheduler and is a major cause of "render feels resource-heavy".
+        var workers = Math.Max(1, config.ParallelRenderWorkers);
+        if (workers > 1)
         {
-            var renderThreadsParallel = Math.Max(2, logicalCores / 2 - 1);
-            var filterThreadsParallel = Math.Max(2, logicalCores / 4);
+            var perWorkerCores = Math.Max(2, logicalCores / workers);
+            var renderThreadsParallel = Math.Max(2, perWorkerCores - 1);
+            var filterThreadsParallel = Math.Max(2, perWorkerCores / 2);
             return (renderThreadsParallel, filterThreadsParallel);
         }
 
@@ -1350,7 +1356,17 @@ public static class FFmpegCommandComposer
             PrimaryAudioVolume = config.PrimaryAudioVolume,
             VisualSegments = config.VisualSegments?.ToList() ?? [],
             TextSegments   = config.TextSegments?.ToList()  ?? [],
-            AudioSegments  = config.AudioSegments?.ToList() ?? []
+            AudioSegments  = config.AudioSegments?.ToList() ?? [],
+            // Preserve runtime render-strategy flags. DisableEmbeddedTimelineSources and
+            // ParallelRenderWorkers were previously dropped here, which silently disabled the
+            // chunked thread budget — every parallel chunk worker then requested (cores-2)
+            // threads, oversubscribing the CPU (a direct cause of "render is resource-heavy").
+            // NOTE: UseGpuOverlay is intentionally NOT propagated. It has effectively been
+            // false in all shipped builds (dropped here), so the overlay_cuda path is unproven;
+            // enabling it blindly risks regressions on NVIDIA machines. Revisit with real
+            // render verification before turning it on.
+            DisableEmbeddedTimelineSources = config.DisableEmbeddedTimelineSources,
+            ParallelRenderWorkers = config.ParallelRenderWorkers
         };
     }
 
@@ -1635,6 +1651,105 @@ public static class FFmpegCommandComposer
         return _preferredHevcEncoder ?? "libx265";
     }
 
+    /// <summary>
+    /// Warm up the (potentially slow, 10-20s) encoder/GPU probe on a background thread so the
+    /// first render does not pay the probe cost synchronously. Idempotent and cheap to call
+    /// repeatedly. Call once at app startup after FFmpeg has been initialized.
+    /// </summary>
+    public static Task WarmUpEncodersAsync()
+        => Task.Run(() =>
+        {
+            try { EnsurePreferredEncodersInitialized(); }
+            catch (Exception ex) { Log.Debug(ex, "Encoder warm-up failed"); }
+        });
+
+    private sealed class EncoderProbeCache
+    {
+        public string FfmpegId { get; set; } = "";
+        public string H264 { get; set; } = "";
+        public string Hevc { get; set; } = "";
+        public int FilterBackend { get; set; }
+        public long SavedUtcTicks { get; set; }
+    }
+
+    private static string GetEncoderCachePath()
+    {
+        var dir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PodcastVideoEditor");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "encoder_cache.json");
+    }
+
+    // Identity = path + last write time + length, so a replaced/updated FFmpeg binary
+    // (e.g. after FFmpegUpdateService swaps in a compat build) invalidates the cache.
+    private static string ComputeFfmpegIdentity(string ffmpegPath)
+    {
+        try
+        {
+            var fi = new FileInfo(ffmpegPath);
+            return $"{fi.FullName}|{fi.LastWriteTimeUtc.Ticks}|{fi.Length}";
+        }
+        catch { return ffmpegPath; }
+    }
+
+    private static bool TryLoadEncoderProbeFromDisk(string ffmpegPath)
+    {
+        try
+        {
+            var path = GetEncoderCachePath();
+            if (!File.Exists(path))
+                return false;
+
+            var cache = System.Text.Json.JsonSerializer.Deserialize<EncoderProbeCache>(File.ReadAllText(path));
+            if (cache == null)
+                return false;
+            if (!string.Equals(cache.FfmpegId, ComputeFfmpegIdentity(ffmpegPath), StringComparison.Ordinal))
+                return false;
+            if (string.IsNullOrWhiteSpace(cache.H264) || string.IsNullOrWhiteSpace(cache.Hevc))
+                return false;
+
+            // 30-day TTL: re-probe periodically to pick up GPU driver changes that don't alter the exe.
+            var age = DateTime.UtcNow - new DateTime(cache.SavedUtcTicks, DateTimeKind.Utc);
+            if (age > TimeSpan.FromDays(30) || age < TimeSpan.Zero)
+                return false;
+
+            _preferredH264Encoder = cache.H264;
+            _preferredHevcEncoder = cache.Hevc;
+            _gpuFilterBackend = Enum.IsDefined(typeof(GpuFilterBackend), cache.FilterBackend)
+                ? (GpuFilterBackend)cache.FilterBackend
+                : GpuFilterBackend.None;
+            Log.Information("Encoder probe loaded from disk cache: H264={H264}, HEVC={HEVC}, filter={Backend}",
+                _preferredH264Encoder, _preferredHevcEncoder, _gpuFilterBackend);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not load encoder probe disk cache; will re-probe");
+            return false;
+        }
+    }
+
+    private static void SaveEncoderProbeToDisk(string ffmpegPath)
+    {
+        try
+        {
+            var cache = new EncoderProbeCache
+            {
+                FfmpegId = ComputeFfmpegIdentity(ffmpegPath),
+                H264 = _preferredH264Encoder ?? "libx264",
+                Hevc = _preferredHevcEncoder ?? "libx265",
+                FilterBackend = (int)_gpuFilterBackend,
+                SavedUtcTicks = DateTime.UtcNow.Ticks
+            };
+            File.WriteAllText(GetEncoderCachePath(), System.Text.Json.JsonSerializer.Serialize(cache));
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Could not save encoder probe disk cache");
+        }
+    }
+
     private static void EnsurePreferredEncodersInitialized()
     {
         if (!string.IsNullOrEmpty(_preferredH264Encoder) && !string.IsNullOrEmpty(_preferredHevcEncoder) && _gpuFilterProbed)
@@ -1661,6 +1776,15 @@ public static class FFmpegCommandComposer
                 _preferredH264Encoder = null;
                 _preferredHevcEncoder = null;
                 Log.Warning("GPU probe skipped: FFmpeg path not available yet. Will re-probe when path is set.");
+                return;
+            }
+
+            // Fast path: reuse a previously persisted probe for this exact FFmpeg binary.
+            // The probe runs several real 1-frame GPU encode smoke tests (10-20s total); persisting
+            // the result means we only pay that once per FFmpeg build, not on every app restart.
+            if (TryLoadEncoderProbeFromDisk(ffmpegPath))
+            {
+                _gpuFilterProbed = true;
                 return;
             }
 
@@ -1748,6 +1872,9 @@ public static class FFmpegCommandComposer
                 // Run `ffmpeg -filters` and check for GPU-accelerated scale/overlay filters.
                 // Priority is vendor-aware: AMD prefers OpenCL, NVIDIA prefers CUDA, Intel prefers QSV.
                 ProbeGpuFilterBackend(ffmpegPath, gpuVendor);
+
+                // Persist the probe so subsequent app sessions skip the expensive smoke tests.
+                SaveEncoderProbeToDisk(ffmpegPath);
             }
             catch (Exception ex)
             {
@@ -2162,6 +2289,22 @@ public static class FFmpegCommandComposer
         if (string.IsNullOrWhiteSpace(preset))
             return preset;
 
+        // Static content (near-zero motion, e.g. podcast images + audio) compresses
+        // trivially, so a slower preset buys almost no quality but costs real encode time.
+        // Speed up one notch at Medium only — Low is already fast, High intentionally
+        // favors quality. Applies to ALL encoders (previously only nvenc was tuned).
+        if (string.Equals(quality, "Medium", StringComparison.Ordinal) && motionComplexity < 0.05d)
+        {
+            var faster = SpeedUpPresetForStaticContent(videoCodec, preset);
+            if (!string.Equals(faster, preset, StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Information(
+                    "EncoderPreset(static): codec={Codec}, motionComplexity={Motion:F3}, preset {From}->{To}",
+                    videoCodec, motionComplexity, preset, faster);
+                preset = faster;
+            }
+        }
+
         if (!videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
             return preset;
 
@@ -2190,6 +2333,25 @@ public static class FFmpegCommandComposer
         }
 
         return upgraded;
+    }
+
+    /// <summary>
+    /// Returns a one-notch-faster preset for static/low-motion content, per encoder family.
+    /// Returns the input unchanged when no faster step is appropriate.
+    /// </summary>
+    private static string SpeedUpPresetForStaticContent(string videoCodec, string preset)
+    {
+        if (videoCodec.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+            return preset switch { "p4" => "p3", "p3" => "p2", _ => preset };
+
+        if (videoCodec.Contains("qsv", StringComparison.OrdinalIgnoreCase))
+            return preset switch { "medium" => "fast", "fast" => "faster", _ => preset };
+
+        if (videoCodec.Contains("amf", StringComparison.OrdinalIgnoreCase))
+            return preset switch { "quality" => "balanced", "balanced" => "speed", _ => preset };
+
+        // Software encoders (libx264 / libx265)
+        return preset switch { "medium" => "fast", "fast" => "faster", _ => preset };
     }
 
     private static string MaxNvencPreset(string currentPreset, string minPreset)

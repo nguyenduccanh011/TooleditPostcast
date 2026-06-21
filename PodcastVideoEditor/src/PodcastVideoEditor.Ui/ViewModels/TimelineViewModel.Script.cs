@@ -26,22 +26,6 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             try
             {
-                if (_projectViewModel.CurrentProject == null)
-                {
-                    StatusMessage = "No project loaded";
-                    return;
-                }
-
-                // Find preferred script text track first, then fall back to first text track.
-                var textTrack = _projectViewModel.CurrentProject.Tracks?
-                    .FirstOrDefault(t => string.Equals(t.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
-                    ?? _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
-                if (textTrack == null)
-                {
-                    StatusMessage = "No text track found in project";
-                    return;
-                }
-
                 var parsed = ScriptParser.Parse(ScriptPasteText);
                 if (parsed.Count == 0)
                 {
@@ -49,47 +33,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     return;
                 }
 
-                var projectId = _projectViewModel.CurrentProject.Id;
-
-                // Capture old text-track segment IDs so CanvasViewModel can remove orphaned elements
-                var oldSegmentIds = (textTrack.Segments ?? Enumerable.Empty<Segment>())
-                    .Select(s => s.Id)
-                    .ToHashSet();
-
-                var newSegments = new List<Segment>();
-                for (int i = 0; i < parsed.Count; i++)
-                {
-                    var p = parsed[i];
-                    newSegments.Add(new Segment
-                    {
-                        ProjectId = projectId,
-                        TrackId = textTrack.Id,
-                        StartTime = Math.Round(p.Start, 2),
-                        EndTime = Math.Round(p.End, 2),
-                        Text = p.Text,
-                        Kind = SegmentKinds.Text,
-                        TransitionType = "fade",
-                        TransitionDuration = 0.5,
-                        Order = i
-                    });
-                }
-
-                // Close gaps: extend each segment's EndTime to next segment's StartTime
-                // so there are no black frames between scenes.
-                if (AutoCloseGaps)
-                    CloseGapsService.CloseGaps(newSegments);
-
-                await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
-                await _projectViewModel.StretchDynamicVisualOverlaysAsync();
-
-                // Reload tracks from project
-                LoadTracksFromProject();
-
-                // Notify CanvasViewModel to create/refresh canvas TextElements
-                ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(oldSegmentIds, newSegments.AsReadOnly()));
-
-                StatusMessage = $"Script applied: {newSegments.Count} segment(s) in text track";
-                Log.Information("Script applied: {Count} segments in text track {TrackId}", newSegments.Count, textTrack.Id);
+                await ApplyParsedSegmentsAsync(parsed, "Script applied");
             }
             catch (Exception ex)
             {
@@ -99,7 +43,116 @@ namespace PodcastVideoEditor.Ui.ViewModels
             }
         }
 
+        /// <summary>
+        /// Shared apply path for parsed (start, end, text) segments — used by both the
+        /// pasted-script flow and the SRT/VTT import flow. Builds Segments on the preferred
+        /// text track, persists, and notifies the canvas to refresh its text elements.
+        /// </summary>
+        private async Task ApplyParsedSegmentsAsync(IReadOnlyList<ScriptParser.ParsedSegment> parsed, string sourceLabel)
+        {
+            if (_projectViewModel.CurrentProject == null)
+            {
+                StatusMessage = "No project loaded";
+                return;
+            }
+
+            // Find preferred script text track first, then fall back to first text track.
+            var textTrack = _projectViewModel.CurrentProject.Tracks?
+                .FirstOrDefault(t => string.Equals(t.TrackRole, TrackRoles.ScriptText, StringComparison.OrdinalIgnoreCase))
+                ?? _projectViewModel.CurrentProject.Tracks?.FirstOrDefault(t => t.TrackType == TrackTypes.Text);
+            if (textTrack == null)
+            {
+                StatusMessage = "No text track found in project";
+                return;
+            }
+
+            var projectId = _projectViewModel.CurrentProject.Id;
+
+            // Capture old text-track segment IDs so CanvasViewModel can remove orphaned elements
+            var oldSegmentIds = (textTrack.Segments ?? Enumerable.Empty<Segment>())
+                .Select(s => s.Id)
+                .ToHashSet();
+
+            var newSegments = new List<Segment>();
+            for (int i = 0; i < parsed.Count; i++)
+            {
+                var p = parsed[i];
+                newSegments.Add(new Segment
+                {
+                    ProjectId = projectId,
+                    TrackId = textTrack.Id,
+                    StartTime = Math.Round(p.Start, 2),
+                    EndTime = Math.Round(p.End, 2),
+                    Text = p.Text,
+                    Kind = SegmentKinds.Text,
+                    TransitionType = "fade",
+                    TransitionDuration = 0.5,
+                    Order = i
+                });
+            }
+
+            // Close gaps: extend each segment's EndTime to next segment's StartTime
+            // so there are no black frames between scenes.
+            if (AutoCloseGaps)
+                CloseGapsService.CloseGaps(newSegments);
+
+            await _projectViewModel.ReplaceSegmentsAndSaveAsync(newSegments);
+            await _projectViewModel.StretchDynamicVisualOverlaysAsync();
+
+            // Reload tracks from project
+            LoadTracksFromProject();
+
+            // Notify CanvasViewModel to create/refresh canvas TextElements
+            ScriptApplied?.Invoke(this, new ScriptAppliedEventArgs(oldSegmentIds, newSegments.AsReadOnly()));
+
+            StatusMessage = $"{sourceLabel}: {newSegments.Count} segment(s) in text track";
+            Log.Information("{Source}: {Count} segments in text track {TrackId}", sourceLabel, newSegments.Count, textTrack.Id);
+        }
+
         private bool CanApplyScript() => _projectViewModel.CurrentProject != null && !string.IsNullOrWhiteSpace(ScriptPasteText);
+
+        // ── Import Subtitle (SRT / VTT) ──────────────────────────────────────
+
+        /// <summary>
+        /// Import an .srt or .vtt subtitle file and apply its cues as text-track segments,
+        /// reusing the same apply path as the pasted-script flow.
+        /// </summary>
+        [RelayCommand]
+        private async Task ImportSubtitleFileAsync()
+        {
+            if (_projectViewModel.CurrentProject == null)
+            {
+                StatusMessage = "No project loaded";
+                return;
+            }
+
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Chọn file phụ đề (SRT/VTT)",
+                Filter = "Phụ đề (*.srt;*.vtt)|*.srt;*.vtt|All files (*.*)|*.*",
+                CheckFileExists = true
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                var content = await System.IO.File.ReadAllTextAsync(dlg.FileName);
+                var parsed = SubtitleParser.Parse(content);
+                if (parsed.Count == 0)
+                {
+                    StatusMessage = "Không tìm thấy phụ đề hợp lệ trong file";
+                    return;
+                }
+
+                await ApplyParsedSegmentsAsync(parsed, $"Đã nhập phụ đề ({System.IO.Path.GetFileName(dlg.FileName)})");
+            }
+            catch (Exception ex)
+            {
+                var message = ex.InnerException?.Message ?? ex.Message;
+                StatusMessage = $"Lỗi nhập phụ đề: {message}";
+                Log.Error(ex, "Import subtitle failed: {Message}", ex.Message);
+            }
+        }
 
         /// <summary>
         /// Fired after ApplyScriptAsync successfully replaces the text track.

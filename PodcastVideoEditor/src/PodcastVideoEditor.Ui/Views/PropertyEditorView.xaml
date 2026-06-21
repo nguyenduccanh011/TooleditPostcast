@@ -7,7 +7,7 @@
              xmlns:media="clr-namespace:System.Windows.Media;assembly=PresentationCore"
              xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
              Background="Transparent"
-             Foreground="#e0e0e0"
+             Foreground="{StaticResource PanelForegroundBrush}"
              MinWidth="220">
 
     <UserControl.Resources>
@@ -41,7 +41,7 @@
             <Setter Property="Height" Value="26"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="{StaticResource PanelFieldBackgroundBrush}"/>
-            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="Foreground" Value="{StaticResource PanelForegroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -102,7 +102,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
@@ -116,7 +116,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Top" Margin="0,4,0,0"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource FlatTextBoxStyle}"
                          TextWrapping="Wrap" AcceptsReturn="True" Height="52" VerticalContentAlignment="Top"
@@ -132,7 +132,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
@@ -146,7 +146,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
                          Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
@@ -160,7 +160,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -193,7 +193,7 @@
                            PlacementTarget="{Binding ElementName=ColorPickerToggle}"
                            Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                            PopupAnimation="Fade">
-                        <Border Background="#252530" BorderBrush="#546e7a" BorderThickness="1"
+                        <Border Background="{StaticResource PopupBackgroundBrush}" BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
                                 CornerRadius="6" Padding="2"
                                 Effect="{StaticResource PopupDropShadow}">
                             <controls:ColorPickerPopup
@@ -215,7 +215,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding EnumValues}"
                           SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource FlatComboBoxStyle}"/>
@@ -230,7 +230,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <ComboBox Grid.Column="1"
                           ItemsSource="{Binding Source={StaticResource SystemFontFamiliesProvider}}"
                           SelectedValuePath="Source"
@@ -254,7 +254,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <ListBox Grid.Column="1"
                          ItemsSource="{Binding EnumValues}"
                          SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
@@ -307,7 +307,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
                     <ToggleButton Width="28" Height="28" Margin="0,0,8,0"
                                   IsChecked="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -338,7 +338,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
                     <TextBlock Text="X" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
@@ -362,7 +362,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <CheckBox Grid.Column="1" IsChecked="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                           HorizontalAlignment="Left" VerticalAlignment="Center"/>
             </Grid>
@@ -376,7 +376,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="#b0bec5" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
                 <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -422,17 +422,17 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <TextBlock Grid.Row="0" FontSize="14" FontWeight="Bold" Foreground="#64b5f6"
+        <TextBlock Grid.Row="0" FontSize="14" FontWeight="Bold" Foreground="{StaticResource AccentLightBlueBrush}"
                    Margin="0,0,0,8" Text="{Binding HeaderText}"/>
 
         <!-- Timing badge (visible only when element is bound to a segment) -->
-        <Border Grid.Row="1" CornerRadius="4" Background="#252530" Padding="8,5"
+        <Border Grid.Row="1" CornerRadius="4" Background="{StaticResource PopupBackgroundBrush}" Padding="8,5"
                 Margin="0,0,0,10"
                 Visibility="{Binding SegmentTimingText, Converter={StaticResource ObjectToVisibilityConverter}}">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="⏱" FontSize="12" Foreground="#90caf9" Margin="0,0,6,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding SegmentTimingText}" FontSize="12" FontFamily="Courier New"
-                           Foreground="#81c784" VerticalAlignment="Center"/>
+                           Foreground="{StaticResource ValueDisplayBrush}" VerticalAlignment="Center"/>
             </StackPanel>
         </Border>
 
@@ -441,15 +441,15 @@
                 Margin="0,0,0,6"
                 Visibility="{Binding TrackStyleInfoText, Converter={StaticResource ObjectToVisibilityConverter}}">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="🔗" FontSize="12" Foreground="#ce93d8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="🔗" FontSize="12" Foreground="{StaticResource AccentPurpleBrush}" Margin="0,0,6,0" VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding TrackStyleInfoText}" FontSize="11"
-                           Foreground="#ce93d8" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                           Foreground="{StaticResource AccentPurpleBrush}" VerticalAlignment="Center" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
 
         <!-- No selection -->
-        <TextBlock Grid.Row="2" Text="Select an element on canvas to edit properties"
-                   Foreground="#7a8a96" FontStyle="Italic"
+        <TextBlock Grid.Row="2" Text="Chọn một phần tử trên canvas để chỉnh sửa thuộc tính"
+                   Foreground="{StaticResource HintTextBrush}" FontStyle="Italic"
                    Visibility="{Binding SelectedElement, Converter={StaticResource NullToVisibilityConverter}}"/>
 
         <!-- Grouped properties (headers hidden for compact layout) -->

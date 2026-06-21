@@ -28,6 +28,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private readonly PropertyChangedEventHandler _canvasPropertyChangedHandler;
         private readonly SemaphoreSlim _saveSemaphore = new(1, 1);
 
+        // Background-preloaded most-recent project graph, consumed once by OpenProjectAsync to
+        // avoid the cold DB/EF query cost (~1.8s on a fresh process) on the first open.
+        private Task<Project?>? _preloadTask;
+        private string? _preloadedProjectId;
+
         /// <summary>
         /// Expose project service for ViewModels that need direct DB operations
         /// (e.g. track deletion that must persist immediately).
@@ -129,6 +134,30 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 // Use recent-first list to mirror commercial UX of "Recent Projects" and keep the list lean.
                 var projectList = await _projectService.GetRecentProjectsAsync(10);
+
+                // Skip the Clear/re-add churn when the visible list is unchanged. Clearing the
+                // collection nulls the ListBox's TwoWay-bound SelectedItem (→ CurrentProject), and
+                // the restore that follows re-triggers a full timeline reload. When the list hasn't
+                // actually changed (e.g. navigating back to Home with no edits), reuse it as-is.
+                bool listUnchanged = Projects.Count == projectList.Count;
+                if (listUnchanged)
+                {
+                    for (int i = 0; i < projectList.Count; i++)
+                    {
+                        if (!string.Equals(Projects[i].Id, projectList[i].Id, StringComparison.Ordinal)
+                            || !string.Equals(Projects[i].Name, projectList[i].Name, StringComparison.Ordinal))
+                        {
+                            listUnchanged = false;
+                            break;
+                        }
+                    }
+                }
+                if (listUnchanged)
+                {
+                    StatusMessage = $"Loaded {projectList.Count} project(s)";
+                    Log.Information("Loaded {Count} project(s)", projectList.Count);
+                    return;
+                }
                 
                 Projects.Clear();
 
@@ -263,6 +292,55 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Warms the DB/EF layer and prefetches the most-recently-used project's full graph on a
+        /// background thread, so the first <see cref="OpenProjectAsync"/> for it returns near-instantly
+        /// instead of paying the cold-query cost. One-shot: consumed by the next matching open.
+        /// Call after <see cref="LoadProjectsAsync"/> — Projects is ordered recent-first.
+        /// </summary>
+        public void PreloadMostRecentProject()
+        {
+            var target = Projects.FirstOrDefault();
+            if (target?.Id is not { Length: > 0 } targetId)
+                return;
+            if (_preloadTask != null && _preloadedProjectId == targetId)
+                return; // already preloading this one
+
+            _preloadedProjectId = targetId;
+            _preloadTask = Task.Run(() => _projectService.GetProjectAsync(targetId));
+        }
+
+        /// <summary>
+        /// Returns the background-preloaded project graph if one matches (consuming it), otherwise
+        /// loads it fresh. Falls back to a fresh load if the preload returned null or failed.
+        /// </summary>
+        private async Task<Project?> TakePreloadedProjectAsync(string projectId)
+        {
+            Task<Project?>? preloaded = null;
+            if (_preloadTask != null && _preloadedProjectId == projectId)
+            {
+                preloaded = _preloadTask;
+                _preloadTask = null;
+                _preloadedProjectId = null;
+            }
+
+            if (preloaded != null)
+            {
+                try
+                {
+                    var result = await preloaded;
+                    if (result != null)
+                        return result;
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Preloaded project load failed; falling back to a fresh load");
+                }
+            }
+
+            return await _projectService.GetProjectAsync(projectId);
+        }
+
+        /// <summary>
         /// Open/select a project.
         /// </summary>
         [RelayCommand]
@@ -279,7 +357,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             try
             {
-                var loadedProject = await _projectService.GetProjectAsync(project.Id);
+                var loadedProject = await TakePreloadedProjectAsync(project.Id);
                 if (loadedProject != null)
                 {
                     // Auto-migrate legacy AudioPath/BgmTrack → audio segments
@@ -307,8 +385,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     StatusMessage = $"Project opened: {loadedProject.Name}";
                     Log.Information("Project opened: {ProjectId} - {ProjectName}", loadedProject.Id, loadedProject.Name);
                     
-                    // Pre-generate thumbnails in background for smooth timeline scrubbing
-                    _ = _thumbnailService.PreGenerateThumbnailsForProjectAsync(loadedProject);
+                    // Pre-generate thumbnails in background for smooth timeline scrubbing.
+                    // Delay the start so the FFmpeg spike doesn't compete with the editor's
+                    // first render when the project is opened (keeps the open feeling smooth).
+                    _ = _thumbnailService.PreGenerateThumbnailsForProjectAsync(loadedProject, TimeSpan.FromMilliseconds(800));
                 }
                 else
                 {
@@ -527,6 +607,8 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 return null;
             }
 
+            IsLoading = true;
+            StatusMessage = "Importing media...";
             try
             {
                 var asset = await _projectService.AddAssetAsync(CurrentProject.Id, filePath, type);
@@ -550,6 +632,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     : $"Error adding asset: {ex.Message}";
                 Log.Error(ex, "Error adding asset to project {ProjectId}", CurrentProject.Id);
                 return null;
+            }
+            finally
+            {
+                IsLoading = false;
             }
         }
 

@@ -16,6 +16,15 @@ __pycache__/
 
 # Temporary build artifacts
 tmp_obj/
+tmp_build/
+
+# Stray runtime logs accidentally dropped at root
+/app-*.txt
+
+# Ad-hoc debug/test scripts at repo root (real tests live in src/*.Tests)
+/check_draft*.py
+/test_capcut_*.py
+/test_check_draft.py
 
 # Native libraries
 *.so

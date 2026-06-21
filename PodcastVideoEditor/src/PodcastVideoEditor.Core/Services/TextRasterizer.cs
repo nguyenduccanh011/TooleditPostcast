@@ -17,6 +17,7 @@ public static class TextRasterizer
     // queries the OS font registry. Cache resolved typefaces per (family, style)
     // tuple so Parallel.For text rasterization reuses them across segments.
     private static readonly ConcurrentDictionary<(string family, SKFontStyle style), SKTypeface> _typefaceCache = new();
+    private const int MaxCachedTypefaces = 64;
 
     /// <summary>
     /// Render a text element to a transparent PNG file with word-wrap support.
@@ -346,6 +347,12 @@ public static class TextRasterizer
             style = SKFontStyle.Italic;
 
         var family = fontFamily ?? "Arial";
+        // Bound the cache. Distinct (family, style) combos are normally few, but a
+        // project that cycles through many fonts shouldn't grow it without limit.
+        // Clear wholesale (don't Dispose) when the cap is hit: a render running under
+        // Parallel.For may still hold a reference, so entries are left to GC finalization.
+        if (_typefaceCache.Count >= MaxCachedTypefaces)
+            _typefaceCache.Clear();
         return _typefaceCache.GetOrAdd((family, style), key =>
         {
             if (!string.IsNullOrWhiteSpace(key.family))

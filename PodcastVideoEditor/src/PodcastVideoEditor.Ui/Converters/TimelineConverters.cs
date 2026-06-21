@@ -304,7 +304,8 @@ namespace PodcastVideoEditor.Ui.Converters
                             {
                                 try
                                 {
-                                    var thumbPath = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedPath, 0);
+                                    var thumbPath = await ThumbnailThrottle.RunThrottledAsync(
+                                        () => FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedPath, 0));
                                     if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
                                         return;
                                     await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
@@ -664,7 +665,8 @@ namespace PodcastVideoEditor.Ui.Converters
             {
                 try
                 {
-                    var thumbPath = await FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedAssetPath, timeInVideo);
+                    var thumbPath = await ThumbnailThrottle.RunThrottledAsync(
+                        () => FFmpegService.GetOrCreateVideoThumbnailPathAsync(capturedAssetPath, timeInVideo));
                     if (string.IsNullOrEmpty(thumbPath) || !File.Exists(thumbPath))
                         return;
                     

@@ -19,6 +19,9 @@
                       GlassFrameThickness="0" CornerRadius="0"
                       NonClientFrameEdges="None"/>
     </WindowChrome.WindowChrome>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
     <Window.InputBindings>
         <KeyBinding Key="B" Modifiers="Control"
                     Command="{Binding TimelineViewModel.SplitSelectedSegmentAtPlayheadCommand}"/>
@@ -26,6 +29,8 @@
                     Command="{Binding TimelineViewModel.CloseGapsOnTrackCommand}"/>
         <KeyBinding Key="S" Modifiers="Control"
                     Command="{Binding ProjectViewModel.SaveProjectCommand}"/>
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}"/>
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}"/>
     </Window.InputBindings>
     <Border x:Name="WindowBorder" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1">
     <Grid>
@@ -930,12 +935,27 @@
                             <TextBlock Text="About" FontSize="16" FontWeight="Bold" Margin="0,0,0,6" />
                             <TextBlock x:Name="AboutProductText" Foreground="{StaticResource SecondaryForegroundBrush}" />
                             <TextBlock x:Name="AboutVersionText" Foreground="{StaticResource MutedForegroundBrush}" />
-                            <TextBlock Text="Built with .NET 8 WPF" Foreground="{StaticResource MutedForegroundBrush}" />
+                            <TextBlock Text="Built with .NET 9 WPF" Foreground="{StaticResource MutedForegroundBrush}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+
+        <!-- ═══════════ Busy / loading overlay ═══════════ -->
+        <Grid Grid.Row="1" Panel.ZIndex="100" Background="#AA000000"
+              Visibility="{Binding ProjectViewModel.IsLoading, Converter={StaticResource BoolToVis}}">
+            <Border Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="28,22"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="260">
+                <StackPanel>
+                    <ProgressBar IsIndeterminate="True" Height="6" Width="220" Margin="0,0,0,14"/>
+                    <TextBlock Text="{Binding ProjectViewModel.StatusMessage}"
+                               Foreground="{StaticResource PrimaryForegroundBrush}" FontSize="13"
+                               HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
     </Border>
 </Window>

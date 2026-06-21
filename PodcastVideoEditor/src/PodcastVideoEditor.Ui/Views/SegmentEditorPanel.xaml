@@ -31,7 +31,7 @@
         <!-- No Selection Message -->
         <TextBlock x:Name="NoSelectionText"
                   Grid.Row="1"
-                  Text="Select a segment from timeline to edit properties"
+                  Text="Chọn segment trên timeline để chỉnh sửa thuộc tính"
                   Style="{StaticResource NoSelectionTextStyle}"
                   Visibility="Visible"/>
 

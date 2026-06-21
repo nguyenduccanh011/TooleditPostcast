@@ -1324,5 +1324,62 @@ namespace PodcastVideoEditor.Ui.Views
             }
             return null;
         }
+
+        // ── Preview zoom / pan ───────────────────────────────────────────────
+        // Ctrl+Wheel zooms the fitted preview (center origin); middle-button drag
+        // pans while zoomed. Transforms live on the Viewbox so they sit on top of
+        // its scale-to-fit without disturbing element layout or hit-testing.
+        private double _zoom = 1.0;
+        private bool _isPanning;
+        private Point _panStart;
+        private double _panStartX, _panStartY;
+        private const double MinZoom = 1.0, MaxZoom = 6.0;
+
+        private void SetZoom(double z)
+        {
+            _zoom = Math.Clamp(z, MinZoom, MaxZoom);
+            if (ZoomScale != null)
+                ZoomScale.ScaleX = ZoomScale.ScaleY = _zoom;
+            var atBase = _zoom <= MinZoom + 0.001;
+            if (atBase && ZoomPan != null) { ZoomPan.X = 0; ZoomPan.Y = 0; }
+            if (ZoomResetBtn != null)
+                ZoomResetBtn.Visibility = atBase ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private void CanvasViewport_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Keyboard.Modifiers != ModifierKeys.Control) return;
+            e.Handled = true;
+            SetZoom(_zoom * (e.Delta > 0 ? 1.15 : 1 / 1.15));
+        }
+
+        private void CanvasViewport_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle || _zoom <= MinZoom + 0.001) return;
+            _isPanning = true;
+            _panStart = e.GetPosition(CanvasViewport);
+            _panStartX = ZoomPan?.X ?? 0;
+            _panStartY = ZoomPan?.Y ?? 0;
+            CanvasViewport.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void CanvasViewport_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isPanning || ZoomPan == null) return;
+            var p = e.GetPosition(CanvasViewport);
+            ZoomPan.X = _panStartX + (p.X - _panStart.X);
+            ZoomPan.Y = _panStartY + (p.Y - _panStart.Y);
+        }
+
+        private void CanvasViewport_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isPanning || e.ChangedButton != MouseButton.Middle) return;
+            _isPanning = false;
+            CanvasViewport.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+
+        private void ZoomReset_Click(object sender, RoutedEventArgs e) => SetZoom(1.0);
     }
 }

@@ -9,7 +9,7 @@
         <!-- Action button (Start Render) -->
         <Style x:Key="ActionButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -31,7 +31,7 @@
                                 <Setter TargetName="border" Property="Background" Value="#005A9E"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="border" Property="Background" Value="#3E3E42"/>
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
                                 <Setter Property="Foreground" Value="#808080"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -43,7 +43,7 @@
         <!-- Danger button (Cancel) -->
         <Style x:Key="DangerButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -64,7 +64,7 @@
                                 <Setter TargetName="border" Property="Background" Value="#A82830"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="border" Property="Background" Value="#3E3E42"/>
+                                <Setter TargetName="border" Property="Background" Value="{StaticResource AppCardBorderBrush}"/>
                                 <Setter Property="Foreground" Value="#808080"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -76,8 +76,8 @@
         <!-- Compact outline button (same as ratio button under preview) -->
         <Style x:Key="CompactOptionButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#3E3E42"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="6,2"/>
             <Setter Property="FontSize" Value="12"/>
@@ -92,7 +92,7 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="#2A2D2E"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

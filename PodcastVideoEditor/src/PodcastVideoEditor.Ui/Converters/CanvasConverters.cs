@@ -354,12 +354,26 @@ namespace PodcastVideoEditor.Ui.Converters
     /// </summary>
     public class FilePathToImageConverter : IValueConverter
     {
+        // Cache decoded canvas preview bitmaps. Without this, every binding re-evaluation
+        // (selection change, canvas resize, playhead move) re-decodes the full image from disk,
+        // accumulating memory and CPU while scrubbing through clips. Keyed on path + last-write
+        // so an updated/replaced file is re-decoded. ~80 entries / 200 MB budget.
+        private static readonly PodcastVideoEditor.Core.Utilities.LRUCache<string, BitmapImage> s_cache =
+            new(80, PodcastVideoEditor.Ui.Helpers.BitmapCacheMetrics.EstimateBitmapBytes, 200L * 1024 * 1024);
+
         public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is string filePath && !string.IsNullOrWhiteSpace(filePath) && File.Exists(filePath))
             {
                 try
                 {
+                    string cacheKey;
+                    try { cacheKey = $"{filePath}|{File.GetLastWriteTimeUtc(filePath).Ticks}"; }
+                    catch { cacheKey = filePath; }
+
+                    if (s_cache.TryGet(cacheKey, out var cached) && cached != null)
+                        return cached;
+
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
                     bitmap.UriSource = new Uri(filePath, UriKind.Absolute);
@@ -367,6 +381,7 @@ namespace PodcastVideoEditor.Ui.Converters
                     bitmap.DecodePixelWidth = 512; // limit memory usage
                     bitmap.EndInit();
                     bitmap.Freeze();
+                    s_cache.Add(cacheKey, bitmap);
                     return bitmap;
                 }
                 catch

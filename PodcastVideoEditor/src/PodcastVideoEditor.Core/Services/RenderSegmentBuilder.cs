@@ -486,6 +486,8 @@ public static class RenderSegmentBuilder
             {
                 Interlocked.Increment(ref rasterFailures);
                 Log.Warning(ex, "Failed to rasterize text segment {Index}, skipping", item.index);
+                // Remove any partially-written PNG so a stale/corrupt file is never picked up as an overlay input.
+                try { if (File.Exists(imagePath)) File.Delete(imagePath); } catch { /* best-effort */ }
                 return;
             }
 
@@ -567,6 +569,11 @@ public static class RenderSegmentBuilder
         var vizElements = elements.OfType<VisualizerElement>().ToList();
         var bakeTasks = new List<Task<(VisualizerElement element, string? bakedPath, double vizStart, double vizEnd, string? vizTrackId)>>();
 
+        // Each bake spins up its own FFmpeg process + NAudio reader + SkiaSharp render loop and
+        // streams raw RGBA through a temp pipe. Running every element's bake at once thrashes disk
+        // I/O and memory; cap concurrency so heavy projects stay within resources.
+        using var bakeSemaphore = new SemaphoreSlim(Math.Min(2, Math.Max(1, Environment.ProcessorCount / 4)));
+
         // Aggregate per-element progress into a single combined progress for the caller.
         // Each element reports 0.0-1.0; combined = average across all elements.
         var elementProgress = new double[Math.Max(1, vizElements.Count)];
@@ -617,17 +624,25 @@ public static class RenderSegmentBuilder
 
             bakeTasks.Add(Task.Run(async () =>
             {
-                var path = await OfflineVisualizerBaker.BakeAsync(
-                    capturedElement,
-                    audioFilePath,
-                    renderWidth, renderHeight,
-                    (int)canvasWidth, (int)canvasHeight,
-                    capturedStart, capturedEnd,
-                    frameRate,
-                    ffmpegPath,
-                    elementProg,
-                    ct);
-                return (capturedElement, path, capturedStart, capturedEnd, capturedTrackId);
+                await bakeSemaphore.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    var path = await OfflineVisualizerBaker.BakeAsync(
+                        capturedElement,
+                        audioFilePath,
+                        renderWidth, renderHeight,
+                        (int)canvasWidth, (int)canvasHeight,
+                        capturedStart, capturedEnd,
+                        frameRate,
+                        ffmpegPath,
+                        elementProg,
+                        ct);
+                    return (capturedElement, path, capturedStart, capturedEnd, capturedTrackId);
+                }
+                finally
+                {
+                    bakeSemaphore.Release();
+                }
             }, ct));
         }
 

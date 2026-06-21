@@ -35,10 +35,19 @@ public class ThumbnailPreGenerationService
     /// Pre-generate thumbnails for all video segments in a project.
     /// Generates: first frame + 5 strip positions for each video segment.
     /// </summary>
-    public async Task PreGenerateThumbnailsForProjectAsync(Project project, CancellationToken cancellationToken = default)
+    public async Task PreGenerateThumbnailsForProjectAsync(Project project, TimeSpan startDelay = default, CancellationToken cancellationToken = default)
     {
         if (project?.Tracks == null)
             return;
+
+        // Let the editor finish its first render before spinning up FFmpeg processes.
+        // Otherwise the thumbnail CPU/disk spike competes with the UI thread right as the
+        // user opens a project, which is the main source of the open feeling janky.
+        if (startDelay > TimeSpan.Zero)
+        {
+            try { await Task.Delay(startDelay, cancellationToken); }
+            catch (OperationCanceledException) { return; }
+        }
 
         var videosToProcess = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var requests = new List<ThumbnailRequest>();

@@ -5,6 +5,7 @@ using PodcastVideoEditor.Core.Database;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Services.AI;
+using PodcastVideoEditor.Ui.Controls;
 using PodcastVideoEditor.Ui.Services;
 using PodcastVideoEditor.Ui.Services.Update;
 using PodcastVideoEditor.Ui.ViewModels;
@@ -19,6 +20,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 
 namespace PodcastVideoEditor.Ui;
 
@@ -96,6 +98,11 @@ public partial class MainWindow : Window
             _timelineViewModel.PropertyChanged += OnTimelinePropertyChanged;
             _timelineViewModel.Tracks.CollectionChanged += OnTimelineTracksChanged;
 
+            // Ctrl+G → open the beta GPU compositor preview for the current project.
+            // PreviewKeyDown tunnels from the window down, so it fires before any focused child
+            // (timeline, text boxes) can swallow the gesture.
+            PreviewKeyDown += OnGlobalKeyDown;
+
             Log.Information("MainWindow initialized");
         }
         catch (Exception ex)
@@ -103,6 +110,143 @@ public partial class MainWindow : Window
             Log.Fatal(ex, "FATAL ERROR in MainWindow constructor: {Message}", ex.Message);
             MessageBox.Show($"Fatal Error:\n{ex.GetType().Name}: {ex.Message}", "Startup Error");
             throw;
+        }
+    }
+
+    private void OnGlobalKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.G && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+            if (shift)
+            {
+                Log.Information("Compositor export shortcut (Ctrl+Shift+G) triggered");
+                RunCompositorExport();
+            }
+            else
+            {
+                Log.Information("GPU preview shortcut (Ctrl+G) triggered");
+                OpenCompositorPreview();
+            }
+            e.Handled = true;
+        }
+    }
+
+    private bool _compositorExporting;
+
+    /// <summary>
+    /// Beta: exports the current project via the GPU compositor (single-pass Skia + NVENC),
+    /// alongside the existing FFmpeg render path. Triggered by Ctrl+Shift+G.
+    /// </summary>
+    private async void RunCompositorExport()
+    {
+        if (_compositorExporting)
+            return;
+
+        var project = _projectViewModel.CurrentProject;
+        if (project == null)
+        {
+            MessageBox.Show("Hãy mở một project trước.", "Compositor Export");
+            return;
+        }
+        var ffmpeg = FFmpegService.GetFFmpegPath();
+        if (string.IsNullOrWhiteSpace(ffmpeg))
+        {
+            MessageBox.Show("FFmpeg chưa sẵn sàng.", "Compositor Export");
+            return;
+        }
+
+        _compositorExporting = true;
+        var rvm = _mainViewModel.RenderViewModel;
+        VisualizerPreviewSource? masterViz = null;
+        CompositorExportProgressWindow? progressWin = null;
+        try
+        {
+            var segments = rvm.BuildPreviewVisualSegments(project, out var w, out var h);
+            masterViz = rvm.BuildPreviewVisualizerSource(project); // template; built on UI thread (touches canvas VM)
+            var duration = rvm.GetTimelineDuration(project);
+            if (duration <= 0)
+            {
+                MessageBox.Show("Timeline trống — chưa có gì để export.", "Compositor Export");
+                return;
+            }
+
+            var audio = RenderSegmentBuilder.ResolveProjectAudioPath(project);
+            var encoder = FFmpegCommandComposer.GetGpuCapabilities().H264Encoder;
+            var outDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            var outPath = Path.Combine(outDir, $"compositor-export-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+
+            progressWin = new CompositorExportProgressWindow { Owner = this };
+            progressWin.Show();
+            var progress = new Progress<double>(p => progressWin.Report(p));
+
+            var vizTemplate = masterViz;
+            await new CompositorVideoExporter().ExportAsync(new CompositorVideoExporter.Options
+            {
+                Segments = segments,
+                CreateTextures = () => new CompositorExportTextureSource(ffmpeg, rvm.FrameRate),
+                CreateVisualizers = () => vizTemplate != null && vizTemplate.HasAny ? vizTemplate.CreateSibling() : null,
+                Width = w,
+                Height = h,
+                FrameRate = rvm.FrameRate,
+                Duration = duration,
+                AudioPath = audio,
+                OutputPath = outPath,
+                FfmpegPath = ffmpeg,
+                VideoEncoder = encoder,
+            }, progress, progressWin.Token);
+
+            FFmpegStatusText.Text = "Compositor export xong: " + outPath;
+            if (MessageBox.Show($"Xong!\n{outPath}\n\nMở thư mục chứa file?", "Compositor Export", MessageBoxButton.YesNo) == MessageBoxResult.Yes)
+                Process.Start("explorer.exe", $"/select,\"{outPath}\"");
+        }
+        catch (OperationCanceledException)
+        {
+            FFmpegStatusText.Text = "Compositor export đã hủy.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Compositor export failed");
+            FFmpegStatusText.Text = "Compositor export lỗi: " + ex.Message;
+            MessageBox.Show($"Export lỗi: {ex.Message}", "Compositor Export");
+        }
+        finally
+        {
+            progressWin?.Close();
+            masterViz?.Dispose();
+            _compositorExporting = false;
+        }
+    }
+
+    /// <summary>
+    /// Opens the beta single-pass GPU compositor preview for the current project (Ctrl+G).
+    /// </summary>
+    private void OpenCompositorPreview()
+    {
+        try
+        {
+            var project = _projectViewModel.CurrentProject;
+            if (project == null)
+            {
+                Log.Information("GPU preview: no project open");
+                MessageBox.Show("Hãy mở một project trước (chọn/đang chỉnh sửa một project).", "GPU Compositor Preview");
+                return;
+            }
+
+            var segments = _mainViewModel.RenderViewModel.BuildPreviewVisualSegments(project, out var w, out var h);
+            var visualizers = _mainViewModel.RenderViewModel.BuildPreviewVisualizerSource(project);
+            Log.Information("GPU preview: opening with {Count} visual segment(s), {W}x{H}, visualizers={HasViz}",
+                segments.Count, w, h, visualizers.HasAny);
+            if (segments.Count == 0 && !visualizers.HasAny)
+                MessageBox.Show("Project chưa có visual segment nào để preview (thêm ảnh/clip vào timeline).", "GPU Compositor Preview");
+            var fps = _mainViewModel.RenderViewModel.FrameRate;
+            var window = new CompositorPreviewWindow(segments, w, h, fps, visualizers) { Owner = this };
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to open GPU compositor preview");
+            MessageBox.Show($"Không mở được GPU Preview: {ex.Message}", "GPU Compositor Preview");
         }
     }
 
@@ -138,6 +282,11 @@ public partial class MainWindow : Window
         LogPathText.Text = Path.Combine(_appDataPath, "Logs");
         PopulateBuildInfo();
         await LoadProjectsSafeAsync();
+
+        // Warm the DB and prefetch the most-recent project in the background so the first open is
+        // near-instant (the cold project query otherwise costs ~1.8s on a fresh process).
+        _projectViewModel.PreloadMostRecentProject();
+
         await RefreshHomeTemplateOptionsAsync();
         await InitializeFfmpegStatusAsync();
         await CheckForUpdatesOnStartupAsync();
@@ -385,6 +534,9 @@ public partial class MainWindow : Window
             {
                 await LoadProjectsSafeAsync();
                 await RefreshHomeTemplateOptionsAsync();
+
+                // Re-prime the preload for whichever project is now most recent.
+                _projectViewModel.PreloadMostRecentProject();
             }
         }
         finally
@@ -472,6 +624,9 @@ public partial class MainWindow : Window
         {
             _settingsViewModel.FfmpegPath = path;
             FFmpegStatusText.Text = $"FFmpeg ready: {path}";
+            // Warm up the encoder/GPU probe in the background so the first render
+            // does not stall 10-20s while probing hardware encoders.
+            _ = FFmpegCommandComposer.WarmUpEncodersAsync();
             return;
         }
 
@@ -480,6 +635,7 @@ public partial class MainWindow : Window
         {
             _settingsViewModel.FfmpegPath = result.FFmpegPath ?? string.Empty;
             FFmpegStatusText.Text = result.Message;
+            _ = FFmpegCommandComposer.WarmUpEncodersAsync();
         }
         else
         {
@@ -1024,9 +1180,45 @@ public partial class MainWindow : Window
             return;
         }
 
-        await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
-        await LoadProjectAudioAsync();
-        MainTabControl.SelectedIndex = 1;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            // OpenProjectAsync shows the busy overlay (ProjectViewModel.IsLoading) during the DB
+            // load and the synchronous timeline/canvas rebuild.
+            await _projectViewModel.OpenProjectAsync(_projectViewModel.CurrentProject);
+            long openMs = sw.ElapsedMilliseconds;
+
+            // Keep the overlay up across the audio sync + the editor's first render so the window
+            // stays in a responsive "loading" state instead of freezing on the Home screen.
+            _projectViewModel.IsLoading = true;
+            await LoadProjectAudioAsync();
+            long audioMs = sw.ElapsedMilliseconds;
+
+            // Progressive open (CapCut-style): defer the expensive per-segment video thumbnail strips
+            // so the editor's first render shows lightweight segment blocks. They fill in afterwards
+            // once the editor is on screen. Set just before the tab switch (when TimelineView first
+            // realizes) so it doesn't interfere with the duration/PPS calc done above.
+            _timelineViewModel.IsDeferringThumbnailUpdate = true;
+            MainTabControl.SelectedIndex = 1;
+
+            // Yield at Background priority so WPF measures/arranges/paints the (thumbnail-free) editor
+            // before we drop the overlay — a smooth hand-off rather than a final frozen frame.
+            await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+
+            Log.Information(
+                "OpenProject timing (ms): open={OpenMs} audio={AudioMs} render={RenderMs} total={TotalMs}",
+                openMs, audioMs - openMs, sw.ElapsedMilliseconds - audioMs, sw.ElapsedMilliseconds);
+        }
+        finally
+        {
+            _projectViewModel.IsLoading = false;
+
+            // Editor is visible and interactive now — let the segment thumbnail strips fill in at
+            // idle priority so the burst of frame loads doesn't compete with the first paint.
+            _ = Dispatcher.BeginInvoke(
+                new Action(() => _timelineViewModel.IsDeferringThumbnailUpdate = false),
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
     }
 
     private void ExitMenu_Click(object sender, RoutedEventArgs e)

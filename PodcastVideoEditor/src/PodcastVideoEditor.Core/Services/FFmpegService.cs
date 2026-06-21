@@ -407,6 +407,10 @@ public static class FFmpegService
         return process.ExitCode == 0 && File.Exists(outputImagePath);
     }
 
+    // Guards lazy synchronous FFmpeg initialization. A private lock object replaces the
+    // former lock(typeof(FFmpegService)) — locking on a process-wide Type risks cross-component deadlock.
+    private static readonly object _initLock = new();
+
     /// <summary>
     /// Try to initialize FFmpeg synchronously (find in PATH or common locations) if not yet initialized.
     /// Called when we need a video thumbnail so thumbnails work even before user opens Settings.
@@ -415,7 +419,7 @@ public static class FFmpegService
     {
         if (IsInitialized())
             return;
-        lock (typeof(FFmpegService))
+        lock (_initLock)
         {
             if (IsInitialized())
                 return;
@@ -482,10 +486,16 @@ public static class FFmpegService
     /// <summary>
     /// Returns the cache file path for a video thumbnail at the given time (for use by fallback methods e.g. WPF MediaPlayer).
     /// </summary>
+    private static int _thumbnailDirEnsured;
+
     public static string GetThumbnailCachePathFor(string videoPath, double timeSeconds)
     {
         var appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PodcastVideoEditor", "thumbnails");
-        Directory.CreateDirectory(appData);
+        // This runs on the UI thread for every timeline binding evaluation. CreateDirectory is a
+        // syscall every call; do it only once instead of on the hot path. ExtractVideoFrameToImage
+        // also ensures the directory before actually writing, so this stays correct.
+        if (Interlocked.Exchange(ref _thumbnailDirEnsured, 1) == 0)
+            Directory.CreateDirectory(appData);
         var fullPath = Path.GetFullPath(videoPath);
         var hash = HashString($"{fullPath}|{timeSeconds:F2}");
         return Path.Combine(appData, hash + ".png");
@@ -846,10 +856,16 @@ public static class FFmpegService
 
         try
         {
-                // Degree of parallelism: 2 on machines with ≥12 logical cores.
-                // Each parallel FFmpeg handles a separate zoompan/overlay graph on independent cores.
-                var parallelDegree = Environment.ProcessorCount >= 16 ? 3
-                                   : Environment.ProcessorCount >= 8  ? 2
+                // Degree of parallelism scales with logical cores. Each parallel FFmpeg handles
+                // a separate zoompan/overlay graph; the per-worker thread budget is divided by this
+                // degree (see ComputeThreadBudget) so more workers overlap startup/IO latency
+                // without oversubscribing the CPU.
+                var cores = Environment.ProcessorCount;
+                var parallelDegree = cores >= 32 ? 6
+                                   : cores >= 24 ? 5
+                                   : cores >= 16 ? 4
+                                   : cores >= 12 ? 3
+                                   : cores >= 8  ? 2
                                    : 1;
                 Log.Information("Parallel chunk rendering: degree={Degree} ({Cores} logical cores)", parallelDegree, Environment.ProcessorCount);
 
@@ -886,7 +902,8 @@ public static class FFmpegService
                             config,
                             Path.Combine(chunkTempDir, $"chunk_{idx:D3}.mp4"),
                             chunkVisuals,
-                            chunkAudioSegments);
+                            chunkAudioSegments,
+                            parallelWorkers: parallelDegree);
 
                         int localIdx = idx; // capture for lambda
                         var chunkProgress = new Progress<RenderProgress>(p =>
@@ -1517,7 +1534,8 @@ public static class FFmpegService
         RenderConfig sourceConfig,
         string outputPath,
         List<RenderVisualSegment> chunkVisuals,
-        List<RenderAudioSegment> chunkAudioSegments)
+        List<RenderAudioSegment> chunkAudioSegments,
+        int parallelWorkers = 1)
     {
         var useGpuOverlayForChunk = ShouldEnableGpuOverlayForChunk(chunkVisuals);
 
@@ -1542,7 +1560,8 @@ public static class FFmpegService
             // Avoid forcing GPU overlay for chunks that contain motion/fade/alpha/tint
             // because those paths run on CPU and can cause costly hwdownload/hwupload thrash.
             UseGpuOverlay = useGpuOverlayForChunk,
-            DisableEmbeddedTimelineSources = true
+            DisableEmbeddedTimelineSources = true,
+            ParallelRenderWorkers = Math.Max(1, parallelWorkers)
         };
     }
 
@@ -1818,6 +1837,14 @@ public static class FFmpegService
                     try { Directory.Delete(dir, recursive: true); }
                     catch { /* staging dir may still be locked or in use; retry on next cleanup */ }
                 }
+
+                // Baked visualizer outputs (vb/*.mov) and predecoded audio (vb_audio/*.wav)
+                // are consumed during a render then no longer needed. They are NOT covered by
+                // the per-render dir patterns above and previously accumulated without bound.
+                // Delete files older than 1 hour so a concurrent/in-progress render's freshly
+                // baked inputs are never removed out from under it.
+                DeleteAgedFiles(Path.Combine(pveDir, "vb"), TimeSpan.FromHours(1));
+                DeleteAgedFiles(Path.Combine(pveDir, "vb_audio"), TimeSpan.FromHours(1));
             }
 
             // Legacy path cleanup (from older versions)
@@ -1831,6 +1858,34 @@ public static class FFmpegService
         catch (Exception ex)
         {
             Log.Warning(ex, "Could not clean up render temp files");
+        }
+    }
+
+    /// <summary>
+    /// Delete files in <paramref name="dir"/> whose last write time is older than
+    /// <paramref name="maxAge"/>. Best-effort; locked/in-use files are skipped silently.
+    /// </summary>
+    private static void DeleteAgedFiles(string dir, TimeSpan maxAge)
+    {
+        try
+        {
+            if (!Directory.Exists(dir))
+                return;
+
+            var cutoff = DateTime.UtcNow - maxAge;
+            foreach (var file in Directory.EnumerateFiles(dir))
+            {
+                try
+                {
+                    if (File.GetLastWriteTimeUtc(file) < cutoff)
+                        File.Delete(file);
+                }
+                catch { /* still locked or in use by an active render; retry next cleanup */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Could not clean aged temp files in {Dir}", dir);
         }
     }
 
@@ -1883,6 +1938,30 @@ public static class FFmpegService
         Task? heartbeatTask = null;
                 var procKey = Guid.NewGuid();
                 Process? proc = null;
+                var procKillLock = new object();
+
+                // All three termination paths (startup-stall watchdog, timeout handler,
+                // and the cleanup finally) funnel through here so the process is never
+                // killed concurrently from two threads (avoids racing Kill/WaitForExit/Dispose).
+                void KillProcessSafely(string reason)
+                {
+                    lock (procKillLock)
+                    {
+                        try
+                        {
+                            if (proc != null && !proc.HasExited)
+                            {
+                                proc.Kill(entireProcessTree: true);
+                                proc.WaitForExit(5000);
+                                Log.Warning("Terminated FFmpeg process PID {Pid} ({Reason})", proc.Id, reason);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Could not terminate FFmpeg process ({Reason})", reason);
+                        }
+                    }
+                }
         try
         {
             // Windows CreateProcess limit: 32,767 chars for the full command line.
@@ -1981,18 +2060,7 @@ public static class FFmpegService
                                     inputOpenTimeoutSeconds,
                                     inputCount);
 
-                                try
-                                {
-                                    if (proc != null && !proc.HasExited)
-                                    {
-                                        proc.Kill(entireProcessTree: true);
-                                        proc.WaitForExit(5000);
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log.Warning(ex, "Could not terminate FFmpeg process after startup stall watchdog fired");
-                                }
+                                KillProcessSafely("startup-stall watchdog");
 
                                 heartbeatCts.Cancel();
                             }
@@ -2153,15 +2221,7 @@ public static class FFmpegService
 
             if (timeoutCts?.IsCancellationRequested == true)
             {
-                try
-                {
-                        if (proc != null && !proc.HasExited)
-                            proc.Kill(entireProcessTree: true);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Could not terminate timed-out FFmpeg process");
-                }
+                KillProcessSafely("timeout");
 
                 var timeoutSeconds = ffmpegTimeout?.TotalSeconds ?? 0;
                 Log.Error("FFmpeg timed out after {TimeoutSeconds:F0}s", timeoutSeconds);
@@ -2182,20 +2242,7 @@ public static class FFmpegService
                 await heartbeatTask.ConfigureAwait(false);
             if (proc != null)
             {
-                if (!proc.HasExited)
-                {
-                    try
-                    {
-                        proc.Kill(entireProcessTree: true);
-                        proc.WaitForExit(5000);
-                        Log.Warning("Forced cleanup terminated lingering FFmpeg process PID {Pid}", proc.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning(ex, "Could not terminate lingering FFmpeg process PID {Pid} during cleanup", proc.Id);
-                    }
-                }
-
+                KillProcessSafely("cleanup");
                 _activeProcesses.TryRemove(procKey, out _);
                 proc.Dispose();
             }
@@ -2228,13 +2275,17 @@ public static class FFmpegService
 
     private static int EstimateInputOpenTimeoutSeconds(string args, double explicitDurationSeconds)
     {
+        // FFmpeg can legitimately spend a long time opening many inputs and building a large
+        // filter graph before the first frame. Scale the startup-stall threshold with input
+        // count so heavy timelines are not killed prematurely (a false kill forces an
+        // expensive sequential split-retry, which the user experiences as a slow render).
         var inputCount = Math.Max(1, CountInputOccurrences(args));
-        var byInputCount = 20 + (inputCount * 2);
+        var byInputCount = 30 + (inputCount * 3);
         var byDuration = explicitDurationSeconds > 0
-            ? 20 + (int)Math.Ceiling(Math.Min(120.0, explicitDurationSeconds * 0.8))
+            ? 30 + (int)Math.Ceiling(Math.Min(150.0, explicitDurationSeconds * 0.8))
             : 45;
 
-        return Math.Clamp(Math.Max(byInputCount, byDuration), 45, 120);
+        return Math.Clamp(Math.Max(byInputCount, byDuration), 45, 180);
     }
 
     private static string? ExtractFilterScriptPath(string args)

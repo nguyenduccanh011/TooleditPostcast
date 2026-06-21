@@ -35,7 +35,9 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="OpenTK.GLWpfControl" Version="4.3.6" />
     <PackageReference Include="SkiaSharp.Views.WPF" Version="2.88.8" />
+    <PackageReference Include="VirtualizingWrapPanel" Version="2.0.11" />
   </ItemGroup>
 
   <ItemGroup>

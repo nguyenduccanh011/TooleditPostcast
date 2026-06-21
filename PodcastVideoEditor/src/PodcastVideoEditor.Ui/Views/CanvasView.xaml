@@ -591,10 +591,21 @@
         </Grid.RowDefinitions>
 
         <!-- Canvas Area: Viewbox scale-to-fit (CapCut style — no scrollbars, preview fits in frame) -->
-        <Border Grid.Row="0" Background="#252526">
+        <Border Grid.Row="0" Background="{StaticResource SecondaryBackgroundBrush}"
+                x:Name="CanvasViewport" ClipToBounds="True"
+                MouseWheel="CanvasViewport_MouseWheel"
+                MouseDown="CanvasViewport_MouseDown"
+                MouseMove="CanvasViewport_MouseMove"
+                MouseUp="CanvasViewport_MouseUp">
             <Grid>
-                <!-- Viewbox for preview -->
-                <Viewbox Stretch="Uniform" StretchDirection="Both">
+                <!-- Viewbox for preview (Ctrl+Wheel = zoom, middle-drag = pan) -->
+                <Viewbox Stretch="Uniform" StretchDirection="Both" RenderTransformOrigin="0.5,0.5">
+                    <Viewbox.RenderTransform>
+                        <TransformGroup>
+                            <ScaleTransform x:Name="ZoomScale" ScaleX="1" ScaleY="1"/>
+                            <TranslateTransform x:Name="ZoomPan" X="0" Y="0"/>
+                        </TransformGroup>
+                    </Viewbox.RenderTransform>
                     <Grid Width="{Binding CanvasWidth}" Height="{Binding CanvasHeight}">
                         <Border Background="#1e1e1e" />
 
@@ -669,6 +680,15 @@
                         </Canvas>
                     </Grid>
                 </Viewbox>
+
+                <!-- Zoom reset (visible only when zoomed in) -->
+                <Button x:Name="ZoomResetBtn" Content="⤢ Reset zoom" Click="ZoomReset_Click"
+                        Visibility="Collapsed" Cursor="Hand"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
+                        Padding="8,3" FontSize="11"
+                        Background="{StaticResource PopupBackgroundBrush}" Foreground="{StaticResource PanelForegroundBrush}"
+                        BorderBrush="{StaticResource MutedBorderBrush}" BorderThickness="1"
+                        ToolTip="Đặt lại zoom. Mẹo: Ctrl+cuộn để phóng to, giữ chuột giữa để kéo."/>
             </Grid>
         </Border>
 

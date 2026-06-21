@@ -4,7 +4,10 @@ using CommunityToolkit.Mvvm.Input;
 using PodcastVideoEditor.Core.Models;
 using PodcastVideoEditor.Core.Services;
 using PodcastVideoEditor.Core.Utilities;
+using PodcastVideoEditor.Ui.Controls;
+using PodcastVideoEditor.Ui.Services;
 using Serilog;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -230,6 +233,32 @@ namespace PodcastVideoEditor.Ui.ViewModels
                         CanCancel = false;
                         return;
                     }
+                }
+
+                // Primary path: GPU compositor (single-pass Skia + NVENC). Falls back to the legacy
+                // FFmpeg filter-graph pipeline below on error, or when the project needs multi-source
+                // audio mixing (which the compositor export does not do yet — it muxes one audio track).
+                if (UseCompositorRender && HasSingleAudioSource(project))
+                {
+                    try
+                    {
+                        await ExportViaCompositorAsync(project, _renderCancellationTokenSource.Token);
+                        return; // success — finally still runs
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw; // handled by the outer catch
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Compositor render failed; falling back to legacy FFmpeg pipeline");
+                        StatusMessage = "Compositor render lỗi — chuyển sang pipeline cũ…";
+                        RenderProgress = 0;
+                    }
+                }
+                else if (UseCompositorRender)
+                {
+                    Log.Information("Compositor render skipped: project has multiple audio sources — using legacy mixing pipeline for correct audio.");
                 }
 
                 // Create an immutable render snapshot — isolates the entire render pipeline
@@ -567,6 +596,268 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 Registry = registry
             };
         }
+
+        /// <summary>
+        /// Builds the visual layers (images/videos with motion, fade and overlay tint) for the
+        /// live GPU compositor preview, reusing the exact render snapshot + segment-build path so
+        /// the preview matches export. Text and visualizer overlays are omitted here (the compositor
+        /// will draw them live in a later phase); this is the synchronous visual feed for the
+        /// <c>CompositorPreviewControl</c>.
+        /// </summary>
+        public IReadOnlyList<RenderVisualSegment> BuildPreviewVisualSegments(Project project, out int width, out int height)
+        {
+            var (w, h) = ParseResolution(SelectedResolution);
+            width = w;
+            height = h;
+            var snapshot = CreateRenderSnapshot(project);
+            var zOrderMap = RenderSegmentBuilder.ComputeTrackZOrderMap(snapshot.Project);
+            var visuals = RenderSegmentBuilder.BuildTimelineVisualSegments(
+                snapshot.Project, w, h, snapshot.Elements,
+                snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
+
+            // Include rasterized text overlays so titles/captions appear in the preview.
+            // Reuses the exact export rasterization path (WYSIWYG). Synchronous (CPU); a one-time
+            // cost when opening the preview window.
+            try
+            {
+                var textVisuals = RenderSegmentBuilder.BuildRasterizedTextSegments(
+                    snapshot.Project, w, h, snapshot.Elements,
+                    snapshot.CanvasWidth, snapshot.CanvasHeight, zOrderMap);
+                visuals.AddRange(textVisuals);
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "GPU preview: text rasterization failed; previewing without text overlays");
+            }
+
+            // Include free-standing logo/icon/image canvas overlays (not bound to a timeline
+            // segment). These are not produced by BuildTimelineVisualSegments, so feed them here
+            // using each element's own image + position + opacity.
+            try
+            {
+                var maxEnd = project.Tracks?
+                    .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                    .Select(s => s.EndTime)
+                    .DefaultIfEmpty(0)
+                    .Max() ?? 0;
+                if (maxEnd <= 0) maxEnd = 1;
+                visuals.AddRange(BuildPreviewOverlayElementSegments(snapshot, w, h, maxEnd));
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "GPU preview: overlay element build failed");
+            }
+
+            return visuals;
+        }
+
+        /// <summary>
+        /// Builds image layers for free-standing Logo/Image canvas overlays (SegmentId not set).
+        /// Segment-bound logos/images are already produced by BuildTimelineVisualSegments.
+        /// </summary>
+        private static List<RenderVisualSegment> BuildPreviewOverlayElementSegments(
+            RenderSnapshot snapshot, int renderWidth, int renderHeight, double maxEnd)
+        {
+            var result = new List<RenderVisualSegment>();
+            var canvasW = snapshot.CanvasWidth > 0 ? snapshot.CanvasWidth : renderWidth;
+            var canvasH = snapshot.CanvasHeight > 0 ? snapshot.CanvasHeight : renderHeight;
+            var scaleX = renderWidth / canvasW;
+            var scaleY = renderHeight / canvasH;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+
+            foreach (var el in snapshot.Elements ?? Enumerable.Empty<CanvasElement>())
+            {
+                if (!string.IsNullOrEmpty(el.SegmentId))
+                    continue; // segment-bound → already in BuildTimelineVisualSegments
+
+                var (path, opacity, scaleMode) = el switch
+                {
+                    LogoElement l => (l.ImagePath, l.Opacity, l.ScaleMode.ToString()),
+                    ImageElement im => (im.FilePath, im.Opacity, im.ScaleMode.ToString()),
+                    _ => (null, 1.0, "Fill")
+                };
+
+                if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+                    continue;
+
+                result.Add(new RenderVisualSegment
+                {
+                    SourcePath = path!,
+                    StartTime = 0,
+                    EndTime = maxEnd,
+                    IsVideo = false,
+                    OverlayX = ((int)Math.Round(el.X * scaleX)).ToString(inv),
+                    OverlayY = ((int)Math.Round(el.Y * scaleY)).ToString(inv),
+                    ScaleWidth = Math.Max(1, (int)Math.Round(el.Width * scaleX)),
+                    ScaleHeight = Math.Max(1, (int)Math.Round(el.Height * scaleY)),
+                    ScaleMode = scaleMode,
+                    ZOrder = 15000 + el.ZIndex, // above backgrounds; near the text/overlay tier
+                    Opacity = Math.Clamp(opacity, 0.0, 1.0),
+                });
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Builds the live visualizer source for the compositor preview: one painter per
+        /// VisualizerElement, positioned/timed exactly as the export baker would, so the live
+        /// spectrum matches the rendered output.
+        /// </summary>
+        public VisualizerPreviewSource BuildPreviewVisualizerSource(Project project)
+        {
+            var (w, h) = ParseResolution(SelectedResolution);
+            var snapshot = CreateRenderSnapshot(project);
+            var audioPath = RenderSegmentBuilder.ResolveProjectAudioPath(project);
+
+            var canvasW = snapshot.CanvasWidth > 0 ? snapshot.CanvasWidth : w;
+            var canvasH = snapshot.CanvasHeight > 0 ? snapshot.CanvasHeight : h;
+            var scaleX = w / canvasW;
+            var scaleY = h / canvasH;
+
+            var maxEnd = project.Tracks?
+                .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0)
+                .Max() ?? 0;
+            if (maxEnd <= 0) maxEnd = 1;
+
+            var descriptors = new List<VisualizerPreviewSource.Descriptor>();
+            foreach (var el in (snapshot.Elements ?? Enumerable.Empty<CanvasElement>()).OfType<VisualizerElement>())
+            {
+                double start = 0, end = maxEnd;
+                if (!string.IsNullOrEmpty(el.SegmentId))
+                {
+                    var linked = project.Tracks?
+                        .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                        .FirstOrDefault(s => s.Id == el.SegmentId);
+                    if (linked != null) { start = linked.StartTime; end = linked.EndTime; }
+                }
+                if (end <= start) continue;
+
+                var dest = new SKRect(
+                    (float)(el.X * scaleX), (float)(el.Y * scaleY),
+                    (float)((el.X + el.Width) * scaleX), (float)((el.Y + el.Height) * scaleY));
+
+                descriptors.Add(new VisualizerPreviewSource.Descriptor
+                {
+                    Config = BuildVisualizerConfig(el),
+                    Dest = dest,
+                    Start = start,
+                    End = end
+                });
+            }
+
+            return new VisualizerPreviewSource(audioPath, descriptors, FrameRate);
+        }
+
+        /// <summary>
+        /// When true (default), the Render command uses the GPU Skia compositor (single-pass +
+        /// NVENC) instead of the legacy FFmpeg filter-graph pipeline. Falls back automatically on error.
+        /// </summary>
+        public bool UseCompositorRender { get; set; } = true;
+
+        /// <summary>
+        /// Renders the project via the GPU compositor straight to the configured output path,
+        /// reporting through the existing RenderProgress/StatusMessage bindings. Throws on failure
+        /// so <see cref="StartRenderAsync"/> can fall back to the legacy pipeline.
+        /// </summary>
+        private async Task ExportViaCompositorAsync(Project project, CancellationToken ct)
+        {
+            var segments = BuildPreviewVisualSegments(project, out var w, out var h);
+            var duration = GetTimelineDuration(project);
+            if (duration <= 0)
+                throw new InvalidOperationException("Timeline has no segments to render.");
+
+            var ffmpeg = FFmpegService.GetFFmpegPath();
+            if (string.IsNullOrWhiteSpace(ffmpeg))
+                throw new InvalidOperationException("FFmpeg not available.");
+
+            var masterViz = BuildPreviewVisualizerSource(project);
+            var audio = RenderSegmentBuilder.ResolveProjectAudioPath(project);
+            var encoder = FFmpegCommandComposer.GetGpuCapabilities().H264Encoder;
+            var outPath = System.IO.Path.Combine(
+                OutputFolder, SanitizeFileName($"{project.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4"));
+
+            StatusMessage = "Rendering (GPU compositor)…";
+            var progress = new Progress<double>(p =>
+            {
+                RenderProgress = (int)Math.Round(p * 100);
+                StatusMessage = $"Rendering (GPU compositor): {(int)Math.Round(p * 100)}%";
+            });
+
+            var vizTemplate = masterViz;
+            try
+            {
+                await new CompositorVideoExporter().ExportAsync(new CompositorVideoExporter.Options
+                {
+                    Segments = segments,
+                    CreateTextures = () => new CompositorExportTextureSource(ffmpeg!, FrameRate),
+                    CreateVisualizers = () => vizTemplate.HasAny ? vizTemplate.CreateSibling() : null,
+                    Width = w,
+                    Height = h,
+                    FrameRate = FrameRate,
+                    Duration = duration,
+                    AudioPath = audio,
+                    OutputPath = outPath,
+                    FfmpegPath = ffmpeg!,
+                    VideoEncoder = encoder,
+                }, progress, ct);
+            }
+            finally
+            {
+                masterViz.Dispose();
+            }
+
+            RenderProgress = 100;
+            StatusMessage = $"Render completed: {System.IO.Path.GetFileName(outPath)}";
+            Log.Information("Compositor render completed: {OutputPath}", outPath);
+        }
+
+        /// <summary>
+        /// True when the project's audio is a single source (primary track only, no extra BGM/SFX
+        /// segments). The compositor export muxes one audio track; multi-source mixing needs the
+        /// legacy pipeline's amix graph.
+        /// </summary>
+        private bool HasSingleAudioSource(Project project)
+        {
+            var sources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var primary = RenderSegmentBuilder.ResolveProjectAudioPath(project);
+            if (!string.IsNullOrWhiteSpace(primary))
+            {
+                try { sources.Add(System.IO.Path.GetFullPath(primary)); } catch { sources.Add(primary); }
+            }
+            foreach (var s in RenderSegmentBuilder.BuildTimelineAudioSegments(project))
+            {
+                if (string.IsNullOrWhiteSpace(s.SourcePath)) continue;
+                try { sources.Add(System.IO.Path.GetFullPath(s.SourcePath)); } catch { sources.Add(s.SourcePath); }
+            }
+            return sources.Count <= 1;
+        }
+
+        /// <summary>Max end time across all timeline segments (seconds) — the output duration.</summary>
+        public double GetTimelineDuration(Project project) =>
+            project.Tracks?
+                .SelectMany(t => t.Segments ?? Enumerable.Empty<Segment>())
+                .Select(s => s.EndTime)
+                .DefaultIfEmpty(0)
+                .Max() ?? 0;
+
+        private static VisualizerConfig BuildVisualizerConfig(VisualizerElement element) => new()
+        {
+            BandCount = element.BandCount,
+            Style = element.Style,
+            ColorPalette = element.ColorPalette,
+            SmoothingFactor = element.SmoothingFactor,
+            ShowPeaks = element.ShowPeaks,
+            PeakHoldTime = 300,
+            SymmetricMode = element.SymmetricMode,
+            PrimaryColorHex = element.PrimaryColorHex,
+            CustomGradientColors = element.CustomGradientColors,
+            BarGradientDarkness = element.BarGradientDarkness,
+            BarGradientEnabled = element.BarGradientEnabled,
+            BarGradientBaseColorHex = element.BarGradientBaseColorHex
+        };
 
         private Segment? ResolvePreferredVisualSegment(Project project)
         {

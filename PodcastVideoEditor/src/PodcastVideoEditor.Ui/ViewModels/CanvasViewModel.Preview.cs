@@ -158,11 +158,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             // Invalidate the time-based segment cache so that the upcoming UpdateActivePreview
             // call queries all currently-loaded tracks instead of hitting a stale cache entry.
-            // Without this, when LoadTracksFromProject adds tracks one-by-one, each Tracks.Add
-            // call fires this handler and GetActiveSegmentsAtTime(0) returns the stale result
-            // from the previous Add, causing preview elements to be missing until the user
-            // moves the playhead to a different position.
             _timelineViewModel?.InvalidateActiveSegmentsCachePublic();
+
+            // During a full project load, LoadTracksFromProject clears then re-adds every track
+            // one-by-one, firing this handler once per track. Rebuilding the preview on each Add
+            // is O(tracks × segments) wasted work on the UI thread (and re-decodes image headers
+            // from disk every time). Skip here while loading — OnProjectPropertyChanged performs a
+            // single authoritative rebuild once the project and all its tracks have finished loading.
+            if (_timelineViewModel?.IsLoadingFromProject == true)
+                return;
 
             UpdateActivePreview(_timelineViewModel?.PlayheadPosition ?? 0);
         }

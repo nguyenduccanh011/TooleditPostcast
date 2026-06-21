@@ -17,7 +17,6 @@ public static class SkiaConversionHelper
 {
     private static readonly object _lock = new();
     private static WriteableBitmap? _reusableBitmap;
-    private static byte[]? _pixelBuffer;
 
     /// <summary>
     /// Convert SKBitmap to WPF WriteableBitmap, reusing the same bitmap when dimensions match.
@@ -54,23 +53,31 @@ public static class SkiaConversionHelper
                 var pixelCount = width * height;
                 var byteCount = pixelCount * 4;
 
-                // Copy RGBA pixels from native memory to managed array
-                if (_pixelBuffer == null || _pixelBuffer.Length < byteCount)
-                    _pixelBuffer = new byte[byteCount];
-
-                Marshal.Copy(srcPtr, _pixelBuffer, 0, byteCount);
-
-                // RGBA → BGRA swizzle using Span for better performance
-                var span = _pixelBuffer.AsSpan(0, byteCount);
-                for (int i = 0; i < span.Length - 3; i += 4)
+                // Rent a scratch buffer from the shared pool instead of holding a static buffer
+                // sized to the largest frame ever seen (which never shrank when the canvas
+                // resolution dropped). Pooling keeps the no-GC benefit without the permanent high-water allocation.
+                var pixelBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(byteCount);
+                try
                 {
-                    (span[i], span[i + 2]) = (span[i + 2], span[i]); // Swap R ↔ B
+                    // Copy RGBA pixels from native memory to managed array
+                    Marshal.Copy(srcPtr, pixelBuffer, 0, byteCount);
+
+                    // RGBA → BGRA swizzle using Span for better performance
+                    var span = pixelBuffer.AsSpan(0, byteCount);
+                    for (int i = 0; i < span.Length - 3; i += 4)
+                    {
+                        (span[i], span[i + 2]) = (span[i + 2], span[i]); // Swap R ↔ B
+                    }
+
+                    // Copy swizzled BGRA pixels into WriteableBitmap back buffer
+                    Marshal.Copy(pixelBuffer, 0, _reusableBitmap.BackBuffer, byteCount);
+
+                    _reusableBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
                 }
-
-                // Copy swizzled BGRA pixels into WriteableBitmap back buffer
-                Marshal.Copy(_pixelBuffer, 0, _reusableBitmap.BackBuffer, byteCount);
-
-                _reusableBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+                finally
+                {
+                    System.Buffers.ArrayPool<byte>.Shared.Return(pixelBuffer);
+                }
             }
             finally
             {
