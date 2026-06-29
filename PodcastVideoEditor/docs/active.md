@@ -4,9 +4,10 @@ Pack: (none) — chưa có Task Pack đang theo dõi
 Updated: 2026-06-21
 
 ## Trạng thái
-- Docs từng bị bỏ trống từ 2026-02-12 (dừng ở TP-005). Từ đó app phát triển mạnh tới **v1.3.18**.
-- Việc shipped gần nhất (git): **CapCut export + motion keyframe** (2026-04-29/30).
-- Hiện chưa có TP đang chạy được ghi nhận chính thức. → **Cập nhật mục này khi bắt đầu task mới.**
+- Việc shipped gần nhất: **GPU Skia compositor** — preview `Ctrl+G` + render mặc định (NVENC, song song, video frame-accurate) + audit/vá hiệu suất render. Commit `baf4c1c` (2026-06-21, chưa bump version). Pipeline FFmpeg cũ giữ làm fallback.
+- Follow-up còn lại (chưa làm): compositor export chưa trộn multi-audio (tự fallback FFmpeg); seek video `-ss` keyframe (lệch 1–3 frame đầu clip); chưa retire pipeline cũ; (tùy chọn) GPU offscreen compositing.
+- Chi tiết kiến trúc/điểm tiếp nối: memory `gpu-compositor-work`.
+- Hiện chưa có TP mới đang chạy. → **Cập nhật mục này khi bắt đầu task mới.**
 
 ## Khi bắt đầu Task Pack mới
 - Theo `.ai/01_WORKFLOW.md` (gate G1–G5) và format `active.md` trong `.ai/03_DOC_STANDARDS.md`:

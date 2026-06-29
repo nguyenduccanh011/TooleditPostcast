@@ -16,6 +16,99 @@ using Serilog;
 namespace PodcastVideoEditor.Ui.Converters
 {
     /// <summary>
+    /// Produces a clean, human-friendly clip label from a segment's raw Text.
+    /// Imported assets are stored as "name_&lt;hash&gt;_&lt;hash&gt;.ext"; this strips the file
+    /// extension and trailing hex hash tokens so a clip reads "name" instead of a long hash.
+    /// Subtitle/plain text (no short file extension) is returned unchanged.
+    /// </summary>
+    public class SegmentDisplayLabelConverter : IValueConverter
+    {
+        public object Convert(object value, System.Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value as string;
+            if (string.IsNullOrWhiteSpace(text))
+                return text ?? string.Empty;
+
+            // Only clean filename-like strings (short extension). Leave subtitle text alone.
+            var ext = Path.GetExtension(text);
+            if (string.IsNullOrEmpty(ext) || ext.Length > 6)
+                return text;
+
+            var name = Path.GetFileNameWithoutExtension(text);
+            var parts = name.Split('_');
+            int keep = parts.Length;
+            while (keep > 1 && IsHashToken(parts[keep - 1]))
+                keep--;
+
+            if (keep == parts.Length)
+                return name; // only the extension was stripped
+
+            var sb = new System.Text.StringBuilder();
+            for (int i = 0; i < keep; i++)
+            {
+                if (i > 0) sb.Append('_');
+                sb.Append(parts[i]);
+            }
+            var result = sb.ToString();
+            return string.IsNullOrWhiteSpace(result) ? name : result;
+        }
+
+        private static bool IsHashToken(string token)
+        {
+            if (token.Length < 16)
+                return false;
+            foreach (var c in token)
+            {
+                if (!System.Uri.IsHexDigit(c))
+                    return false;
+            }
+            return true;
+        }
+
+        public object ConvertBack(object value, System.Type targetType, object parameter, CultureInfo culture)
+            => Binding.DoNothing;
+    }
+
+    /// <summary>
+    /// Filters a track's Segments to only those whose pixel span intersects the timeline's current
+    /// visible window. Used to UI-virtualize the segment Canvas (which can't host a VirtualizingPanel):
+    /// only on-screen segments are realized, so a project with hundreds of segments opens fast and scrolls
+    /// smoothly. Values: [0]=IEnumerable&lt;Segment&gt;, [1]=startPx, [2]=endPx, [3]=revision (forces refresh).
+    /// </summary>
+    public class SegmentWindowFilterConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, System.Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values == null || values.Length < 3 || values[0] is not IEnumerable segments)
+                return System.Array.Empty<Segment>();
+
+            double start = values[1] is double s ? s : 0;
+            double end = values[2] is double e ? e : double.MaxValue;
+
+            var result = new List<Segment>();
+            bool noWindow = end <= start; // degenerate → show all (safety)
+            foreach (var item in segments)
+            {
+                if (item is not Segment seg)
+                    continue;
+                if (noWindow)
+                {
+                    result.Add(seg);
+                    continue;
+                }
+                double left = seg.PixelLeft;
+                double right = left + seg.PixelWidth;
+                if (right >= start && left <= end)
+                    result.Add(seg);
+            }
+            return result;
+        }
+
+        public object[] ConvertBack(object value, System.Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new System.NotSupportedException();
+    }
+
+    /// <summary>
     /// Converts time value (seconds) to pixel position on timeline.
     /// This converter requires ConverterParameter to contain PixelsPerSecond value.
     /// Usage: Value = TimeSeconds, ConverterParameter = PixelsPerSecond
@@ -774,6 +867,51 @@ namespace PodcastVideoEditor.Ui.Converters
         {
             throw new NotImplementedException();
         }
+    }
+
+    /// <summary>
+    /// Two-way converts a normalized 0–1 value to/from an integer percentage string for display
+    /// (0.5 ⇄ "50"). The stored model value stays 0–1 — only the editor surface shows a percentage.
+    /// </summary>
+    [ValueConversion(typeof(double), typeof(string))]
+    public class PercentConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (!double.TryParse(value?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out double v))
+                return "0";
+            return Math.Round(v * 100).ToString(CultureInfo.InvariantCulture);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value?.ToString()?.Replace("%", "").Trim();
+            if (!double.TryParse(text, NumberStyles.Any, CultureInfo.InvariantCulture, out double pct))
+                return Binding.DoNothing;
+            return pct / 100.0;
+        }
+    }
+
+    /// <summary>
+    /// Returns Visible when the segment's pixel width is at least the threshold
+    /// (ConverterParameter, default 34px); Collapsed otherwise. Hides the floating clip label on
+    /// segments too narrow to show readable text — which would otherwise render noisy single-letter
+    /// ellipses ("C…", "M…") on dense timelines. Full text stays available via the segment tooltip.
+    /// </summary>
+    [ValueConversion(typeof(double), typeof(Visibility))]
+    public class SegmentLabelVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            double width = value is double d ? d : 0;
+            double threshold = 34;
+            if (parameter != null)
+                double.TryParse(parameter.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out threshold);
+            return width >= threshold ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
     }
 
     /// <summary>

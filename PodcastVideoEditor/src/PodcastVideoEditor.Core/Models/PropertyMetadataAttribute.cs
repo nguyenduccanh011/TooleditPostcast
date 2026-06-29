@@ -48,6 +48,12 @@ public sealed class PropertyMetadataAttribute : Attribute
     public bool IsColor { get; set; }
 
     /// <summary>
+    /// If true, a normalized 0–1 slider value is displayed to the user as a percentage (0.5 → "50%").
+    /// Display-only: the stored model value stays 0–1. Use for opacity-style fields.
+    /// </summary>
+    public bool IsPercent { get; set; }
+
+    /// <summary>
     /// If true, string property is rendered as PropertyFieldType.TextArea.
     /// </summary>
     public bool IsTextArea { get; set; }

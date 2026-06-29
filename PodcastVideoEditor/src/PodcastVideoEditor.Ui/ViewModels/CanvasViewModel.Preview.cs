@@ -82,7 +82,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             InvalidateAssetLookup();
 
+            // Seed the preview timecode from the timeline (source of truth in timeline-first mode).
+            AudioPlaybackTime = FormatClock(_timelineViewModel.PlayheadPosition);
+            AudioDuration = FormatClock(_timelineViewModel.TotalDuration);
+
             UpdateActivePreview(_timelineViewModel.PlayheadPosition);
+        }
+
+        /// <summary>Formats seconds as mm:ss (or hh:mm:ss when ≥ 1 hour) for the preview timecode readout.</summary>
+        private static string FormatClock(double seconds)
+        {
+            var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            return t.Hours > 0 ? t.ToString(@"hh\:mm\:ss") : t.ToString(@"mm\:ss");
         }
 
         /// <summary>
@@ -100,9 +111,20 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_timelineViewModel == null || _projectViewModel == null)
                 return;
 
+            if (e.PropertyName == nameof(TimelineViewModel.TotalDuration))
+            {
+                AudioDuration = FormatClock(_timelineViewModel.TotalDuration);
+                return;
+            }
+
             if (e.PropertyName == nameof(TimelineViewModel.PlayheadPosition))
             {
                 var playhead = _timelineViewModel.PlayheadPosition;
+
+                // Keep the preview timecode in sync with the playhead. Set this before any
+                // throttle/fast-path return so the readout stays smooth even when the canvas
+                // redraw is throttled. (Timeline-first mode: playhead is the source of truth.)
+                AudioPlaybackTime = FormatClock(playhead);
 
                 // Fast path: if in video mode, just update position (GPU-accelerated, very cheap)
                 if (IsVideoMode && ActiveVisualSegment != null)
@@ -176,11 +198,18 @@ namespace PodcastVideoEditor.Ui.ViewModels
             if (_timelineViewModel == null)
                 return;
 
+            // Overlay tint: cheap, immediate refresh so the canvas follows slider drags live.
+            // (A full preview rebuild / reset-debounce would never fire during a continuous drag.)
+            if (e.PropertyName == nameof(Track.OverlayColorHex)
+                || e.PropertyName == nameof(Track.OverlayOpacity))
+            {
+                RefreshActiveOverlay();
+                return;
+            }
+
             // Motion-related properties: trigger preview update for transform recalculation
             if (e.PropertyName == nameof(Track.AutoMotionEnabled)
-                || e.PropertyName == nameof(Track.MotionIntensity)
-                || e.PropertyName == nameof(Track.OverlayColorHex)
-                || e.PropertyName == nameof(Track.OverlayOpacity))
+                || e.PropertyName == nameof(Track.MotionIntensity))
             {
                 ScheduleDebouncedPreviewUpdate();
                 return;
@@ -270,11 +299,17 @@ namespace PodcastVideoEditor.Ui.ViewModels
                 ScheduleDebouncedPreviewUpdate();
             }
 
+            // Overlay tint: cheap, immediate refresh so the canvas follows slider drags live.
+            if (e.PropertyName == nameof(Segment.OverlayColorHex)
+                || e.PropertyName == nameof(Segment.OverlayOpacity))
+            {
+                RefreshActiveOverlay();
+                return;
+            }
+
             // Motion preset or intensity changes: refresh transforms
             if (e.PropertyName == nameof(Segment.MotionPreset)
-                || e.PropertyName == nameof(Segment.MotionIntensity)
-                || e.PropertyName == nameof(Segment.OverlayColorHex)
-                || e.PropertyName == nameof(Segment.OverlayOpacity))
+                || e.PropertyName == nameof(Segment.MotionIntensity))
             {
                 ScheduleDebouncedPreviewUpdate();
             }
@@ -644,6 +679,25 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Lightweight, immediate overlay-tint refresh for the image elements active at the
+        /// current playhead. Used while the user drags the overlay opacity/color controls so the
+        /// canvas tint follows in real time, without paying for a full <see cref="UpdateActivePreview"/>.
+        /// </summary>
+        private void RefreshActiveOverlay()
+        {
+            if (_timelineViewModel == null || _projectViewModel?.CurrentProject == null)
+                return;
+
+            var visualPairs = _timelineViewModel
+                .GetActiveSegmentsAtTime(_timelineViewModel.PlayheadPosition)
+                .Where(p => string.Equals(p.track.TrackType, TrackTypes.Visual, StringComparison.OrdinalIgnoreCase))
+                .Select(p => (p.track, p.segment))
+                .ToList();
+
+            UpdateOverlayProperties(visualPairs);
+        }
+
+        /// <summary>
         /// Sync resolved overlay color/opacity from segment (override) or track (default)
         /// into each active ImageElement for canvas preview binding.
         /// </summary>
@@ -881,7 +935,11 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private void UpdateElementVisibility(List<(Track track, Segment segment)> activeSegments)
         {
             if (Elements.Count == 0)
+            {
+                if (VisibleElements.Count > 0)
+                    VisibleElements.Clear();
                 return;
+            }
 
             // Build a set of active segment IDs for O(1) lookup
             HashSet<string>? activeSegmentIds = null;
@@ -906,6 +964,31 @@ namespace PodcastVideoEditor.Ui.ViewModels
                     // Segment-bound — visible only when segment is active
                     element.IsVisible = activeSegmentIds != null && activeSegmentIds.Contains(element.SegmentId);
                 }
+            }
+
+            SyncVisibleElements();
+        }
+
+        /// <summary>
+        /// Reconciles <see cref="VisibleElements"/> with the current per-element IsVisible flags so the
+        /// preview canvas only realizes the active overlays. Incremental (add/remove only what changed)
+        /// to avoid re-creating containers for elements that stay visible across a playhead move.
+        /// </summary>
+        private void SyncVisibleElements()
+        {
+            // Drop elements that are no longer visible or no longer present in the full set.
+            for (int i = VisibleElements.Count - 1; i >= 0; i--)
+            {
+                var el = VisibleElements[i];
+                if (!el.IsVisible || !Elements.Contains(el))
+                    VisibleElements.RemoveAt(i);
+            }
+
+            // Add newly-visible elements.
+            foreach (var el in Elements)
+            {
+                if (el.IsVisible && !VisibleElements.Contains(el))
+                    VisibleElements.Add(el);
             }
         }
 

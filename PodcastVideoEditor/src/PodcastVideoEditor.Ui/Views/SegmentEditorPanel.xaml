@@ -57,6 +57,31 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- Playback speed (rescales the clip's timeline slot + ripples later segments, CapCut-style) -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Speed:" Style="{StaticResource CompactPropertyLabelStyle}"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Content="0.5×" Command="{Binding ApplySegmentSpeedCommand}" CommandParameter="0.5"
+                                Style="{StaticResource NeutralActionButtonStyle}" Padding="6,2" Height="24" Margin="0,0,4,0" MinWidth="36"
+                                ToolTip="Chậm 0.5× — clip dài gấp đôi trên timeline (đẩy các segment sau)"/>
+                        <Button Content="1×" Command="{Binding ApplySegmentSpeedCommand}" CommandParameter="1"
+                                Style="{StaticResource NeutralActionButtonStyle}" Padding="6,2" Height="24" Margin="0,0,4,0" MinWidth="36"
+                                ToolTip="Tốc độ gốc"/>
+                        <Button Content="1.5×" Command="{Binding ApplySegmentSpeedCommand}" CommandParameter="1.5"
+                                Style="{StaticResource NeutralActionButtonStyle}" Padding="6,2" Height="24" Margin="0,0,4,0" MinWidth="36"/>
+                        <Button Content="2×" Command="{Binding ApplySegmentSpeedCommand}" CommandParameter="2"
+                                Style="{StaticResource NeutralActionButtonStyle}" Padding="6,2" Height="24" Margin="0,0,8,0" MinWidth="36"
+                                ToolTip="Nhanh 2× — clip ngắn còn một nửa"/>
+                        <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource ValueDisplayBrush}">
+                            <Run Text="{Binding SelectedSegment.Speed, StringFormat={}{0:0.##}×, FallbackValue=1×}"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+
                 <!-- Description (textarea stays 2-row) -->
                 <TextBlock Text="Description:" Style="{StaticResource CompactPropertyLabelStyle}" VerticalAlignment="Top" Margin="0,0,0,3"/>
                 <TextBox Text="{Binding SelectedSegment.Text, UpdateSourceTrigger=PropertyChanged}"

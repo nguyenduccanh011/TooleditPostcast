@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace PodcastVideoEditor.Ui.Views
 {
@@ -24,11 +25,39 @@ namespace PodcastVideoEditor.Ui.Views
         private PropertyChangedEventHandler? _viewModelPropertyChangedHandler;
         private bool _suppressOverlayChanged;
 
+        // Coalesce DB saves while the user drags the overlay opacity/color controls:
+        // persist once after they stop, instead of writing the whole project on every tick.
+        private readonly DispatcherTimer _overlaySaveDebounce;
+
         public SegmentEditorPanel()
         {
             InitializeComponent();
+            _overlaySaveDebounce = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(400)
+            };
+            _overlaySaveDebounce.Tick += OnOverlaySaveDebounceTick;
             Loaded += SegmentEditorPanel_Loaded;
             Unloaded += SegmentEditorPanel_Unloaded;
+        }
+
+        private void OnOverlaySaveDebounceTick(object? sender, EventArgs e)
+        {
+            _overlaySaveDebounce.Stop();
+            _viewModel?.RequestProjectSave();
+        }
+
+        private void ScheduleOverlaySave()
+        {
+            _overlaySaveDebounce.Stop();
+            _overlaySaveDebounce.Start();
+        }
+
+        private void FlushPendingOverlaySave()
+        {
+            if (!_overlaySaveDebounce.IsEnabled) return;
+            _overlaySaveDebounce.Stop();
+            _viewModel?.RequestProjectSave();
         }
 
         private void SegmentEditorPanel_Loaded(object sender, RoutedEventArgs e)
@@ -54,6 +83,8 @@ namespace PodcastVideoEditor.Ui.Views
 
         private void SegmentEditorPanel_Unloaded(object sender, RoutedEventArgs e)
         {
+            FlushPendingOverlaySave();
+
             if (_viewModel != null && _viewModelPropertyChangedHandler != null)
             {
                 _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
@@ -214,7 +245,7 @@ namespace PodcastVideoEditor.Ui.Views
             var opacity = SegOverlayOpacitySlider.Value / 100.0;
             segment.OverlayOpacity = opacity;
             SegOverlayOpacityValueText.Text = $"{(int)(opacity * 100)}%";
-            _viewModel?.RequestProjectSave();
+            ScheduleOverlaySave();
         }
 
         private void SegOverlayColorSwatch_Click(object sender, MouseButtonEventArgs e)
@@ -248,13 +279,15 @@ namespace PodcastVideoEditor.Ui.Views
                     (Color)ColorConverter.ConvertFromString(hex));
             }
             catch { }
-            _viewModel?.RequestProjectSave();
+            ScheduleOverlaySave();
         }
 
         private void OnSegOverlayPopupClosed(object? sender, EventArgs e)
         {
             SegOverlayColorPicker.ColorChanged -= OnSegOverlayColorChanged;
             SegOverlayColorPopup.Closed -= OnSegOverlayPopupClosed;
+            // Persist immediately when the color picker closes (end of interaction).
+            FlushPendingOverlaySave();
         }
 
     }

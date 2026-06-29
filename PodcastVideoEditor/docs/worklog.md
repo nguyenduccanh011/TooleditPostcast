@@ -21,5 +21,10 @@ Git history đầy đủ bắt đầu **2026-04-07**; giai đoạn 02→03 chỉ
 [2026-04-16] Tăng độ song song chunk render cho máy 8+ core.
 [2026-04-29..30] CapCut export integration + motion keyframe; **v1.3.18**.
 
+## 2026-06 (chưa bump version)
+[2026-06-21] Audit hiệu suất render + vá: oversubscription thread (NormalizeRenderConfig bỏ rơi flag chunked), encoder probe async + disk cache, dọn rò rỉ temp (vb/vb_audio), throttle thumbnail, cache ảnh canvas.
+[2026-06-21] GPU Skia compositor: scene model + renderer + preview `Ctrl+G` (WYSIWYG: nền/Ken Burns/text/logo/visualizer sống); present GPU qua GLWpfControl/GRContext, fallback raster.
+[2026-06-21] Render unification: nút Render dùng compositor 1-pass + NVENC (song song chunk, video frame-accurate) làm **mặc định**; tự fallback pipeline FFmpeg cũ khi lỗi/multi-audio. Commit `baf4c1c`.
+
 ---
 Format mốc mới: `[YYYY-MM-DD] <action> — <result>` (1–3 dòng). Chi tiết dài → đẩy sang `docs/archive/`.

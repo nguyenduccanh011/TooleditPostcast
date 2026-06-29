@@ -49,7 +49,7 @@ namespace PodcastVideoEditor.Ui.Converters
         {
             if (value is bool isSelected)
             {
-                return new SolidColorBrush(isSelected ? Colors.Cyan : Colors.Transparent);
+                return new SolidColorBrush(isSelected ? Color.FromRgb(0x3B, 0x82, 0xF6) : Colors.Transparent);
             }
             return new SolidColorBrush(Colors.Transparent);
         }

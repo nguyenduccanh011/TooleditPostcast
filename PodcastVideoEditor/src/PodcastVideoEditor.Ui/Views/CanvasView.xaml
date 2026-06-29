@@ -82,7 +82,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
                         <Grid Background="Transparent">
-                            <Ellipse Width="16" Height="16" Fill="#0E639C" Stroke="White" StrokeThickness="2"
+                            <Ellipse Width="16" Height="16" Fill="#3B82F6" Stroke="White" StrokeThickness="2"
                                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             <TextBlock Text="↻" Foreground="White" FontSize="10" FontWeight="Bold"
                                        HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -116,7 +116,7 @@
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
                 <!-- Rotation connector line -->
-                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#3B82F6" StrokeThickness="2"
                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                       IsHitTestVisible="False"/>
@@ -200,7 +200,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
-                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#3B82F6" StrokeThickness="2"
                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                       IsHitTestVisible="False"/>
@@ -270,7 +270,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
-                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#3B82F6" StrokeThickness="2"
                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                       IsHitTestVisible="False"/>
@@ -404,7 +404,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
-                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#3B82F6" StrokeThickness="2"
                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                       IsHitTestVisible="False"/>
@@ -458,7 +458,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-40,0,0"
                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                        DragDelta="OnRotationHandleDrag" DragCompleted="OnRotationHandleCompleted"/>
-                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#0E639C" StrokeThickness="2"
+                <Line X1="0" Y1="0" X2="0" Y2="16" Stroke="#3B82F6" StrokeThickness="2"
                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-16,0,0"
                       Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}"
                       IsHitTestVisible="False"/>
@@ -535,7 +535,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#0E639C"/>
+                                <Setter TargetName="border" Property="Background" Value="#3B82F6"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -653,7 +653,7 @@
                             </Border>
 
                             <!-- All other elements: images, visualizers, text, logos -->
-                            <ItemsControl ItemsSource="{Binding Elements}"
+                            <ItemsControl ItemsSource="{Binding VisibleElements}"
                                          ItemTemplateSelector="{StaticResource ElementTemplateSelector}">
                                 <ItemsControl.ItemContainerStyle>
                                     <Style TargetType="ContentPresenter">

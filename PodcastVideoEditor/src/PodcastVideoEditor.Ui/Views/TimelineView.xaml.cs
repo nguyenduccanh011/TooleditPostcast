@@ -91,7 +91,13 @@ namespace PodcastVideoEditor.Ui.Views
                 _dragHandler = new SegmentDragHandler(_viewModel);
 
                 if (TimelineScroller != null)
+                {
                     TimelineScroller.PreviewMouseWheel += TimelineScroller_PreviewMouseWheel;
+                    TimelineScroller.ScrollChanged += OnTimelineScrollChanged;
+                }
+
+                // Establish the initial segment window once the scroller is arranged.
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() => UpdateSegmentWindow(force: true)));
 
                 // Shift+Z → zoom-to-fit (WPF KeyBinding doesn't support Shift+Letter cleanly)
                 PreviewKeyDown += TimelineView_PreviewKeyDown;
@@ -113,6 +119,9 @@ namespace PodcastVideoEditor.Ui.Views
                     {
                         InvalidateRuler();
                         UpdatePlayheadPosition();
+                        // Zoom changes every segment's PixelLeft → re-window and re-filter.
+                        _viewModel.RefreshSegmentWindowRevision();
+                        UpdateSegmentWindow(force: true);
                         UpdateSegmentLayout();
                     }
                     else if (args.PropertyName == nameof(TimelineViewModel.TotalDuration))
@@ -153,10 +162,14 @@ namespace PodcastVideoEditor.Ui.Views
                         foreach (PodcastVideoEditor.Core.Models.Track track in _viewModel.Tracks)
                             SubscribeToTrackSegments(track);
                     }
+                    _viewModel.RefreshSegmentWindowRevision();
                     Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
                     {
                         if (IsLoaded)
+                        {
+                            UpdateSegmentWindow(force: true);
                             UpdateSegmentLayout();
+                        }
                     }));
                 };
                 _viewModel.Tracks.CollectionChanged += _tracksCollectionChangedHandler;
@@ -182,7 +195,10 @@ namespace PodcastVideoEditor.Ui.Views
         {
             PreviewKeyDown -= TimelineView_PreviewKeyDown;
             if (TimelineScroller != null)
+            {
                 TimelineScroller.PreviewMouseWheel -= TimelineScroller_PreviewMouseWheel;
+                TimelineScroller.ScrollChanged -= OnTimelineScrollChanged;
+            }
             if (_viewModel != null && _viewModelPropertyChangedHandler != null)
                 _viewModel.PropertyChanged -= _viewModelPropertyChangedHandler;
             if (_viewModel != null && _tracksCollectionChangedHandler != null)
@@ -191,6 +207,55 @@ namespace PodcastVideoEditor.Ui.Views
             if (_viewModel?.UndoRedoService != null && _undoRedoStateChangedHandler != null)
                 _viewModel.UndoRedoService.StateChanged -= _undoRedoStateChangedHandler;
             _zoomTimer.Stop();
+        }
+
+        // Last scroll offset the segment window was computed for (for scroll quantization).
+        private double _lastWindowOffset = double.NaN;
+
+        private void OnTimelineScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // Re-window on horizontal scroll; force (reset quantization) on viewport/extent (zoom/resize).
+            bool layoutChanged = e.ViewportWidthChange != 0 || e.ExtentWidthChange != 0;
+            UpdateSegmentWindow(force: layoutChanged);
+        }
+
+        /// <summary>
+        /// Recomputes the visible-segment pixel window from the scroll position and pushes it to the
+        /// view-model, which makes the per-track segment filters realize only on-screen segments.
+        /// Quantized so small scrolls don't churn the realized set; forced on zoom/resize/load.
+        /// </summary>
+        private void UpdateSegmentWindow(bool force = false)
+        {
+            if (_viewModel == null || TimelineScroller == null)
+                return;
+
+            // Never re-window during an active segment drag: the resulting ItemsControl reset would
+            // destroy the dragged segment's container (and its mouse capture), aborting the drag.
+            // The window is resynced when the drag completes. (Edge auto-scroll triggers ScrollChanged.)
+            if (_dragHandler?.ActiveDrag != null)
+                return;
+
+            double offset = TimelineScroller.HorizontalOffset;
+            double viewport = TimelineScroller.ViewportWidth;
+            if (viewport <= 0) viewport = TimelineScroller.ActualWidth;
+            if (viewport <= 0) viewport = 1200;
+
+            double margin = viewport * 0.5; // half a viewport of pre-render on each side
+
+            if (!force && !double.IsNaN(_lastWindowOffset)
+                && Math.Abs(offset - _lastWindowOffset) < margin * 0.5)
+                return; // still within the rendered margin — keep the realized set stable
+
+            _lastWindowOffset = offset;
+            _viewModel.SegmentWindowStartPx = Math.Max(0, offset - margin);
+            _viewModel.SegmentWindowEndPx = offset + viewport + margin;
+
+            // Position the freshly-realized segment containers once they exist.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
+            {
+                if (IsLoaded)
+                    UpdateSegmentLayout();
+            }));
         }
 
         /// <summary>
@@ -202,6 +267,7 @@ namespace PodcastVideoEditor.Ui.Views
             {
                 NotifyCollectionChangedEventHandler handler = (s, args) =>
                 {
+                    _viewModel?.RefreshSegmentWindowRevision();
                     Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)(() =>
                     {
                         if (IsLoaded)
@@ -873,6 +939,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             _autoScrollHelper?.Stop();
             UpdateSnapIndicator(null);
+            // The drag may have auto-scrolled; resync the realized-segment window now that it ended.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)(() =>
+            {
+                if (IsLoaded) UpdateSegmentWindow(force: true);
+            }));
 
             var action = _dragHandler?.CompleteDrag();
             if (action != null) _viewModel?.UndoRedoService?.Record(action);
@@ -889,6 +960,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             _autoScrollHelper?.Stop();
             UpdateSnapIndicator(null);
+            // The drag may have auto-scrolled; resync the realized-segment window now that it ended.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)(() =>
+            {
+                if (IsLoaded) UpdateSegmentWindow(force: true);
+            }));
 
             var action = _dragHandler?.CompleteDrag();
             if (action != null) _viewModel?.UndoRedoService?.Record(action);
@@ -1001,6 +1077,11 @@ namespace PodcastVideoEditor.Ui.Views
 
             _autoScrollHelper?.Stop();
             UpdateSnapIndicator(null);
+            // The drag may have auto-scrolled; resync the realized-segment window now that it ended.
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)(() =>
+            {
+                if (IsLoaded) UpdateSegmentWindow(force: true);
+            }));
 
             var primaryAction = _dragHandler?.CompleteDrag();
 

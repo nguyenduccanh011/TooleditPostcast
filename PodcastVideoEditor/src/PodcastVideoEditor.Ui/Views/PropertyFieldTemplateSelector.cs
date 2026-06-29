@@ -21,6 +21,7 @@ namespace PodcastVideoEditor.Ui.Views
         public DataTemplate? TransformRowTemplate { get; set; }
         public DataTemplate? BoolTemplate { get; set; }
         public DataTemplate? SliderTemplate { get; set; }
+        public DataTemplate? PercentSliderTemplate { get; set; }
 
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
         {
@@ -40,7 +41,7 @@ namespace PodcastVideoEditor.Ui.Views
                 PropertyFieldType.FormattingRow => FormattingRowTemplate,
                 PropertyFieldType.TransformRow => TransformRowTemplate,
                 PropertyFieldType.Bool => BoolTemplate,
-                PropertyFieldType.Slider => SliderTemplate,
+                PropertyFieldType.Slider => field.IsPercent ? PercentSliderTemplate : SliderTemplate,
                 _ => StringTemplate
             };
         }

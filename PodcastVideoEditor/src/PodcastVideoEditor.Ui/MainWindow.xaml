@@ -139,8 +139,11 @@
             </Grid.ColumnDefinitions>
 
             <!-- Icon + Title -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,8,0">
-                <TextBlock Text="🎙" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,8,0">
+                <Viewbox Width="15" Height="15" VerticalAlignment="Center" Margin="0,0,8,0">
+                    <Path Data="{StaticResource IconMic}" Stroke="{StaticResource AccentBlueBrush}" StrokeThickness="1.8"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                </Viewbox>
                 <TextBlock Text="Podcast Video Editor" FontSize="12" Foreground="{StaticResource SecondaryForegroundBrush}"
                            VerticalAlignment="Center" FontWeight="SemiBold"/>
             </StackPanel>
@@ -186,15 +189,30 @@
             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0"
                         WindowChrome.IsHitTestVisibleInChrome="True">
                 <Button x:Name="TitleBarRenderBtn"
-                        Content="▶ Render" Background="{StaticResource AccentBlueBrush}" Foreground="White"
-                        FontSize="12" Padding="14,5" Height="26" Margin="0,0,4,0"
+                        Background="{StaticResource AccentBlueBrush}" Foreground="White"
+                        FontSize="12" Padding="14,5" Height="28" Margin="0,0,6,0"
                         Visibility="Collapsed"
-                        Click="OpenRenderDialog_Click"/>
+                        Click="OpenRenderDialog_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center" Margin="0,0,7,0">
+                            <Path Data="{StaticResource IconPlay}" Fill="White"/>
+                        </Viewbox>
+                        <TextBlock Text="Render" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
                 <Button x:Name="TitleBarCapCutBtn"
-                        Content="📦 CapCut" Background="#FF7C3AED" Foreground="White"
-                        FontSize="12" Padding="14,5" Height="26"
+                        Background="{StaticResource SurfaceButtonBrush}" Foreground="{StaticResource PrimaryForegroundBrush}"
+                        FontSize="12" Padding="14,5" Height="28"
                         Visibility="Collapsed"
-                        Click="OpenCapCutExportDialog_Click"/>
+                        Click="OpenCapCutExportDialog_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Viewbox Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,7,0">
+                            <Path Data="{StaticResource IconExport}" Stroke="{StaticResource PrimaryForegroundBrush}" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Viewbox>
+                        <TextBlock Text="CapCut" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </StackPanel>
 
             <!-- Window control buttons -->
@@ -218,25 +236,25 @@
             </TabControl.Template>
             <TabItem Header="Home" DataContext="{Binding ProjectViewModel}">
                 <ScrollViewer>
-                    <StackPanel Margin="20">
-                        <TextBlock Text="Welcome to Podcast Video Editor" FontSize="22" FontWeight="Bold" Foreground="#007ACC" />
-                        <TextBlock Text="Create a new project or open a recent one." Margin="0,6,0,20" Foreground="{StaticResource SecondaryForegroundBrush}" />
+                    <StackPanel Margin="28,24,28,28">
+                        <TextBlock Text="Welcome to Podcast Video Editor" Style="{StaticResource HeadingTextStyle}" />
+                        <TextBlock Text="Create a new project or open a recent one." Margin="0,8,0,22" Style="{StaticResource BodyTextStyle}" />
 
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                            <Button Content="New Project" Width="130" Margin="0,0,10,0"
-                                Style="{StaticResource SuccessActionButtonStyle}"
-                                    Click="NewProjectButton_Click" />
-                            <Button Content="From Template" Width="130" Margin="0,0,10,0"
-                            Style="{StaticResource PrimaryActionButtonStyle}"
-                                Click="NewProjectFromTemplateButton_Click" />
-                            <Button Content="Open Selected" Width="130" Margin="0,0,10,0"
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                            <Button Content="New Project" Width="132" Height="36" Margin="0,0,10,0"
                                 Style="{StaticResource PrimaryActionButtonStyle}"
+                                    Click="NewProjectButton_Click" />
+                            <Button Content="From Template" Width="132" Height="36" Margin="0,0,10,0"
+                                Style="{StaticResource SecondaryActionButtonStyle}"
+                                Click="NewProjectFromTemplateButton_Click" />
+                            <Button Content="Open Selected" Width="132" Height="36" Margin="0,0,10,0"
+                                Style="{StaticResource SecondaryActionButtonStyle}"
                                     Click="OpenSelectedMenu_Click" />
-                            <Button Content="Delete Selected" Width="130" Margin="0,0,10,0"
-                                Style="{StaticResource DangerActionButtonStyle}"
+                            <Button Content="Delete Selected" Width="132" Height="36" Margin="0,0,10,0"
+                                Style="{StaticResource DangerGhostButtonStyle}"
                                     Command="{Binding DeleteProjectCommand}" CommandParameter="{Binding CurrentProject}" />
-                            <Button Content="Refresh" Width="100"
-                                Style="{StaticResource NeutralActionButtonStyle}"
+                            <Button Content="Refresh" Width="100" Height="36"
+                                Style="{StaticResource GhostActionButtonStyle}"
                                     Command="{Binding LoadProjectsCommand}" />
                         </StackPanel>
 
@@ -262,10 +280,22 @@
                                     </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel Margin="0,4" Background="Transparent">
-                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                                <TextBlock Text="{Binding AudioPath}" FontSize="11" Foreground="{StaticResource MutedForegroundBrush}" TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
+                                            <Grid Margin="0,3" Background="Transparent">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="8"
+                                                        Background="{StaticResource AccentSubtleBrush}" Margin="0,0,12,0" VerticalAlignment="Center">
+                                                    <Viewbox Width="16" Height="16">
+                                                        <Path Data="{StaticResource IconPlay}" Fill="{StaticResource AccentBlueBrush}" />
+                                                    </Viewbox>
+                                                </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryForegroundBrush}" />
+                                                    <TextBlock Text="{Binding AudioPath}" FontSize="11" Foreground="{StaticResource MutedForegroundBrush}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                                </StackPanel>
+                                            </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
@@ -289,11 +319,11 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Width="300" Margin="0,0,12,12" Padding="10" Background="{StaticResource PrimaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="8">
+                                            <Border Width="300" Margin="0,0,14,14" Padding="14" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" CornerRadius="10" Effect="{StaticResource SoftShadowEffect}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" Foreground="{StaticResource PrimaryForegroundBrush}" />
-                                                    <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,4,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" />
-                                                    <TextBlock Text="{Binding Description}" Margin="0,6,0,10" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" Foreground="{StaticResource PrimaryForegroundBrush}" />
+                                                    <TextBlock Text="{Binding AspectRatio, StringFormat='Aspect: {0}'}" Margin="0,5,0,0" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" />
+                                                    <TextBlock Text="{Binding Description}" Margin="0,8,0,12" Foreground="{StaticResource SecondaryForegroundBrush}" FontSize="11" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" />
                                                     <StackPanel Orientation="Horizontal">
                                                         <Button Content="Use Template" Margin="0,0,8,0"
                                                             Style="{StaticResource PrimaryActionButtonStyle}"
@@ -301,7 +331,7 @@
                                                         <Button Content="Export"
                                                                 Click="HomeTemplateExportButton_Click">
                                                             <Button.Style>
-                                                                <Style TargetType="Button" BasedOn="{StaticResource NeutralActionButtonStyle}">
+                                                                <Style TargetType="Button" BasedOn="{StaticResource GhostActionButtonStyle}">
                                                                     <Setter Property="Visibility" Value="Visible" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding Id}" Value="blank">
@@ -314,7 +344,7 @@
                                                         <Button Content="Delete" Margin="8,0,0,0"
                                                                 Click="HomeTemplateDeleteButton_Click">
                                                             <Button.Style>
-                                                                <Style TargetType="Button" BasedOn="{StaticResource DangerActionButtonStyle}">
+                                                                <Style TargetType="Button" BasedOn="{StaticResource DangerGhostButtonStyle}">
                                                                     <Setter Property="Visibility" Value="Visible" />
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding Id}" Value="blank">
@@ -393,7 +423,7 @@
                                     <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
                                 </MultiBinding>
                             </Border.Clip>
-                            <views:ElementsMediaPanelView DataContext="{Binding}" />
+                            <views:ElementsMediaPanelView x:Name="EditorElementsPanel" DataContext="{Binding}" />
                         </Border>
 
                         <!-- Vertical splitter between Elements and Canvas -->
@@ -410,7 +440,7 @@
                                     <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
                                 </MultiBinding>
                             </Border.Clip>
-                            <views:CanvasView DataContext="{Binding CanvasViewModel}" />
+                            <views:CanvasView x:Name="EditorCanvasView" DataContext="{Binding CanvasViewModel}" />
                         </Border>
 
                         <!-- Vertical splitter between Canvas and Properties -->
@@ -427,7 +457,7 @@
                                     <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
                                 </MultiBinding>
                             </Border.Clip>
-                            <views:UnifiedPropertiesPanel DataContext="{Binding}" />
+                            <views:UnifiedPropertiesPanel x:Name="EditorPropertiesPanel" DataContext="{Binding}" />
                         </Border>
                     </Grid>
 
@@ -445,7 +475,7 @@
                                 <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}"/>
                             </MultiBinding>
                         </Border.Clip>
-                        <views:TimelineView DataContext="{Binding TimelineViewModel}" />
+                        <views:TimelineView x:Name="EditorTimelineView" DataContext="{Binding TimelineViewModel}" />
                     </Border>
                 </Grid>
             </TabItem>
@@ -453,8 +483,8 @@
             <TabItem Header="Settings">
                 <ScrollViewer>
                     <StackPanel x:Name="SettingsPanel" Margin="20">
-                        <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" Foreground="#007ACC" />
-                        <TextBlock Text="Configure FFmpeg, application paths, and shared API keys." Margin="0,6,0,20" Foreground="{StaticResource SecondaryForegroundBrush}" />
+                        <TextBlock Text="Settings" Style="{StaticResource HeadingTextStyle}" />
+                        <TextBlock Text="Configure FFmpeg, application paths, and shared API keys." Margin="0,8,0,22" Style="{StaticResource BodyTextStyle}" />
 
                         <TextBlock Text="FFmpeg Path" Margin="0,0,0,6" />
                         <Grid Margin="0,0,0,10">
@@ -602,7 +632,7 @@
                                                       Background="{StaticResource SecondaryBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1" />
                                             <Button Grid.Column="1"
                                                     Width="90" Height="32" Margin="8,0,0,0"
-                                                    Content="↻ Refresh"
+                                                    Content="Refresh"
                                                     Command="{Binding RefreshYesScaleModelsCommand}"
                                                     Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Reload available models from all configured keys" />
@@ -798,12 +828,12 @@
                             <!-- Primary action -->
                             <StackPanel Orientation="Horizontal">
                                 <Button Width="140" Height="36"
-                                        Content="💾  Save Settings"
+                                        Content="Save Settings"
                                         Command="{Binding SaveSettingsCommand}"
                                         Background="{StaticResource AccentBlueBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                         FontWeight="SemiBold" FontSize="13" />
                                 <Button Width="160" Height="36" Margin="10,0,0,0"
-                                        Content="↺  Reset AI Defaults"
+                                        Content="Reset AI Defaults"
                                         Command="{Binding ResetAIDefaultsCommand}"
                                         Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                         FontSize="13"
@@ -837,12 +867,12 @@
                                                    Text="Export saves all settings (API keys, models, fallback chain) to a JSON file. Import overwrites ALL current settings with the file contents." />
                                         <StackPanel Orientation="Horizontal">
                                             <Button Width="120" Height="30"
-                                                    Content="📤  Export"
+                                                    Content="Export"
                                                     Click="ExportSettings_Click"
                                                     Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Save all settings to a JSON file for backup or sharing" />
                                             <Button Width="120" Height="30" Margin="10,0,0,0"
-                                                    Content="📥  Import"
+                                                    Content="Import"
                                                     Click="ImportSettings_Click"
                                                     Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                     ToolTip="Load settings from a JSON file — this will overwrite all current settings" />
@@ -879,7 +909,7 @@
                                                 <Run Text="{Binding AudioCacheStorageText}" Foreground="{StaticResource PrimaryForegroundBrush}" FontWeight="SemiBold" />
                                             </TextBlock>
                                         </StackPanel>
-                                        <Button Grid.Column="1" Width="80" Height="26" Content="🔄 Refresh"
+                                        <Button Grid.Column="1" Width="80" Height="26" Content="Refresh"
                                                 Command="{Binding RefreshStorageInfoCommand}"
                                                 Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0" VerticalAlignment="Top"
                                                 ToolTip="Cập nhật lại thông tin dung lượng" />
@@ -888,17 +918,17 @@
                                     <!-- Action buttons -->
                                     <WrapPanel Orientation="Horizontal">
                                         <Button Width="160" Height="30" Margin="0,0,8,6"
-                                                Content="🗑  Dọn thumbnail"
+                                                Content="Dọn thumbnail"
                                                 Command="{Binding CleanupThumbnailsCommand}"
                                                 Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Xoá toàn bộ thumbnail video đã cache (sẽ tự tạo lại khi cần)" />
                                         <Button Width="160" Height="30" Margin="0,0,8,6"
-                                                Content="🗑  Dọn audio cache"
+                                                Content="Dọn audio cache"
                                                 Command="{Binding CleanupAudioCacheCommand}"
                                                 Background="{StaticResource ThumbnailBackgroundBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Xoá file WAV cache của audio (sẽ tự tạo lại khi phát)" />
                                         <Button Width="160" Height="30" Margin="0,0,0,6"
-                                                Content="📂  Mở AppData"
+                                                Content="Mở AppData"
                                                 Command="{Binding OpenAppDataFolderCommand}"
                                                 Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"
                                                 ToolTip="Mở thư mục AppData\PodcastVideoEditor trong Explorer" />
@@ -921,7 +951,7 @@
                                         <TextBlock x:Name="LogPathText" Foreground="{StaticResource MutedForegroundBrush}" FontSize="11" VerticalAlignment="Center"
                                                    FontFamily="Consolas" Margin="0,0,10,0" />
                                         <Button Width="100" Height="26"
-                                                Content="📂  Mở Logs"
+                                                Content="Mở Logs"
                                                 x:Name="OpenLogFolderBtn"
                                                 Click="OpenLogFolder_Click"
                                                 Background="{StaticResource AppCardBorderBrush}" Foreground="{StaticResource PrimaryForegroundBrush}" BorderThickness="0"

@@ -94,6 +94,33 @@
             </Setter>
         </Style>
 
+        <!-- Up/down spinner button for numeric fields -->
+        <Style x:Key="SpinnerButtonStyle" TargetType="{x:Type RepeatButton}">
+            <Setter Property="Width" Value="15"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Background" Value="#2a2e35"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RepeatButton}">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3a4048"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#4a5058"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- String -->
         <DataTemplate x:Key="PropertyFieldStringTemplate">
             <Grid Margin="0,0,0,5"
@@ -102,7 +129,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource FlatTextBoxStyle}"/>
             </Grid>
@@ -116,7 +143,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Top" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Top" Margin="0,4,0,0"/>
                 <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                          Style="{StaticResource FlatTextBoxStyle}"
                          TextWrapping="Wrap" AcceptsReturn="True" Height="52" VerticalContentAlignment="Top"
@@ -132,9 +159,24 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource FlatTextBoxStyle}"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
+                <Grid Grid.Column="1" HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Width="70" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                             HorizontalContentAlignment="Right"
+                             Style="{StaticResource FlatTextBoxStyle}"/>
+                    <StackPanel Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Center">
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding IncrementCommand}" Margin="0,0,0,1">
+                            <Path Data="M0,4 L4,0 L8,4" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding DecrementCommand}">
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </DataTemplate>
 
@@ -146,9 +188,24 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}"
-                         Style="{StaticResource FlatTextBoxStyle}"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
+                <Grid Grid.Column="1" HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Width="70" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.###}}"
+                             HorizontalContentAlignment="Right"
+                             Style="{StaticResource FlatTextBoxStyle}"/>
+                    <StackPanel Grid.Column="1" Margin="4,0,0,0" VerticalAlignment="Center">
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding IncrementCommand}" Margin="0,0,0,1">
+                            <Path Data="M0,4 L4,0 L8,4" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding DecrementCommand}">
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </DataTemplate>
 
@@ -160,7 +217,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -215,7 +272,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding EnumValues}"
                           SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource FlatComboBoxStyle}"/>
@@ -230,7 +287,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <ComboBox Grid.Column="1"
                           ItemsSource="{Binding Source={StaticResource SystemFontFamiliesProvider}}"
                           SelectedValuePath="Source"
@@ -254,7 +311,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <ListBox Grid.Column="1"
                          ItemsSource="{Binding EnumValues}"
                          SelectedItem="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
@@ -307,7 +364,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
                     <ToggleButton Width="28" Height="28" Margin="0,0,8,0"
                                   IsChecked="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -338,7 +395,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left">
                     <TextBlock Text="X" Foreground="#9fb0be" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Width="48" Margin="0,0,8,0" Text="{Binding CompositeFields[0].Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0}}" Style="{StaticResource FlatTextBoxStyle}" FontSize="11"/>
@@ -362,7 +419,7 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <CheckBox Grid.Column="1" IsChecked="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
                           HorizontalAlignment="Left" VerticalAlignment="Center"/>
             </Grid>
@@ -376,10 +433,11 @@
                     <ColumnDefinition Width="92"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="10" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
                 <Grid Grid.Column="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Slider Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
@@ -389,11 +447,60 @@
                             TickFrequency="{Binding SliderStep}"
                             SmallChange="{Binding SliderStep}"
                             LargeChange="{Binding SliderLargeChange}"
-                            Style="{StaticResource CompactSliderStyle}" Margin="0,0,6,0"/>
-                        <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.###}}"
-                             Foreground="#ffffff" FontFamily="Consolas" FontSize="12"
-                             MinWidth="52" Height="22" HorizontalContentAlignment="Right"
-                             Style="{StaticResource FlatTextBoxStyle}" Padding="4,1"/>
+                            Style="{StaticResource CompactSliderStyle}" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.###}}"
+                             Foreground="#ffffff" FontSize="12"
+                             MinWidth="44" Height="22" HorizontalContentAlignment="Right"
+                             Style="{StaticResource FlatTextBoxStyle}" Padding="5,1"/>
+                    <StackPanel Grid.Column="2" Margin="4,0,0,0" VerticalAlignment="Center">
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding IncrementCommand}" Margin="0,0,0,1">
+                            <Path Data="M0,4 L4,0 L8,4" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding DecrementCommand}">
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Slider (percentage display): same as slider, but the numeric box shows 0–1 as 0–100% -->
+        <DataTemplate x:Key="PropertyFieldPercentSliderTemplate">
+            <Grid Margin="0,0,0,5"
+                  Visibility="{Binding IsFieldVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="92"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource PropertyLabelBrush}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap" ToolTip="{Binding Name}"/>
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Minimum="{Binding MinValue}" Maximum="{Binding MaxValue}"
+                            Value="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+                            IsMoveToPointEnabled="True" Height="12" VerticalAlignment="Center"
+                            IsSnapToTickEnabled="True"
+                            TickFrequency="{Binding SliderStep}"
+                            SmallChange="{Binding SliderStep}"
+                            LargeChange="{Binding SliderLargeChange}"
+                            Style="{StaticResource CompactSliderStyle}" Margin="0,0,8,0"/>
+                    <TextBox Grid.Column="1" Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PercentConverter}}"
+                             Foreground="#ffffff" FontSize="12"
+                             MinWidth="36" Height="22" HorizontalContentAlignment="Right"
+                             Style="{StaticResource FlatTextBoxStyle}" Padding="5,1"/>
+                    <TextBlock Grid.Column="2" Text="%" Foreground="#9fb0be" FontSize="11" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                    <StackPanel Grid.Column="3" Margin="4,0,0,0" VerticalAlignment="Center">
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding IncrementCommand}" Margin="0,0,0,1">
+                            <Path Data="M0,4 L4,0 L8,4" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                        <RepeatButton Style="{StaticResource SpinnerButtonStyle}" Command="{Binding DecrementCommand}">
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="#cfd8df" StrokeThickness="1.3"/>
+                        </RepeatButton>
+                    </StackPanel>
                 </Grid>
             </Grid>
         </DataTemplate>
@@ -410,7 +517,8 @@
             FormattingRowTemplate="{StaticResource PropertyFieldFormattingRowTemplate}"
             TransformRowTemplate="{StaticResource PropertyFieldTransformRowTemplate}"
             BoolTemplate="{StaticResource PropertyFieldBoolTemplate}"
-            SliderTemplate="{StaticResource PropertyFieldSliderTemplate}"/>
+            SliderTemplate="{StaticResource PropertyFieldSliderTemplate}"
+            PercentSliderTemplate="{StaticResource PropertyFieldPercentSliderTemplate}"/>
 
     </UserControl.Resources>
 
@@ -452,14 +560,21 @@
                    Foreground="{StaticResource HintTextBrush}" FontStyle="Italic"
                    Visibility="{Binding SelectedElement, Converter={StaticResource NullToVisibilityConverter}}"/>
 
-        <!-- Grouped properties (headers hidden for compact layout) -->
+        <!-- Grouped properties — each group is a clean collapsible section -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
                      Visibility="{Binding SelectedElement, Converter={StaticResource ObjectToVisibilityConverter}}">
             <ItemsControl ItemsSource="{Binding PropertyGroups}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <ItemsControl ItemsSource="{Binding Fields}" Margin="0,0,0,2"
-                                      ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}"/>
+                        <Expander Style="{StaticResource PropertySectionExpanderStyle}"
+                                  IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+                            <Expander.Header>
+                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource PrimaryForegroundBrush}"/>
+                            </Expander.Header>
+                            <ItemsControl ItemsSource="{Binding Fields}" Margin="0,4,0,0"
+                                          ItemTemplateSelector="{StaticResource PropertyFieldTemplateSelector}"/>
+                        </Expander>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

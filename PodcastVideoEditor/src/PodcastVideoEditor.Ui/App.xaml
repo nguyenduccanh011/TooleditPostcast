@@ -19,6 +19,9 @@
         <converters:ObjectToVisibilityConverter x:Key="ObjectToVisibilityConverter"/>
         <converters:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <converters:NullOrEmptyToCollapsedConverter x:Key="NullOrEmptyToCollapsedConverter"/>
+        <converters:SegmentDisplayLabelConverter x:Key="SegmentDisplayLabelConverter"/>
+        <converters:SegmentLabelVisibilityConverter x:Key="SegmentLabelVisibilityConverter"/>
+        <converters:PercentConverter x:Key="PercentConverter"/>
         <converters:IsEqualConverter x:Key="IsEqualConverter"/>
         <converters:BoolToUnderlineConverter x:Key="BoolToUnderlineConverter"/>
         <converters:FontLineHeightConverter x:Key="FontLineHeightConverter"/>
@@ -27,12 +30,30 @@
         <!-- Shared design tokens (phase 1) -->
         <SolidColorBrush x:Key="PrimaryBackgroundBrush" Color="#1E1E1E"/>
         <SolidColorBrush x:Key="SecondaryBackgroundBrush" Color="#252526"/>
-        <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#ECECEC"/>
         <SolidColorBrush x:Key="SecondaryForegroundBrush" Color="#CCCCCC"/>
         <SolidColorBrush x:Key="AppCardBorderBrush" Color="#3E3E42"/>
-        <SolidColorBrush x:Key="AccentBlueBrush" Color="#007ACC"/>
-        <SolidColorBrush x:Key="AccentGreenBrush" Color="#28A745"/>
-        <SolidColorBrush x:Key="AccentRedBrush" Color="#D13438"/>
+        <SolidColorBrush x:Key="AccentBlueBrush" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="AccentGreenBrush" Color="#2EA043"/>
+        <SolidColorBrush x:Key="AccentRedBrush" Color="#E5534B"/>
+
+        <!-- Accent family (unified — single brand accent + states) -->
+        <SolidColorBrush x:Key="AccentHoverBrush" Color="#5C9CF7"/>
+        <SolidColorBrush x:Key="AccentPressedBrush" Color="#2C6FE0"/>
+        <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1E2D45"/>
+        <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#2A2D2E"/>
+        <SolidColorBrush x:Key="SurfaceButtonBrush" Color="#2C313A"/>
+        <SolidColorBrush x:Key="GhostBorderBrush" Color="#3C424B"/>
+        <SolidColorBrush x:Key="DangerGhostForegroundBrush" Color="#E5746B"/>
+        <SolidColorBrush x:Key="DangerGhostBorderBrush" Color="#5A3434"/>
+
+        <!-- Translucent overlays for uniform button hover/press feedback on any base colour -->
+        <SolidColorBrush x:Key="ButtonHoverOverlayBrush" Color="#1AFFFFFF"/>
+        <SolidColorBrush x:Key="ButtonPressOverlayBrush" Color="#28000000"/>
+
+        <!-- Soft elevation shadow for cards / popups -->
+        <DropShadowEffect x:Key="CardShadowEffect" Color="#000000" BlurRadius="16" ShadowDepth="2" Direction="270" Opacity="0.32"/>
+        <DropShadowEffect x:Key="SoftShadowEffect" Color="#000000" BlurRadius="10" ShadowDepth="1" Direction="270" Opacity="0.25"/>
 
         <!-- Extended design tokens (phase 2) -->
         <SolidColorBrush x:Key="PanelForegroundBrush" Color="#E0E0E0"/>
@@ -60,9 +81,37 @@
             <Setter Property="Background" Value="{StaticResource SecondaryBackgroundBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="10"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Effect" Value="{StaticResource CardShadowEffect}"/>
         </Style>
+
+        <!-- ═══════════ Typography scale (use for consistent headings/body) ═══════════ -->
+        <Style x:Key="HeadingTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="21"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+        </Style>
+        <Style x:Key="SubheadingTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+        </Style>
+        <Style x:Key="BodyTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryForegroundBrush}"/>
+        </Style>
+        <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedForegroundBrush}"/>
+        </Style>
+
+        <!-- ═══════════ Vector icon geometries (24×24 viewbox, Lucide-style) ═══════════ -->
+        <Geometry x:Key="IconMic">M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z M19 10v2a7 7 0 0 1-14 0v-2 M12 19v3</Geometry>
+        <Geometry x:Key="IconPlay">M6 4 L20 12 L6 20 Z</Geometry>
+        <Geometry x:Key="IconExport">M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3</Geometry>
+        <Geometry x:Key="IconPlus">M12 5v14 M5 12h14</Geometry>
 
         <!-- Shared property-panel styles -->
         <Style x:Key="PropertyPanelHeaderBorderStyle" TargetType="Border">
@@ -354,6 +403,74 @@
             </Setter>
         </Style>
 
+        <!-- ════════════════ Collapsible property section (Expander) ════════════════
+             Clean dark section: clickable header bar + rotating disclosure chevron.
+             Used by PropertyEditorView to group fields into tidy, scannable sections. -->
+        <Style x:Key="PropertySectionExpanderStyle" TargetType="{x:Type Expander}">
+            <Setter Property="IsExpanded" Value="True"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Expander}">
+                        <Border Background="#1F252A" CornerRadius="6" SnapsToDevicePixels="True">
+                            <DockPanel>
+                                <ToggleButton DockPanel.Dock="Top"
+                                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                              Content="{TemplateBinding Header}"
+                                              ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                              Focusable="False" Cursor="Hand" OverridesDefaultStyle="True">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                            <Border x:Name="HdrBd" Background="Transparent" CornerRadius="6" Padding="11,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Path x:Name="Chevron" Grid.Column="0"
+                                                          Data="M0,0 L4,4 L0,8" Stroke="#8A99A6" StrokeThickness="1.5"
+                                                          Width="5" Height="9" Stretch="Fill" Margin="0,0,9,0"
+                                                          VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                                        <Path.RenderTransform>
+                                                            <RotateTransform Angle="0"/>
+                                                        </Path.RenderTransform>
+                                                    </Path>
+                                                    <ContentPresenter Grid.Column="1"
+                                                                      VerticalAlignment="Center" RecognizesAccessKey="True"/>
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="HdrBd" Property="Background" Value="#283036"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Chevron" Property="RenderTransform">
+                                                        <Setter.Value>
+                                                            <RotateTransform Angle="90"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                                <Border x:Name="ContentArea" DockPanel.Dock="Bottom"
+                                        Padding="11,2,11,11" Visibility="Collapsed">
+                                    <ContentPresenter/>
+                                </Border>
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ContentArea" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!--
         ══════════════════════════════════════════════════════════════
           DARK THEME — VS Code–inspired palette
@@ -485,12 +602,12 @@
                             </Trigger>
                             <!-- Keyboard / mouse highlight -->
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#264166"/>
                                 <Setter Property="Foreground"               Value="#FFFFFF"/>
                             </Trigger>
                             <!-- Top-level item with open sub-menu -->
                             <Trigger Property="IsSubmenuOpen" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#3B82F6"/>
                                 <Setter Property="Foreground"               Value="#FFFFFF"/>
                             </Trigger>
                             <!-- Disabled -->
@@ -545,22 +662,26 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="6"
                                 SnapsToDevicePixels="True">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                              RecognizesAccessKey="True"/>
+                            <Grid>
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  RecognizesAccessKey="True"/>
+                                <!-- Uniform state overlay: lightens on hover, darkens on press, for any base colour -->
+                                <Border x:Name="Overlay" CornerRadius="6" Background="Transparent" IsHitTestVisible="False"/>
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.80"/>
+                                <Setter TargetName="Overlay" Property="Background" Value="{StaticResource ButtonHoverOverlayBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.60"/>
+                                <Setter TargetName="Overlay" Property="Background" Value="{StaticResource ButtonPressOverlayBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Bd" Property="Opacity" Value="0.35"/>
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.40"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -593,6 +714,29 @@
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
 
+        <!-- Secondary: subtle filled surface — for supporting actions next to a primary -->
+        <Style x:Key="SecondaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource SurfaceButtonBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <!-- Ghost: transparent with hairline border — for low-emphasis / tertiary actions -->
+        <Style x:Key="GhostActionButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource SecondaryForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GhostBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- Danger ghost: red text + border, fills only on hover — non-alarming destructive action -->
+        <Style x:Key="DangerGhostButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource DangerGhostForegroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DangerGhostBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
         <!-- ────────────────────────────────────────────────────────
              TextBox — rounded corners, dark theme, focus accent border
              ──────────────────────────────────────────────────────── -->
@@ -602,7 +746,7 @@
             <Setter Property="BorderBrush"     Value="{StaticResource AppCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CaretBrush"      Value="#FFFFFF"/>
-            <Setter Property="SelectionBrush"  Value="#094771"/>
+            <Setter Property="SelectionBrush"  Value="#264166"/>
             <Setter Property="Padding"         Value="8,5"/>
             <Setter Property="FontSize"        Value="13"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -624,7 +768,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3B82F6"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.50"/>
@@ -708,7 +852,7 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ActiveLine" Property="Fill" Value="#0E639C"/>
+                                <Setter TargetName="ActiveLine" Property="Fill" Value="#3B82F6"/>
                                 <Setter Property="Foreground"                   Value="#FFFFFF"/>
                             </Trigger>
                             <MultiTrigger>
@@ -778,11 +922,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#094771"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#264166"/>
                                 <Setter Property="Foreground"                 Value="#FFFFFF"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#3B82F6"/>
                                 <Setter Property="Foreground"                 Value="#FFFFFF"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
@@ -889,7 +1033,7 @@
                                 <Setter TargetName="ContentSite"          Property="Visibility" Value="Hidden"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#3B82F6"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Bd" Property="BorderBrush" Value="#5A5A5E"/>
@@ -1248,17 +1392,17 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CheckBorder" Property="Background" Value="#0E639C"/>
-                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="CheckBorder" Property="Background" Value="#3B82F6"/>
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#3B82F6"/>
                                 <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="{x:Null}">
-                                <Setter TargetName="CheckBorder" Property="Background" Value="#0E639C"/>
-                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="CheckBorder" Property="Background" Value="#3B82F6"/>
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#3B82F6"/>
                                 <Setter TargetName="IndeterminateMark" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="CheckBorder" Property="BorderBrush" Value="#3B82F6"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.40"/>
@@ -1296,7 +1440,7 @@
                                 <!-- Inner dot -->
                                 <Ellipse x:Name="RadioDot"
                                          Width="8" Height="8"
-                                         Fill="#0E639C"
+                                         Fill="#3B82F6"
                                          HorizontalAlignment="Center"
                                          VerticalAlignment="Center"
                                          Visibility="Collapsed"/>
@@ -1309,11 +1453,11 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#3B82F6"/>
                                 <Setter TargetName="RadioDot" Property="Visibility" Value="Visible"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#0E639C"/>
+                                <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#3B82F6"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.40"/>
@@ -1329,7 +1473,7 @@
              ──────────────────────────────────────────────────────── -->
         <Style TargetType="{x:Type ProgressBar}">
             <Setter Property="Background" Value="#3E3E42"/>
-            <Setter Property="Foreground" Value="#0E639C"/>
+            <Setter Property="Foreground" Value="#3B82F6"/>
             <Setter Property="Height" Value="6"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -1387,20 +1531,20 @@
                                 <Setter TargetName="Bd" Property="Background" Value="#2A2D2E"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#0E639C"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentSubtleBrush}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2,0,0,0"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsSelected" Value="True"/>
                                     <Condition Property="IsMouseOver" Value="True"/>
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="#1177BB"/>
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#243450"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                                 <Setter TargetName="Bd" Property="BorderThickness" Value="2,0,0,0"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryForegroundBrush}"/>
                             </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="#555555"/>

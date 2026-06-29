@@ -1665,7 +1665,8 @@ public static class FFmpegService
                 OverlayOpacity = seg.OverlayOpacity,
                 // Prevent duplicated transition fades when a source segment is split across chunks.
                 TransitionType = (wasClippedAtStart || wasClippedAtEnd) ? "none" : seg.TransitionType,
-                TransitionDuration = (wasClippedAtStart || wasClippedAtEnd) ? 0 : seg.TransitionDuration
+                TransitionDuration = (wasClippedAtStart || wasClippedAtEnd) ? 0 : seg.TransitionDuration,
+                Speed = seg.Speed
             });
         }
 
@@ -1725,7 +1726,8 @@ public static class FFmpegService
                 // Avoid invalid/abrupt partial fades on boundary-clipped clips.
                 FadeInDuration = wasClippedAtStart ? 0 : seg.FadeInDuration,
                 FadeOutDuration = wasClippedAtEnd ? 0 : seg.FadeOutDuration,
-                IsLooping = seg.IsLooping
+                IsLooping = seg.IsLooping,
+                Speed = seg.Speed
             });
         }
 

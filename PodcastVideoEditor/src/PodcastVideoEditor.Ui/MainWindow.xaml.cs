@@ -1194,27 +1194,31 @@ public partial class MainWindow : Window
             await LoadProjectAudioAsync();
             long audioMs = sw.ElapsedMilliseconds;
 
-            // Progressive open (CapCut-style): defer the expensive per-segment video thumbnail strips
-            // so the editor's first render shows lightweight segment blocks. They fill in afterwards
-            // once the editor is on screen. Set just before the tab switch (when TimelineView first
-            // realizes) so it doesn't interfere with the duration/PPS calc done above.
+            // Progressive open (CapCut-style): the timeline now UI-virtualizes its segments (only the
+            // on-screen ones are realized), so the first render is cheap. We still defer the video
+            // thumbnail strips so their decode doesn't compete with the first paint; they fill in once
+            // the editor is on screen.
             _timelineViewModel.IsDeferringThumbnailUpdate = true;
             MainTabControl.SelectedIndex = 1;
+
+            var swLayout = System.Diagnostics.Stopwatch.StartNew();
+            MainTabControl.UpdateLayout();
+            long layoutMs = swLayout.ElapsedMilliseconds;
 
             // Yield at Background priority so WPF measures/arranges/paints the (thumbnail-free) editor
             // before we drop the overlay — a smooth hand-off rather than a final frozen frame.
             await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
 
             Log.Information(
-                "OpenProject timing (ms): open={OpenMs} audio={AudioMs} render={RenderMs} total={TotalMs}",
-                openMs, audioMs - openMs, sw.ElapsedMilliseconds - audioMs, sw.ElapsedMilliseconds);
+                "OpenProject timing (ms): open={OpenMs} audio={AudioMs} layout={LayoutMs} render={RenderMs} total={TotalMs}",
+                openMs, audioMs - openMs, layoutMs, sw.ElapsedMilliseconds - audioMs, sw.ElapsedMilliseconds);
         }
         finally
         {
             _projectViewModel.IsLoading = false;
 
-            // Editor is visible and interactive now — let the segment thumbnail strips fill in at
-            // idle priority so the burst of frame loads doesn't compete with the first paint.
+            // Editor is visible and interactive now — let the (on-screen) segment thumbnail strips fill
+            // in at idle priority so the burst of frame decodes doesn't compete with the first paint.
             _ = Dispatcher.BeginInvoke(
                 new Action(() => _timelineViewModel.IsDeferringThumbnailUpdate = false),
                 System.Windows.Threading.DispatcherPriority.ContextIdle);

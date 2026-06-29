@@ -175,7 +175,8 @@ public static class RenderSegmentBuilder
                     SourceOffsetSeconds = 0,
                     ZOrder              = trackBase + localIdx++,
                     TransitionType      = string.IsNullOrWhiteSpace(segment.TransitionType) ? "none" : segment.TransitionType,
-                    TransitionDuration  = segment.TransitionDuration
+                    TransitionDuration  = segment.TransitionDuration,
+                    Speed               = segment.Speed
                 };
 
                 // Segment-level overlay overrides track defaults.
@@ -753,7 +754,8 @@ public static class RenderSegmentBuilder
                     Volume              = segment.Volume,
                     FadeInDuration      = segment.FadeInDuration,
                     FadeOutDuration     = segment.FadeOutDuration,
-                    SourceOffsetSeconds = segment.SourceStartOffset
+                    SourceOffsetSeconds = segment.SourceStartOffset,
+                    Speed               = segment.Speed
                 });
             }
         }

@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace PodcastVideoEditor.Ui.Views;
 
@@ -23,11 +24,39 @@ public partial class TrackEditorPanel : UserControl
     private bool _suppressOverlayChanged;
     private bool _suppressTrackPolicyChanged;
 
+    // Coalesce DB saves while the user drags the overlay opacity/color controls:
+    // persist once after they stop, instead of writing the whole project on every tick.
+    private readonly DispatcherTimer _overlaySaveDebounce;
+
     public TrackEditorPanel()
     {
         InitializeComponent();
+        _overlaySaveDebounce = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(400)
+        };
+        _overlaySaveDebounce.Tick += OnOverlaySaveDebounceTick;
         Loaded   += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnOverlaySaveDebounceTick(object? sender, EventArgs e)
+    {
+        _overlaySaveDebounce.Stop();
+        _viewModel?.RequestProjectSave();
+    }
+
+    private void ScheduleOverlaySave()
+    {
+        _overlaySaveDebounce.Stop();
+        _overlaySaveDebounce.Start();
+    }
+
+    private void FlushPendingOverlaySave()
+    {
+        if (!_overlaySaveDebounce.IsEnabled) return;
+        _overlaySaveDebounce.Stop();
+        _viewModel?.RequestProjectSave();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -41,6 +70,8 @@ public partial class TrackEditorPanel : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        FlushPendingOverlaySave();
+
         if (_viewModel != null)
             _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
 
@@ -326,7 +357,7 @@ public partial class TrackEditorPanel : UserControl
         var opacity = OverlayOpacitySlider.Value / 100.0;
         _viewModel.SelectedTrack.OverlayOpacity = opacity;
         OverlayOpacityValueText.Text = $"{(int)(opacity * 100)}%";
-        _viewModel.RequestProjectSave();
+        ScheduleOverlaySave();
     }
 
     private void OverlayColorSwatch_Click(object sender, MouseButtonEventArgs e)
@@ -359,13 +390,15 @@ public partial class TrackEditorPanel : UserControl
                 (Color)ColorConverter.ConvertFromString(hex));
         }
         catch { }
-        _viewModel.RequestProjectSave();
+        ScheduleOverlaySave();
     }
 
     private void OnOverlayPopupClosed(object? sender, EventArgs e)
     {
         OverlayColorPicker.ColorChanged -= OnOverlayColorChanged;
         OverlayColorPopup.Closed -= OnOverlayPopupClosed;
+        // Persist immediately when the color picker closes (end of interaction).
+        FlushPendingOverlaySave();
     }
 
     // ── Scale Mode (batch apply) ────────────────────────────

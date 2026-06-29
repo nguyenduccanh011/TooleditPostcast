@@ -13,7 +13,8 @@ Updated: 2026-06-21
   visualizer, motion (Ken Burns/zoompan), render MP4 và export sang CapCut.
 
 ## Capabilities đã có (theo git history tháng 4/2026)
-- **Render pipeline:** chunk song song (tối ưu cho 8+ core), GPU/QSV scale + filter, motion/zoompan ổn định, bitrate control.
+- **Render (mặc định, 2026-06):** GPU Skia compositor 1-pass → NVENC, song song chunk, video frame-accurate. Preview GPU `Ctrl+G` (WYSIWYG: nền/Ken Burns/text/logo/visualizer sống). Tự fallback pipeline FFmpeg cũ khi lỗi hoặc project cần trộn nhiều nguồn audio.
+- **Render pipeline cũ (fallback):** chunk song song, GPU/QSV scale + filter, motion/zoompan, bitrate control. Vẫn dùng cho thumbnail, single-image và multi-audio mix.
 - **Timeline:** multi-track (text/visual/audio), segment ảnh, preview aspect ratio + composite theo playhead.
 - **Template:** import/export robust (xử lý MAX_PATH, Unicode/Vietnamese path, missing asset).
 - **AI:** pipeline xử lý script (segment hóa).
@@ -21,7 +22,7 @@ Updated: 2026-06-21
 
 ## LOCKED (không đổi nếu chưa hỏi user)
 - Scope: desktop Windows, render local (không backend).
-- Architecture: MVVM + Service layer + EF Core SQLite; render qua FFmpeg.
+- Architecture: MVVM + Service layer + EF Core SQLite; render qua GPU Skia compositor (NVENC), pipeline FFmpeg cũ làm fallback.
 
 ## Next Read
 - `docs/active.md` (task hiện tại) · `docs/archive.md` (index tài liệu chi tiết + lịch sử)

@@ -29,7 +29,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Opacity from 0.0 (transparent) to 1.0 (opaque).
         /// </summary>
-        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1, IsPercent = true)]
         public double Opacity
         {
             get => _opacity;
@@ -202,7 +202,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Opacity from 0.0 (transparent) to 1.0 (opaque).
         /// </summary>
-        [PropertyMetadata(Group = "🎨 Appearance", Order = 103, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 103, IsSlider = true, MinValue = 0, MaxValue = 1, IsPercent = true)]
         public double Opacity
         {
             get => _opacity;
@@ -250,9 +250,11 @@ namespace PodcastVideoEditor.Core.Models
         }
 
         /// <summary>
-        /// Custom primary color hex for Mono palette or color override (#RRGGBB).
+        /// Custom primary color hex (#RRGGBB). Only consumed when ColorPalette is Custom — preset
+        /// palettes derive their colors from the palette formula and ignore this — so the editor
+        /// only surfaces it in Custom mode (same toggle as CustomGradientColors).
         /// </summary>
-        [PropertyMetadata(Group = "🎨 Appearance", Order = 102, IsColor = true)]
+        [PropertyMetadata(Group = "🎨 Appearance", Order = 102, IsColor = true, VisibilityToggle = "IsCustomPalette")]
         public string PrimaryColorHex
         {
             get => _primaryColorHex;
@@ -421,7 +423,7 @@ namespace PodcastVideoEditor.Core.Models
         /// <summary>
         /// Opacity from 0.0 (transparent) to 1.0 (opaque).
         /// </summary>
-        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1)]
+        [PropertyMetadata(Group = "🖼 Image", Order = 101, IsSlider = true, MinValue = 0, MaxValue = 1, IsPercent = true)]
         public double Opacity
         {
             get => _opacity;
@@ -844,7 +846,7 @@ namespace PodcastVideoEditor.Core.Models
             set => SetProperty(ref _backgroundColorHex, value ?? "#000000");
         }
 
-        [PropertyMetadata(Group = "🟦 Background", Order = 402, IsSlider = true, MinValue = 0, MaxValue = 1, VisibilityToggle = "HasBackground")]
+        [PropertyMetadata(Group = "🟦 Background", Order = 402, IsSlider = true, MinValue = 0, MaxValue = 1, VisibilityToggle = "HasBackground", IsPercent = true)]
         public double BackgroundOpacity
         {
             get => _backgroundOpacity;

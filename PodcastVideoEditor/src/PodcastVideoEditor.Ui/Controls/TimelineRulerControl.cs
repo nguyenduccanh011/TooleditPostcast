@@ -65,7 +65,7 @@ namespace PodcastVideoEditor.Ui.Controls
             mediumBrush.Freeze();
             var smallBrush = new SolidColorBrush(Color.FromRgb(0x75, 0x80, 0x8b));
             smallBrush.Freeze();
-            var labelBrush = new SolidColorBrush(Color.FromRgb(0xa0, 0xa0, 0xa0));
+            var labelBrush = new SolidColorBrush(Color.FromRgb(0xc8, 0xc8, 0xc8));
             labelBrush.Freeze();
 
             MediumPen = new Pen(mediumBrush, 1.2);
@@ -100,6 +100,14 @@ namespace PodcastVideoEditor.Ui.Controls
                 _cachedDpi = dpi;
             }
 
+            // CapCut-style single row: the major tick is a vertical line and its label
+            // sits just to the right of that line, vertically centered — labels and ticks
+            // share one band instead of being stacked on two tiers. Minor ticks are short
+            // hairlines hanging from the same baseline.
+            double baseline = height - 3;       // tick bottom near the edge
+            double majorTop = 3;                // major tick: tall line beside the label
+            double minorTop = baseline - 4;     // minor tick: short hairline
+
             for (double timeSeconds = 0; timeSeconds <= displayDuration; timeSeconds += minorStep)
             {
                 double pixelX = timeSeconds * PixelsPerSecond;
@@ -107,10 +115,10 @@ namespace PodcastVideoEditor.Ui.Controls
                     break;
 
                 bool isMajor = Math.Abs(timeSeconds % majorStep) < 0.0001;
-                double y1 = isMajor ? 22 : 28;
+                double y1 = isMajor ? majorTop : minorTop;
                 var pen = isMajor ? MediumPen : SmallPen;
 
-                dc.DrawLine(pen, new Point(pixelX, y1), new Point(pixelX, 35));
+                dc.DrawLine(pen, new Point(pixelX, y1), new Point(pixelX, baseline));
 
                 if (isMajor)
                 {
@@ -118,10 +126,14 @@ namespace PodcastVideoEditor.Ui.Controls
                     if (!_formattedTextCache.TryGetValue(label, out var ft))
                     {
                         ft = new FormattedText(label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                            LabelTypeface, 10, LabelBrush, dpi);
+                            LabelTypeface, 10.5, LabelBrush, dpi);
                         _formattedTextCache[label] = ft;
                     }
-                    dc.DrawText(ft, new Point(pixelX - 12, 2));
+                    // Label sits just to the right of its tick line, vertically centered.
+                    double labelX = pixelX + 4;
+                    double labelY = (height - ft.Height) / 2.0;
+                    if (labelY < 0) labelY = 0;
+                    dc.DrawText(ft, new Point(labelX, labelY));
                 }
             }
         }
@@ -143,21 +155,14 @@ namespace PodcastVideoEditor.Ui.Controls
 
         private static string FormatTimeRuler(double timeSeconds)
         {
-            if (timeSeconds < 60)
-            {
-                // Sub-second precision when we have fractional values
-                double frac = timeSeconds - Math.Floor(timeSeconds);
-                if (frac > 0.001)
-                    return $"0:{timeSeconds:00.0}";
-                return $"0:{(int)timeSeconds:D2}";
-            }
-            int t = (int)Math.Floor(timeSeconds);
-            int m = t / 60;
-            int s = t % 60;
-            double sub = timeSeconds - t;
+            // Consistent MM:SS (CapCut-style), with a tenths suffix only when zoomed into sub-second ticks.
+            int total = (int)Math.Floor(timeSeconds);
+            int m = total / 60;
+            int s = total % 60;
+            double sub = timeSeconds - total;
             if (sub > 0.001)
-                return $"{m}:{s:D2}.{(int)(sub * 10)}";
-            return $"{m}:{s:D2}";
+                return $"{m:D2}:{s:D2}.{(int)Math.Round(sub * 10)}";
+            return $"{m:D2}:{s:D2}";
         }
     }
 }

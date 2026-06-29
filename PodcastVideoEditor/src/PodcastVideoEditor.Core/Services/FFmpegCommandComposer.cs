@@ -505,6 +505,14 @@ public static class FFmpegCommandComposer
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", invariant);
             var scaledLabel = $"scaled{i}";
 
+            // Playback speed (CapCut-style): a sped video clip consumes (slotDuration × Speed)
+            // of source and is compressed back into the slot via setpts division. The timeline
+            // already resized the slot when Speed changed. Speed 1.0 → identical to before.
+            var vSpeed = seg.Speed;
+            var vHasSpeed = seg.IsVideo && vSpeed > 0 && Math.Abs(vSpeed - 1.0) > 1e-6;
+            var vTrimDur = vHasSpeed ? ((seg.EndTime - seg.StartTime) * vSpeed).ToString("F3", invariant) : duration;
+            var vSetpts = vHasSpeed ? $"setpts=(PTS-STARTPTS)/{vSpeed.ToString("F6", invariant)}" : "setpts=PTS-STARTPTS";
+
             var isPngOverlay = seg.SourcePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
             var needsAlpha = isPngOverlay || seg.HasAlpha;
 
@@ -531,7 +539,7 @@ public static class FFmpegCommandComposer
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
 
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={vTrimDur},{vSetpts},");
                     if (cudaZeroCopy)
                     {
                         // Frames are already CUDA surfaces from -hwaccel_output_format cuda.
@@ -551,7 +559,7 @@ public static class FFmpegCommandComposer
                         : (config.ResolutionWidth, config.ResolutionHeight);
                     var gpuScaleExact = BuildGpuScaleExact(scaleW, scaleH);
 
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={vTrimDur},{vSetpts},");
                     if (cudaZeroCopy)
                         filter.Append($"{gpuScaleExact},hwdownload,format=yuv420p,setsar=1{fadeFilter}[{scaledLabel}];");
                     else
@@ -564,7 +572,7 @@ public static class FFmpegCommandComposer
                     var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                         ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode, preferFastCpuScale)
                         : BuildScalingFilter(config, preferFastCpuScale);
-                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                    filter.Append($"[{sourceRef}]trim=start={srcOffset}:duration={vTrimDur},{vSetpts},");
                     filter.Append($"format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[{scaledLabel}];");
                 }
             }
@@ -764,16 +772,33 @@ public static class FFmpegCommandComposer
                 var srcOffset   = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
                 var clipLabel   = $"aclip{i}";
 
+                // Playback speed for audio: consume duration×Speed of source, rescale with
+                // atempo (pitch-preserving). Speed 1.0 → unchanged. atempo is chained for
+                // values outside its native 0.5–2.0 range.
+                var aSpeed = aseg.Speed;
+                var aHasSpeed = aSpeed > 0 && Math.Abs(aSpeed - 1.0) > 1e-6;
+                var aTrimDur = (aHasSpeed ? duration * aSpeed : duration).ToString("F3", invariant);
+                var atempoChain = "";
+                if (aHasSpeed)
+                {
+                    var s = aSpeed;
+                    var parts = new List<string>();
+                    while (s > 2.0 + 1e-9) { parts.Add("atempo=2.0"); s /= 2.0; }
+                    while (s < 0.5 - 1e-9) { parts.Add("atempo=0.5"); s *= 2.0; }
+                    parts.Add($"atempo={s.ToString("F6", invariant)}");
+                    atempoChain = string.Join(",", parts) + ",";
+                }
+
                 if (aseg.IsLooping)
                 {
                     filter.Append($"[{audioSourceRef}]aloop=loop=-1:size=2147483647,");
-                    filter.Append($"atrim=start=0:duration={duration.ToString("F3", invariant)},");
+                    filter.Append($"atrim=start=0:duration={aTrimDur},");
                 }
                 else
                 {
-                    filter.Append($"[{audioSourceRef}]atrim=start={srcOffset}:duration={duration.ToString("F3", invariant)},");
+                    filter.Append($"[{audioSourceRef}]atrim=start={srcOffset}:duration={aTrimDur},");
                 }
-                filter.Append($"asetpts=PTS-STARTPTS,");
+                filter.Append($"asetpts=PTS-STARTPTS,{atempoChain}");
                 filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
                 if (aseg.FadeInDuration > 0)
                     filter.Append($"afade=t=in:st=0:d={aseg.FadeInDuration.ToString("F3", invariant)},");
@@ -1073,6 +1098,12 @@ public static class FFmpegCommandComposer
             var srcOffset = Math.Max(0, seg.SourceOffsetSeconds).ToString("F3", invariant);
             var clipLabel = $"clip{clipIndex}";
 
+            // Playback speed (CapCut-style) — consume slotDuration×Speed of source, compress via setpts.
+            var cSpeed = seg.Speed;
+            var cHasSpeed = seg.IsVideo && cSpeed > 0 && Math.Abs(cSpeed - 1.0) > 1e-6;
+            var cTrimDur = cHasSpeed ? ((seg.EndTime - seg.StartTime) * cSpeed).ToString("F3", invariant) : duration;
+            var cSetpts = cHasSpeed ? $"setpts=(PTS-STARTPTS)/{cSpeed.ToString("F6", invariant)}" : "setpts=PTS-STARTPTS";
+
             // Build the visual part of this clip
             var fadeFilter = BuildFadeFilter(seg, invariant);
             var overlayTintFilter = BuildOverlayTintFilter(seg, invariant);
@@ -1087,7 +1118,7 @@ public static class FFmpegCommandComposer
                 var scaleFilter = (seg.ScaleWidth.HasValue && seg.ScaleHeight.HasValue)
                     ? BuildScaleFilter(seg.ScaleWidth.Value, seg.ScaleHeight.Value, seg.ScaleMode)
                     : BuildScalingFilter(config);
-                filter.Append($"[{vInput}:v]trim=start={srcOffset}:duration={duration},setpts=PTS-STARTPTS,");
+                filter.Append($"[{vInput}:v]trim=start={srcOffset}:duration={cTrimDur},{cSetpts},");
                 filter.Append($"format={pixFmt},{scaleFilter},setsar=1{overlayTintFilter}{fadeFilter}[vbase{clipIndex}];");
             }
             else
@@ -1205,16 +1236,31 @@ public static class FFmpegCommandComposer
                 var aSrcOffset = Math.Max(0, aseg.SourceOffsetSeconds).ToString("F3", invariant);
                 var clipLabel = $"aclip{ai}";
 
+                // Playback speed for audio (concat path) — see primary audio loop.
+                var a2Speed = aseg.Speed;
+                var a2HasSpeed = a2Speed > 0 && Math.Abs(a2Speed - 1.0) > 1e-6;
+                var a2TrimDur = (a2HasSpeed ? aduration * a2Speed : aduration).ToString("F3", invariant);
+                var a2tempoChain = "";
+                if (a2HasSpeed)
+                {
+                    var s = a2Speed;
+                    var parts = new List<string>();
+                    while (s > 2.0 + 1e-9) { parts.Add("atempo=2.0"); s /= 2.0; }
+                    while (s < 0.5 - 1e-9) { parts.Add("atempo=0.5"); s *= 2.0; }
+                    parts.Add($"atempo={s.ToString("F6", invariant)}");
+                    a2tempoChain = string.Join(",", parts) + ",";
+                }
+
                 if (aseg.IsLooping)
                 {
                     filter.Append($"[{aInputIdx}:a]aloop=loop=-1:size=2147483647,");
-                    filter.Append($"atrim=start=0:duration={aduration.ToString("F3", invariant)},");
+                    filter.Append($"atrim=start=0:duration={a2TrimDur},");
                 }
                 else
                 {
-                    filter.Append($"[{aInputIdx}:a]atrim=start={aSrcOffset}:duration={aduration.ToString("F3", invariant)},");
+                    filter.Append($"[{aInputIdx}:a]atrim=start={aSrcOffset}:duration={a2TrimDur},");
                 }
-                filter.Append($"asetpts=PTS-STARTPTS,");
+                filter.Append($"asetpts=PTS-STARTPTS,{a2tempoChain}");
                 filter.Append($"volume={aseg.Volume.ToString("F3", invariant)},");
                 if (aseg.FadeInDuration > 0)
                     filter.Append($"afade=t=in:st=0:d={aseg.FadeInDuration.ToString("F3", invariant)},");
@@ -1527,7 +1573,8 @@ public static class FFmpegCommandComposer
                 OverlayColorHex = seg.OverlayColorHex,
                 OverlayOpacity = seg.OverlayOpacity,
                 TransitionType = seg.TransitionType,
-                TransitionDuration = seg.TransitionDuration
+                TransitionDuration = seg.TransitionDuration,
+                Speed = seg.Speed
             }).ToList() ?? [],
             TextSegments = config.TextSegments?.Select(seg => new RenderTextSegment
             {
@@ -1554,7 +1601,8 @@ public static class FFmpegCommandComposer
                 FadeInDuration = seg.FadeInDuration,
                 FadeOutDuration = seg.FadeOutDuration,
                 SourceOffsetSeconds = seg.SourceOffsetSeconds,
-                IsLooping = seg.IsLooping
+                IsLooping = seg.IsLooping,
+                Speed = seg.Speed
             }).ToList() ?? []
         };
     }

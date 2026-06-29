@@ -134,7 +134,14 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
         private void UpdateTimingText(Segment segment)
         {
-            SegmentTimingText = $"{segment.StartTime:F1}s \u2013 {segment.EndTime:F1}s  ({segment.SegmentDisplayDuration:F1}s)";
+            SegmentTimingText = $"{FormatClock(segment.StartTime)} \u2013 {FormatClock(segment.EndTime)}  ({FormatClock(segment.SegmentDisplayDuration)})";
+        }
+
+        /// <summary>Formats seconds as m:ss (or h:mm:ss when \u2265 1 hour) for compact timing badges.</summary>
+        private static string FormatClock(double seconds)
+        {
+            var t = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            return t.Hours > 0 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
         }
 
         /// <summary>
@@ -595,6 +602,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             {
                 return null;
             }
+
+            // Percentage display (opacity-style 0–1 sliders): display-only, Value stays 0–1.
+            if (meta?.IsPercent == true && field.FieldType == PropertyFieldType.Slider)
+                field.IsPercent = true;
 
             return field;
         }

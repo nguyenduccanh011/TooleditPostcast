@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace PodcastVideoEditor.Core.Models
 {
@@ -71,6 +73,12 @@ namespace PodcastVideoEditor.Core.Models
         public double? MaxValue { get; set; }
 
         /// <summary>
+        /// When true, this slider's normalized 0–1 value is shown to the user as a percentage
+        /// (0.5 → "50%"). Display-only — the underlying Value stays 0–1.
+        /// </summary>
+        public bool IsPercent { get; set; }
+
+        /// <summary>
         /// Slider step/tick frequency. Defaults to 1 for whole-number fields.
         /// </summary>
         public double SliderStep { get; set; } = 1.0;
@@ -103,6 +111,58 @@ namespace PodcastVideoEditor.Core.Models
         {
             get => Group;
             set => Group = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// True for numeric fields (Int/Float/Slider) that support +/- stepping via spinner buttons.
+        /// </summary>
+        public bool IsNumericStepper =>
+            FieldType is PropertyFieldType.Int or PropertyFieldType.Float or PropertyFieldType.Slider;
+
+        /// <summary>Increase the numeric value by one step (clamped to Min/Max).</summary>
+        [RelayCommand]
+        private void Increment() => Step(+1);
+
+        /// <summary>Decrease the numeric value by one step (clamped to Min/Max).</summary>
+        [RelayCommand]
+        private void Decrement() => Step(-1);
+
+        private void Step(int direction)
+        {
+            if (!IsNumericStepper)
+                return;
+
+            double step = SliderStep > 0 ? SliderStep : 1.0;
+            if (!TryGetDouble(Value, out var current))
+                current = MinValue ?? 0;
+
+            double next = current + direction * step;
+            if (MinValue.HasValue) next = Math.Max(MinValue.Value, next);
+            if (MaxValue.HasValue) next = Math.Min(MaxValue.Value, next);
+            next = Math.Round(next, DecimalsForStep(step), MidpointRounding.AwayFromZero);
+
+            Value = FieldType == PropertyFieldType.Int ? (int)Math.Round(next) : next;
+        }
+
+        private static bool TryGetDouble(object? value, out double result)
+        {
+            switch (value)
+            {
+                case double d: result = d; return true;
+                case float f: result = f; return true;
+                case int i: result = i; return true;
+                case null: result = 0; return false;
+            }
+            return double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out result);
+        }
+
+        private static int DecimalsForStep(double step)
+        {
+            if (step >= 1)
+                return 0;
+            var text = step.ToString("0.########", CultureInfo.InvariantCulture);
+            var dot = text.IndexOf('.');
+            return dot < 0 ? 0 : text.Length - dot - 1;
         }
     }
 

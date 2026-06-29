@@ -1194,6 +1194,68 @@ namespace PodcastVideoEditor.Ui.ViewModels
         }
 
         /// <summary>
+        /// Apply a CapCut-style playback speed to the selected segment. Rescales the segment's
+        /// timeline slot (newDuration = contentDuration / speed) and ripples later same-track
+        /// segments so they follow. Bound to the speed buttons in the segment properties panel.
+        /// </summary>
+        [RelayCommand]
+        private void ApplySegmentSpeed(string? speedStr)
+        {
+            if (SelectedSegment == null)
+            {
+                StatusMessage = "Chưa chọn segment";
+                return;
+            }
+            if (!double.TryParse(speedStr, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var newSpeed))
+                return;
+            ApplySpeedToSegment(SelectedSegment, newSpeed);
+        }
+
+        private void ApplySpeedToSegment(Segment seg, double newSpeed)
+        {
+            newSpeed = Math.Clamp(newSpeed, 0.25, 4.0);
+            var oldDur = seg.EndTime - seg.StartTime;
+            if (oldDur <= 0) return;
+            var oldSpeed = seg.Speed <= 0 ? 1.0 : seg.Speed;
+            if (Math.Abs(oldSpeed - newSpeed) < 1e-6) return;
+
+            // Source content is invariant across speed changes; the slot grows/shrinks instead.
+            var contentDur = oldDur * oldSpeed;
+            var newDur = contentDur / newSpeed;
+            var delta = newDur - oldDur;
+            var oldEnd = seg.EndTime;
+
+            var track = Tracks.FirstOrDefault(t => t.Id == seg.TrackId);
+            var actions = new List<IUndoableAction>();
+
+            seg.EndTime = seg.StartTime + newDur;
+            seg.Speed = newSpeed;
+            actions.Add(new SegmentSpeedChangedAction(seg, oldEnd, seg.EndTime, oldSpeed, newSpeed, InvalidateActiveSegmentsCache));
+
+            // Ripple later same-track segments so gaps are preserved after the slot resizes.
+            if (track?.Segments != null && Math.Abs(delta) > 1e-6)
+            {
+                foreach (var s in track.Segments)
+                {
+                    if (ReferenceEquals(s, seg)) continue;
+                    if (s.StartTime < oldEnd - 1e-6) continue;
+                    var oS = s.StartTime;
+                    var oE = s.EndTime;
+                    s.StartTime = oS + delta;
+                    s.EndTime = oE + delta;
+                    actions.Add(new SegmentTimingChangedAction(s, oS, oE, s.StartTime, s.EndTime, InvalidateActiveSegmentsCache));
+                }
+            }
+
+            InvalidateActiveSegmentsCache();
+            _undoRedo?.Record(new CompoundAction($"Speed {newSpeed:0.##}×", actions));
+            RecalculateDurationFromSegments();
+            RequestProjectSave();
+            StatusMessage = $"Tốc độ {newSpeed:0.##}× ({newDur:0.##}s)";
+        }
+
+        /// <summary>
         /// Find the paired track (text↔visual) for synchronized gap closure.
         /// Returns null if no valid paired track exists.
         /// </summary>

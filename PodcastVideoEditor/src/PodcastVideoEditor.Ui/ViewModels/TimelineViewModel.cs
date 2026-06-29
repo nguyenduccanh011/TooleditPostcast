@@ -82,6 +82,26 @@ namespace PodcastVideoEditor.Ui.ViewModels
         private bool isDeferringThumbnailUpdate;
 
         /// <summary>
+        /// Horizontal pixel window [Start, End] of timeline segments kept realized (visible viewport ±
+        /// margin). The per-track segment ItemsControls filter to this range via SegmentWindowFilterConverter,
+        /// so only the on-screen handful of segments are realized instead of all of them — a subtitle-heavy
+        /// project (hundreds of segments) stays fast to open and smooth to scroll. The view updates these
+        /// on scroll/zoom; <see cref="SegmentWindowRevision"/> is bumped to force a re-filter when segments
+        /// change or pixels-per-second changes without the window bounds themselves changing.
+        /// </summary>
+        [ObservableProperty]
+        private double segmentWindowStartPx;
+
+        [ObservableProperty]
+        private double segmentWindowEndPx = 1500;
+
+        [ObservableProperty]
+        private int segmentWindowRevision;
+
+        /// <summary>Force the per-track segment filters to re-evaluate (e.g. after add/remove/zoom).</summary>
+        public void RefreshSegmentWindowRevision() => SegmentWindowRevision++;
+
+        /// <summary>
         /// When true, suppress implicit RecalculatePixelsPerSecond from OnTotalDurationChanged /
         /// OnTimelineWidthChanged because the caller will set PixelsPerSecond explicitly.
         /// </summary>

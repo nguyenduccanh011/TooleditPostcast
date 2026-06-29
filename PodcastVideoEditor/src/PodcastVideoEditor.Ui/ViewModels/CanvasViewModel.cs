@@ -65,6 +65,15 @@ namespace PodcastVideoEditor.Ui.ViewModels
         [ObservableProperty]
         private ObservableCollection<CanvasElement> elements = new();
 
+        /// <summary>
+        /// Subset of <see cref="Elements"/> currently visible at the playhead. The preview canvas binds
+        /// to THIS (not Elements) so it only realizes the handful of active overlays instead of every
+        /// element — a subtitle-heavy project can have hundreds, which otherwise dominates the editor's
+        /// first-render time. Kept in sync by <see cref="UpdateElementVisibility"/>. The full set stays
+        /// in <see cref="Elements"/> for data, z-order and selection.
+        /// </summary>
+        public ObservableCollection<CanvasElement> VisibleElements { get; } = new();
+
         [ObservableProperty]
         private CanvasElement? selectedElement;
 
@@ -750,7 +759,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
             bool isTitle = preset == TextStyle.Title;
             var element = new TextOverlayElement
             {
-                Name = $"{preset} {Elements.Count + 1}",
+                Name = $"{preset} {Elements.OfType<TextOverlayElement>().Count() + 1}",
                 X = Math.Max(0, (CanvasWidth - (isTitle ? 400 : 600)) / 2),
                 Y = isTitle ? Math.Max(0, CanvasHeight * 0.08) : Math.Max(0, CanvasHeight - 160),
                 Width = isTitle ? 400 : 600,
@@ -785,7 +794,7 @@ namespace PodcastVideoEditor.Ui.ViewModels
         {
             var element = new VisualizerElement
             {
-                Name = $"Visualizer {Elements.Count + 1}",
+                Name = $"Visualizer {Elements.OfType<VisualizerElement>().Count() + 1}",
                 X = Math.Max(0, (CanvasWidth - 600) / 2),
                 Y = Math.Max(0, (CanvasHeight - 400) / 2),
                 Width = 600,
@@ -1232,9 +1241,10 @@ namespace PodcastVideoEditor.Ui.ViewModels
             _audioPlayerPropertyChangedHandler = OnAudioPlayerPropertyChanged;
             _audioPlayerViewModel.PropertyChanged += _audioPlayerPropertyChangedHandler;
 
-            // Initialize display from audio player current state
-            AudioPlaybackTime = _audioPlayerViewModel.PositionDisplay;
-            AudioDuration = _audioPlayerViewModel.DurationDisplay;
+            // Initialize playing state from audio player. The timecode readout
+            // (AudioPlaybackTime / AudioDuration) is driven by the timeline playhead and
+            // TotalDuration instead — see CanvasViewModel.Preview.cs — because the audio player
+            // reports 00:00 in timeline-first playback mode.
             IsPlaying = _audioPlayerViewModel.IsPlaying;
         }
 
@@ -1248,12 +1258,9 @@ namespace PodcastVideoEditor.Ui.ViewModels
 
             switch (e.PropertyName)
             {
-                case nameof(AudioPlayerViewModel.PositionDisplay):
-                    AudioPlaybackTime = _audioPlayerViewModel.PositionDisplay;
-                    break;
-                case nameof(AudioPlayerViewModel.DurationDisplay):
-                    AudioDuration = _audioPlayerViewModel.DurationDisplay;
-                    break;
+                // PositionDisplay / DurationDisplay are intentionally NOT mirrored here: the preview
+                // timecode is sourced from the timeline playhead + TotalDuration (timeline-first mode
+                // leaves the audio player at 00:00). See CanvasViewModel.Preview.cs.
                 case nameof(AudioPlayerViewModel.IsPlaying):
                     IsPlaying = _audioPlayerViewModel.IsPlaying;
                     break;

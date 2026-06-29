@@ -143,6 +143,30 @@ public sealed class SegmentTimingChangedAction : IUndoableAction
     public void Redo() { _seg.StartTime = _newStart; _seg.EndTime = _newEnd; _seg.SourceStartOffset = _newSourceOffset; _invalidateCache(); }
 }
 
+/// <summary>
+/// A segment's playback speed changed (CapCut-style). Restores both the segment's
+/// EndTime (the slot is rescaled by speed) and the Speed value. Rippled neighbours
+/// are recorded separately via <see cref="SegmentTimingChangedAction"/>.
+/// </summary>
+public sealed class SegmentSpeedChangedAction : IUndoableAction
+{
+    private readonly Segment _seg;
+    private readonly double _oldEnd, _newEnd, _oldSpeed, _newSpeed;
+    private readonly Action _invalidateCache;
+
+    public SegmentSpeedChangedAction(Segment seg, double oldEnd, double newEnd, double oldSpeed, double newSpeed, Action invalidateCache)
+    {
+        _seg = seg;
+        _oldEnd = oldEnd; _newEnd = newEnd;
+        _oldSpeed = oldSpeed; _newSpeed = newSpeed;
+        _invalidateCache = invalidateCache;
+    }
+
+    public string Description => "Change speed";
+    public void Undo() { _seg.EndTime = _oldEnd; _seg.Speed = _oldSpeed; _invalidateCache(); }
+    public void Redo() { _seg.EndTime = _newEnd; _seg.Speed = _newSpeed; _invalidateCache(); }
+}
+
 /// <summary>A segment was added to a track.</summary>
 public sealed class SegmentAddedAction : IUndoableAction
 {

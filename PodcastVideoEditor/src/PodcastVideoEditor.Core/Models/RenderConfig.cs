@@ -154,6 +154,12 @@ public class RenderVisualSegment
     public double SourceOffsetSeconds { get; set; }
 
     /// <summary>
+    /// Playback speed multiplier (1.0 = normal). Source content consumed =
+    /// (EndTime - StartTime) × Speed, compressed back into the slot via setpts. Video only.
+    /// </summary>
+    public double Speed { get; set; } = 1.0;
+
+    /// <summary>
     /// Overlay X position expression for FFmpeg (default null = full-frame, no offset).
     /// </summary>
     public string? OverlayX { get; set; }
@@ -326,6 +332,10 @@ public class RenderAudioSegment
 
     /// <summary>Offset into the source file where playback begins (seconds).</summary>
     public double SourceOffsetSeconds { get; set; }
+
+    /// <summary>Playback speed multiplier (1.0 = normal). Applied via atempo; consumes
+    /// (EndTime - StartTime) × Speed of source.</summary>
+    public double Speed { get; set; } = 1.0;
 
     /// <summary>Whether the audio should loop to fill its [StartTime, EndTime] window.</summary>
     public bool IsLooping { get; set; }

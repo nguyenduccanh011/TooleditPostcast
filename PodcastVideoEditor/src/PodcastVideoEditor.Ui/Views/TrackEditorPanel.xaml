@@ -47,7 +47,8 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="Tên track:" Style="{StaticResource CompactPropertyLabelStyle}"/>
                     <TextBlock x:Name="TrackNameText" Grid.Column="1"
-                               Style="{StaticResource PropertyValueTextStyle}" FontSize="11" VerticalAlignment="Center"/>
+                               Foreground="{StaticResource PrimaryForegroundBrush}" FontWeight="SemiBold"
+                               FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                 </Grid>
 
                 <!-- Track type -->
@@ -59,7 +60,7 @@
                     <TextBlock Grid.Column="0" Text="Loại:" Style="{StaticResource CompactPropertyLabelStyle}"/>
                     <TextBlock x:Name="TrackTypeText" Grid.Column="1"
                                Foreground="{StaticResource AccentLightBlueBrush}"
-                               FontFamily="Courier New" FontSize="11" VerticalAlignment="Center"/>
+                               FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center"/>
                 </Grid>
 
                 <!-- Track role -->
@@ -140,7 +141,7 @@
                                 VerticalAlignment="Center" Margin="0,0,6,0"
                                 ValueChanged="MotionIntensitySlider_ValueChanged"/>
                         <TextBlock x:Name="MotionIntensityValueText" Grid.Column="2" Text="30%"
-                                   Style="{StaticResource PropertyValueTextStyle}" FontSize="11"
+                                   Foreground="{StaticResource PanelForegroundBrush}" FontWeight="SemiBold" FontSize="11"
                                    TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 
@@ -167,7 +168,7 @@
                                 VerticalAlignment="Center" Margin="0,0,6,0"
                                 ValueChanged="OverlayOpacitySlider_ValueChanged"/>
                         <TextBlock x:Name="OverlayOpacityValueText" Grid.Column="2" Text="0%"
-                                   Style="{StaticResource PropertyValueTextStyle}" FontSize="11"
+                                   Foreground="{StaticResource PanelForegroundBrush}" FontWeight="SemiBold" FontSize="11"
                                    TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
 

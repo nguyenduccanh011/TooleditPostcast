@@ -34,6 +34,7 @@
         <conv:KindToVisibilityConverter x:Key="KindToVisibilityConverter"/>
         <conv:KindToVisibilityInverseConverter x:Key="KindToVisibilityInverseConverter"/>
         <conv:SecondsToTimecodeConverter x:Key="SecondsToTimecodeConverter"/>
+        <conv:SegmentWindowFilterConverter x:Key="SegmentWindowFilterConverter"/>
         <!-- Thumb template tối giản: bỏ template mặc định gây khối trắng -->
         <Style x:Key="TransparentThumbStyle" TargetType="Thumb">
             <Setter Property="Template">
@@ -118,13 +119,13 @@
                 <!-- Col 0: Fixed Track Headers (no horizontal scroll) - MUST use same structure as Col 1 -->
                 <Grid Grid.Column="0" Background="#252525">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="40"/>
+                        <RowDefinition Height="28"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="26"/>
                     </Grid.RowDefinitions>
 
                     <!-- Row 0: Ruler header with zoom slider -->
-                    <Border Grid.Row="0" Height="40" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,0,1,0">
+                    <Border Grid.Row="0" Height="28" Background="{StaticResource SecondaryBackgroundBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,0,1,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
@@ -195,13 +196,16 @@
                                                 ToolTip="Lock/Unlock track"
                                                 Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
                                                 Click="TrackLockButton_Click" Tag="{Binding}">
-                                            <TextBlock FontFamily="Segoe UI Emoji" FontSize="9" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                                       Foreground="{StaticResource PropertyLabelBrush}"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="🔓"/>
+                                                        <Setter Property="Text" Value="&#xE785;"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsLocked}" Value="True">
-                                                                <Setter Property="Text" Value="🔒"/>
+                                                                <Setter Property="Text" Value="&#xE72E;"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource WarningForegroundBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -213,13 +217,16 @@
                                                 ToolTip="Show/Hide track"
                                                 Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
                                                 Click="TrackVisibilityButton_Click" Tag="{Binding}">
-                                            <TextBlock FontFamily="Segoe UI Emoji" FontSize="9" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="11"
+                                                       Foreground="{StaticResource PropertyLabelBrush}"
+                                                       VerticalAlignment="Center" HorizontalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
-                                                        <Setter Property="Text" Value="👁"/>
+                                                        <Setter Property="Text" Value="&#xE7B3;"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                <Setter Property="Text" Value="🚫"/>
+                                                                <Setter Property="Text" Value="&#xED1A;"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource MutedForegroundBrush}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -255,13 +262,13 @@
                              CacheMode="BitmapCache">
                     <Grid Width="{Binding TimelineWidth}">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="40"/>
+                            <RowDefinition Height="28"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="26"/>
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Ruler -->
-                        <Border Grid.Row="0" Background="{StaticResource SecondaryBackgroundBrush}" Height="40"
+                        <Border Grid.Row="0" Background="{StaticResource SecondaryBackgroundBrush}" Height="28"
                                 MouseDown="RulerBorder_MouseDown"
                                 MouseMove="RulerBorder_MouseMove"
                                 MouseUp="RulerBorder_MouseUp"
@@ -269,7 +276,7 @@
                                 BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0">
                             <controls:TimelineRulerControl x:Name="RulerControl"
                                                            HorizontalAlignment="Left"
-                                                           Height="40"
+                                                           Height="28"
                                                            ClipToBounds="True"
                                                            Width="{Binding TimelineWidth}"
                                                            PixelsPerSecond="{Binding PixelsPerSecond}"
@@ -300,7 +307,17 @@
                                                DragOver="TrackCanvas_DragOver"
                                                DragLeave="TrackCanvas_DragLeave"
                                                Drop="TrackCanvas_Drop">
-                                        <ItemsControl ItemsSource="{Binding Segments}" x:Name="SegmentsItemsControl">
+                                        <ItemsControl x:Name="SegmentsItemsControl">
+                                            <!-- UI-virtualized: only segments intersecting the visible pixel
+                                                 window are realized (the Canvas panel below can't virtualize). -->
+                                            <ItemsControl.ItemsSource>
+                                                <MultiBinding Converter="{StaticResource SegmentWindowFilterConverter}">
+                                                    <Binding Path="Segments"/>
+                                                    <Binding Path="DataContext.SegmentWindowStartPx" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                    <Binding Path="DataContext.SegmentWindowEndPx" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                    <Binding Path="DataContext.SegmentWindowRevision" RelativeSource="{RelativeSource AncestorType={x:Type local:TimelineView}}"/>
+                                                </MultiBinding>
+                                            </ItemsControl.ItemsSource>
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <Canvas Background="Transparent" Width="{Binding RelativeSource={RelativeSource AncestorType=Canvas}, Path=Width}"/>
@@ -364,6 +381,7 @@
                                                                       HorizontalAlignment="Stretch"
                                                                       VerticalAlignment="Stretch"
                                                                       Panel.ZIndex="0"
+                                                                      ToolTip="{Binding Text, Converter={StaticResource SegmentDisplayLabelConverter}}"
                                                                       MouseDown="MoveThumb_MouseDown"
                                                                       MouseRightButtonUp="MoveThumb_MouseRightButtonUp"
                                                                       DragStarted="MoveThumb_DragStarted"
@@ -371,9 +389,11 @@
                                                                       DragCompleted="MoveThumb_DragCompleted"/>
                                                                 <Grid Panel.ZIndex="1" IsHitTestVisible="False" Margin="2,0">
                                                                     <!-- Single full-width column: preview fills segment; floating label overlaid -->
-                                                                    <!-- Visual/Text segments: show thumbnail/video strip -->
+                                                                    <!-- Only VISUAL segments show the thumbnail/video-strip subtree. Text segments (which can
+                                                                         number in the hundreds for subtitle-heavy projects) skip it entirely — that subtree
+                                                                         (strip ItemsControl + images) is the bulk of a segment's visual cost. -->
                                                                     <Border Grid.Column="0" CornerRadius="3" VerticalAlignment="Stretch" MinWidth="60"
-                                                                            Visibility="{Binding Kind, Converter={StaticResource KindToVisibilityInverseConverter}, ConverterParameter=audio}">
+                                                                            Visibility="{Binding Kind, Converter={StaticResource KindToVisibilityConverter}, ConverterParameter=visual}">
                                                                         <Border.Background>
                                                                             <MultiBinding Converter="{StaticResource SegmentThumbnailBrushConverter}">
                                                                                 <Binding Path="BackgroundAssetId"/>
@@ -470,12 +490,13 @@
                                                                                                   PixelsPerSecond="{Binding DataContext.PixelsPerSecond, RelativeSource={RelativeSource AncestorType={x:Type local:TimelineView}}}"/>
                                                                     </Border>
                                                                     <!-- Floating label: segment name/text; vertically centered for text-kind tracks -->
-                                                                    <TextBlock Text="{Binding Text}"
+                                                                    <TextBlock Text="{Binding Text, Converter={StaticResource SegmentDisplayLabelConverter}}"
                                                                                HorizontalAlignment="Left"
                                                                                Foreground="White" FontWeight="SemiBold"
                                                                                Margin="4,2,4,0" Padding="2,1"
                                                                                TextTrimming="CharacterEllipsis"
                                                                                Background="#80000000"
+                                                                               Visibility="{Binding PixelWidth, Converter={StaticResource SegmentLabelVisibilityConverter}, ConverterParameter=34}"
                                                                                Panel.ZIndex="5">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
